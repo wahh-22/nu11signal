@@ -24,10 +24,23 @@ public struct Request {
         args[key] as? String
     }
 
+    /// An integral number within ±2^53, the range a JSON number keeps exact
+    /// in every decoder. Fractional or larger values are rejected rather than
+    /// truncated, so a bad argument is reported instead of silently changed.
     public func int(_ key: String) -> Int? {
         guard let number = args[key] as? NSNumber, !isBool(number) else { return nil }
-        return number.intValue
+        if !(number is NSDecimalNumber), !CFNumberIsFloatType(number) {
+            let value = number.int64Value
+            return value.magnitude <= Request.maxExactInteger ? Int(value) : nil
+        }
+        let value = number.doubleValue
+        guard value.isFinite, value.rounded(.towardZero) == value,
+              value.magnitude < Double(Request.maxExactInteger)
+        else { return nil }
+        return Int(value)
     }
+
+    private static let maxExactInteger: UInt64 = 1 << 53
 
     public func double(_ key: String) -> Double? {
         guard let number = args[key] as? NSNumber, !isBool(number) else { return nil }
@@ -55,6 +68,7 @@ public enum Message {
     case success(id: String, result: JSONObject)
     case failure(id: String, error: String)
     case event(name: String, fields: JSONObject)
+
 }
 
 public enum Codec {
@@ -75,21 +89,38 @@ public enum Codec {
     }
 
     /// Encodes one message as a single JSON line terminated by "\n".
+    ///
+    /// A message that is not valid JSON (NaN, infinity, a non-JSON type) never
+    /// crashes the helper: a response falls back to a failure that keeps its
+    /// `id`, so the caller waiting on that id still gets an answer, and an
+    /// event falls back to an `error` event naming the event that failed.
     public static func encode(_ message: Message) -> Data {
         let object: JSONObject
+        let fallback: JSONObject
         switch message {
         case let .success(id, result):
             object = ["id": id, "ok": true, "result": result]
+            fallback = ["id": id, "ok": false, "error": "failed to encode response"]
         case let .failure(id, error):
             object = ["id": id, "ok": false, "error": error]
+            fallback = ["id": id, "ok": false, "error": "failed to encode response"]
         case let .event(name, fields):
             object = fields.merging(["event": name]) { _, new in new }
+            fallback = ["event": "error", "message": "failed to encode \(name) event"]
         }
-        var data = (try? JSONSerialization.data(
-            withJSONObject: object,
-            options: [.sortedKeys, .withoutEscapingSlashes]
-        )) ?? Data(#"{"event":"error","message":"failed to encode message"}"#.utf8)
+        var data = serialize(object) ?? serialize(fallback)
+            ?? Data(#"{"event":"error","message":"failed to encode message"}"#.utf8)
         data.append(UInt8(ascii: "\n"))
         return data
+    }
+
+    /// JSONSerialization raises an Objective-C exception (which Swift cannot
+    /// catch) for invalid objects, so validate before serializing.
+    private static func serialize(_ object: JSONObject) -> Data? {
+        guard JSONSerialization.isValidJSONObject(object) else { return nil }
+        return try? JSONSerialization.data(
+            withJSONObject: object,
+            options: [.sortedKeys, .withoutEscapingSlashes]
+        )
     }
 }

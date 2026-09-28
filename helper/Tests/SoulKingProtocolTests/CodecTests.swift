@@ -49,6 +49,49 @@ final class CodecTests: XCTestCase {
         let data = Codec.encode(.event(name: "ready", fields: [:]))
         XCTAssertEqual(String(decoding: data, as: UTF8.self), #"{"event":"ready"}"# + "\n")
     }
+
+    func testIntRejectsFractionalNumbersInsteadOfTruncating() throws {
+        let request = try Codec.decode(#"{"id":"1","cmd":"search","limit":1.9,"startIndex":-2.5}"#).get()
+        XCTAssertNil(request.int("limit"))
+        XCTAssertNil(request.int("startIndex"))
+    }
+
+    func testIntRejectsValuesOutsideTheExactRange() throws {
+        let request = try Codec.decode(#"{"id":"1","cmd":"search","huge":1e30,"big":9007199254740993}"#).get()
+        XCTAssertNil(request.int("huge"))
+        XCTAssertNil(request.int("big"))
+    }
+
+    func testIntAcceptsIntegralNumbers() throws {
+        let request = try Codec.decode(#"{"id":"1","cmd":"search","a":3,"b":2.0,"c":-1,"d":0}"#).get()
+        XCTAssertEqual(request.int("a"), 3)
+        XCTAssertEqual(request.int("b"), 2)
+        XCTAssertEqual(request.int("c"), -1)
+        XCTAssertEqual(request.int("d"), 0)
+    }
+
+    func testUnencodableSuccessKeepsResponseID() throws {
+        let data = Codec.encode(.success(id: "42", result: ["position": Double.nan]))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["id"] as? String, "42")
+        XCTAssertEqual(object["ok"] as? Bool, false)
+        XCTAssertEqual(object["error"] as? String, "failed to encode response")
+        XCTAssertEqual(data.last, UInt8(ascii: "\n"))
+        XCTAssertEqual(data.filter { $0 == UInt8(ascii: "\n") }.count, 1)
+    }
+
+    func testNonJSONValueFallsBackInsteadOfCrashing() throws {
+        let data = Codec.encode(.success(id: "3", result: ["when": Date()]))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["id"] as? String, "3")
+        XCTAssertEqual(object["error"] as? String, "failed to encode response")
+    }
+
+    func testUnencodableEventBecomesErrorEvent() throws {
+        let data = Codec.encode(.event(name: "state", fields: ["state": ["position": Double.infinity]]))
+        XCTAssertEqual(String(decoding: data, as: UTF8.self),
+                       #"{"event":"error","message":"failed to encode state event"}"# + "\n")
+    }
 }
 
 private extension Result {
