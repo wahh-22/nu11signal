@@ -7,7 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"soulking/internal/playback"
+	"github.com/wahh-22/soul-king/internal/playback"
 )
 
 // Layout thresholds. Below fullMin* the UI collapses into a single column

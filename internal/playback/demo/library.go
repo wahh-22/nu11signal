@@ -3,7 +3,7 @@ package demo
 import (
 	"time"
 
-	"soulking/internal/playback"
+	"github.com/wahh-22/soul-king/internal/playback"
 )
 
 // The demo library is fictional: invented artists and tracks.

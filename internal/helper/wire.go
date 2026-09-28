@@ -6,7 +6,7 @@ import (
 	"math"
 	"time"
 
-	"soulking/internal/playback"
+	"github.com/wahh-22/soul-king/internal/playback"
 )
 
 // Wire types for the helper's JSON Lines protocol (see

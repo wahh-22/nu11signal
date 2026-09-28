@@ -9,7 +9,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"soulking/internal/playback"
+	"github.com/wahh-22/soul-king/internal/playback"
 )
 
 // Options configures a radio Model. Zero values select sensible defaults.

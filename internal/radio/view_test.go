@@ -12,7 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"soulking/internal/playback/playbacktest"
+	"github.com/wahh-22/soul-king/internal/playback/playbacktest"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")

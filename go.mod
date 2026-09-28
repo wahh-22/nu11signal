@@ -1,4 +1,4 @@
-module soulking
+module github.com/wahh-22/soul-king
 
 go 1.26.2
 

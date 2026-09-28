@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"soulking/internal/playback"
+	"github.com/wahh-22/soul-king/internal/playback"
 )
 
 var _ playback.Player = (*Fake)(nil)

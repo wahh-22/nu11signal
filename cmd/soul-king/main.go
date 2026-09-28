@@ -17,10 +17,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"soulking/internal/helper"
-	"soulking/internal/playback"
-	"soulking/internal/playback/demo"
-	"soulking/internal/radio"
+	"github.com/wahh-22/soul-king/internal/helper"
+	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/soul-king/internal/playback/demo"
+	"github.com/wahh-22/soul-king/internal/radio"
 )
 
 // startTimeout bounds launching the helper until it reports ready.
