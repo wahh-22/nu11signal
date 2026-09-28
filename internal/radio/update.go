@@ -1,0 +1,232 @@
+package radio
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
+	"soulking/internal/playback"
+)
+
+// Update handles one message.
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		m.input.SetWidth(max(m.width-24, 8))
+		return m, nil
+	case tea.KeyPressMsg:
+		return m.handleKey(msg)
+	case tickMsg:
+		if msg.gen != m.tickGen {
+			return m, nil // superseded chain
+		}
+		return m.onTick()
+	case authMsg:
+		return m.onAuth(msg)
+	case playlistsMsg:
+		if msg.err != nil {
+			m.setStatus("STATION LIST FAILED // " + msg.err.Error())
+			return m, nil
+		}
+		m.stations = msg.playlists
+		m.stationCursor = min(m.stationCursor, max(len(m.stations)-1, 0))
+		return m, nil
+	case searchMsg:
+		return m.onSearch(msg)
+	case actionMsg:
+		if msg.err != nil {
+			m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
+		}
+		return m, nil
+	case stateMsg:
+		m = m.onState(msg.state)
+		if m.animating() && !m.tickFast {
+			return m, tea.Batch(m.waitStates(), m.scheduleTick())
+		}
+		return m, m.waitStates()
+	case statesClosedMsg:
+		m.lostState = true
+		return m, nil
+	case playerErrMsg:
+		m.setStatus("SIGNAL ERROR // " + msg.err.Error())
+		return m, m.waitErrors()
+	case errorsClosedMsg:
+		m.lostErrs = true
+		return m, nil
+	}
+	if m.searching {
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m Model) onAuth(msg authMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case msg.err != nil:
+		m.auth, m.authDetail = authFailed, msg.err.Error()
+		return m, nil
+	case msg.status != playback.AuthAuthorized:
+		m.auth, m.authDetail = authFailed, "music library access: "+string(msg.status)
+		return m, nil
+	}
+	m.auth = authOK
+	return m, m.loadPlaylistsCmd()
+}
+
+func (m Model) onSearch(msg searchMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.setStatus("CATALOG SCAN FAILED // " + msg.err.Error())
+		return m, nil
+	}
+	if len(msg.songs) == 0 {
+		m.setStatus(fmt.Sprintf("NO SIGNAL FOR %q", msg.term))
+		return m, nil
+	}
+	m.status = ""
+	m.results, m.resultsTerm = msg.songs, msg.term
+	m.resultCursor = 0
+	m.list = viewResults
+	return m, nil
+}
+
+func (m Model) onState(s playback.State) Model {
+	if s.SongID != m.state.SongID || s.Title != m.state.Title {
+		m.glitch = glitchFrames
+	}
+	m.state, m.hasState, m.stateAt = s, true, m.now()
+	return m
+}
+
+func (m Model) onTick() (tea.Model, tea.Cmd) {
+	m.frame++
+	m.bars = m.bars.step(m.isPlaying(), m.seed, m.frame)
+	if m.glitch > 0 {
+		m.glitch--
+	}
+	if m.status != "" && !m.now().Before(m.statusUntil) {
+		m.status = ""
+	}
+	return m, m.scheduleTick()
+}
+
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	k := msg.String()
+	if k == keyCtrlC {
+		return m, m.quitCmd()
+	}
+	if m.searching {
+		return m.handleSearchKey(msg)
+	}
+	if m.auth == authFailed {
+		if k == keyQuit || k == keyEsc {
+			return m, m.quitCmd()
+		}
+		return m, nil
+	}
+
+	switch k {
+	case keyQuit:
+		return m, m.quitCmd()
+	case keyUp, keyUpAlt:
+		m.moveCursor(-1)
+	case keyDown, keyDownAlt:
+		m.moveCursor(1)
+	case keyEnter:
+		return m.playSelection()
+	case keySpace:
+		if m.isPlaying() {
+			return m, m.action("PAUSE", m.player.Pause)
+		}
+		return m, m.action("RESUME", m.player.Resume)
+	case keyNext:
+		return m, m.action("NEXT", m.player.Next)
+	case keyPrev:
+		return m, m.action("PREV", m.player.Previous)
+	case keyBack:
+		return m.seek(-seekStep)
+	case keyForward:
+		return m.seek(seekStep)
+	case keySearch:
+		m.searching = true
+		m.input.Reset()
+		return m, m.input.Focus()
+	case keyTab:
+		if len(m.results) > 0 {
+			if m.list == viewResults {
+				m.list = viewStations
+			} else {
+				m.list = viewResults
+			}
+		}
+	case keyEsc:
+		m.list = viewStations
+	}
+	return m, nil
+}
+
+func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case keyEsc:
+		m.searching = false
+		m.input.Blur()
+		return m, nil
+	case keyEnter:
+		term := strings.TrimSpace(m.input.Value())
+		m.searching = false
+		m.input.Blur()
+		if term == "" {
+			return m, nil
+		}
+		m.setStatus("SCANNING CATALOG // " + strings.ToUpper(term))
+		return m, m.searchCmd(term)
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	return m, cmd
+}
+
+func (m *Model) moveCursor(delta int) {
+	if m.showingResults() {
+		m.resultCursor = max(0, min(m.resultCursor+delta, len(m.results)-1))
+		return
+	}
+	m.stationCursor = max(0, min(m.stationCursor+delta, len(m.stations)-1))
+}
+
+func (m Model) playSelection() (tea.Model, tea.Cmd) {
+	if m.showingResults() {
+		ids := make([]string, len(m.results))
+		for i, s := range m.results {
+			ids[i] = s.ID
+		}
+		start := m.resultCursor
+		m.playingStation = ""
+		return m, m.action("PLAY", func(ctx context.Context) error {
+			return m.player.PlaySongs(ctx, ids, start)
+		})
+	}
+	if len(m.stations) == 0 {
+		return m, nil
+	}
+	id := m.stations[m.stationCursor].ID
+	m.playingStation = id
+	return m, m.action("TUNE", func(ctx context.Context) error {
+		return m.player.PlayPlaylist(ctx, id)
+	})
+}
+
+func (m Model) seek(delta time.Duration) (tea.Model, tea.Cmd) {
+	if !m.hasState || m.state.Duration <= 0 {
+		return m, nil
+	}
+	target := clampDuration(m.position()+delta, 0, m.state.Duration)
+	return m, m.action("SEEK", func(ctx context.Context) error {
+		return m.player.Seek(ctx, target)
+	})
+}
