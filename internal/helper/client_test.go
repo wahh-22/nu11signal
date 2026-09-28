@@ -261,6 +261,33 @@ func TestUndecodableOutputKillsHelper(t *testing.T) {
 	}
 }
 
+// Start's ctx bounds only the startup: cancelling it afterwards (as callers
+// do with a deferred cancel) must not stop the helper.
+func TestStartContextOnlyBoundsStartup(t *testing.T) {
+	exe, _ := os.Executable()
+	ctx, cancel := context.WithCancel(t.Context())
+	c, err := Start(ctx, Options{Path: exe, Env: fakeHelperEnv("standard")})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	cancel()
+	time.Sleep(50 * time.Millisecond)
+	if err := c.Pause(t.Context()); err != nil {
+		t.Fatalf("Pause after cancelling the startup context: %v", err)
+	}
+}
+
+func TestStartHonoursCancelledContext(t *testing.T) {
+	exe, _ := os.Executable()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := Start(ctx, Options{Path: exe, Env: fakeHelperEnv("mute"), ReadyTimeout: 10 * time.Second})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Start error = %v; want context.Canceled", err)
+	}
+}
+
 func TestStartFailures(t *testing.T) {
 	tests := []struct {
 		scenario string

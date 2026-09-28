@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -21,6 +22,9 @@ import (
 	"soulking/internal/playback/demo"
 	"soulking/internal/radio"
 )
+
+// startTimeout bounds launching the helper until it reports ready.
+const startTimeout = 10 * time.Second
 
 func main() {
 	if err := run(); err != nil {
@@ -37,8 +41,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	// The UI closes the player on quit; closing again is harmless and
-	// covers every other exit path.
+	// The UI closes the player on quit but stops waiting after a timeout;
+	// this Close (idempotent) covers every other exit path and, once the
+	// terminal is restored, waits for the helper, which bounds its own
+	// shutdown and kills a helper that does not exit.
 	defer player.Close()
 
 	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano())})
@@ -57,7 +63,13 @@ func openPlayer(demoMode bool) (playback.Player, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// ctx bounds only the startup handshake (helper.Start does not tie the
+	// process to it), so cancelling it on return is correct and leaks
+	// nothing: the helper lives until the player is closed. An interrupt
+	// during startup aborts it and kills the half-started helper.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	ctx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
 	client, err := helper.Start(ctx, helper.Options{Path: path})
 	if err != nil {
