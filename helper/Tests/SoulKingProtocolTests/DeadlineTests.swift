@@ -35,6 +35,13 @@ final class DeadlineTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 2)
     }
 
+    func testExtremeOrNonFiniteTimeoutsDoNotTrap() async throws {
+        for seconds in [TimeInterval.infinity, 1e30, .nan, -1] {
+            let value = try await Deadline.run(seconds: seconds) { 7 }
+            XCTAssertEqual(value, 7, "seconds: \(seconds)")
+        }
+    }
+
     func testALateResultAfterATimeoutIsIgnored() async throws {
         do {
             _ = try await Deadline.run(seconds: 0.02) { () async throws -> Int in

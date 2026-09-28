@@ -23,7 +23,9 @@ final class CommandHandler {
     /// not honour cancellation, so a timed-out call may still finish (and
     /// change playback) later; its late result is discarded. The trade-off
     /// favours a responsive chain over strict ordering of a hung call.
-    static let playbackTimeout: TimeInterval = 10
+    /// Kept below the Go client's per-call deadline (8s, `defaultCallTimeout`
+    /// in internal/radio) so the helper reports the timeout first.
+    static let playbackTimeout: TimeInterval = 6
 
     /// Runs one request and sends exactly one response. With a timeout, a
     /// command that has not finished in time is answered with an error.
