@@ -35,10 +35,27 @@ final class DeadlineTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 2)
     }
 
-    func testExtremeOrNonFiniteTimeoutsDoNotTrap() async throws {
-        for seconds in [TimeInterval.infinity, 1e30, .nan, -1] {
+    func testHugeOrInfiniteTimeoutsDoNotTrap() async throws {
+        for seconds in [TimeInterval.infinity, 1e30] {
             let value = try await Deadline.run(seconds: seconds) { 7 }
             XCTAssertEqual(value, 7, "seconds: \(seconds)")
+        }
+    }
+
+    func testNaNOrNegativeTimeoutsExpireImmediatelyWithoutTrapping() async {
+        for seconds in [TimeInterval.nan, -1] {
+            do {
+                // The timer fires at once, well before the one-second
+                // operation, so the only valid outcome is a timeout.
+                _ = try await Deadline.run(seconds: seconds) { () async throws -> Int in
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                    return 7
+                }
+                XCTFail("expected an immediate timeout for seconds: \(seconds)")
+            } catch is Deadline.TimedOut {
+            } catch {
+                XCTFail("unexpected error \(error) for seconds: \(seconds)")
+            }
         }
     }
 

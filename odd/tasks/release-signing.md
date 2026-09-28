@@ -51,6 +51,9 @@ Development signing only works on registered Macs. Gatekeeper requires Developer
 
 - R1 evidence (2026-09-28): `make build` dev helper signs and verifies (`Apple Development`, same entitlements, embedded profile); `make release-dry-run VERSION=0.1.0` lists 3 missing Developer ID items (+ dirty tree before commit), `lipo -archs` = `x86_64 arm64` for `bin/soul-king` and the helper, layout `dist/soul-king-0.1.0/{bin,libexec/SoulKingHelper.app,LICENSE,README.md}`; `dist/.../bin/soul-king --version` from `/tmp` prints `0.1.0`; `make test`/`vet`/`fmt-check` pass; `make release VERSION=0.1.0` stops in preflight (identity, profile, notary profile) before building. `shellcheck` not installed (skipped; `bash -n` passes). Helper slices report `minos 14.0` despite an x86_64 deprecation warning from SwiftPM.
 
+- R1 native review (range `1073c9e..a0c6081`, includes timeouts, license, module path): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-d07d29418cc29290`). Fixed the flaky non-finite Deadline test it flagged (NaN/negative now assert an immediate timeout; 3 stable runs).
+- Follow-ups (minor advisories): `release.sh` deletes the previous archive before the new build succeeds (line 125); `main.go` exit-path split untested (46-51); release.sh literals/help text nits.
+
 ## Next step
 
 R2 once the user finishes U1–U3: `make release VERSION=0.1.0`.
