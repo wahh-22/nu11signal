@@ -33,7 +33,7 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
 
 - [x] T1 — Swift helper: JSON-lines protocol (auth, search, playlists, play songs/playlist, pause, resume, next, prev, stop, periodic state events); build script bundles + signs the .app. Route: delegated (writer trigger: 2+ non-trivial files).
 - [x] T2 — Go `Player` port + helper-process adapter + protocol codec, with tests against a fake helper. Route: delegated (writer trigger: 2+ non-trivial files).
-- [ ] T3 — Cyberpunk radio TUI (theme, layout, stations, now playing, EQ bars, search, keys), tested with a fake Player. Route: delegated.
+- [x] T3 — Cyberpunk radio TUI (theme, layout, stations, now playing, EQ bars, search, keys), tested with a fake Player. Route: delegated (writer trigger: 2+ non-trivial files).
 - [ ] T5 — Helper hardening from T1 review advisories: queue subscription leak (StateEmitter.swift:59-64), per-request ordering (main.swift:23-27), EOF hang when a request never finishes (main.swift:30-33), stdout backpressure (Output.swift:12-21), stderr write failures, silent drop of unknown ids in playSongs (Commands.swift:93), seek does not emit state Route: delegated.
 - [ ] T6 — Go adapter hardening from T2 review advisories: CWD-relative helper lookup allows binary planting (locate.go:47-49) — restrict to explicit env or executable-relative paths; writes to helper stdin are not ctx-bounded and send errors are not mapped to ErrHelperExited (client.go:212-221); untested failure paths (client.go:257-262); fake buffer magic number; unasserted fake args. Route: delegated.
 - [ ] T4 — Makefile, README (setup: App ID, profile, env vars), end-to-end manual run. Route: delegated or inline, depending on size.
@@ -73,6 +73,14 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
 
   - T2 native review: tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-d9aa5c1667992405`, authority burned). Advisories moved to T6. Reviewed boundary advances to `658b5fc`.
 
+- T3 done (route: delegated writer; trigger: writer, 2+ non-trivial files). Commits: `78f628c` (`feat(playback): add simulated demo player`), `1b3722a` (`feat(radio): add Cyberpunk radio TUI`).
+  - Dependencies: Bubble Tea v2 line (`charm.land/bubbletea/v2` v2.0.10, `charm.land/lipgloss/v2` v2.0.6, `charm.land/bubbles/v2` v2.2.1), `github.com/charmbracelet/x/ansi` v0.11.8.
+  - Layout: `internal/radio` (`model.go` state + Player cmds, `update.go`, `view.go`, `theme.go` palette + notched `panel`, `eq.go` seeded EQ + title glitch, `format.go` frequency/mm:ss/progress, `keys.go`); `internal/playback/demo` (simulated Player, fictional library); `cmd/soul-king/main.go` (`--demo`, else `helper.Locate` → `helper.Start`).
+  - Behavior: stations at 088.1 + 1.6 MHz steps; enter plays station (PlayPlaylist) or result (PlaySongs, all ids, cursor index); space pauses/resumes by status; n/p; ←/→ seek ±10s from the interpolated position, clamped; `/` CATALOG SCAN → Search(term, 25); tab/esc switch lists; q/ctrl+c close the player then quit. States/Errors re-arm per message; closed channels → SIGNAL LOST. Call errors and async errors → yellow status line expiring after 4s. Ticks: 100ms while animating, 1s idle, generation-tagged so rescheduling never doubles the rate. Layouts: full (≥60x16), compact single column, tiny wordmark; never exceeds the terminal size.
+  - Test-first: RED observed as build failures (`undefined: Model`, `eq`, `frequency`; demo: `undefined: Player`), then GREEN.
+  - Evidence: `go test -race ./...` → 102 passed (6 packages); `go test -race -count=2 ./...` stable; `go vet ./...` clean; `gofmt -l .` empty; `go build -o bin/soul-king ./cmd/soul-king` OK. Golden `internal/radio/testdata/view_80x24.golden` (ANSI stripped, fixed clock and seed). Demo frame rendered at 100x30 via a throwaway test (not committed).
+  - Size: ~1180 production + ~720 test lines in `internal/radio`, ~350 + 136 in the demo player; above the ~400 advisory heuristic because the TUI's model, update, and view are one coherent unit whose tests must land with it.
+
 ## Next step
 
-T3 — Cyberpunk radio TUI against `playback.Player`, tested with `playbacktest.Fake`.
+Native review of T3 (candidate range `658b5fc..1b3722a`), then T5/T6 hardening and T4 tooling.
