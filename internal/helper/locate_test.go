@@ -19,45 +19,65 @@ func writeExecutable(t *testing.T, path string) string {
 	return path
 }
 
+// realRoot returns a temporary directory with symlinks resolved (on macOS
+// the temp dir lives behind /var -> /private/var), so expected paths match
+// what Locate derives from the resolved executable.
+func realRoot(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
 func TestLocateResolutionOrder(t *testing.T) {
-	root := t.TempDir()
-	exeDir := filepath.Join(root, "bin")
-	workDir := filepath.Join(root, "work")
+	root := realRoot(t)
+	exe := filepath.Join(root, "bin", "soul-king")
 	envPath := filepath.Join(root, "custom", "soulking-helper")
-	besideExe := filepath.Join(exeDir, bundleRelPath)
-	inWorkDir := filepath.Join(workDir, "build", bundleRelPath)
+	besideExe := filepath.Join(root, "bin", bundleRelPath)
+	libexec := filepath.Join(root, "libexec", bundleRelPath)
+	devBuild := filepath.Join(root, "build", bundleRelPath)
 
 	tests := []struct {
 		name    string
 		env     string
 		create  []string
 		want    string
-		wantErr bool
+		wantErr string
 	}{
-		{"env var wins", envPath, []string{envPath, besideExe, inWorkDir}, envPath, false},
-		{"bundle beside executable", "", []string{besideExe, inWorkDir}, besideExe, false},
-		{"build dir in working directory", "", []string{inWorkDir}, inWorkDir, false},
-		{"env var pointing nowhere fails", envPath, []string{besideExe}, "", true},
-		{"nothing found", "", nil, "", true},
+		{"env var wins", envPath, []string{envPath, besideExe, libexec, devBuild}, envPath, ""},
+		{"bundle beside executable", "", []string{besideExe, libexec, devBuild}, besideExe, ""},
+		{"homebrew libexec layout", "", []string{libexec, devBuild}, libexec, ""},
+		{"dev build layout", "", []string{devBuild}, devBuild, ""},
+		{"env var pointing nowhere fails", envPath, []string{besideExe}, "", "not an executable file"},
+		{"relative env var is rejected", "build/" + bundleRelPath, []string{devBuild}, "", "absolute path"},
+		{"env var pointing at a directory fails", filepath.Join(root, "bin"), []string{besideExe}, "", "not an executable file"},
+		{"nothing found", "", nil, "", "tried"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_ = os.RemoveAll(root)
+			for _, dir := range []string{"bin", "custom", "libexec", "build"} {
+				_ = os.RemoveAll(filepath.Join(root, dir))
+			}
+			writeExecutable(t, exe)
 			for _, p := range tt.create {
 				writeExecutable(t, p)
 			}
 			l := locator{
 				getenv:     func(string) string { return tt.env },
-				executable: func() (string, error) { return filepath.Join(exeDir, "soul-king"), nil },
-				workDir:    func() (string, error) { return workDir, nil },
+				executable: func() (string, error) { return exe, nil },
 			}
 			got, err := l.locate()
-			if tt.wantErr {
+			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("locate = %q; want error", got)
 				}
 				if !errors.Is(err, ErrHelperNotFound) {
 					t.Fatalf("error %v is not ErrHelperNotFound", err)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error %q does not mention %q", err, tt.wantErr)
 				}
 				return
 			}
@@ -68,12 +88,57 @@ func TestLocateResolutionOrder(t *testing.T) {
 	}
 }
 
-func TestLocateErrorListsPathsTried(t *testing.T) {
-	root := t.TempDir()
+// A helper planted in the working directory must never be picked up: only
+// the explicit override and executable-relative locations are trusted.
+func TestLocateIgnoresWorkingDirectory(t *testing.T) {
+	root := realRoot(t)
+	exe := writeExecutable(t, filepath.Join(root, "install", "bin", "soul-king"))
+	attacker := filepath.Join(root, "attacker")
+	writeExecutable(t, filepath.Join(attacker, "build", bundleRelPath))
+	writeExecutable(t, filepath.Join(attacker, bundleRelPath))
+	t.Chdir(attacker)
+
 	l := locator{
 		getenv:     func(string) string { return "" },
-		executable: func() (string, error) { return filepath.Join(root, "bin", "soul-king"), nil },
-		workDir:    func() (string, error) { return root, nil },
+		executable: func() (string, error) { return exe, nil },
+	}
+	got, err := l.locate()
+	if err == nil {
+		t.Fatalf("locate = %q; want not found (working directory is untrusted)", got)
+	}
+	if strings.Contains(err.Error(), attacker) {
+		t.Fatalf("error %q mentions the working directory", err)
+	}
+}
+
+func TestLocateResolvesExecutableSymlinks(t *testing.T) {
+	root := realRoot(t)
+	realExe := writeExecutable(t, filepath.Join(root, "repo", "bin", "soul-king"))
+	want := writeExecutable(t, filepath.Join(root, "repo", "build", bundleRelPath))
+	link := filepath.Join(root, "usr", "local", "bin", "soul-king")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(realExe, link); err != nil {
+		t.Fatal(err)
+	}
+
+	l := locator{
+		getenv:     func(string) string { return "" },
+		executable: func() (string, error) { return link, nil },
+	}
+	got, err := l.locate()
+	if err != nil || got != want {
+		t.Fatalf("locate = %q, %v; want %q", got, err, want)
+	}
+}
+
+func TestLocateErrorListsPathsTried(t *testing.T) {
+	root := realRoot(t)
+	exe := writeExecutable(t, filepath.Join(root, "bin", "soul-king"))
+	l := locator{
+		getenv:     func(string) string { return "" },
+		executable: func() (string, error) { return exe, nil },
 	}
 	_, err := l.locate()
 	if err == nil {
@@ -81,11 +146,22 @@ func TestLocateErrorListsPathsTried(t *testing.T) {
 	}
 	for _, p := range []string{
 		filepath.Join(root, "bin", bundleRelPath),
+		filepath.Join(root, "libexec", bundleRelPath),
 		filepath.Join(root, "build", bundleRelPath),
 		HelperEnv,
 	} {
 		if !strings.Contains(err.Error(), p) {
 			t.Errorf("error %q does not mention %q", err, p)
 		}
+	}
+}
+
+func TestLocateFailsWhenExecutableIsUnknown(t *testing.T) {
+	l := locator{
+		getenv:     func(string) string { return "" },
+		executable: func() (string, error) { return "", errors.New("no /proc") },
+	}
+	if _, err := l.locate(); !errors.Is(err, ErrHelperNotFound) {
+		t.Fatalf("locate error = %v; want ErrHelperNotFound", err)
 	}
 }

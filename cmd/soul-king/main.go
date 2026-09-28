@@ -1,7 +1,9 @@
 // Command soul-king is a Cyberpunk 2077 style terminal radio for Apple Music.
 //
-// By default it starts the signed MusicKit helper (see helper.Locate); with
-// --demo it runs against an in-process simulated player instead.
+// By default it starts the signed MusicKit helper, found only through
+// $SOULKING_HELPER (an absolute path) or next to the soul-king binary (see
+// helper.Locate), never in the working directory; with --demo it runs
+// against an in-process simulated player instead.
 package main
 
 import (
