@@ -29,9 +29,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onAuth(msg)
 	case playlistsMsg:
 		if msg.err != nil {
-			m.setStatus("STATION LIST FAILED // " + msg.err.Error())
+			m.stationsFailed = true
+			m.setStatus("[R] RETRY // STATION LIST FAILED // " + msg.err.Error())
 			return m, nil
 		}
+		m.stationsFailed = false
 		m.stations = msg.playlists
 		m.stationCursor = min(m.stationCursor, max(len(m.stations)-1, 0))
 		return m, nil
@@ -42,6 +44,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
 		}
 		return m, nil
+	case playMsg:
+		if msg.err != nil {
+			m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
+			return m, nil
+		}
+		m.playingStation = msg.station
+		return m, nil
+	case seekMsg:
+		return m.onSeek(msg), nil
 	case stateMsg:
 		m = m.onState(msg.state)
 		if m.animating() && !m.tickFast {
@@ -98,6 +109,7 @@ func (m Model) onSearch(msg searchMsg) (tea.Model, tea.Cmd) {
 func (m Model) onState(s playback.State) Model {
 	if s.SongID != m.state.SongID || s.Title != m.state.Title {
 		m.glitch = glitchFrames
+		m.seekPending = false // the pending target belonged to another song
 	}
 	m.state, m.hasState, m.stateAt = s, true, m.now()
 	return m
@@ -166,6 +178,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case keyEsc:
 		m.list = viewStations
+	case keyRetry:
+		if m.stationsFailed {
+			m.stationsFailed = false
+			m.setStatus("RESCANNING STATIONS")
+			return m, m.loadPlaylistsCmd()
+		}
 	}
 	return m, nil
 }
@@ -206,8 +224,7 @@ func (m Model) playSelection() (tea.Model, tea.Cmd) {
 			ids[i] = s.ID
 		}
 		start := m.resultCursor
-		m.playingStation = ""
-		return m, m.action("PLAY", func(ctx context.Context) error {
+		return m, m.play("PLAY", "", func(ctx context.Context) error {
 			return m.player.PlaySongs(ctx, ids, start)
 		})
 	}
@@ -215,18 +232,53 @@ func (m Model) playSelection() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	id := m.stations[m.stationCursor].ID
-	m.playingStation = id
-	return m, m.action("TUNE", func(ctx context.Context) error {
+	return m, m.play("TUNE", id, func(ctx context.Context) error {
 		return m.player.PlayPlaylist(ctx, id)
 	})
+}
+
+// play runs a play request; the on-air station changes only once the
+// player confirms it.
+func (m Model) play(op, station string, fn func(context.Context) error) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := m.ctx()
+		defer cancel()
+		return playMsg{op: op, station: station, err: fn(ctx)}
+	}
 }
 
 func (m Model) seek(delta time.Duration) (tea.Model, tea.Cmd) {
 	if !m.hasState || m.state.Duration <= 0 {
 		return m, nil
 	}
-	target := clampDuration(m.position()+delta, 0, m.state.Duration)
-	return m, m.action("SEEK", func(ctx context.Context) error {
-		return m.player.Seek(ctx, target)
-	})
+	from := m.position()
+	if m.seekPending {
+		from = m.seekTarget
+	}
+	target := clampDuration(from+delta, 0, m.state.Duration)
+	m.seekSeq++
+	m.seekPending, m.seekTarget = true, target
+	seq := m.seekSeq
+	return m, func() tea.Msg {
+		ctx, cancel := m.ctx()
+		defer cancel()
+		return seekMsg{seq: seq, target: target, err: m.player.Seek(ctx, target)}
+	}
+}
+
+// onSeek settles the latest seek; answers to superseded seeks only report
+// failures.
+func (m Model) onSeek(msg seekMsg) Model {
+	if msg.err != nil {
+		m.setStatus(fmt.Sprintf("SEEK FAILED // %s", msg.err))
+	}
+	if msg.seq != m.seekSeq || !m.seekPending {
+		return m
+	}
+	m.seekPending = false
+	if msg.err == nil {
+		// The player confirmed the jump; show it until the next state.
+		m.state.Position, m.stateAt = msg.target, m.now()
+	}
+	return m
 }

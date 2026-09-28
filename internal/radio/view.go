@@ -278,7 +278,9 @@ func (m Model) listRows(w, h int) []string {
 	}
 	if n == 0 {
 		msg := "SCANNING BANDS..."
-		if m.auth == authOK {
+		if m.stationsFailed && !m.showingResults() {
+			msg = "[R] RETRY // SCAN FAILED"
+		} else if m.auth == authOK {
 			msg = "NO STATIONS // LIBRARY EMPTY"
 		}
 		return []string{" " + stDim.Render(msg)}
@@ -300,9 +302,10 @@ func (m Model) stationRow(i int, selected bool, w int) string {
 	if onAir {
 		mark = " ◉"
 	}
+	nameWidth := max(w-ansi.StringWidth(mark), 0) // cells, not bytes
 	if selected {
 		text := "▌▶ " + frequency(i) + "  " + name
-		text = fit(text, max(w-len(mark), 0)) + mark
+		text = fit(text, nameWidth) + mark
 		return stSelected.Render(fit(text, w))
 	}
 	nameStyle := stRed
@@ -310,7 +313,7 @@ func (m Model) stationRow(i int, selected bool, w int) string {
 		nameStyle = stYellow
 	}
 	text := "   " + stMuted.Render(frequency(i)) + "  " + nameStyle.Render(name)
-	return fit(text, max(w-len(mark), 0)) + stYellow.Render(mark)
+	return fit(fit(text, nameWidth)+stYellow.Render(mark), w)
 }
 
 func (m Model) resultRow(i int, selected bool, w int) string {

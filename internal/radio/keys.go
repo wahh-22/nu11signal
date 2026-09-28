@@ -16,6 +16,7 @@ const (
 	keyTab     = "tab"
 	keyEsc     = "esc"
 	keyQuit    = "q"
+	keyRetry   = "r"
 	keyCtrlC   = "ctrl+c"
 )
 

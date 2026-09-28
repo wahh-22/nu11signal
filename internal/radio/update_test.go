@@ -510,3 +510,169 @@ func TestGlitchText(t *testing.T) {
 		t.Errorf("glitch is not deterministic: %q vs %q", got, again)
 	}
 }
+
+func TestStationMarkedOnAirOnlyAfterHelperConfirms(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		f := playbacktest.New()
+		m := loaded(t, f, newClock())
+		m, cmd := press(t, m, "j", "enter")
+		if m.playingStation != "" {
+			t.Fatalf("station marked on air before the helper confirmed: %q", m.playingStation)
+		}
+		m, _ = step(t, m, run(t, cmd))
+		if m.playingStation != "pl-2" {
+			t.Fatalf("playingStation = %q after a confirmed tune; want pl-2", m.playingStation)
+		}
+	})
+	t.Run("failure keeps the previous station", func(t *testing.T) {
+		f := playbacktest.New()
+		m := loaded(t, f, newClock())
+		m, cmd := press(t, m, "enter")
+		m, _ = step(t, m, run(t, cmd))
+		f.MethodErr = map[string]error{"PlayPlaylist": errors.New("not in library")}
+		m, cmd = press(t, m, "j", "enter")
+		m, _ = step(t, m, run(t, cmd))
+		if m.playingStation != "pl-1" {
+			t.Fatalf("playingStation = %q after a failed tune; want pl-1", m.playingStation)
+		}
+		if view := m.render(); !strings.Contains(view, "NOT IN LIBRARY") {
+			t.Fatalf("status line missing the error:\n%s", view)
+		}
+	})
+	t.Run("failed song play keeps the station", func(t *testing.T) {
+		f := playbacktest.New()
+		f.SearchResult = songs()
+		m := loaded(t, f, newClock())
+		m, cmd := press(t, m, "enter")
+		m, _ = step(t, m, run(t, cmd))
+		m, _ = press(t, m, "/")
+		m = typeText(t, m, "daft")
+		m, cmd = press(t, m, "enter")
+		m, _ = step(t, m, run(t, cmd))
+		f.MethodErr = map[string]error{"PlaySongs": errors.New("offline")}
+		m, cmd = press(t, m, "enter")
+		m, _ = step(t, m, run(t, cmd))
+		if m.playingStation != "pl-1" {
+			t.Fatalf("playingStation = %q after a failed song play; want pl-1", m.playingStation)
+		}
+		f.MethodErr = nil
+		m, cmd = press(t, m, "enter")
+		m, _ = step(t, m, run(t, cmd))
+		if m.playingStation != "" {
+			t.Fatalf("playingStation = %q after playing songs; want none", m.playingStation)
+		}
+	})
+}
+
+func TestStationListFailureOffersRetry(t *testing.T) {
+	f := playbacktest.New()
+	f.MethodErr = map[string]error{"Playlists": errors.New("library offline")}
+	c := newClock()
+	m := newModel(t, f, c)
+	m, cmd := step(t, m, run(t, m.authorizeCmd()))
+	m, _ = step(t, m, run(t, cmd))
+	if view := m.render(); !strings.Contains(view, "[R] RETRY") {
+		t.Fatalf("view does not offer a retry:\n%s", view)
+	}
+	// The offer outlives the transient status line.
+	c.advance(statusTTL + time.Second)
+	m, _ = step(t, m, tickMsg{gen: m.tickGen})
+	if view := m.render(); !strings.Contains(view, "[R] RETRY") {
+		t.Fatalf("retry offer expired:\n%s", view)
+	}
+
+	f.MethodErr = nil
+	f.PlaylistsResult = stations()
+	m, cmd = press(t, m, "r")
+	if cmd == nil {
+		t.Fatal("r did not retry loading the station list")
+	}
+	m, _ = step(t, m, run(t, cmd))
+	calls := f.Calls()
+	if n := len(calls); n < 2 || calls[n-1].Method != "Playlists" || calls[n-2].Method != "Playlists" {
+		t.Fatalf("calls = %v; want Playlists retried", calls)
+	}
+	view := m.render()
+	if !strings.Contains(view, "NIGHT DRIVE") || strings.Contains(view, "[R] RETRY") {
+		t.Fatalf("retry did not load the stations:\n%s", view)
+	}
+	// Once loaded, r is not a retry key.
+	if _, cmd := press(t, m, "r"); cmd != nil {
+		t.Fatal("r reloaded stations that loaded fine")
+	}
+}
+
+func TestRapidSeeksAccumulate(t *testing.T) {
+	f := playbacktest.New()
+	c := newClock()
+	m := loaded(t, f, c)
+	m, _ = step(t, m, stateMsg{state: playing(time.Minute, 3*time.Minute)})
+
+	var cmds []tea.Cmd
+	for range 3 {
+		var cmd tea.Cmd
+		m, cmd = press(t, m, "right")
+		cmds = append(cmds, cmd)
+	}
+	var results []tea.Msg
+	for _, cmd := range cmds {
+		results = append(results, run(t, cmd))
+	}
+	var targets []any
+	for _, call := range f.Calls() {
+		if call.Method == "Seek" {
+			targets = append(targets, call.Args[0])
+		}
+	}
+	want := []any{70 * time.Second, 80 * time.Second, 90 * time.Second}
+	if !reflect.DeepEqual(targets, want) {
+		t.Fatalf("seek targets = %v; want %v", targets, want)
+	}
+
+	// Earlier completions do not end the pending seek; the last one lands.
+	for _, msg := range results {
+		m, _ = step(t, m, msg)
+	}
+	if got := m.position(); got != 90*time.Second {
+		t.Fatalf("position after confirmed seeks = %v; want 1m30s", got)
+	}
+	// With no seek pending, the next one starts from the playback position.
+	c.advance(5 * time.Second)
+	_, cmd := press(t, m, "left")
+	run(t, cmd)
+	assertCall(t, f, "Seek", 85*time.Second)
+}
+
+func TestFailedSeekDropsPendingTarget(t *testing.T) {
+	f := playbacktest.New()
+	f.MethodErr = map[string]error{"Seek": errors.New("not seekable")}
+	m := loaded(t, f, newClock())
+	m, _ = step(t, m, stateMsg{state: playing(time.Minute, 3*time.Minute)})
+	m, cmd := press(t, m, "right")
+	m, _ = step(t, m, run(t, cmd))
+	f.MethodErr = nil
+	_, cmd = press(t, m, "right")
+	run(t, cmd)
+	assertCall(t, f, "Seek", 70*time.Second)
+}
+
+// blockingCloser is a Player whose Close never returns.
+type blockingCloser struct {
+	*playbacktest.Fake
+	release chan struct{}
+}
+
+func (b blockingCloser) Close() error {
+	<-b.release
+	return b.Fake.Close()
+}
+
+func TestQuitDoesNotHangOnAStuckPlayer(t *testing.T) {
+	p := blockingCloser{Fake: playbacktest.New(), release: make(chan struct{})}
+	defer close(p.release)
+	m := New(p, Options{Now: newClock().now, CloseTimeout: 50 * time.Millisecond})
+	_, cmd := press(t, m, "q")
+	if _, ok := run(t, cmd).(tea.QuitMsg); !ok {
+		t.Fatal("quit did not produce tea.QuitMsg")
+	}
+}

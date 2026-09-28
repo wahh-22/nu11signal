@@ -20,6 +20,9 @@ type Options struct {
 	Seed uint64
 	// CallTimeout bounds every Player call (default 8s).
 	CallTimeout time.Duration
+	// CloseTimeout bounds how long quitting waits for Player.Close before
+	// the UI exits anyway (default 3s).
+	CloseTimeout time.Duration
 }
 
 const (
@@ -30,6 +33,7 @@ const (
 	fastTick        = 100 * time.Millisecond
 	idleTick        = time.Second
 	defaultCallTime = 8 * time.Second
+	defaultCloseTO  = 3 * time.Second
 )
 
 type authPhase int
@@ -49,26 +53,37 @@ const (
 
 // Model is the Bubble Tea model of the radio.
 type Model struct {
-	player  playback.Player
-	now     func() time.Time
-	seed    uint64
-	timeout time.Duration
+	player       playback.Player
+	now          func() time.Time
+	seed         uint64
+	timeout      time.Duration
+	closeTimeout time.Duration
 
 	width, height int
 
 	auth       authPhase
 	authDetail string
 
-	stations       []playback.Playlist
-	results        []playback.Song
-	resultsTerm    string
-	list           listView
-	stationCursor  int
-	resultCursor   int
+	stations      []playback.Playlist
+	results       []playback.Song
+	resultsTerm   string
+	list          listView
+	stationCursor int
+	resultCursor  int
+	// playingStation is the station the player confirmed tuning to.
 	playingStation string
+	// stationsFailed means loading the station list failed; r retries.
+	stationsFailed bool
 
 	searching bool
 	input     textinput.Model
+
+	// seekPending holds the target of the latest seek (seekSeq) until the
+	// player answers it, so rapid seeks accumulate instead of restarting
+	// from a stale reported position.
+	seekPending bool
+	seekTarget  time.Duration
+	seekSeq     uint64
 
 	state     playback.State
 	hasState  bool
@@ -96,17 +111,21 @@ func New(p playback.Player, opts Options) Model {
 	if opts.CallTimeout <= 0 {
 		opts.CallTimeout = defaultCallTime
 	}
+	if opts.CloseTimeout <= 0 {
+		opts.CloseTimeout = defaultCloseTO
+	}
 	in := textinput.New()
 	in.Prompt = ""
 	in.Placeholder = "ARTIST, TRACK, ALBUM"
 	in.CharLimit = 120
 	in.SetStyles(inputStyles())
 	return Model{
-		player:  p,
-		now:     opts.Now,
-		seed:    opts.Seed,
-		timeout: opts.CallTimeout,
-		input:   in,
+		player:       p,
+		now:          opts.Now,
+		seed:         opts.Seed,
+		timeout:      opts.CallTimeout,
+		closeTimeout: opts.CloseTimeout,
+		input:        in,
 	}
 }
 
@@ -134,6 +153,19 @@ type (
 	actionMsg struct {
 		op  string
 		err error
+	}
+	// playMsg reports a play request; station is the tuned playlist, or
+	// empty when songs were played.
+	playMsg struct {
+		op      string
+		station string
+		err     error
+	}
+	// seekMsg reports the outcome of seek number seq.
+	seekMsg struct {
+		seq    uint64
+		target time.Duration
+		err    error
 	}
 	stateMsg        struct{ state playback.State }
 	statesClosedMsg struct{}
@@ -182,9 +214,23 @@ func (m Model) action(op string, fn func(context.Context) error) tea.Cmd {
 	}
 }
 
+// quitCmd closes the player and quits, but never waits longer than
+// closeTimeout: a stuck player must not keep the UI (and the terminal in
+// raw mode) from exiting. The caller may still wait for Close afterwards,
+// once the terminal is restored.
 func (m Model) quitCmd() tea.Cmd {
 	return func() tea.Msg {
-		_ = m.player.Close()
+		closed := make(chan struct{})
+		go func() {
+			_ = m.player.Close()
+			close(closed)
+		}()
+		timer := time.NewTimer(m.closeTimeout)
+		defer timer.Stop()
+		select {
+		case <-closed:
+		case <-timer.C:
+		}
 		return tea.QuitMsg{}
 	}
 }

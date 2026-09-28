@@ -71,3 +71,20 @@ func TestViewGolden80x24(t *testing.T) {
 		t.Errorf("view differs from %s (run with -update after checking):\n--- got ---\n%s\n--- want ---\n%s", path, got, want)
 	}
 }
+
+func TestOnAirStationRowFillsWidth(t *testing.T) {
+	f := playbacktest.New()
+	m := loaded(t, f, newClock())
+	m.playingStation = "pl-1"
+	for _, w := range []int{12, 30, 47} {
+		for _, selected := range []bool{true, false} {
+			row := m.stationRow(0, selected, w)
+			if got := ansi.StringWidth(row); got != w {
+				t.Errorf("on-air row (w=%d, selected=%v) is %d cells: %q", w, selected, got, ansi.Strip(row))
+			}
+			if !strings.Contains(row, "◉") {
+				t.Errorf("on-air row (w=%d) lost its mark: %q", w, ansi.Strip(row))
+			}
+		}
+	}
+}
