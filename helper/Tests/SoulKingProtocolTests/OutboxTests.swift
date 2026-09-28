@@ -99,4 +99,46 @@ final class OutboxTests: XCTestCase {
         }
         XCTAssertTrue(outbox.waitUntilFlushed(before: Date().addingTimeInterval(2)))
     }
+
+    func testWriterStopsAndClosesTheOutboxOnAWriteFailure() {
+        let outbox = Outbox(capacity: 4)
+        outbox.push(line("r1"), droppable: false)
+        outbox.push(line("r2"), droppable: false)
+        outbox.push(line("r3"), droppable: false)
+        var written: [String] = []
+        let failure = outbox.drain { data in
+            written.append(String(decoding: data, as: UTF8.self))
+            return written.count == 2 ? EPIPE : nil
+        }
+        XCTAssertEqual(failure, EPIPE)
+        XCTAssertEqual(written, ["r1", "r2"], "the writer kept writing after a failure")
+        XCTAssertFalse(outbox.push(line("r4"), droppable: false), "a failed writer left the outbox open")
+        XCTAssertFalse(outbox.waitUntilFlushed(before: Date().addingTimeInterval(1)))
+    }
+
+    func testWriterReturnsWithoutFailureOnceClosed() {
+        let outbox = Outbox(capacity: 4)
+        outbox.push(line("r1"), droppable: false)
+        let finished = expectation(description: "drain returns once the outbox is closed")
+        let lines = LineLog()
+        Thread.detachNewThread {
+            let failure = outbox.drain { lines.append($0); return nil }
+            XCTAssertNil(failure)
+            finished.fulfill()
+        }
+        XCTAssertTrue(outbox.waitUntilFlushed(before: Date().addingTimeInterval(2)))
+        outbox.close()
+        wait(for: [finished], timeout: 2)
+        XCTAssertEqual(lines.values, ["r1"])
+    }
+}
+
+private final class LineLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var lines: [String] = []
+    var values: [String] { lock.lock(); defer { lock.unlock() }; return lines }
+    func append(_ data: Data) {
+        lock.lock(); defer { lock.unlock() }
+        lines.append(String(decoding: data, as: UTF8.self))
+    }
 }

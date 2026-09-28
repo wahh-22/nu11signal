@@ -37,15 +37,11 @@ final class Output: @unchecked Sendable {
     }
 
     private static func writeLoop(_ outbox: Outbox) {
-        while let line = outbox.pop() {
-            if let failure = writeAll(STDOUT_FILENO, line) {
-                outbox.close()
-                log("stdout write failed: \(String(cString: strerror(failure))); shutting down")
-                Lifecycle.shutdown(code: failure == EPIPE ? 0 : 1)
-                return
-            }
-            outbox.finishWrite()
-        }
+        // drain closes the outbox on a failed write (unit tested in
+        // SoulKingProtocol); only the process-level reaction lives here.
+        guard let failure = outbox.drain({ writeAll(STDOUT_FILENO, $0) }) else { return }
+        log("stdout write failed: \(String(cString: strerror(failure))); shutting down")
+        Lifecycle.shutdown(code: failure == EPIPE ? 0 : 1)
     }
 }
 

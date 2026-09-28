@@ -19,9 +19,22 @@ final class CommandHandler {
         self.emitter = emitter
     }
 
-    func respond(to request: Request) async {
+    /// Upper bound for one serialized playback command. MusicKit calls do
+    /// not honour cancellation, so a timed-out call may still finish (and
+    /// change playback) later; its late result is discarded. The trade-off
+    /// favours a responsive chain over strict ordering of a hung call.
+    static let playbackTimeout: TimeInterval = 10
+
+    /// Runs one request and sends exactly one response. With a timeout, a
+    /// command that has not finished in time is answered with an error.
+    func respond(to request: Request, timeout: TimeInterval? = nil) async {
         do {
-            let result = try await handle(request)
+            let result: JSONObject
+            if let timeout {
+                result = try await Deadline.run(seconds: timeout) { try await self.handle(request) }
+            } else {
+                result = try await handle(request)
+            }
             Output.shared.send(.success(id: request.id, result: result))
         } catch {
             Output.shared.send(.failure(id: request.id, error: String(describing: error)))

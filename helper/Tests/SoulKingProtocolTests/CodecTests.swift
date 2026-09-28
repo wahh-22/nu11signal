@@ -62,6 +62,23 @@ final class CodecTests: XCTestCase {
         XCTAssertNil(request.int("big"))
     }
 
+    func testIntRangeIsTheSameForIntegerAndFloatingPointNumbers() throws {
+        // ±(2^53 - 1) is the largest exact range; 2^53 itself is ambiguous
+        // (2^53 + 1 rounds to it), so it is rejected in either spelling.
+        let request = try Codec.decode(
+            #"{"id":"1","cmd":"search","maxInt":9007199254740991,"minInt":-9007199254740991,"# +
+                #""limitInt":9007199254740992,"limitNegInt":-9007199254740992,"# +
+                #""maxDouble":9007199254740991.0,"limitDouble":9007199254740992.0,"limitNegDouble":-9007199254740992.0}"#
+        ).get()
+        XCTAssertEqual(request.int("maxInt"), 9_007_199_254_740_991)
+        XCTAssertEqual(request.int("minInt"), -9_007_199_254_740_991)
+        XCTAssertEqual(request.int("maxDouble"), 9_007_199_254_740_991)
+        XCTAssertNil(request.int("limitInt"))
+        XCTAssertNil(request.int("limitNegInt"))
+        XCTAssertNil(request.int("limitDouble"))
+        XCTAssertNil(request.int("limitNegDouble"))
+    }
+
     func testIntAcceptsIntegralNumbers() throws {
         let request = try Codec.decode(#"{"id":"1","cmd":"search","a":3,"b":2.0,"c":-1,"d":0}"#).get()
         XCTAssertEqual(request.int("a"), 3)

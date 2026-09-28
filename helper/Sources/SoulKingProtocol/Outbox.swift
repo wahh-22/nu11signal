@@ -71,6 +71,22 @@ public final class Outbox: @unchecked Sendable {
         }
     }
 
+    /// The writer loop: hands queued lines to `write` in order until the
+    /// outbox is closed (returns nil) or a write fails. On a failure the
+    /// outbox is closed, so producers stop queueing and flush waiters are
+    /// released, and the failure's errno is returned for the caller to act
+    /// on. `write` returns nil on success or an errno.
+    public func drain(_ write: (Data) -> Int32?) -> Int32? {
+        while let line = pop() {
+            if let failure = write(line) {
+                close()
+                return failure
+            }
+            finishWrite()
+        }
+        return nil
+    }
+
     /// Waits until every queued line has been written, or the deadline passes.
     public func waitUntilFlushed(before deadline: Date) -> Bool {
         condition.lock()

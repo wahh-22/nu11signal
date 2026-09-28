@@ -13,7 +13,9 @@ let inFlight = DispatchGroup()
 
 /// Reads stdin on a background thread. Playback commands run one at a time
 /// in arrival order (each awaits the previous one); read-only commands run
-/// concurrently, so a slow search never delays `pause`.
+/// concurrently, so a slow search never delays `pause`. Each playback command
+/// is bounded by `CommandHandler.playbackTimeout`: a hung one is answered
+/// with an error and the chain moves on.
 ///
 /// At EOF, waits up to `Lifecycle.shutdownGrace` for in-flight requests and
 /// queued output, then stops playback and exits regardless.
@@ -30,7 +32,7 @@ func readRequests() {
                 let previous = playbackTail
                 playbackTail = Task { @MainActor in
                     await previous?.value
-                    await handler.respond(to: request)
+                    await handler.respond(to: request, timeout: CommandHandler.playbackTimeout)
                     inFlight.leave()
                 }
             } else {

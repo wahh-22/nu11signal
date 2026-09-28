@@ -24,23 +24,27 @@ public struct Request {
         args[key] as? String
     }
 
-    /// An integral number within ±2^53, the range a JSON number keeps exact
-    /// in every decoder. Fractional or larger values are rejected rather than
-    /// truncated, so a bad argument is reported instead of silently changed.
+    /// An integral number within ±(2^53 - 1), the range a JSON number keeps
+    /// exact in every decoder (2^53 itself is ambiguous: 2^53 + 1 rounds to
+    /// it). The same bound applies whether the number was decoded as an
+    /// integer or as a double. Fractional or larger values are rejected
+    /// rather than truncated, so a bad argument is reported instead of
+    /// silently changed.
     public func int(_ key: String) -> Int? {
         guard let number = args[key] as? NSNumber, !isBool(number) else { return nil }
         if !(number is NSDecimalNumber), !CFNumberIsFloatType(number) {
             let value = number.int64Value
-            return value.magnitude <= Request.maxExactInteger ? Int(value) : nil
+            return value.magnitude < Request.exactIntegerLimit ? Int(value) : nil
         }
         let value = number.doubleValue
         guard value.isFinite, value.rounded(.towardZero) == value,
-              value.magnitude < Double(Request.maxExactInteger)
+              value.magnitude < Double(Request.exactIntegerLimit)
         else { return nil }
         return Int(value)
     }
 
-    private static let maxExactInteger: UInt64 = 1 << 53
+    /// Exclusive bound on the magnitude of an accepted integer.
+    private static let exactIntegerLimit: UInt64 = 1 << 53
 
     public func double(_ key: String) -> Double? {
         guard let number = args[key] as? NSNumber, !isBool(number) else { return nil }
