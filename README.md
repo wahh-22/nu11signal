@@ -17,6 +17,23 @@ make build         # signed helper + Go binary (needs the one-time setup below)
 bin/soul-king      # play for real
 ```
 
+## Install
+
+Signed, notarized builds (macOS 14 or later, Apple Silicon and Intel) are
+published on [GitHub Releases](https://github.com/wahh-22/soul-king/releases).
+No Apple Developer account is needed to run them.
+
+```sh
+tar -xzf soul-king-<version>-macos-universal.tar.gz
+soul-king-<version>/bin/soul-king            # keep bin/ and libexec/ together
+soul-king-<version>/bin/soul-king --version
+```
+
+Symlink `bin/soul-king` onto your `PATH` if you like; the helper is found
+through the symlink. A Homebrew cask (`packaging/homebrew/soul-king.rb.template`)
+will be offered once a tap is published. The first launch asks for Apple Music
+access.
+
 ## Architecture
 
 ```text
@@ -69,6 +86,8 @@ MusicKit only works in a signed app with an embedded provisioning profile.
 | `SOULKING_TEAM_ID` | Your Team ID | `W6GZP998GQ` |
 | `SOULKING_PROFILE` | Path to the profile | `signing/SoulKing_Player.provisionprofile`, else `spike/SoulKing_Player.provisionprofile` |
 | `SOULKING_SIGN_IDENTITY` | `codesign` identity | `Apple Development` |
+| `SOULKING_BUILD_DIR` | Where `SoulKingHelper.app` is written | `build` |
+| `SOULKING_SIGN_MODE` | `development`, or `release` (universal, hardened runtime; used by `make release`) | `development` |
 
 ```sh
 export SOULKING_BUNDLE_ID=com.example.soulking.player
@@ -87,7 +106,58 @@ The first run asks for Apple Music access.
 | `make demo` | Builds only the Go binary and runs `bin/soul-king --demo` |
 | `make test` | `go test -race ./...` and `swift test` in `helper/` |
 | `make vet` / `make fmt-check` | `go vet`; fails if `gofmt -l .` lists files |
-| `make clean` | Removes `bin/` and `build/` |
+| `make release VERSION=x.y.z` | Signed, notarized `dist/soul-king-x.y.z-macos-universal.tar.gz` (see Releasing) |
+| `make release-dry-run VERSION=x.y.z` | Same layout in `dist/`, ad-hoc signed, not notarized; lists missing release setup |
+| `make clean` | Removes `bin/`, `build/`, and `dist/` |
+
+## Releasing
+
+Release builds are universal (arm64 + x86_64), signed with a Developer ID
+certificate, the hardened runtime, and a secure timestamp, embed a Developer ID
+provisioning profile (MusicKit needs it), and are notarized.
+
+### One-time setup
+
+1. **Developer ID Application certificate** (Account Holder role required).
+   Xcode > Settings > Accounts > your team > Manage Certificates > `+` >
+   Developer ID Application. Or in the portal (Certificates > `+` > Developer
+   ID Application) upload a CSR from Keychain Access > Certificate Assistant >
+   Request a Certificate From a Certificate Authority, then open the
+   downloaded certificate. Check:
+   `security find-identity -v -p codesigning | grep "Developer ID Application"`.
+2. **Developer ID provisioning profile.** Portal > Profiles > `+` >
+   Distribution > Developer ID, choose the App ID `dev.wahh.soulking.player`
+   (MusicKit enabled) and the Developer ID certificate, generate, download,
+   and save it as `signing/SoulKing_Player_DeveloperID.provisionprofile`
+   (gitignored).
+3. **Notary credentials.** Create an app-specific password at
+   [account.apple.com](https://account.apple.com) (Sign-In and Security >
+   App-Specific Passwords), then store it in the keychain:
+
+   ```sh
+   xcrun notarytool store-credentials soulking-notary \
+     --apple-id you@example.com --team-id W6GZP998GQ
+   xcrun notarytool history --keychain-profile soulking-notary   # check
+   ```
+
+### Cutting a release
+
+```sh
+make release-dry-run VERSION=0.1.0   # optional: build the layout, list missing setup
+make release VERSION=0.1.0
+```
+
+`scripts/release.sh` refuses to start while any setup item is missing or
+tracked files have uncommitted changes. It builds both binaries, signs them,
+notarizes the whole layout, staples the helper app, and writes
+`dist/soul-king-0.1.0-macos-universal.tar.gz` plus `.sha256`, then checks the
+unpacked archive with `spctl` and `codesign --verify --strict`. If
+notarization is rejected it prints the `xcrun notarytool log` command.
+Overrides: `SOULKING_SIGN_IDENTITY`, `SOULKING_PROFILE`,
+`SOULKING_NOTARY_PROFILE`, `SOULKING_TEAM_ID`.
+
+Publishing stays manual: tag `v0.1.0`, attach the archive and checksum to a
+GitHub release, and fill `version` and `sha256` in the cask template.
 
 ## Keys
 
