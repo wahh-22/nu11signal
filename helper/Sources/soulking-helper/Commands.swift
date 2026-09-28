@@ -7,8 +7,9 @@ struct CommandError: Error, CustomStringConvertible {
     init(_ description: String) { self.description = description }
 }
 
-/// Maps protocol commands onto MusicKit. Each request runs in its own task,
-/// so a slow network call (search, playlists) never blocks transport commands.
+/// Maps protocol commands onto MusicKit. main.swift decides concurrency:
+/// playback commands arrive here one at a time in order, read-only ones
+/// concurrently, so a slow network call never blocks transport commands.
 @MainActor
 final class CommandHandler {
     private let player = ApplicationMusicPlayer.shared
@@ -25,7 +26,12 @@ final class CommandHandler {
         } catch {
             Output.shared.send(.failure(id: request.id, error: String(describing: error)))
         }
-        emitter.checkForChange()
+        if request.cmd == "seek" {
+            // The signature ignores position, so a seek must be announced.
+            emitter.emitNow()
+        } else {
+            emitter.checkForChange()
+        }
     }
 
     private func handle(_ request: Request) async throws -> JSONObject {
@@ -63,7 +69,7 @@ final class CommandHandler {
         }
         var search = MusicCatalogSearchRequest(term: term, types: [Song.self])
         // The catalog search endpoint accepts at most 25 results per page.
-        search.limit = min(max(request.int("limit") ?? 25, 1), 25)
+        search.limit = min(max(try optionalInt(request, "limit") ?? 25, 1), 25)
         let response = try await search.response()
         return ["songs": response.songs.map(songJSON)]
     }
@@ -76,11 +82,15 @@ final class CommandHandler {
         return ["playlists": items]
     }
 
+    /// Plays the requested songs in order. Ids the catalog does not return
+    /// are reported: an error when none are found, otherwise the found songs
+    /// play and the result lists `"missing"`. If the song at `startIndex` is
+    /// missing, playback starts at the next found song (or the first found).
     private func playSongs(_ request: Request) async throws -> JSONObject {
         guard let ids = request.strings("ids"), !ids.isEmpty else {
             throw CommandError("playSongs requires a non-empty \"ids\" array")
         }
-        let startIndex = request.int("startIndex") ?? 0
+        let startIndex = try optionalInt(request, "startIndex") ?? 0
         guard ids.indices.contains(startIndex) else {
             throw CommandError("startIndex \(startIndex) is out of range")
         }
@@ -91,12 +101,14 @@ final class CommandHandler {
         // The catalog may return songs in any order; keep the requested order.
         let byID = Dictionary(found.map { ($0.id.rawValue, $0) }, uniquingKeysWith: { first, _ in first })
         let songs = ids.compactMap { byID[$0] }
-        guard let start = byID[ids[startIndex]] else {
-            throw CommandError("song \(ids[startIndex]) was not found in the catalog")
+        let missing = ids.filter { byID[$0] == nil }
+        guard !songs.isEmpty else {
+            throw CommandError("none of the requested songs were found in the catalog: \(missing.joined(separator: ", "))")
         }
+        let start = ids[startIndex...].lazy.compactMap { byID[$0] }.first ?? songs[0]
         player.queue = ApplicationMusicPlayer.Queue(for: songs, startingAt: start)
         try await player.play()
-        return [:]
+        return missing.isEmpty ? [:] : ["missing": missing]
     }
 
     private func playPlaylist(_ request: Request) async throws -> JSONObject {
@@ -119,6 +131,16 @@ final class CommandHandler {
         }
         player.playbackTime = seconds
         return [:]
+    }
+
+    /// Reads an optional integer argument; a present but non-integral value
+    /// is an error rather than silently falling back to the default.
+    private func optionalInt(_ request: Request, _ key: String) throws -> Int? {
+        guard request.args[key] != nil else { return nil }
+        guard let value = request.int(key) else {
+            throw CommandError("\"\(key)\" must be an integer")
+        }
+        return value
     }
 
     private func songJSON(_ song: Song) -> JSONObject {

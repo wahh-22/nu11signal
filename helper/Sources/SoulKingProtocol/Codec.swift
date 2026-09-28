@@ -51,6 +51,14 @@ public struct Request {
         args[key] as? [String]
     }
 
+    /// Commands that change playback run one at a time in arrival order;
+    /// read-only commands (authorize, search, playlists) run concurrently.
+    public static let playbackCommands: Set<String> = [
+        "playSongs", "playPlaylist", "pause", "resume", "next", "previous", "stop", "seek",
+    ]
+
+    public var mutatesPlayback: Bool { Request.playbackCommands.contains(cmd) }
+
     private func isBool(_ number: NSNumber) -> Bool {
         CFGetTypeID(number) == CFBooleanGetTypeID()
     }
@@ -69,6 +77,12 @@ public enum Message {
     case failure(id: String, error: String)
     case event(name: String, fields: JSONObject)
 
+    /// Periodic state events may be dropped under backpressure (a newer one
+    /// always follows); responses and other events never are.
+    public var isDroppable: Bool {
+        if case .event(name: "state", fields: _) = self { return true }
+        return false
+    }
 }
 
 public enum Codec {

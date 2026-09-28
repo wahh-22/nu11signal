@@ -8,15 +8,16 @@ import SoulKingProtocol
 @MainActor
 final class StateEmitter {
     private let player = ApplicationMusicPlayer.shared
-    private var subscriptions: [AnyCancellable] = []
+    private var stateSubscription: AnyCancellable?
+    /// Only the current queue is observed; replacing it cancels the old one.
+    private var queueSubscription: AnyCancellable?
     private var observedQueue: ApplicationMusicPlayer.Queue?
     private var lastSignature: String?
     private var ticker: Task<Void, Never>?
 
     func start() {
-        player.state.objectWillChange
+        stateSubscription = player.state.objectWillChange
             .sink { [weak self] in self?.scheduleCheck() }
-            .store(in: &subscriptions)
         observeQueue()
         ticker = Task { [weak self] in
             while !Task.isCancelled {
@@ -33,6 +34,13 @@ final class StateEmitter {
         if snapshot.signature != lastSignature {
             emit(snapshot)
         }
+    }
+
+    /// Emits a state event unconditionally (e.g. after a seek, whose new
+    /// position the status/entry signature does not capture).
+    func emitNow() {
+        observeQueue()
+        emit(Snapshot(player: player))
     }
 
     private func tick() {
@@ -60,7 +68,8 @@ final class StateEmitter {
         let queue = player.queue
         guard queue !== observedQueue else { return }
         observedQueue = queue
-        subscriptions.append(queue.objectWillChange.sink { [weak self] in self?.scheduleCheck() })
+        queueSubscription?.cancel()
+        queueSubscription = queue.objectWillChange.sink { [weak self] in self?.scheduleCheck() }
     }
 }
 

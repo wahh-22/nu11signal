@@ -11,9 +11,14 @@ let emitter = MainActor.assumeIsolated { StateEmitter() }
 let handler = MainActor.assumeIsolated { CommandHandler(emitter: emitter) }
 let inFlight = DispatchGroup()
 
-/// Reads stdin on a background thread; each request runs in its own task.
-/// At EOF, waits for in-flight requests, stops playback, and exits.
+/// Reads stdin on a background thread. Playback commands run one at a time
+/// in arrival order (each awaits the previous one); read-only commands run
+/// concurrently, so a slow search never delays `pause`.
+///
+/// At EOF, waits up to `Lifecycle.shutdownGrace` for in-flight requests and
+/// queued output, then stops playback and exits regardless.
 func readRequests() {
+    var playbackTail: Task<Void, Never>?
     while let line = readLine(strippingNewline: true) {
         if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
         switch Codec.decode(line) {
@@ -21,16 +26,27 @@ func readRequests() {
             Output.shared.send(.failure(id: failure.id, error: failure.message))
         case let .success(request):
             inFlight.enter()
-            Task { @MainActor in
-                await handler.respond(to: request)
-                inFlight.leave()
+            if request.mutatesPlayback {
+                let previous = playbackTail
+                playbackTail = Task { @MainActor in
+                    await previous?.value
+                    await handler.respond(to: request)
+                    inFlight.leave()
+                }
+            } else {
+                Task { @MainActor in
+                    await handler.respond(to: request)
+                    inFlight.leave()
+                }
             }
         }
     }
-    inFlight.notify(queue: .main) {
-        MainActor.assumeIsolated { ApplicationMusicPlayer.shared.stop() }
-        exit(0)
+    let deadline = Date().addingTimeInterval(Lifecycle.shutdownGrace)
+    if inFlight.wait(wallTimeout: .now() + Lifecycle.shutdownGrace) == .timedOut {
+        log("requests still running \(Lifecycle.shutdownGrace)s after stdin closed; exiting anyway")
     }
+    Output.shared.flush(before: deadline)
+    Lifecycle.shutdown(code: 0)
 }
 
 MainActor.assumeIsolated { emitter.start() }

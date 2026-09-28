@@ -1,31 +1,74 @@
+import Darwin
 import Foundation
 import SoulKingProtocol
 
-/// Serialized writer for stdout: every message becomes one complete line,
-/// written straight to the file descriptor (no stdio buffering to flush).
+/// stdout writer: producers enqueue complete lines and return immediately;
+/// one dedicated thread writes them to the file descriptor (no stdio
+/// buffering). If the parent stops reading, the writer blocks but the main
+/// actor does not: state events are dropped once the bounded queue is full,
+/// responses are always kept. A failed write (EPIPE: the parent is gone)
+/// shuts the helper down.
 final class Output: @unchecked Sendable {
     static let shared = Output()
 
-    private let lock = NSLock()
-    private let handle = FileHandle.standardOutput
+    /// Enough state events for ~2 minutes of playback at 2 per second.
+    private static let capacity = 256
+
+    private let outbox = Outbox(capacity: Output.capacity)
+
+    private init() {
+        let thread = Thread { [outbox] in Output.writeLoop(outbox) }
+        thread.name = "soulking-helper.stdout"
+        thread.start()
+    }
 
     func send(_ message: Message) {
-        let line = Codec.encode(message)
-        lock.lock()
-        defer { lock.unlock() }
-        do {
-            try handle.write(contentsOf: line)
-        } catch {
-            log("stdout write failed: \(error)")
-        }
+        outbox.push(Codec.encode(message), droppable: message.isDroppable)
     }
 
     func event(_ name: String, _ fields: JSONObject = [:]) {
         send(.event(name: name, fields: fields))
     }
+
+    /// Waits until queued lines are written, or the deadline passes.
+    @discardableResult
+    func flush(before deadline: Date) -> Bool {
+        outbox.waitUntilFlushed(before: deadline)
+    }
+
+    private static func writeLoop(_ outbox: Outbox) {
+        while let line = outbox.pop() {
+            if let failure = writeAll(STDOUT_FILENO, line) {
+                outbox.close()
+                log("stdout write failed: \(String(cString: strerror(failure))); shutting down")
+                Lifecycle.shutdown(code: failure == EPIPE ? 0 : 1)
+                return
+            }
+            outbox.finishWrite()
+        }
+    }
 }
 
-/// Diagnostics go to stderr so stdout stays pure protocol.
+/// Writes every byte, retrying on EINTR. Returns the errno of a failure.
+private func writeAll(_ fd: Int32, _ data: Data) -> Int32? {
+    data.withUnsafeBytes { buffer -> Int32? in
+        guard var pointer = buffer.baseAddress else { return nil }
+        var remaining = buffer.count
+        while remaining > 0 {
+            let written = Darwin.write(fd, pointer, remaining)
+            if written < 0 {
+                if errno == EINTR { continue }
+                return errno
+            }
+            pointer += written
+            remaining -= written
+        }
+        return nil
+    }
+}
+
+/// Diagnostics go to stderr so stdout stays pure protocol. Logging is best
+/// effort: a failed or closed stderr is ignored, never raised.
 func log(_ text: String) {
-    FileHandle.standardError.write(Data("soulking-helper: \(text)\n".utf8))
+    _ = writeAll(STDERR_FILENO, Data("soulking-helper: \(text)\n".utf8))
 }
