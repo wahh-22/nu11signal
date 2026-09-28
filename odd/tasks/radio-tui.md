@@ -127,8 +127,8 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
 - [x] Helper playback timeout lowered to 6s (< Go 8s); `Deadline` timer cancelled on completion; non-finite/huge timeouts no longer trap (RED: fatal UInt64 conversion; GREEN: 32 Swift tests). Commit `0562563`. Route: inline (1 source file + 1 constant). Review assess: medium, `under_budget` (79 lines) — pending in slice.
 - Release: Developer ID certificate + Developer ID provisioning profile + notarization; Homebrew cask.
 - [x] License: MIT (`ae6b49e`). [x] Profile moved to `signing/` (gitignored; build verified).
-- [ ] Remote + push/PR.
+- [x] Remote + push/PR: public repo https://github.com/wahh-22/soul-king (user-approved; gh token belongs to account `wahh-22`), module path `github.com/wahh-22/soul-king` (`652e5e6`), pushed over HTTPS with the gh credential helper scoped per command (the SSH key did not match the account), PR https://github.com/wahh-22/soul-king/pull/1.
 
 ## Next step
 
-User decides on follow-ups, license, push/PR, and release signing.
+User merges PR #1. Release signing (Developer ID certificate + Developer ID profile + notarization, Homebrew cask) needs the user's portal actions.
