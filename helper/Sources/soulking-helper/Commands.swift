@@ -100,8 +100,8 @@ final class CommandHandler {
     }
 
     private func playPlaylist(_ request: Request) async throws -> JSONObject {
-        guard let id = request.string("id"), !id.isEmpty else {
-            throw CommandError("playPlaylist requires a non-empty \"id\"")
+        guard let id = request.string("playlistId"), !id.isEmpty else {
+            throw CommandError("playPlaylist requires a non-empty \"playlistId\"")
         }
         var library = MusicLibraryRequest<Playlist>()
         library.filter(matching: \.id, equalTo: MusicItemID(id))
