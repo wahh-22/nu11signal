@@ -5,7 +5,8 @@
 # Configuration (environment):
 #   SOULKING_BUNDLE_ID      bundle identifier      (default: dev.wahh.soulking.player)
 #   SOULKING_TEAM_ID        Apple Developer team   (default: W6GZP998GQ)
-#   SOULKING_PROFILE        provisioning profile   (default: spike/SoulKing_Player.provisionprofile)
+#   SOULKING_PROFILE        provisioning profile   (default: signing/SoulKing_Player.provisionprofile,
+#                                                   falling back to spike/SoulKing_Player.provisionprofile)
 #   SOULKING_SIGN_IDENTITY  codesign identity      (default: Apple Development)
 #
 # Relative paths are resolved from the repository root.
@@ -17,14 +18,23 @@ cd "$ROOT"
 
 BUNDLE_ID="${SOULKING_BUNDLE_ID:-dev.wahh.soulking.player}"
 TEAM_ID="${SOULKING_TEAM_ID:-W6GZP998GQ}"
-PROFILE="${SOULKING_PROFILE:-spike/SoulKing_Player.provisionprofile}"
+DEFAULT_PROFILE="signing/SoulKing_Player.provisionprofile"
+LEGACY_PROFILE="spike/SoulKing_Player.provisionprofile"
+if [[ -n "${SOULKING_PROFILE:-}" ]]; then
+  PROFILE="$SOULKING_PROFILE"
+elif [[ ! -f "$DEFAULT_PROFILE" && -f "$LEGACY_PROFILE" ]]; then
+  PROFILE="$LEGACY_PROFILE" # backward compatibility with the spike layout
+else
+  PROFILE="$DEFAULT_PROFILE"
+fi
 IDENTITY="${SOULKING_SIGN_IDENTITY:-Apple Development}"
 APP="$ROOT/build/SoulKingHelper.app"
 
 if [[ ! -f "$PROFILE" ]]; then
   echo "error: provisioning profile not found: $PROFILE" >&2
-  echo "       Download the profile for $TEAM_ID.$BUNDLE_ID from the Apple Developer portal" >&2
-  echo "       and point SOULKING_PROFILE at it. MusicKit playback is killed without it." >&2
+  echo "       Download the macOS App Development profile for $TEAM_ID.$BUNDLE_ID from the" >&2
+  echo "       Apple Developer portal and save it as $DEFAULT_PROFILE (gitignored)," >&2
+  echo "       or point SOULKING_PROFILE at it. MusicKit playback is killed without it." >&2
   exit 1
 fi
 
