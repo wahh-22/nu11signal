@@ -227,20 +227,55 @@ func TestSendAfterHelperStopsReadingIsHelperExited(t *testing.T) {
 	c := startFake(t, "closedStdin", Options{CloseTimeout: 100 * time.Millisecond})
 
 	// The helper closes stdin right after ready; retry until the write
-	// observes the broken pipe.
+	// observes the broken pipe. A write that lands in the pipe buffer
+	// before the helper closes stdin is never answered, so every attempt
+	// is bounded and a timed-out attempt is retried.
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		err := c.Pause(t.Context())
+		ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
+		err := c.Pause(ctx)
+		cancel()
 		if errors.Is(err, ErrHelperExited) {
 			return
 		}
 		if err == nil || time.Now().After(deadline) {
 			t.Fatalf("Pause error = %v; want ErrHelperExited", err)
 		}
-		if !strings.Contains(err.Error(), "send") {
+		if !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "send") {
 			t.Fatalf("Pause error = %v; want a send failure", err)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestCloseIsBoundedWhileAWriteIsStuck(t *testing.T) {
+	const closeTimeout = 100 * time.Millisecond
+	c := startFake(t, "deaf", Options{CloseTimeout: closeTimeout})
+
+	// Abandon a write that can never complete, then queue another request
+	// behind it; neither may hold Close past its timeout.
+	term := strings.Repeat("x", 1<<20)
+	for range 2 {
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		if _, err := c.Search(ctx, term, 1); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Search error = %v; want deadline exceeded", err)
+		}
+		cancel()
+	}
+
+	done := make(chan error, 1)
+	start := time.Now()
+	go func() { done <- c.Close() }()
+	select {
+	case <-done:
+		if elapsed := time.Since(start); elapsed > closeTimeout+2*time.Second {
+			t.Fatalf("Close took %s; want about %s", elapsed, closeTimeout)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close blocked behind a stuck write")
+	}
+	if err := c.Pause(t.Context()); !errors.Is(err, ErrClosed) {
+		t.Fatalf("Pause after Close = %v; want ErrClosed", err)
 	}
 }
 

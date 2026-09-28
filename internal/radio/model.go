@@ -26,14 +26,14 @@ type Options struct {
 }
 
 const (
-	searchLimit     = 25
-	seekStep        = 10 * time.Second
-	statusTTL       = 4 * time.Second
-	glitchFrames    = 6
-	fastTick        = 100 * time.Millisecond
-	idleTick        = time.Second
-	defaultCallTime = 8 * time.Second
-	defaultCloseTO  = 3 * time.Second
+	searchLimit         = 25
+	seekStep            = 10 * time.Second
+	statusTTL           = 4 * time.Second
+	glitchFrames        = 6
+	fastTick            = 100 * time.Millisecond
+	idleTick            = time.Second
+	defaultCallTimeout  = 8 * time.Second
+	defaultCloseTimeout = 3 * time.Second
 )
 
 type authPhase int
@@ -72,6 +72,9 @@ type Model struct {
 	resultCursor  int
 	// playingStation is the station the player confirmed tuning to.
 	playingStation string
+	// playSeq numbers play requests; only the answer to the latest one
+	// may change playingStation.
+	playSeq uint64
 	// stationsFailed means loading the station list failed; r retries.
 	stationsFailed bool
 
@@ -109,10 +112,10 @@ func New(p playback.Player, opts Options) Model {
 		opts.Now = time.Now
 	}
 	if opts.CallTimeout <= 0 {
-		opts.CallTimeout = defaultCallTime
+		opts.CallTimeout = defaultCallTimeout
 	}
 	if opts.CloseTimeout <= 0 {
-		opts.CloseTimeout = defaultCloseTO
+		opts.CloseTimeout = defaultCloseTimeout
 	}
 	in := textinput.New()
 	in.Prompt = ""
@@ -154,9 +157,10 @@ type (
 		op  string
 		err error
 	}
-	// playMsg reports a play request; station is the tuned playlist, or
-	// empty when songs were played.
+	// playMsg reports play request number seq; station is the tuned
+	// playlist, or empty when songs were played.
 	playMsg struct {
+		seq     uint64
 		op      string
 		station string
 		err     error

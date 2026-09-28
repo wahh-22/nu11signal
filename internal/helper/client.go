@@ -71,7 +71,10 @@ type Client struct {
 	stderr       *tailBuffer
 	closeTimeout time.Duration
 
-	writeMu sync.Mutex
+	// writeSlot (capacity 1) serializes writes to stdin. It is a channel,
+	// not a mutex, so a caller waiting behind a stuck write gives up with
+	// its ctx instead of leaving a goroutine parked on a lock.
+	writeSlot chan struct{}
 
 	mu      sync.Mutex
 	pending map[string]chan reply
@@ -127,6 +130,7 @@ func Start(ctx context.Context, opts Options) (*Client, error) {
 		stdin:        stdin,
 		stderr:       tail,
 		closeTimeout: opts.CloseTimeout,
+		writeSlot:    make(chan struct{}, 1),
 		pending:      make(map[string]chan reply),
 		ready:        make(chan struct{}),
 		done:         make(chan struct{}),
@@ -243,15 +247,25 @@ func (c *Client) call(ctx context.Context, cmd string, args map[string]any, resu
 }
 
 // send writes one request line without letting a helper that stops
-// reading block the caller past ctx. The write runs in its own goroutine
-// holding writeMu until the whole line is written or stdin fails, so an
-// abandoned write never interleaves with the next request; it ends at the
-// latest when Close closes stdin or the process dies.
+// reading block the caller past ctx.
+//
+// The caller takes the write slot under ctx, then the write itself runs in
+// a goroutine that keeps the slot until the whole line is written or stdin
+// fails, so an abandoned write never interleaves with the next request.
+// Trade-off: a write abandoned mid-line keeps its goroutine and the slot
+// until the helper reads again, exits, or Close closes stdin (closing the
+// pipe wakes the blocked write). Later calls fail with their own ctx in the
+// meantime. Close never takes the slot, so a stuck write cannot hold it
+// past CloseTimeout, after which the helper is killed.
 func (c *Client) send(ctx context.Context, line []byte) error {
+	select {
+	case c.writeSlot <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	written := make(chan error, 1)
 	go func() {
-		c.writeMu.Lock()
-		defer c.writeMu.Unlock()
+		defer func() { <-c.writeSlot }()
 		_, err := c.stdin.Write(line)
 		written <- err
 	}()

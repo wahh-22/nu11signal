@@ -564,6 +564,20 @@ func TestStationMarkedOnAirOnlyAfterHelperConfirms(t *testing.T) {
 	})
 }
 
+func TestOnlyTheLatestTuneSetsTheOnAirStation(t *testing.T) {
+	f := playbacktest.New()
+	m := loaded(t, f, newClock())
+	m, first := press(t, m, "enter")       // tune pl-1
+	m, second := press(t, m, "j", "enter") // then pl-2 before pl-1 answers
+
+	// The answers arrive out of order: the superseded tune confirms last.
+	m, _ = step(t, m, run(t, second))
+	m, _ = step(t, m, run(t, first))
+	if m.playingStation != "pl-2" {
+		t.Fatalf("playingStation = %q after a stale confirmation; want pl-2", m.playingStation)
+	}
+}
+
 func TestStationListFailureOffersRetry(t *testing.T) {
 	f := playbacktest.New()
 	f.MethodErr = map[string]error{"Playlists": errors.New("library offline")}

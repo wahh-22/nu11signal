@@ -45,12 +45,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case playMsg:
-		if msg.err != nil {
-			m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
-			return m, nil
-		}
-		m.playingStation = msg.station
-		return m, nil
+		return m.onPlay(msg), nil
 	case seekMsg:
 		return m.onSeek(msg), nil
 	case stateMsg:
@@ -224,7 +219,8 @@ func (m Model) playSelection() (tea.Model, tea.Cmd) {
 			ids[i] = s.ID
 		}
 		start := m.resultCursor
-		return m, m.play("PLAY", "", func(ctx context.Context) error {
+		m.playSeq++
+		return m, m.playCmd(m.playSeq, "PLAY", "", func(ctx context.Context) error {
 			return m.player.PlaySongs(ctx, ids, start)
 		})
 	}
@@ -232,19 +228,34 @@ func (m Model) playSelection() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	id := m.stations[m.stationCursor].ID
-	return m, m.play("TUNE", id, func(ctx context.Context) error {
+	m.playSeq++
+	return m, m.playCmd(m.playSeq, "TUNE", id, func(ctx context.Context) error {
 		return m.player.PlayPlaylist(ctx, id)
 	})
 }
 
-// play runs a play request; the on-air station changes only once the
-// player confirms it.
-func (m Model) play(op, station string, fn func(context.Context) error) tea.Cmd {
+// playCmd runs play request number seq; the on-air station changes only
+// once the player confirms it (see onPlay).
+func (m Model) playCmd(seq uint64, op, station string, request func(context.Context) error) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := m.ctx()
 		defer cancel()
-		return playMsg{op: op, station: station, err: fn(ctx)}
+		return playMsg{seq: seq, op: op, station: station, err: request(ctx)}
 	}
+}
+
+// onPlay settles a play request. Failures are always reported, but only
+// the latest request may set the on-air station: a superseded tune that
+// confirms late must not overwrite a newer one.
+func (m Model) onPlay(msg playMsg) Model {
+	if msg.err != nil {
+		m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
+		return m
+	}
+	if msg.seq == m.playSeq {
+		m.playingStation = msg.station
+	}
+	return m
 }
 
 func (m Model) seek(delta time.Duration) (tea.Model, tea.Cmd) {

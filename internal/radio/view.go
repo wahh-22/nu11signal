@@ -302,10 +302,10 @@ func (m Model) stationRow(i int, selected bool, w int) string {
 	if onAir {
 		mark = " ◉"
 	}
-	nameWidth := max(w-ansi.StringWidth(mark), 0) // cells, not bytes
+	textWidth := max(w-ansi.StringWidth(mark), 0) // cells left for the row text before the mark
 	if selected {
 		text := "▌▶ " + frequency(i) + "  " + name
-		text = fit(text, nameWidth) + mark
+		text = fit(text, textWidth) + mark
 		return stSelected.Render(fit(text, w))
 	}
 	nameStyle := stRed
@@ -313,7 +313,7 @@ func (m Model) stationRow(i int, selected bool, w int) string {
 		nameStyle = stYellow
 	}
 	text := "   " + stMuted.Render(frequency(i)) + "  " + nameStyle.Render(name)
-	return fit(fit(text, nameWidth)+stYellow.Render(mark), w)
+	return fit(fit(text, textWidth)+stYellow.Render(mark), w)
 }
 
 func (m Model) resultRow(i int, selected bool, w int) string {
