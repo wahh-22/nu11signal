@@ -36,6 +36,7 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
 - [x] T3 — Cyberpunk radio TUI (theme, layout, stations, now playing, EQ bars, search, keys), tested with a fake Player. Route: delegated (writer trigger: 2+ non-trivial files).
 - [ ] T5 — Helper hardening from T1 review advisories: queue subscription leak (StateEmitter.swift:59-64), per-request ordering (main.swift:23-27), EOF hang when a request never finishes (main.swift:30-33), stdout backpressure (Output.swift:12-21), stderr write failures, silent drop of unknown ids in playSongs (Commands.swift:93), seek does not emit state Route: delegated.
 - [ ] T6 — Go adapter hardening from T2 review advisories: CWD-relative helper lookup allows binary planting (locate.go:47-49) — restrict to explicit env or executable-relative paths; writes to helper stdin are not ctx-bounded and send errors are not mapped to ErrHelperExited (client.go:212-221); untested failure paths (client.go:257-262); fake buffer magic number; unasserted fake args. Route: delegated.
+- [ ] T7 — Radio TUI hardening from T3 review advisories: CWD helper lookup now reachable from main (main.go:54-60, pairs with T6); helper start ctx cancel (main.go:58-60); ON-AIR mark width uses bytes not cells (view.go:299-313); playing-station marker set optimistically before the helper confirms (update.go:217-221); no retry when loading playlists fails (update.go:30-34); rapid seeks don't accumulate (update.go:224-232); unbounded Close on quit (model.go:185-190). Route: delegated.
 - [ ] T4 — Makefile, README (setup: App ID, profile, env vars), end-to-end manual run. Route: delegated or inline, depending on size.
 
 ## Acceptance criteria
@@ -81,6 +82,8 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
   - Evidence: `go test -race ./...` → 102 passed (6 packages); `go test -race -count=2 ./...` stable; `go vet ./...` clean; `gofmt -l .` empty; `go build -o bin/soul-king ./cmd/soul-king` OK. Golden `internal/radio/testdata/view_80x24.golden` (ANSI stripped, fixed clock and seed). Demo frame rendered at 100x30 via a throwaway test (not committed).
   - Size: ~1180 production + ~720 test lines in `internal/radio`, ~350 + 136 in the demo player; above the ~400 advisory heuristic because the TUI's model, update, and view are one coherent unit whose tests must land with it.
 
+  - T3 native review: tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-41fd22bf8297d85e`, authority burned). Advisories moved to T7. Reviewed boundary advances to `1b3722a`.
+
 ## Next step
 
-Native review of T3 (candidate range `658b5fc..1b3722a`), then T5/T6 hardening and T4 tooling.
+User tries `bin/soul-king --demo` and the live mode; then T4 (Makefile/README), then hardening T5–T7.
