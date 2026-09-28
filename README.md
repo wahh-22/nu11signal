@@ -154,4 +154,4 @@ Playback commands run one at a time in arrival order, each bounded by 10 s
 - `spike/` is the historical proof of concept (authorize, search, play from a
   signed windowless app). It is kept for reference and not used by the build,
   except as a fallback profile location.
-- License: TBD.
+- License: MIT — see [LICENSE](LICENSE).
