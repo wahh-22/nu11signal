@@ -2,6 +2,7 @@ package helper
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -89,6 +90,25 @@ func runFakeHelper(scenario string) int {
 		return 2
 	}
 	emit(map[string]any{"event": "ready"})
+
+	switch scenario {
+	case "deaf":
+		// Never reads stdin, so the client's writes eventually block.
+		time.Sleep(time.Hour)
+		return 0
+	case "closedStdin":
+		// Stops accepting requests while staying alive.
+		os.Stdin.Close()
+		time.Sleep(time.Hour)
+		return 0
+	case "oversize":
+		// A line longer than the client accepts makes the stream undecodable.
+		stdout.Write(bytes.Repeat([]byte("x"), maxLineBytes+1))
+		stdout.WriteString("\n")
+		stdout.Flush()
+		time.Sleep(time.Hour)
+		return 0
+	}
 
 	in := bufio.NewScanner(os.Stdin)
 	var held []map[string]any

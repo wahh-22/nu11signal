@@ -9,6 +9,10 @@ import (
 	"soulking/internal/playback"
 )
 
+// ChannelBuffer is how many states and errors the Fake buffers before
+// PushState and PushError block.
+const ChannelBuffer = 64
+
 // Call is one recorded Player method invocation.
 type Call struct {
 	Method string
@@ -37,8 +41,8 @@ type Fake struct {
 func New() *Fake {
 	return &Fake{
 		AuthStatus: playback.AuthAuthorized,
-		states:     make(chan playback.State, 64),
-		errs:       make(chan error, 64),
+		states:     make(chan playback.State, ChannelBuffer),
+		errs:       make(chan error, ChannelBuffer),
 	}
 }
 
@@ -56,10 +60,12 @@ func (f *Fake) Closed() bool {
 	return f.closed
 }
 
-// PushState delivers s on States. It blocks when 64 states are unread.
+// PushState delivers s on States. It blocks when ChannelBuffer states are
+// unread.
 func (f *Fake) PushState(s playback.State) { f.states <- s }
 
-// PushError delivers err on Errors. It blocks when 64 errors are unread.
+// PushError delivers err on Errors. It blocks when ChannelBuffer errors are
+// unread.
 func (f *Fake) PushError(err error) { f.errs <- err }
 
 func (f *Fake) record(method string, args ...any) error {

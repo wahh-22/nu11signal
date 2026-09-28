@@ -201,6 +201,66 @@ func TestCloseKillsHelperThatIgnoresEOF(t *testing.T) {
 	}
 }
 
+func TestWriteToStuckHelperIsBoundedByContext(t *testing.T) {
+	c := startFake(t, "deaf", Options{CloseTimeout: 100 * time.Millisecond})
+
+	// Far larger than any pipe buffer, so the write cannot complete.
+	term := strings.Repeat("x", 1<<20)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.Search(ctx, term, 1)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Search error = %v; want deadline exceeded", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Search blocked on a helper that never reads stdin")
+	}
+}
+
+func TestSendAfterHelperStopsReadingIsHelperExited(t *testing.T) {
+	c := startFake(t, "closedStdin", Options{CloseTimeout: 100 * time.Millisecond})
+
+	// The helper closes stdin right after ready; retry until the write
+	// observes the broken pipe.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		err := c.Pause(t.Context())
+		if errors.Is(err, ErrHelperExited) {
+			return
+		}
+		if err == nil || time.Now().After(deadline) {
+			t.Fatalf("Pause error = %v; want ErrHelperExited", err)
+		}
+		if !strings.Contains(err.Error(), "send") {
+			t.Fatalf("Pause error = %v; want a send failure", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestUndecodableOutputKillsHelper(t *testing.T) {
+	c := startFake(t, "oversize", Options{})
+
+	var asyncErrs []error
+	for err := range c.Errors() { // closed once the killed helper is reaped
+		asyncErrs = append(asyncErrs, err)
+	}
+	if len(asyncErrs) == 0 || !strings.Contains(asyncErrs[0].Error(), "read output") {
+		t.Fatalf("async errors = %v; want a read output error", asyncErrs)
+	}
+	for range c.States() {
+	}
+	if err := c.Pause(t.Context()); !errors.Is(err, ErrHelperExited) {
+		t.Fatalf("Pause after undecodable output = %v; want ErrHelperExited", err)
+	}
+}
+
 func TestStartFailures(t *testing.T) {
 	tests := []struct {
 		scenario string

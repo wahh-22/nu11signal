@@ -2,6 +2,7 @@ package playbacktest
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -35,14 +36,33 @@ func TestFakeRecordsCallsAndReturnsCannedResults(t *testing.T) {
 		{Method: "PlaySongs", Args: []any{[]string{"s1"}, 0}},
 		{Method: "Seek", Args: []any{3 * time.Second}},
 	}
-	got := f.Calls()
-	if len(got) != len(want) {
-		t.Fatalf("Calls = %v; want %v", got, want)
+	if got := f.Calls(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Calls = %#v; want %#v", got, want)
 	}
-	for i := range want {
-		if got[i].Method != want[i].Method || len(got[i].Args) != len(want[i].Args) {
-			t.Fatalf("call %d = %v; want %v", i, got[i], want[i])
-		}
+}
+
+func TestFakeCallsAreSnapshots(t *testing.T) {
+	f := New()
+	ids := []string{"s1", "s2"}
+	_ = f.PlaySongs(t.Context(), ids, 1)
+	ids[0] = "mutated"
+	calls := f.Calls()
+	calls[0].Method = "mutated"
+
+	want := []Call{{Method: "PlaySongs", Args: []any{[]string{"s1", "s2"}, 1}}}
+	if got := f.Calls(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Calls = %#v; want %#v", got, want)
+	}
+}
+
+func TestFakeBuffersUpToChannelBuffer(t *testing.T) {
+	f := New()
+	for range ChannelBuffer {
+		f.PushState(playback.State{}) // must not block
+		f.PushError(errors.New("e"))
+	}
+	if len(f.States()) != ChannelBuffer || len(f.Errors()) != ChannelBuffer {
+		t.Fatalf("buffered %d states, %d errors; want %d each", len(f.States()), len(f.Errors()), ChannelBuffer)
 	}
 }
 

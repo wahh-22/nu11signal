@@ -210,13 +210,15 @@ func (c *Client) call(ctx context.Context, cmd string, args map[string]any, resu
 	c.mu.Unlock()
 
 	line, err := encodeRequest(id, cmd, args)
-	if err == nil {
-		c.writeMu.Lock()
-		_, err = c.stdin.Write(line)
-		c.writeMu.Unlock()
-	}
 	if err != nil {
 		c.forget(id)
+		return fmt.Errorf("helper %s: encode: %w", cmd, err)
+	}
+	if err := c.send(ctx, line); err != nil {
+		c.forget(id)
+		if errors.Is(err, ctx.Err()) || errors.Is(err, ErrClosed) {
+			return err
+		}
 		return fmt.Errorf("helper %s: send: %w", cmd, err)
 	}
 
@@ -238,6 +240,45 @@ func (c *Client) call(ctx context.Context, cmd string, args map[string]any, resu
 		}
 		return nil
 	}
+}
+
+// send writes one request line without letting a helper that stops
+// reading block the caller past ctx. The write runs in its own goroutine
+// holding writeMu until the whole line is written or stdin fails, so an
+// abandoned write never interleaves with the next request; it ends at the
+// latest when Close closes stdin or the process dies.
+func (c *Client) send(ctx context.Context, line []byte) error {
+	written := make(chan error, 1)
+	go func() {
+		c.writeMu.Lock()
+		defer c.writeMu.Unlock()
+		_, err := c.stdin.Write(line)
+		written <- err
+	}()
+	select {
+	case err := <-written:
+		if err != nil {
+			return c.writeError(err)
+		}
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// writeError explains a failed write to stdin: the client was closed, or
+// the helper is gone (or stopped reading, which is just as fatal).
+func (c *Client) writeError(err error) error {
+	c.mu.Lock()
+	closing, exitErr := c.closing, c.err
+	c.mu.Unlock()
+	switch {
+	case closing:
+		return ErrClosed
+	case exitErr != nil:
+		return exitErr
+	}
+	return fmt.Errorf("%w: stdin: %v", ErrHelperExited, err)
 }
 
 func (c *Client) forget(id string) {
