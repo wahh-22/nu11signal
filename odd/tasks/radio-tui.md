@@ -35,6 +35,7 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
 - [x] T2 — Go `Player` port + helper-process adapter + protocol codec, with tests against a fake helper. Route: delegated (writer trigger: 2+ non-trivial files).
 - [ ] T3 — Cyberpunk radio TUI (theme, layout, stations, now playing, EQ bars, search, keys), tested with a fake Player. Route: delegated.
 - [ ] T5 — Helper hardening from T1 review advisories: queue subscription leak (StateEmitter.swift:59-64), per-request ordering (main.swift:23-27), EOF hang when a request never finishes (main.swift:30-33), stdout backpressure (Output.swift:12-21), stderr write failures, silent drop of unknown ids in playSongs (Commands.swift:93), seek does not emit state Route: delegated.
+- [ ] T6 — Go adapter hardening from T2 review advisories: CWD-relative helper lookup allows binary planting (locate.go:47-49) — restrict to explicit env or executable-relative paths; writes to helper stdin are not ctx-bounded and send errors are not mapped to ErrHelperExited (client.go:212-221); untested failure paths (client.go:257-262); fake buffer magic number; unasserted fake args. Route: delegated.
 - [ ] T4 — Makefile, README (setup: App ID, profile, env vars), end-to-end manual run. Route: delegated or inline, depending on size.
 
 ## Acceptance criteria
@@ -69,6 +70,8 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
   - Size: ~830 production + ~620 test lines, above the ~400 advisory heuristic because the process adapter, fake Player, and subprocess test harness form one coherent unit.
 
   - Fix (inline, 1-line mechanical): helper `playPlaylist` reads `playlistId` (the codec reserves `id`); verified live: playlist queued and state `playing`.
+
+  - T2 native review: tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-d9aa5c1667992405`, authority burned). Advisories moved to T6. Reviewed boundary advances to `658b5fc`.
 
 ## Next step
 
