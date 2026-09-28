@@ -124,10 +124,10 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
 
 ## Follow-ups (not started; need user decision)
 
-- Helper playback timeout (10s, Commands.swift:26) exceeds the Go client's per-call deadline — align them.
-- `Deadline` timer is not cancelled after the command wins (Deadline.swift:30-36); seconds conversion could trap on extreme values.
+- [x] Helper playback timeout lowered to 6s (< Go 8s); `Deadline` timer cancelled on completion; non-finite/huge timeouts no longer trap (RED: fatal UInt64 conversion; GREEN: 32 Swift tests). Commit `0562563`. Route: inline (1 source file + 1 constant). Review assess: medium, `under_budget` (79 lines) — pending in slice.
 - Release: Developer ID certificate + Developer ID provisioning profile + notarization; Homebrew cask.
-- License choice; move the profile to `signing/`; remote + push/PR.
+- [x] License: MIT (`ae6b49e`). [x] Profile moved to `signing/` (gitignored; build verified).
+- [ ] Remote + push/PR.
 
 ## Next step
 
