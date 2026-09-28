@@ -84,6 +84,8 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
 
   - T3 native review: tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-41fd22bf8297d85e`, authority burned). Advisories moved to T7. Reviewed boundary advances to `1b3722a`.
 
+- Manual e2e (user, 2026-09-28): `bin/soul-king --demo` and live mode — interaction works and audio plays correctly.
+
 ## Next step
 
-User tries `bin/soul-king --demo` and the live mode; then T4 (Makefile/README), then hardening T5–T7.
+T6+T7 (Go hardening, one writer; security first: remove CWD helper lookup), then T5 (Swift helper hardening), then T4 (Makefile/README).
