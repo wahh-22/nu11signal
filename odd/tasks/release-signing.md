@@ -26,8 +26,8 @@ Development signing only works on registered Macs. Gatekeeper requires Developer
 
 ## User steps (portal / keychain; cannot be automated)
 
-- [ ] U1 Developer ID Application certificate in the login keychain.
-- [ ] U2 Developer ID provisioning profile for `dev.wahh.soulking.player` → `signing/SoulKing_Player_DeveloperID.provisionprofile`.
+- [x] U1 Developer ID Application certificate in the login keychain (verified: `Developer ID Application: Wilmer Henao (W6GZP998GQ)`, SHA-1 F9597ECD…).
+- [x] U2 Developer ID provisioning profile (verified: team W6GZP998GQ, app id `W6GZP998GQ.dev.wahh.soulking.player`, cert matches U1, all devices, expires 2044-09-23) for `dev.wahh.soulking.player` → `signing/SoulKing_Player_DeveloperID.provisionprofile`.
 - [ ] U3 `xcrun notarytool store-credentials soulking-notary` (app-specific password).
 
 ## Tasks
