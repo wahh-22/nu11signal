@@ -34,6 +34,7 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
 - [x] T1 — Swift helper: JSON-lines protocol (auth, search, playlists, play songs/playlist, pause, resume, next, prev, stop, periodic state events); build script bundles + signs the .app. Route: delegated (writer trigger: 2+ non-trivial files).
 - [ ] T2 — Go `Player` port + helper-process adapter + protocol codec, with tests against a fake helper. Route: delegated.
 - [ ] T3 — Cyberpunk radio TUI (theme, layout, stations, now playing, EQ bars, search, keys), tested with a fake Player. Route: delegated.
+- [ ] T5 — Helper hardening from T1 review advisories: queue subscription leak (StateEmitter.swift:59-64), per-request ordering (main.swift:23-27), EOF hang when a request never finishes (main.swift:30-33), stdout backpressure (Output.swift:12-21), stderr write failures, silent drop of unknown ids in playSongs (Commands.swift:93), seek does not emit state. Route: delegated.
 - [ ] T4 — Makefile, README (setup: App ID, profile, env vars), end-to-end manual run. Route: delegated or inline, depending on size.
 
 ## Acceptance criteria
@@ -52,11 +53,13 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
 ## Progress
 
 - Baseline commit `e2ed8a5` (spike). Branch `feat/radio-tui` created.
-- T1 done (route: delegated writer; trigger: writer, 2+ non-trivial files). Commit: see `git log` entry `feat(helper): add MusicKit JSON-lines helper`.
+- T1 done (route: delegated writer; trigger: writer, 2+ non-trivial files). Commit: `89d103c` (`feat(helper): add MusicKit JSON-lines helper`).
   - Layout: `helper/Package.swift`; `SoulKingProtocol` (pure codec, unit tested); `soulking-helper` (`main.swift`, `Output.swift`, `Commands.swift`, `StateEmitter.swift`); templates in `helper/Resources/*.plist.in`; `helper/build.sh`.
   - Test-first exception: MusicKit behavior only runs inside a signed bundle, so no deterministic RED exists for commands; the pure codec has XCTest coverage (8 tests) and commands were checked by runtime smoke tests.
   - Evidence: `swift build -c release` → Build complete, no warnings; `swift test` → 8 tests, 0 failures; `./helper/build.sh` → `valid on disk`, `satisfies its Designated Requirement`; missing profile → clear error, exit 1; smoke (authorize/search/playlists/malformed/unknown) → ready, authorized, 3 songs, 5 playlists, error responses, clean exit 0 on EOF; short playback (playSongs/pause/seek/resume/next/stop, ~4 s audio) → ok responses and state events, exit 0.
   - Protocol notes: `search` limit is clamped to 1...25 (catalog page maximum); on EOF the helper waits for in-flight requests before stopping playback and exiting.
+
+  - Native review (RDD on): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-eb84c4e5dcc38eb1`, authority burned). Advisory findings moved to T5. Reviewed boundary advances to `89d103c`.
 
 ## Next step
 
