@@ -120,6 +120,15 @@ vibez streams through headless Chrome (hundreds of MB). The spike (`spike/`) pro
   - README: purpose, architecture diagram, requirements, one-time signing setup, env vars, make targets, keys, helper lookup order, protocol summary, troubleshooting, resource footprint, `spike/` as historical, License: TBD.
   - Evidence: `make test` → exit 0 (Go all ok, Swift 31 tests 0 failures); `make vet` → exit 0; `make fmt-check` → exit 0; `make build` → exit 0 (`valid on disk`, `satisfies its Designated Requirement`, via the spike fallback profile; `bin/soul-king` built); `SOULKING_PROFILE=/nonexistent ./helper/build.sh` → clear error, exit 1; live smoke authorize → authorized, search "night city" → 2 songs, EOF exit 0. `make demo` not run here (interactive TUI).
 
+  - T8+T4 native review: tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-394334f67e866a39`, authority burned). Reviewed boundary advances to `1073c9e`.
+
+## Follow-ups (not started; need user decision)
+
+- Helper playback timeout (10s, Commands.swift:26) exceeds the Go client's per-call deadline — align them.
+- `Deadline` timer is not cancelled after the command wins (Deadline.swift:30-36); seconds conversion could trap on extreme values.
+- Release: Developer ID certificate + Developer ID provisioning profile + notarization; Homebrew cask.
+- License choice; move the profile to `signing/`; remote + push/PR.
+
 ## Next step
 
-Final review of the remaining range (`ab58284..f90b9d1`), then user decides on push/PR, license, and release signing (Developer ID + notarization).
+User decides on follow-ups, license, push/PR, and release signing.
