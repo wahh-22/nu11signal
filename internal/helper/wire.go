@@ -45,6 +45,9 @@ type wireSong struct {
 	Artist   string  `json:"artist"`
 	Album    string  `json:"album"`
 	Duration float64 `json:"duration"`
+	// LibraryOnly is sent, as true, only for a library playlist's song
+	// that is not in the catalog.
+	LibraryOnly bool `json:"libraryOnly"`
 }
 
 type authResult struct {
@@ -146,8 +149,9 @@ type volumeResult struct {
 
 type playlistsResult struct {
 	Playlists []struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Editable bool   `json:"editable"`
 	} `json:"playlists"`
 }
 
@@ -189,11 +193,12 @@ func (s wireState) toDomain() playback.State {
 
 func (s wireSong) toDomain() playback.Song {
 	return playback.Song{
-		ID:       s.ID,
-		Title:    s.Title,
-		Artist:   s.Artist,
-		Album:    s.Album,
-		Duration: seconds(s.Duration),
+		ID:          s.ID,
+		Title:       s.Title,
+		Artist:      s.Artist,
+		Album:       s.Album,
+		Duration:    seconds(s.Duration),
+		LibraryOnly: s.LibraryOnly,
 	}
 }
 

@@ -310,14 +310,15 @@ func answer(id, cmd string) {
 		})
 	case "playlists":
 		ok(id, map[string]any{"playlists": []any{
-			map[string]any{"id": "p1", "name": "Night City"},
+			map[string]any{"id": "p1", "name": "Night City", "editable": true},
+			map[string]any{"id": "p.fav", "name": "Favorite Songs", "editable": false},
 		}})
 	case "libraryPlaylist":
 		ok(id, map[string]any{
 			"playlist": map[string]any{"id": "p1", "name": "Night City"},
 			"tracks": []any{
-				map[string]any{"id": "i.s1", "title": "Nightcall", "artist": "Kavinsky", "album": "OutRun", "duration": 258},
-				map[string]any{"id": "i.s2", "title": "Resonance", "artist": "Home", "album": "Odyssey", "duration": 212.25},
+				map[string]any{"id": "1440857781", "title": "Nightcall", "artist": "Kavinsky", "album": "OutRun", "duration": 258},
+				map[string]any{"id": "i.s2", "title": "Resonance", "artist": "Home", "album": "Odyssey", "duration": 212.25, "libraryOnly": true},
 			},
 			"notes": "After hours.",
 		})

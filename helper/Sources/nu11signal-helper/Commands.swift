@@ -7,13 +7,6 @@ struct CommandError: Error, CustomStringConvertible {
     init(_ description: String) { self.description = description }
 }
 
-/// An Apple Music API request answered with an error status; description
-/// is the message for the UI (see LibraryEdit.failureMessage).
-struct MusicAPIError: Error, CustomStringConvertible {
-    let status: Int
-    let description: String
-}
-
 /// Maps protocol commands onto MusicKit. main.swift decides concurrency:
 /// playback commands arrive here one at a time in order, read-only ones
 /// concurrently, so a slow network call never blocks transport commands.
@@ -67,9 +60,9 @@ final class CommandHandler {
         case "playlists": return try await playlists()
         case "libraryPlaylist": return try await libraryPlaylist(request)
         case "createPlaylist": return try await createPlaylist(request)
-        case "addToPlaylist": _ = try await Self.send(LibraryEdit.addToPlaylist(request), for: request.cmd); return [:]
+        case "addToPlaylist": _ = try await Self.edit(LibraryEdit.addToPlaylist(request), for: request.cmd); return [:]
         case "favorite": return try await favorite(request)
-        case "setFavorite": _ = try await Self.send(LibraryEdit.setFavorite(request), for: request.cmd); return [:]
+        case "setFavorite": try await setFavorite(request); return [:]
         case "volume": return ["level": try SystemVolume.level()]
         case "setVolume": try SystemVolume.setLevel(VolumeLevel.requested(request)); return [:]
         case "playSongs": return try await playSongs(request)
@@ -210,11 +203,11 @@ final class CommandHandler {
     private nonisolated static func artistFacts(id: String) async -> ArtistFacts {
         let none = ArtistFacts(origin: "", formed: "")
         return (try? await Deadline.run(seconds: CatalogBudget.section) {
-            let storefront = try await MusicDataRequest.currentCountryCode
+            let storefront = try APIPathID.checked(try await MusicDataRequest.currentCountryCode)
             var url = URLComponents()
             url.scheme = "https"
             url.host = "api.music.apple.com"
-            url.path = "/v1/catalog/\(storefront)/artists/\(id)"
+            url.path = "/v1/catalog/\(storefront)/artists/\(try APIPathID.checked(id))"
             url.queryItems = [URLQueryItem(name: "extend", value: "origin,bornOrFormed")]
             guard let url = url.url else { return none }
             let response = try await MusicDataRequest(urlRequest: URLRequest(url: url)).response()
@@ -298,12 +291,16 @@ final class CommandHandler {
         }
     }
 
+    /// The library playlists, in the API's (alphabetical) order, with
+    /// their API library ids ("p.…"), within `CatalogBudget.libraryRead`.
     private func playlists() async throws -> JSONObject {
-        var library = MusicLibraryRequest<Playlist>()
-        library.sort(by: \.name, ascending: true)
-        let response = try await library.response()
-        let items = response.items.map { ["id": $0.id.rawValue, "name": $0.name] }
-        return ["playlists": items]
+        let playlists = try await Deadline.run(seconds: CatalogBudget.libraryRead) {
+            try await LibraryRead.collect(
+                from: LibraryRead.playlistsCall, cap: LibraryRead.maxPlaylists,
+                fetch: { try await Self.data(for: $0, command: "playlists") },
+                page: LibraryRead.playlistsPage)
+        }
+        return ["playlists": playlists.map { ["id": $0.id, "name": $0.name, "editable": $0.editable] as JSONObject }]
     }
 
     /// Plays the requested songs in order. Ids the catalog does not return
@@ -318,15 +315,33 @@ final class CommandHandler {
         guard ids.indices.contains(startIndex) else {
             throw CommandError("startIndex \(startIndex) is out of range")
         }
-        let lookup = MusicCatalogResourceRequest<Song>(
-            matching: \.id, memberOf: ids.map { MusicItemID($0) }
-        )
-        let found = try await lookup.response().items
+        return try await playCatalogSongs(ids, from: startIndex, context: "playSongs")
+    }
+
+    /// Looks up the catalog songs and plays them from `ids[startIndex]`
+    /// (see `playSongs`); the result lists the ids the catalog did not
+    /// return as `"missing"`.
+    private func playCatalogSongs(_ ids: [String], from startIndex: Int, context: String) async throws -> JSONObject {
+        let found = try await Self.catalogSongs(ids)
         // The catalog may return songs in any order; SongQueue restores the
         // requested one and turns startIndex into a position in the queue.
-        let queue = try SongQueue(ids: ids, found: Array(found), id: \.id.rawValue, startIndex: startIndex)
-        try await play(queue.items, from: queue.start, context: "playSongs")
+        let queue = try SongQueue(ids: ids, found: found, id: \.id.rawValue, startIndex: startIndex)
+        try await play(queue.items, from: queue.start, context: context)
         return queue.missing.isEmpty ? [:] : ["missing": queue.missing]
+    }
+
+    /// The catalog songs with the given ids, in any order, looked up in
+    /// concurrent batches of `CatalogBatches.size` ids.
+    private nonisolated static func catalogSongs(_ ids: [String]) async throws -> [Song] {
+        try await withThrowingTaskGroup(of: [Song].self) { group in
+            for batch in CatalogBatches.split(Array(Set(ids)), size: CatalogBatches.size) {
+                group.addTask {
+                    let lookup = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: batch.map { MusicItemID($0) })
+                    return Array(try await lookup.response().items)
+                }
+            }
+            return try await group.reduce(into: []) { $0 += $1 }
+        }
     }
 
     /// Replaces the queue with songs and plays from `songs[start]`.
@@ -357,80 +372,53 @@ final class CommandHandler {
         }
     }
 
-    /// A library playlist page: its songs in order, with library ids (music
-    /// videos are left out), and its description. Two sequential library
-    /// reads, each within `CatalogBudget.lookup`, keep the command below the
-    /// Go client's detail deadline.
+    /// A library playlist page: its songs in order (music videos are left
+    /// out) and its description. A song's id is its catalog id when it has
+    /// one, else its API library id with `"libraryOnly": true` (it cannot
+    /// be played). The playlist and its song pages load concurrently,
+    /// within `CatalogBudget.libraryRead`.
     private func libraryPlaylist(_ request: Request) async throws -> JSONObject {
-        let id = try request.requiredID("playlistId")
-        let playlist = try await Deadline.run(seconds: CatalogBudget.lookup) {
-            try await Self.libraryPlaylist(id: id)
+        let playlistCall = try LibraryRead.playlistCall(request)
+        let tracksCall = try LibraryRead.tracksCall(request)
+        return try await Deadline.run(seconds: CatalogBudget.libraryRead) {
+            async let info = LibraryRead.playlistInfo(try await Self.data(for: playlistCall, command: request.cmd))
+            async let tracks = Self.tracks(from: tracksCall, command: request.cmd)
+            let playlist = try await info
+            return [
+                "playlist": ["id": try request.requiredID("playlistId"), "name": playlist.name],
+                "tracks": try await tracks.map(\.json),
+                "notes": EditorialText.plain(playlist.notes),
+            ]
         }
-        let songs = try await Deadline.run(seconds: CatalogBudget.lookup) {
-            try await Self.songEntries(of: playlist)
-        }
-        let notes = playlist.standardDescription ?? playlist.shortDescription ?? ""
-        return [
-            "playlist": ["id": playlist.id.rawValue, "name": playlist.name],
-            "tracks": songs.map { librarySongJSON($0.song) },
-            "notes": EditorialText.plain(notes),
-        ]
     }
 
-    /// Plays a library playlist from its first entry or, with `startIndex`,
+    /// Plays a library playlist from its first song or, with `startIndex`,
     /// from that song of the list `libraryPlaylist` returns.
     ///
-    /// With a start, the queue is built from exactly that song list (see
-    /// `play`) instead of `Queue(playlist:startingAt:)`. That initializer was
-    /// observed to start at the first entry whatever entry it was given (the
-    /// playlist comes from `MusicLibraryRequest` without its entries, which
-    /// the player then resolves on its own). A queue of the listed songs
-    /// makes the index mean the same song by construction; the queue is a
-    /// list of the playlist's songs rather than the playlist itself.
+    /// The playlist is queued as its catalog songs (see `LibraryQueuePlan`):
+    /// the player can only be handed catalog songs here, as library items
+    /// read through the Apple Music API are not MusicKit library items.
+    /// Songs only in the library are skipped, and the start keeps pointing
+    /// at the chosen song; choosing one of them is an error. The list is
+    /// read again, so a playlist changed since `libraryPlaylist` listed it
+    /// may shift the start (a start past the end is reported).
     private func playPlaylist(_ request: Request) async throws -> JSONObject {
-        let id = try request.requiredID("playlistId")
+        let tracksCall = try LibraryRead.tracksCall(request)
         let start = try PlaylistStart.index(request)
-        let playlist = try await Self.libraryPlaylist(id: id)
-        guard let start else {
-            player.queue = [playlist]
-            try await player.play()
-            return [:]
-        }
-        let songs = try await Self.songEntries(of: playlist).map(\.song)
-        // play(_:from:) indexes songs[start]: a start past the end of the
-        // list (the playlist may have changed since libraryPlaylist listed
-        // it) must be reported here rather than trap there.
-        try PlaylistStart.checkRange(start, count: songs.count)
-        try await play(songs, from: start, context: "playPlaylist \(id)")
-        return [:]
+        let tracks = try await Self.tracks(from: tracksCall, command: request.cmd)
+        let plan = try LibraryQueuePlan(tracks, startIndex: start)
+        let id = try request.requiredID("playlistId")
+        return try await playCatalogSongs(plan.ids, from: plan.start, context: "playPlaylist \(id)")
     }
 
-    private nonisolated static func libraryPlaylist(id: String) async throws -> Playlist {
-        var library = MusicLibraryRequest<Playlist>()
-        library.filter(matching: \.id, equalTo: MusicItemID(id))
-        guard let playlist = try await library.response().items.first else {
-            throw CommandError("playlist \(id) was not found in the library")
-        }
-        return playlist
-    }
-
-    /// Upper bound on the entries read from one playlist.
-    private nonisolated static let maxPlaylistEntries = 1000
-
-    /// The song entries of a library playlist, in order, following further
-    /// batches up to `maxPlaylistEntries` entries. `libraryPlaylist` and
+    /// The songs of a library playlist, in order, up to
+    /// `LibraryRead.maxPlaylistTracks`. `libraryPlaylist` and
     /// `playPlaylist` share it, so a `startIndex` means the same song.
-    private nonisolated static func songEntries(of playlist: Playlist) async throws -> [(entry: Playlist.Entry, song: Song)] {
-        guard var batch = try await playlist.with([.entries]).entries else { return [] }
-        var entries = Array(batch)
-        while batch.hasNextBatch, entries.count < maxPlaylistEntries, let next = try await batch.nextBatch() {
-            entries += next
-            batch = next
-        }
-        return entries.prefix(maxPlaylistEntries).compactMap { entry in
-            if case let .song(song) = entry.item { return (entry, song) }
-            return nil
-        }
+    private nonisolated static func tracks(from call: MusicAPICall, command: String) async throws -> [LibraryTrack] {
+        try await LibraryRead.collect(
+            from: call, cap: LibraryRead.maxPlaylistTracks,
+            fetch: { try await data(for: $0, command: command) },
+            page: LibraryRead.tracksPage)
     }
 
     /// Creates a library playlist, with its songs when `songIds` lists any,
@@ -438,7 +426,7 @@ final class CommandHandler {
     /// playlist may take a moment to appear in `playlists`.
     private func createPlaylist(_ request: Request) async throws -> JSONObject {
         let call = try LibraryEdit.createPlaylist(request)
-        let data = try await Self.send(call, for: request.cmd)
+        let data = try await Self.edit(call, for: request.cmd)
         let created = try LibraryEdit.createdPlaylist(data, requestedName: request.string("name") ?? "")
         return ["id": created.id, "name": created.name]
     }
@@ -447,22 +435,43 @@ final class CommandHandler {
     /// answered with 404, which means false.
     private func favorite(_ request: Request) async throws -> JSONObject {
         let call = try LibraryEdit.favorite(request)
+        return ["favorite": try LibraryEdit.favoriteAnswer(await Self.result { try await Self.edit(call, for: request.cmd) })]
+    }
+
+    /// Loves a song or clears its rating; clearing a song without a rating
+    /// succeeds (see `LibraryEdit.setFavoriteAnswer`).
+    private func setFavorite(_ request: Request) async throws {
+        let call = try LibraryEdit.setFavorite(request)
+        let on = request.bool("on") ?? false
+        try LibraryEdit.setFavoriteAnswer(on: on, await Self.result { try await Self.edit(call, for: request.cmd) })
+    }
+
+    private nonisolated static func result(_ run: () async throws -> Data) async -> Result<Data, Error> {
+        do { return .success(try await run()) } catch { return .failure(error) }
+    }
+
+    /// Sends one library edit within `CatalogBudget.libraryEdit` and returns
+    /// the response body. A write that times out is reported as having an
+    /// unknown outcome (see `LibraryEdit.settled`) and never retried.
+    private nonisolated static func edit(_ call: MusicAPICall, for command: String) async throws -> Data {
         do {
-            return ["favorite": LibraryEdit.isFavorite(try await Self.send(call, for: request.cmd))]
-        } catch let error as MusicAPIError where error.status == 404 {
-            return ["favorite": false]
+            return try await Deadline.run(seconds: CatalogBudget.libraryEdit) {
+                try await data(for: call, command: command)
+            }
+        } catch {
+            throw LibraryEdit.settled(command, error)
         }
     }
 
-    /// Sends one Apple Music API request within `CatalogBudget.libraryEdit`
-    /// and returns the response body. MusicDataRequest adds the developer
-    /// and user tokens; an error status becomes a MusicAPIError whose
-    /// message names the likely cause.
-    private nonisolated static func send(_ call: MusicAPICall, for command: String) async throws -> Data {
+    /// Sends one Apple Music API request and returns the response body.
+    /// MusicDataRequest adds the developer and user tokens; an error status
+    /// becomes a MusicAPIFailure whose message names the likely cause.
+    private nonisolated static func data(for call: MusicAPICall, command: String) async throws -> Data {
         var url = URLComponents()
         url.scheme = "https"
         url.host = "api.music.apple.com"
         url.path = call.path
+        if !call.query.isEmpty { url.queryItems = call.query }
         guard let url = url.url else {
             throw CommandError("\(command): invalid Apple Music API path \(call.path)")
         }
@@ -472,16 +481,10 @@ final class CommandHandler {
             urlRequest.httpBody = body
             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
-        let prepared = urlRequest
         do {
-            return try await Deadline.run(seconds: CatalogBudget.libraryEdit) {
-                try await MusicDataRequest(urlRequest: prepared).response().data
-            }
+            return try await MusicDataRequest(urlRequest: urlRequest).response().data
         } catch let error as MusicDataRequest.Error {
-            let detail = error.detailText.isEmpty ? error.title : error.detailText
-            throw MusicAPIError(
-                status: error.status,
-                description: LibraryEdit.failureMessage(command: command, status: error.status, detail: detail))
+            throw MusicAPIFailure(command: command, status: error.status, title: error.title, detail: error.detailText)
         }
     }
 
@@ -532,12 +535,6 @@ final class CommandHandler {
             "trackNumber": song.trackNumber ?? 0,
             "discNumber": song.discNumber ?? 0,
         ]) { _, position in position }
-    }
-
-    /// A library song: its library id, and its duration normalized to
-    /// seconds (see LibraryDuration).
-    private func librarySongJSON(_ song: Song) -> JSONObject {
-        songJSON(song).merging(["duration": LibraryDuration.seconds(song.duration)]) { _, seconds in seconds }
     }
 
     private func songJSON(_ song: Song) -> JSONObject {

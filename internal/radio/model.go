@@ -276,9 +276,11 @@ func (m Model) authorizeCmd() tea.Cmd {
 	}
 }
 
+// loadPlaylistsCmd lists the library playlists. The helper pages through
+// the Apple Music API for them, so the call gets the detail timeout.
 func (m Model) loadPlaylistsCmd() tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := m.ctx()
+		ctx, cancel := context.WithTimeout(context.Background(), max(m.timeout, detailCallTimeout))
 		defer cancel()
 		pls, err := m.player.Playlists(ctx)
 		return playlistsMsg{playlists: pls, err: err}

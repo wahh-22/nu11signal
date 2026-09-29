@@ -1,6 +1,7 @@
 package radio
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"slices"
@@ -270,5 +271,75 @@ func TestPlaylistGolden80x24(t *testing.T) {
 			}
 			assertGolden(t, tt.name+"_80x24.golden", ansi.Strip(m.View().Content))
 		})
+	}
+}
+
+// withUpload is nightDrive with its second track only in the library.
+func withUpload() playback.PlaylistDetail {
+	d := nightDrive()
+	d.Tracks[1].LibraryOnly = true
+	return d
+}
+
+func TestLibraryOnlyTrackIsMutedAndNotPlayed(t *testing.T) {
+	f := playbacktest.New()
+	f.LibraryPlaylistResult = withUpload()
+	m := openStation(t, loaded(t, f, newClock()), 0)
+
+	rows := linesOf(m.trackBody(m.listBodyWidth(), 30))
+	styled := func(title string) string {
+		for _, r := range rows {
+			if strings.Contains(ansi.Strip(r), title) {
+				return r
+			}
+		}
+		t.Fatalf("no row for %s", title)
+		return ""
+	}
+	if row := styled("RESONANCE"); !strings.Contains(row, stMuted.Render("RESONANCE")) {
+		t.Errorf("library-only track is not muted: %q", row)
+	}
+	if row := styled("NIGHTCALL"); strings.Contains(row, stMuted.Render("NIGHTCALL")) {
+		t.Errorf("catalog track is muted: %q", row)
+	}
+
+	before := len(f.Calls())
+	m, cmd := press(t, m, "down", "down", "enter") // RESONANCE
+	if cmd != nil {
+		m = settle(t, m, cmd)
+	}
+	if calls := f.Calls()[before:]; len(calls) != 0 {
+		t.Fatalf("enter on a library-only track called %v", calls)
+	}
+	if view := plain(m); !strings.Contains(view, "RESONANCE IS NOT IN THE APPLE MUSIC CATALOG") {
+		t.Fatalf("no notice for the library-only track:\n%s", view)
+	}
+
+	m, cmd = press(t, m, "down", "enter") // TURBO KILLER still plays from itself
+	settle(t, m, cmd)
+	assertCall(t, f, "PlayPlaylistFrom", "pl-1", 2)
+}
+
+// deadlinePlayer records the deadline of the Playlists call.
+type deadlinePlayer struct {
+	*playbacktest.Fake
+	left time.Duration
+}
+
+func (p *deadlinePlayer) Playlists(ctx context.Context) ([]playback.Playlist, error) {
+	if d, ok := ctx.Deadline(); ok {
+		p.left = time.Until(d)
+	}
+	return p.Fake.Playlists(ctx)
+}
+
+func TestPlaylistsGetTheDetailTimeout(t *testing.T) {
+	// The helper pages through the Apple Music API for the playlists,
+	// within CatalogBudget.libraryRead; the call waits as long as a page.
+	p := &deadlinePlayer{Fake: playbacktest.New()}
+	m := New(p, Options{Now: newClock().now, Seed: 2077})
+	run(t, m.loadPlaylistsCmd())
+	if p.left <= defaultCallTimeout || p.left > detailCallTimeout {
+		t.Fatalf("Playlists deadline %v away; want the detail timeout %v", p.left, detailCallTimeout)
 	}
 }

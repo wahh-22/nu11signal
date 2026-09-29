@@ -8,13 +8,19 @@ import (
 	"time"
 )
 
-// Song is a catalog track.
+// Song is a catalog track, or a song of a library playlist.
 type Song struct {
+	// ID is the catalog id; a song only in the library (LibraryOnly)
+	// carries its Apple Music API library id ("i.…") instead.
 	ID       string
 	Title    string
 	Artist   string
 	Album    string
 	Duration time.Duration
+	// LibraryOnly marks a library playlist's song that is not in the
+	// Apple Music catalog (an upload, or a song since removed): it cannot
+	// be played, and PlayPlaylistFrom refuses to start at it.
+	LibraryOnly bool
 }
 
 // Artist is a catalog artist.
@@ -121,8 +127,8 @@ type AlbumDetail struct {
 }
 
 // PlaylistDetail is a playlist page: the playlist, its songs in order and
-// its description as plain text. A library playlist has no curator, and
-// its songs carry library ids.
+// its description as plain text. A library playlist has no curator; its
+// songs carry catalog ids, but for the LibraryOnly ones.
 type PlaylistDetail struct {
 	Playlist CatalogPlaylist
 	Tracks   []Song
@@ -131,8 +137,12 @@ type PlaylistDetail struct {
 
 // Playlist is a library playlist; the UI presents it as a radio station.
 type Playlist struct {
+	// ID is the Apple Music API library id ("p.…").
 	ID   string
 	Name string
+	// Editable reports whether songs may be added to it: false for a
+	// playlist followed from the catalog.
+	Editable bool
 }
 
 // Status is the player's playback status.
@@ -191,14 +201,17 @@ type Player interface {
 	// SongAlbum loads the page of the album that contains the catalog song.
 	SongAlbum(ctx context.Context, songID string) (AlbumDetail, error)
 	CatalogPlaylist(ctx context.Context, playlistID string) (PlaylistDetail, error)
+	// Playlists lists the library playlists, alphabetically.
 	Playlists(ctx context.Context) ([]Playlist, error)
 	// LibraryPlaylist loads a library playlist page: its songs, in order.
 	LibraryPlaylist(ctx context.Context, playlistID string) (PlaylistDetail, error)
 	PlaySongs(ctx context.Context, ids []string, start int) error
-	// PlayPlaylist plays a library playlist from its first song.
+	// PlayPlaylist plays a library playlist from its first song. Songs
+	// that are LibraryOnly are skipped.
 	PlayPlaylist(ctx context.Context, id string) error
 	// PlayPlaylistFrom plays a library playlist starting at the song at
-	// index start of its LibraryPlaylist tracks.
+	// index start of its LibraryPlaylist tracks, skipping LibraryOnly
+	// songs; starting at one of them is an error.
 	PlayPlaylistFrom(ctx context.Context, playlistID string, start int) error
 	Pause(ctx context.Context) error
 	Resume(ctx context.Context) error

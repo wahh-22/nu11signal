@@ -33,9 +33,9 @@ type trackPage struct {
 	album    playback.Album
 	song     playback.Song
 	playlist playback.CatalogPlaylist
-	// library marks a library playlist: its tracks carry library ids, so
-	// it is played as the playlist (from ▶ PLAY or a track), never by
-	// song ids.
+	// library marks a library playlist: it is played as the playlist
+	// (from ▶ PLAY or a track), never by song ids, so the helper can skip
+	// its library-only songs.
 	library bool
 	// seq numbers the load; answers for another number are dropped.
 	seq            uint64
@@ -257,7 +257,8 @@ func (m Model) playingIndex(p trackPage) int {
 
 // tracksEnter plays the page's tracks from the selected one (a library
 // playlist as the playlist, from the start on ▶ PLAY), or toggles the notes
-// on MORE.
+// on MORE. A library-only track only shows a notice: the helper cannot
+// play it.
 func (m Model) tracksEnter() (Model, tea.Cmd) {
 	items := m.trackItems()
 	cur := m.cursor()
@@ -272,6 +273,10 @@ func (m Model) tracksEnter() (Model, tea.Cmd) {
 		return m, nil
 	}
 	if page := m.top().tracks; page.library {
+		if songs := page.tracks(); !it.playAll && it.index < len(songs) && songs[it.index].LibraryOnly {
+			m.setStatus(strings.ToUpper(songs[it.index].Title) + " IS NOT IN THE APPLE MUSIC CATALOG // IT CANNOT BE PLAYED HERE")
+			return m, nil
+		}
 		id := page.playlist.ID
 		m.playSeq++
 		return m, m.playCmd(m.playSeq, "PLAY", id, func(ctx context.Context) error {
@@ -328,7 +333,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 		for i, s := range d.Tracks {
 			total += s.Duration
 			item(trackItem{index: i}, func(sel bool) string {
-				return trackLine(i+1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, i == on, sel, w)
+				return trackLine(i+1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, i == on, sel, s.LibraryOnly, w)
 			})
 		}
 		notes = d.Notes
@@ -339,7 +344,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 	} else if page.loneSong() {
 		s := page.song
 		item(trackItem{index: 0}, func(sel bool) string {
-			return trackLine(1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, on == 0, sel, w)
+			return trackLine(1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, on == 0, sel, false, w)
 		})
 	} else {
 		d := page.albumDetail
@@ -362,7 +367,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 				n = i + 1
 			}
 			item(trackItem{index: i}, func(sel bool) string {
-				return trackLine(n, strings.ToUpper(t.Title), "", t.Duration, i == on, sel, w)
+				return trackLine(n, strings.ToUpper(t.Title), "", t.Duration, i == on, sel, false, w)
 			})
 		}
 		notes = d.Notes
@@ -407,8 +412,9 @@ func playAllLine(selected bool, w int) string {
 
 // trackLine lays out one track row in exactly w cells: the selection mark,
 // a ▶ on the song playing, the number, the title with a muted detail
-// (a playlist track's artist) and the duration at the right edge.
-func trackLine(num int, title, detail string, d time.Duration, playing, selected bool, w int) string {
+// (a playlist track's artist) and the duration at the right edge. A muted
+// row (a song that cannot be played) renders its title muted too.
+func trackLine(num int, title, detail string, d time.Duration, playing, selected, muted bool, w int) string {
 	mark := " "
 	if playing {
 		mark = "▶"
@@ -431,8 +437,11 @@ func trackLine(num int, title, detail string, d time.Duration, playing, selected
 		return stSelected.Render(fit("▌"+mark+number+"  "+title+detail+pad+right, w))
 	}
 	titleStyle := stRed
-	if playing {
+	switch {
+	case playing:
 		titleStyle = stYellowB
+	case muted:
+		titleStyle = stMuted
 	}
 	line := " " + stYellow.Render(mark) + stMuted.Render(number) + "  " + titleStyle.Render(title) +
 		stMuted.Render(detail) + pad + stMuted.Render(right)

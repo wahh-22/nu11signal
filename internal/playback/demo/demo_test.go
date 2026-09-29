@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -667,4 +668,50 @@ func songIDs(songs []playback.Song) []string {
 		ids[i] = s.ID
 	}
 	return ids
+}
+
+func TestPlaylistsAreEditable(t *testing.T) {
+	p := newPlayer(t)
+	pls, err := p.Playlists(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pl := range pls {
+		if !pl.Editable {
+			t.Errorf("playlist %s is not editable; the demo library is the user's own", pl.ID)
+		}
+	}
+}
+
+func TestLibraryOnlySongsAreListedButNotPlayed(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	d, err := p.LibraryPlaylist(ctx, "demo-6")
+	if err != nil {
+		t.Fatal(err)
+	}
+	upload := slices.IndexFunc(d.Tracks, func(s playback.Song) bool { return s.LibraryOnly })
+	if upload < 0 || upload == len(d.Tracks)-1 {
+		t.Fatalf("demo-6 tracks = %+v; want a library-only song before the last one", d.Tracks)
+	}
+	if err := p.PlayPlaylistFrom(ctx, "demo-6", upload); err == nil {
+		t.Error("PlayPlaylistFrom started at a library-only song")
+	}
+	if err := p.PlayPlaylistFrom(ctx, "demo-6", upload+1); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, p, func(s playback.State) bool {
+		return s.Status == playback.StatusPlaying && s.SongID == d.Tracks[upload+1].ID
+	})
+	if err := p.Next(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, p, func(s playback.State) bool { return s.SongID != d.Tracks[upload+1].ID && s.SongID != "" })
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, s := range p.queue {
+		if s.LibraryOnly {
+			t.Errorf("queue holds the library-only song %+v", s)
+		}
+	}
 }

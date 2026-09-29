@@ -28,11 +28,15 @@ public enum CatalogBudget {
     /// setFavorite): one Apple Music API request. A write that times out
     /// may still be applied later; the command reports the timeout.
     public static let libraryEdit = lookup
+    /// A library read (`playlists`, `libraryPlaylist`): the Apple Music
+    /// API pages of one collection, fetched one after another (up to 5
+    /// pages of playlists or 10 of songs).
+    public static let libraryRead = 2 * lookup
 
     /// `artistCallTimeout` in internal/radio.
     public static let goArtistCallTimeout: TimeInterval = 15
     /// `detailCallTimeout` in internal/radio (album, song album, playlist,
-    /// and the library edits).
+    /// the library playlists, and the library edits).
     public static let goDetailCallTimeout: TimeInterval = 12
 }
 
