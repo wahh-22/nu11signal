@@ -128,3 +128,41 @@ test_release_force_restores_the_previous_release_when_promotion_fails() {
   assert_output_contains "could not rename"
   [[ "$(tree_hash "$DIST")" == "$before" ]] || fail "dist/ was not restored: $(ls -A "$DIST")"
 }
+
+test_release_force_restores_the_previous_release_when_interrupted_between_renames() {
+  setup_release
+  mkdir -p "$DIST/v0.2.1"
+  printf 'published\n' >"$DIST/v0.2.1/marker"
+  local before
+  before="$(tree_hash "$DIST")"
+  STUB_MV_TERM_AFTER_BACKUP=1 release --force 0.2.1
+  assert_failed
+  assert_output_contains "restored the previous $DIST/v0.2.1"
+  [[ "$(tree_hash "$DIST")" == "$before" ]] || fail "dist/ was not restored: $(ls -A "$DIST")"
+}
+
+test_release_force_reports_a_leftover_backup() {
+  setup_release
+  mkdir -p "$DIST/v0.2.1" "$DIST/v0.2.1.replaced-20260101T000000"
+  printf 'published\n' >"$DIST/v0.2.1/marker"
+  release --force 0.2.1
+  assert_status 0
+  assert_output_contains "earlier backup"
+  assert_output_contains "$DIST/v0.2.1.replaced-20260101T000000"
+  [[ -d "$DIST/v0.2.1.replaced-20260101T000000" ]] || fail "the earlier backup was removed"
+  assert_release_layout "$DIST/v0.2.1" 0.2.1
+}
+
+test_release_refuses_when_only_a_backup_is_left() {
+  setup_release
+  mkdir -p "$DIST/v0.2.1.replaced-20260101T000000"
+  printf 'published\n' >"$DIST/v0.2.1.replaced-20260101T000000/marker"
+  local before
+  before="$(tree_hash "$DIST")"
+  release --force 0.2.1
+  assert_failed
+  assert_output_contains "$DIST/v0.2.1 is missing"
+  assert_output_contains "mv $DIST/v0.2.1.replaced-20260101T000000 $DIST/v0.2.1"
+  [[ "$(tree_hash "$DIST")" == "$before" ]] || fail "dist/ changed"
+  [[ "$(stub_calls go)" == 0 ]] || fail "built before refusing"
+}

@@ -179,7 +179,10 @@ single rename to `dist/v0.2.0` only after those checks pass; a failed or
 interrupted run removes the staging directory and leaves `dist/` untouched.
 An existing `dist/v0.2.0` is never overwritten: `make release VERSION=0.2.0
 FORCE=1` (`--force`) renames it to `dist/v0.2.0.replaced-<timestamp>` first
-and restores it if the promotion fails. If notarization is rejected it prints
+and restores it if the promotion fails or is interrupted. Earlier backups are
+listed as a warning (delete them when no longer needed); if only a backup is
+left (a run killed between the two renames), the release is refused until it
+is restored or deleted. If notarization is rejected it prints
 the `xcrun notarytool log` command. `make release-dry-run` writes to
 `build/release-dry-run/v0.2.0/` instead. Overrides: `NU11SIGNAL_SIGN_IDENTITY`,
 `NU11SIGNAL_PROFILE`, `NU11SIGNAL_NOTARY_PROFILE`, `NU11SIGNAL_TEAM_ID`.
@@ -197,8 +200,10 @@ the version and the sha256 from `dist/v0.2.0/nu11signal-0.2.0-macos-universal.ta
 and writes `Casks/nu11signal.rb` in a checkout of
 [wahh-22/homebrew-tap](https://github.com/wahh-22/homebrew-tap):
 `NU11SIGNAL_TAP_DIR` (default `../homebrew-tap`), cloned when missing and
-fast-forwarded when present. It refuses a checkout with uncommitted changes or
-untracked files anywhere except `Casks/nu11signal.rb`. Without `PUSH=1` nothing
+fast-forwarded when behind its upstream. It refuses a checkout that has
+diverged from its upstream (it prints the local commits and how to drop or
+rebase them), and one with uncommitted changes or untracked files anywhere
+except `Casks/nu11signal.rb`. Without `PUSH=1` nothing
 is committed, and an unchanged render never creates a commit. If an earlier
 `PUSH=1` committed but the push failed, a rerun reports the unpushed
 `chore: bump nu11signal to 0.2.0` commit, and `PUSH=1` pushes it (after

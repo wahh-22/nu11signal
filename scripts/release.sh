@@ -14,11 +14,13 @@
 #
 # An existing dist/vVERSION is never overwritten unless --force is given. Then
 # it is first renamed to dist/vVERSION.replaced-<timestamp> (kept) and the
-# staging directory renamed into place: two renames, because macOS has no
-# atomic directory swap from the shell. If the second rename fails, or the run
-# is interrupted between them, the backup is renamed back on exit; only a
-# hard kill (SIGKILL, power loss) in that instant can leave dist/vVERSION
-# missing with the previous release in the backup.
+# staging directory renamed into place: two adjacent renames, because macOS
+# has no atomic directory swap from the shell. If the second rename fails, or
+# the run is interrupted between them, the backup is renamed back on exit;
+# only a hard kill (SIGKILL, power loss) in that instant can leave
+# dist/vVERSION missing with the previous release in the backup. A later run
+# then refuses to build until that backup is restored or deleted, and backups
+# kept next to an existing dist/vVERSION are listed as a warning.
 #
 # Requires (see README.md, "Releasing"):
 #   - a "Developer ID Application" certificate for the team in the keychain;
@@ -98,6 +100,23 @@ if [[ "$DRY_RUN" != 1 && "$FORCE" != 1 ]] && [[ -e "$DEST" || -L "$DEST" ]]; the
   die "$DEST already exists; pass --force (make release VERSION=$VERSION FORCE=1) to replace it"
 fi
 
+# Backups of DEST left by earlier --force runs. A missing DEST next to one
+# means a run was killed between its two renames: refuse to build over that.
+if [[ "$DRY_RUN" != 1 ]]; then
+  shopt -s nullglob
+  backups=("$DEST".replaced-*)
+  shopt -u nullglob
+  if ((${#backups[@]} > 0)); then
+    if [[ ! -e "$DEST" && ! -L "$DEST" ]]; then
+      die "$DEST is missing, but backup(s) of it exist (an earlier --force run was interrupted between its renames):
+$(printf '       %s\n' "${backups[@]}")
+       Restore the latest one (mv ${backups[${#backups[@]} - 1]} $DEST) or delete them, then rerun."
+    fi
+    echo "warning: earlier backup(s) of $DEST from previous --force runs are kept; delete them once they are not needed:" >&2
+    printf '    %s\n' "${backups[@]}" >&2
+  fi
+fi
+
 step "Preflight for nu11signal $VERSION$([[ "$DRY_RUN" == 1 ]] && echo " (dry run)")"
 missing=()
 
@@ -166,7 +185,9 @@ mkdir -p "$STAGE/bin" "$STAGE/libexec"
 
 # promote: renames the staging directory to DEST in one step. An existing
 # DEST is removed first in a dry run, and renamed to a timestamped backup with
-# --force (restored by cleanup if the second rename does not happen).
+# --force: everything is prepared before that first rename, the second rename
+# follows it directly, and BACKUP is set before the first one so that cleanup
+# restores the previous release if the run stops between them.
 promote() {
   chmod 755 "$STAGE_ROOT" # mktemp -d creates it 0700
   if [[ -e "$DEST" || -L "$DEST" ]]; then
@@ -175,21 +196,22 @@ promote() {
     elif [[ "$FORCE" == 1 ]]; then
       local backup
       backup="$DEST.replaced-$(date +%Y%m%dT%H%M%S)"
-      [[ ! -e "$backup" ]] || die "$backup already exists; retry in a second"
-      mv "$DEST" "$backup"
+      [[ ! -e "$backup" && ! -L "$backup" ]] || die "$backup already exists; retry in a second"
       BACKUP="$backup"
+      mv "$DEST" "$BACKUP"
+      mv "$STAGE_ROOT" "$DEST" || die "could not rename $STAGE_ROOT to $DEST"
+      STAGE_ROOT=""
+      echo "    previous release kept at $BACKUP"
+      BACKUP=""
+      return
     else
       die "$DEST appeared during the build; pass --force to replace it"
     fi
   fi
   # mv would move the staging directory *into* an existing DEST; it was
-  # checked (or moved aside) just above.
+  # checked (or removed) just above.
   mv "$STAGE_ROOT" "$DEST" || die "could not rename $STAGE_ROOT to $DEST"
   STAGE_ROOT=""
-  if [[ -n "$BACKUP" ]]; then
-    echo "    previous release kept at $BACKUP"
-    BACKUP=""
-  fi
 }
 
 step "Building universal nu11signal $VERSION"
