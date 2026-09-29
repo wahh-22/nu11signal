@@ -25,7 +25,12 @@ type Fake struct {
 	AuthStatus          playback.AuthStatus
 	SearchCatalogResult playback.SearchResults
 	ArtistResult        playback.ArtistDetail
-	PlaylistsResult     []playback.Playlist
+	// AlbumResult answers Album, SongAlbumResult SongAlbum and
+	// CatalogPlaylistResult CatalogPlaylist.
+	AlbumResult           playback.AlbumDetail
+	SongAlbumResult       playback.AlbumDetail
+	CatalogPlaylistResult playback.PlaylistDetail
+	PlaylistsResult       []playback.Playlist
 	// Err, when set, is returned by every method; MethodErr overrides it
 	// per method name (for example "SearchCatalog").
 	Err       error
@@ -98,6 +103,27 @@ func (f *Fake) Artist(_ context.Context, artistID string) (playback.ArtistDetail
 		return playback.ArtistDetail{}, err
 	}
 	return f.ArtistResult, nil
+}
+
+func (f *Fake) Album(_ context.Context, albumID string) (playback.AlbumDetail, error) {
+	if err := f.record("Album", albumID); err != nil {
+		return playback.AlbumDetail{}, err
+	}
+	return f.AlbumResult, nil
+}
+
+func (f *Fake) SongAlbum(_ context.Context, songID string) (playback.AlbumDetail, error) {
+	if err := f.record("SongAlbum", songID); err != nil {
+		return playback.AlbumDetail{}, err
+	}
+	return f.SongAlbumResult, nil
+}
+
+func (f *Fake) CatalogPlaylist(_ context.Context, playlistID string) (playback.PlaylistDetail, error) {
+	if err := f.record("CatalogPlaylist", playlistID); err != nil {
+		return playback.PlaylistDetail{}, err
+	}
+	return f.CatalogPlaylistResult, nil
 }
 
 func (f *Fake) Playlists(context.Context) ([]playback.Playlist, error) {

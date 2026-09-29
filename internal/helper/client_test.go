@@ -475,3 +475,99 @@ func TestOfferKeepsLatestWithoutBlocking(t *testing.T) {
 		t.Fatalf("buffered = %v; want the 3 newest ending in 10", got)
 	}
 }
+
+func TestAlbumAndSongAlbumRoundTrip(t *testing.T) {
+	c := startFake(t, "standard", Options{})
+	song := func(id, title string, d time.Duration, n int) playback.Track {
+		return playback.Track{Song: playback.Song{ID: id, Title: title, Artist: "Daft Punk", Album: "Discovery", Duration: d}, Number: n, Disc: 1}
+	}
+	want := playback.AlbumDetail{
+		Album:       playback.Album{ID: "al1", Title: "Discovery", Artist: "Daft Punk", Year: 2001, TrackCount: 2},
+		Tracks:      []playback.Track{song("s1", "One More Time", 320*time.Second+500*time.Millisecond, 1), song("s2", "Aerodynamic", 207*time.Second, 2)},
+		Genre:       "Electronic",
+		ReleaseDate: "2001-03-07",
+		RecordLabel: "Parlophone",
+		Copyright:   "℗ 2001 Daft Life Ltd.",
+		Notes:       "The robots arrive.",
+	}
+	// The fake helper answers only the expected argument names
+	// ("albumId", "songId"), so a mismatch fails the call.
+	got, err := c.Album(t.Context(), "al1")
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("Album = %+v, %v; want %+v", got, err, want)
+	}
+	got, err = c.SongAlbum(t.Context(), "s1")
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("SongAlbum = %+v, %v; want %+v", got, err, want)
+	}
+}
+
+func TestCatalogPlaylistRoundTrip(t *testing.T) {
+	c := startFake(t, "standard", Options{})
+	got, err := c.CatalogPlaylist(t.Context(), "pl1")
+	want := playback.PlaylistDetail{
+		Playlist: playback.CatalogPlaylist{ID: "pl1", Name: "Daft Punk Essentials", Curator: "Apple Music Electronic"},
+		Tracks:   []playback.Song{{ID: "s3", Title: "Get Lucky", Artist: "Daft Punk", Album: "Random Access Memories", Duration: 369 * time.Second}},
+		Notes:    "Robot rock.",
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("CatalogPlaylist = %+v, %v; want %+v", got, err, want)
+	}
+}
+
+func TestDetailsTolerateMissingFields(t *testing.T) {
+	c := startFake(t, "sparseDetail", Options{})
+	ctx := t.Context()
+
+	for _, load := range []func(string) (playback.AlbumDetail, error){
+		func(id string) (playback.AlbumDetail, error) { return c.Album(ctx, id) },
+		func(id string) (playback.AlbumDetail, error) { return c.SongAlbum(ctx, id) },
+	} {
+		empty, err := load("empty")
+		if err != nil || !reflect.DeepEqual(empty, playback.AlbumDetail{}) {
+			t.Errorf("empty album = %+v, %v; want a zero page", empty, err)
+		}
+		sparse, err := load("sparse")
+		want := playback.AlbumDetail{
+			Album:  playback.Album{ID: "al1", Title: "Discovery"},
+			Tracks: []playback.Track{{Song: playback.Song{ID: "s1", Title: "One More Time"}}},
+		}
+		if err != nil || !reflect.DeepEqual(sparse, want) {
+			t.Errorf("sparse album = %+v, %v; want %+v", sparse, err, want)
+		}
+	}
+
+	empty, err := c.CatalogPlaylist(ctx, "empty")
+	if err != nil || !reflect.DeepEqual(empty, playback.PlaylistDetail{}) {
+		t.Errorf("empty playlist = %+v, %v; want a zero page", empty, err)
+	}
+	sparse, err := c.CatalogPlaylist(ctx, "sparse")
+	want := playback.PlaylistDetail{
+		Playlist: playback.CatalogPlaylist{ID: "pl1", Name: "Mix"},
+		Tracks:   []playback.Song{{ID: "s1", Title: "One More Time"}},
+	}
+	if err != nil || !reflect.DeepEqual(sparse, want) {
+		t.Errorf("sparse playlist = %+v, %v; want %+v", sparse, err, want)
+	}
+}
+
+func TestDetailErrorResponses(t *testing.T) {
+	c := startFake(t, "sparseDetail", Options{})
+	ctx := t.Context()
+	tests := []struct {
+		command, message string
+		call             func() error
+	}{
+		{"album", "album not found", func() error { _, err := c.Album(ctx, "gone"); return err }},
+		{"songAlbum", "song not found", func() error { _, err := c.SongAlbum(ctx, "gone"); return err }},
+		{"catalogPlaylist", "playlist not found", func() error { _, err := c.CatalogPlaylist(ctx, "gone"); return err }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			var cmdErr *CommandError
+			if err := tt.call(); !errors.As(err, &cmdErr) || cmdErr.Command != tt.command || cmdErr.Message != tt.message {
+				t.Fatalf("error = %v; want CommandError{%s, %s}", err, tt.command, tt.message)
+			}
+		})
+	}
+}

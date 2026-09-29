@@ -131,3 +131,41 @@ func TestFakeArtistReturnsCannedDetailAndRecordsID(t *testing.T) {
 		t.Fatalf("Artist on error = %+v, %v; want zero, boom", got, err)
 	}
 }
+
+func TestFakeAlbumPlaylistAndSongAlbumReturnCannedDetails(t *testing.T) {
+	f := New()
+	f.AlbumResult = playback.AlbumDetail{Album: playback.Album{ID: "al1"}, Genre: "Electronic"}
+	f.SongAlbumResult = playback.AlbumDetail{Album: playback.Album{ID: "al2"}}
+	f.CatalogPlaylistResult = playback.PlaylistDetail{Playlist: playback.CatalogPlaylist{ID: "pl1"}, Tracks: []playback.Song{{ID: "s1"}}}
+	ctx := t.Context()
+
+	if got, err := f.Album(ctx, "al1"); err != nil || !reflect.DeepEqual(got, f.AlbumResult) {
+		t.Fatalf("Album = %+v, %v; want the canned album", got, err)
+	}
+	if got, err := f.SongAlbum(ctx, "s9"); err != nil || !reflect.DeepEqual(got, f.SongAlbumResult) {
+		t.Fatalf("SongAlbum = %+v, %v; want the canned song album", got, err)
+	}
+	if got, err := f.CatalogPlaylist(ctx, "pl1"); err != nil || !reflect.DeepEqual(got, f.CatalogPlaylistResult) {
+		t.Fatalf("CatalogPlaylist = %+v, %v; want the canned playlist", got, err)
+	}
+	want := []Call{
+		{Method: "Album", Args: []any{"al1"}},
+		{Method: "SongAlbum", Args: []any{"s9"}},
+		{Method: "CatalogPlaylist", Args: []any{"pl1"}},
+	}
+	if !reflect.DeepEqual(f.Calls(), want) {
+		t.Fatalf("Calls = %#v; want %#v", f.Calls(), want)
+	}
+
+	boom := errors.New("boom")
+	f.MethodErr = map[string]error{"Album": boom, "SongAlbum": boom, "CatalogPlaylist": boom}
+	if got, err := f.Album(ctx, "al1"); !errors.Is(err, boom) || !reflect.DeepEqual(got, playback.AlbumDetail{}) {
+		t.Errorf("Album on error = %+v, %v; want zero, boom", got, err)
+	}
+	if got, err := f.SongAlbum(ctx, "s9"); !errors.Is(err, boom) || !reflect.DeepEqual(got, playback.AlbumDetail{}) {
+		t.Errorf("SongAlbum on error = %+v, %v; want zero, boom", got, err)
+	}
+	if got, err := f.CatalogPlaylist(ctx, "pl1"); !errors.Is(err, boom) || !reflect.DeepEqual(got, playback.PlaylistDetail{}) {
+		t.Errorf("CatalogPlaylist on error = %+v, %v; want zero, boom", got, err)
+	}
+}

@@ -6,19 +6,36 @@ import Foundation
 /// for the terminal.
 public enum EditorialText {
     /// Line breaks and paragraph ends become newlines, other tags are
-    /// dropped, entities are decoded (unknown ones are kept as written), and
-    /// runs of whitespace collapse to single spaces with blank lines removed.
+    /// dropped, entities are decoded (unknown ones are kept as written),
+    /// control characters other than newlines are removed (control
+    /// whitespace such as a tab counts as a space), and runs of whitespace
+    /// collapse to single spaces with blank lines removed.
     public static func plain(_ html: String) -> String {
         var text = html.replacing(#/(?i)<br\s*/?>|</p\s*>|</div\s*>/#, with: "\n")
         text = text.replacing(#/</?[A-Za-z!][^>]*>/#, with: "")
         text = text.replacing(#/&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z]+);/#) { match in
             decode(String(match.output.1)) ?? String(match.output.0)
         }
-        return text
+        return withoutControls(text)
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { $0.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
+    }
+
+    /// Removes C0/C1 control characters, which (like a decoded "&#27;",
+    /// ESC) would reach the terminal as control sequences. Newlines stay;
+    /// control whitespace (tab, carriage return, NEL) becomes a space.
+    private static func withoutControls(_ text: String) -> String {
+        var kept = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            if scalar == "\n" || scalar.properties.generalCategory != .control {
+                kept.append(scalar)
+            } else if scalar.properties.isWhitespace {
+                kept.append(" ")
+            }
+        }
+        return String(kept)
     }
 
     private static let named: [String: String] = [
