@@ -217,21 +217,22 @@ directories for `dist/` and the tap, and a local bare repository as its origin.
 
 ## Browsing the catalog
 
-Views stack like Apple Music's: stations → SEARCH → ARTIST → ALBUM, SONG, or
-PLAYLIST. `esc` goes back one view, `tab` returns to the stations. Leaving
+Views stack like Apple Music's: stations → SEARCH → RESULTS → ARTIST → ALBUM,
+SONG, or PLAYLIST. `esc` goes back one view, `tab` returns to the stations. Leaving
 with `tab` keeps the search branch as it was: `/` or `tab` from the stations
 brings back the same view (an artist or album page included) with its cursor.
 
 | View | Shows |
 |------|-------|
 | SEARCH | RECENT searches while the input is empty; once you type 2+ characters, live suggestions, then matching artists (with their genre) and songs |
+| RESULTS | The full search for a submitted term, non-empty sections only: TOP RESULTS (tagged ARTIST, ALBUM, SONG, or PLAYLIST), ARTISTS, ALBUMS (with artist and year), SONGS (with artist), PLAYLISTS (with curator) |
 | ARTIST | Its non-empty sections in Apple Music order: TOP SONGS, ESSENTIAL ALBUMS, ALBUMS, ARTIST PLAYLISTS, SINGLES & EPS, COMPILATIONS, then ABOUT (editorial notes folded behind MORE, FROM, FORMED, GENRE) |
 | ALBUM | The tracks (by disc when there are several), release date, song count and length, copyright, record label, and notes |
 | SONG | The album holding the song, with the song highlighted (`▶`) and selected; if the album cannot be loaded, the song alone, still playable |
 | PLAYLIST | The tracks with their artists, song count and length, curator, and notes |
 
-Recent searches are the last 10 terms you ran with `enter` or opened an
-artist or song from, stored in
+Recent searches are the last 10 terms you submitted with `enter` (typed, a
+suggestion, or a recent term) or opened an artist or song from, stored in
 `nu11signal/recent.json` under `os.UserConfigDir()`
 (`~/Library/Application Support/nu11signal/recent.json` on macOS). Demo mode
 keeps them in memory only.
@@ -266,17 +267,17 @@ SEARCH (typing goes to the input, so letter shortcuts are off):
 | Key | Action |
 |-----|--------|
 | `↑`/`↓` | Move between the input and the rows |
-| `enter` | On the input, search now; on a recent term or suggestion, search it; on an artist, open its page; on a song, open its SONG view |
+| `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, open its SONG view |
 | `tab` | Back to the stations (the search is kept for the next `/` or `tab`) |
 | `esc` | Back one view (closing the search: the next `/` starts empty) |
 | `ctrl+c` | Quit |
 
-ARTIST, ALBUM, SONG, and PLAYLIST:
+RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 
 | Key | Action |
 |-----|--------|
 | `↑`/`↓` or `k`/`j` | Move the cursor |
-| `enter` | Play the top songs or tracks from the selected one; open an album or playlist; MORE/LESS folds the notes |
+| `enter` | On RESULTS, open the selected artist, album, song (its SONG view), or playlist; elsewhere, play the top songs or tracks from the selected one, open an album or playlist, or fold the notes (MORE/LESS) |
 | `esc` | Back one view |
 | `tab` | Back to the stations (the page and the ones below it are kept for the next `/` or `tab`) |
 | `/` | Back to the SEARCH input, with the term kept for editing (the pages above it are closed) |
@@ -307,7 +308,7 @@ One JSON object per line.
 | Command | Args | Result |
 |---------|------|--------|
 | `authorize` | none | `{"status":...}`: `authorized`, `denied`, `restricted`, or `notDetermined` |
-| `searchCatalog` | `term` (not blank), `limit` (clamped to 1-25; suggestions to 10) | `{"suggestions":[...],"artists":[...],"songs":[...]}` |
+| `searchCatalog` | `term` (not blank), `limit` (clamped to 1-25 per type; suggestions to 10, top results to 6) | `{"suggestions":[...],"top":[{"kind":"artist","artist":{...}},...],"artists":[...],"albums":[...],"songs":[...],"playlists":[...]}`; `kind` is `artist`, `album`, `song`, or `playlist` (other top result kinds are left out) |
 | `artist` | `artistId` | `{"artist":{...},"topSongs":[...],"essentialAlbums":[...],"albums":[...],"singles":[...],"compilations":[...],"playlists":[...],"about":{"notes","genre","origin","formed"}}` |
 | `album` | `albumId` | `{"album":{...},"tracks":[...],"genre","releaseDate","recordLabel","copyright","notes"}` |
 | `songAlbum` | `songId` | Same as `album`, for the album holding the song |

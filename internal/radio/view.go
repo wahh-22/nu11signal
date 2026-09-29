@@ -296,6 +296,8 @@ func (m Model) listView(w, h int) (title, code string, body []string) {
 	switch m.top().kind {
 	case viewSearch:
 		return "SEARCH", m.searchCode(), m.searchBody(w, h)
+	case viewResults:
+		return "RESULTS", m.resultsCode(), m.resultsBody(w, h)
 	case viewArtist:
 		return "ARTIST", m.artistCode(), m.artistBody(w, h)
 	case viewAlbum, viewPlaylist:
@@ -367,6 +369,8 @@ func (m Model) hintLine(w int) string {
 	switch m.top().kind {
 	case viewSearch:
 		hints = searchHints
+	case viewResults:
+		hints = resultsHints
 	case viewArtist:
 		hints = artistHints
 	case viewAlbum, viewPlaylist:

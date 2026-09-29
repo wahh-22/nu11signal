@@ -73,8 +73,23 @@ func cleanCatalogPlaylist(p playback.CatalogPlaylist) playback.CatalogPlaylist {
 func cleanResults(r playback.SearchResults) playback.SearchResults {
 	return playback.SearchResults{
 		Suggestions: cleanEach(r.Suggestions, cleanLine),
+		Top:         cleanEach(r.Top, cleanSearchItem),
 		Artists:     cleanEach(r.Artists, cleanArtist),
+		Albums:      cleanEach(r.Albums, cleanAlbum),
 		Songs:       cleanEach(r.Songs, cleanSong),
+		Playlists:   cleanEach(r.Playlists, cleanCatalogPlaylist),
+	}
+}
+
+// cleanSearchItem cleans the text of a top result, and its kind, which
+// the results page shows as a tag.
+func cleanSearchItem(it playback.SearchItem) playback.SearchItem {
+	return playback.SearchItem{
+		Kind:     playback.SearchItemKind(cleanLine(string(it.Kind))),
+		Artist:   cleanArtist(it.Artist),
+		Album:    cleanAlbum(it.Album),
+		Song:     cleanSong(it.Song),
+		Playlist: cleanCatalogPlaylist(it.Playlist),
 	}
 }
 

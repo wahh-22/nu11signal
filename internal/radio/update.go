@@ -56,6 +56,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onAlbum(msg), nil
 	case playlistMsg:
 		return m.onPlaylist(msg), nil
+	case resultsMsg:
+		return m.onResults(msg), nil
 	case actionMsg:
 		if msg.err != nil {
 			m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
@@ -168,7 +170,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.seek(seekStep)
 	case keySearch, keyTab:
 		// Both bring back the search branch tab left, else a fresh search.
-		return m.openSearch()
+		return m.resumeOrOpenSearch()
 	case keyEsc:
 		// Back navigation for views pushed over the stations; on the
 		// stations root there is nothing to pop.

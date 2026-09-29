@@ -30,7 +30,8 @@ type Options struct {
 }
 
 const (
-	searchLimit         = 25
+	searchLimit         = 10
+	resultsLimit        = 25
 	searchDebounce      = 250 * time.Millisecond
 	minSearchRunes      = 2
 	seekStep            = 10 * time.Second
@@ -67,6 +68,9 @@ const (
 	// viewPlaylist is a catalog playlist page; its state lives in its
 	// frame.
 	viewPlaylist
+	// viewResults is the full results of a search term; its state lives
+	// in its frame.
+	viewResults
 )
 
 // frame is one entry of the navigation stack: a view and its cursor. Browse
@@ -80,6 +84,8 @@ type frame struct {
 	artist artistPage
 	// tracks is the page of a viewAlbum or viewPlaylist entry.
 	tracks trackPage
+	// results is the page of a viewResults entry.
+	results resultsPage
 }
 
 // Model is the Bubble Tea model of the radio.
@@ -119,6 +125,8 @@ type Model struct {
 	artistSeq uint64
 	// detailSeq numbers album and playlist page loads (see trackPage.seq).
 	detailSeq uint64
+	// resultsSeq numbers results page loads (see resultsPage.seq).
+	resultsSeq uint64
 
 	// seekPending holds the target of the latest seek (seekSeq) until the
 	// player answers it, so rapid seeks accumulate instead of restarting
@@ -371,42 +379,52 @@ func (m *Model) popToRoot() {
 }
 
 // parkBranch leaves for the stations root keeping the entries above it,
-// with their cursors, pages and loads, for restoreBranch.
+// with their cursors, pages and loads, for restoreBranch. A branch parked
+// before is replaced, so its loads are cancelled.
 func (m *Model) parkBranch() {
+	for _, f := range m.parked {
+		f.cancelLoad()
+	}
 	m.parked = slices.Clone(m.stack[1:])
 	m.stack = slices.Clone(m.stack[:1])
 }
 
 // restoreBranch puts the parked branch back over the stations root; ok is
-// false when nothing is parked.
+// false when nothing is parked. A page that failed to load while parked
+// reports its failure now, on screen.
 func (m *Model) restoreBranch() (ok bool) {
 	if len(m.parked) == 0 {
 		return false
 	}
 	m.stack = append(slices.Clone(m.stack[:1]), m.parked...)
 	m.parked = nil
+	if failure := m.top().loadFailure(); failure != "" {
+		m.setStatus(failure)
+	}
 	return true
 }
 
 // settleFrame replaces the first entry, on the stack or parked, that match
-// accepts with settle's result; ok is false when none does.
-func (m *Model) settleFrame(match func(frame) bool, settle func(frame) frame) (settled frame, ok bool) {
+// accepts with settle's result. A failed load reaches the status line only
+// from the stack: a parked page keeps its failure until it is restored.
+func (m *Model) settleFrame(match func(frame) bool, settle func(frame) frame) {
 	for i, f := range m.stack {
 		if match(f) {
-			settled = settle(f)
+			settled := settle(f)
 			m.setFrame(i, settled)
-			return settled, true
+			if failure := settled.loadFailure(); failure != "" {
+				m.setStatus(failure)
+			}
+			return
 		}
 	}
 	for i, f := range m.parked {
 		if match(f) {
-			settled = settle(f)
 			m.parked = slices.Clone(m.parked)
-			m.parked[i] = settled
-			return settled, true
+			m.parked[i] = settle(f)
+			return
 		}
 	}
-	return frame{}, false
 }
 
 // setTop replaces the top entry.

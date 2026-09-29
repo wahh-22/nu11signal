@@ -100,31 +100,35 @@ func (m *Model) remember(term string) tea.Cmd {
 	return func() tea.Msg { return recentSavedMsg{err: store.Add(term)} }
 }
 
-// openSearch brings back the parked search branch exactly as it was left
-// (top page and cursors); with nothing parked, it pushes a fresh search
-// view with an empty input (showing recent terms). / and tab from the
-// stations both call it.
-func (m Model) openSearch() (tea.Model, tea.Cmd) {
+// resumeOrOpenSearch brings back the parked search branch exactly as it
+// was left (top page and cursors); with nothing parked, it pushes a fresh
+// search view with an empty input (showing recent terms). / and tab from
+// the stations both call it.
+func (m Model) resumeOrOpenSearch() (tea.Model, tea.Cmd) {
 	if !m.restoreBranch() {
 		m.resetSearch()
 		m.input.Reset()
 		m.push(frame{kind: viewSearch, cursor: -1})
 		return m, m.input.Focus()
 	}
-	search := m.resumeSearch()
 	if m.top().kind != viewSearch {
-		return m, search
+		// The search resumes when esc or / goes back to it.
+		return m, nil
 	}
-	return m, tea.Batch(m.input.Focus(), search)
+	return m, tea.Batch(m.input.Focus(), m.resumeSearch())
 }
 
 // searchAgain is / on a page of the search branch: the pages above its
 // search view are dropped (cancelling their loads) and the input takes the
 // keys again, with the term kept for editing, as starting a new search.
+//
+// Pages are only ever opened from the search view, so one is below them;
+// should that change, / still lands on a search: the pages are dropped and
+// a fresh one opens.
 func (m Model) searchAgain() (Model, tea.Cmd) {
 	if !slices.ContainsFunc(m.stack, func(f frame) bool { return f.kind == viewSearch }) {
 		m.popToRoot()
-		next, cmd := m.openSearch()
+		next, cmd := m.resumeOrOpenSearch()
 		return next.(Model), cmd
 	}
 	for m.top().kind != viewSearch {
@@ -280,7 +284,8 @@ func (m Model) onCatalog(msg catalogMsg) Model {
 }
 
 // searchEnter acts on the selected row, or on the typed term when the
-// input is selected.
+// input is selected: the term, a recent term or a suggestion opens its
+// RESULTS; artists and songs open their pages.
 func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 	rows := m.searchRows()
 	cur := m.cursor()
@@ -288,9 +293,7 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 		if !longEnough(m.inputTerm()) {
 			return m, nil
 		}
-		save := m.remember(m.inputTerm())
-		next, search := m.searchNow()
-		return next, tea.Batch(search, save)
+		return m.openResults(m.inputTerm())
 	}
 	row := rows[cur]
 	switch row.kind {
@@ -305,7 +308,11 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 	}
 	m.input.SetValue(row.term)
 	m.input.CursorEnd()
-	return m.searchNow()
+	if !longEnough(m.inputTerm()) {
+		// A recent term too short to search only fills the input.
+		return m.searchNow()
+	}
+	return m.openResults(m.inputTerm())
 }
 
 // searchRows lists the selectable rows: recent terms while the input is

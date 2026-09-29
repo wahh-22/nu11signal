@@ -47,6 +47,18 @@ var artistHints = []hint{
 	{"Q", "QUIT"},
 }
 
+// resultsHints replace playerHints on the RESULTS page: enter opens the
+// selected artist, album, song or playlist.
+var resultsHints = []hint{
+	{"ENTER", "OPEN"},
+	{"J/K", "MOVE"},
+	{"SPACE", "PLAY/PAUSE"},
+	{"ESC", "BACK"},
+	{"N/P", "NEXT/PREV"},
+	{"/", "SCAN"},
+	{"Q", "QUIT"},
+}
+
 // trackHints replace playerHints on an album, song or playlist page: enter
 // plays from the selected track or expands the notes (MORE).
 var trackHints = []hint{
