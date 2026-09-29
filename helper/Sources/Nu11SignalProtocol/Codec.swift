@@ -62,15 +62,17 @@ public struct Request {
     }
 
     /// Commands that change playback run one at a time in arrival order;
-    /// read-only commands (authorize, searchCatalog, artist, album,
-    /// songAlbum, catalogPlaylist, playlists, libraryPlaylist) run
-    /// concurrently, and so do the library edits (createPlaylist,
+    /// `setRepeat` is one of them, as it changes how the queue plays and
+    /// must keep its place relative to the `playSongs` that replaces the
+    /// queue. Read-only commands (authorize, searchCatalog, artist, album,
+    /// songAlbum, catalogPlaylist, playlists, libraryPlaylist, favorites)
+    /// run concurrently, and so do the library edits (createPlaylist,
     /// addToPlaylist, favorite, setFavorite), which change the user's
     /// library through the Apple Music API but never the player. So do `volume` and `setVolume`: they touch the system
     /// output device, not the player, and finish without suspending, so a
     /// volume key never waits behind a slow `playSongs`.
     public static let playbackCommands: Set<String> = [
-        "playSongs", "playPlaylist", "pause", "resume", "next", "previous", "stop", "seek",
+        "playSongs", "playPlaylist", "pause", "resume", "next", "previous", "stop", "seek", "setRepeat",
     ]
 
     public var mutatesPlayback: Bool { Request.playbackCommands.contains(cmd) }

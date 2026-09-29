@@ -75,7 +75,7 @@ func TestLoveTogglesTheSelectedTrackOptimistically(t *testing.T) {
 
 func TestFavoritesAreReadLazilyAndCached(t *testing.T) {
 	f := playbacktest.New()
-	f.Favorites = map[string]bool{"s2": true}
+	f.Loved = map[string]bool{"s2": true}
 	m := openSong(t, f, 1) // DIGITAL LOVE (s2)
 	if n := len(callsOf(f, "Favorite")); n != 0 {
 		t.Fatalf("opening the page read %d favorites; want none before a tick", n)

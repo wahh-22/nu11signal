@@ -163,8 +163,63 @@ final class LibraryEditTests: XCTestCase {
         }
     }
 
+    // MARK: favorites
+
+    func testFavoritesReadsTheRatingsOfEachKindInBatches() throws {
+        let catalog = (1...LibraryEdit.maxRatingIDs + 1).map { String(1_000_000_000 + $0) }
+        let ids = ["i.a"] + catalog + ["i.b", catalog[0], "i.a"]
+        let calls = try LibraryEdit.favoritesCalls(ids)
+        XCTAssertEqual(calls.map(\.method), ["GET", "GET", "GET"])
+        XCTAssertEqual(calls.map(\.path), ["/v1/me/ratings/library-songs", "/v1/me/ratings/songs", "/v1/me/ratings/songs"])
+        XCTAssertEqual(calls[0].query, [URLQueryItem(name: "ids", value: "i.a,i.b")])
+        XCTAssertEqual(calls[1].query, [URLQueryItem(name: "ids", value: catalog.prefix(LibraryEdit.maxRatingIDs).joined(separator: ","))])
+        XCTAssertEqual(calls[2].query, [URLQueryItem(name: "ids", value: catalog.last!)])
+        XCTAssertTrue(calls.allSatisfy { $0.body == nil })
+    }
+
+    func testFavoritesOfNoSongsNeedNoRequest() throws {
+        XCTAssertEqual(try LibraryEdit.favoritesCalls([]), [])
+    }
+
+    func testFavoritesChecksEveryIDBeforeItGoesIntoTheQuery() {
+        assertThrows(#""12,34" is not a valid Apple Music id"#) {
+            try LibraryEdit.favoritesCalls(["1740944714", "12,34"])
+        }
+        assertThrows(#"song "34807486897551531" has no Apple Music API id"#) {
+            try LibraryEdit.favoritesCalls(["34807486897551531"])
+        }
+    }
+
+    func testFavoriteIDsRequiresAnArrayOfStrings() throws {
+        XCTAssertEqual(try LibraryEdit.favoriteIDs(request("favorites", ["songIds": ["1", "i.a"]])), ["1", "i.a"])
+        XCTAssertEqual(try LibraryEdit.favoriteIDs(request("favorites", ["songIds": [String]()])), [])
+        for value: Any? in [nil, "1", [1]] {
+            var args: JSONObject = [:]
+            args["songIds"] = value
+            assertThrows(#"favorites requires a "songIds" array of strings"#) {
+                try LibraryEdit.favoriteIDs(self.request("favorites", args))
+            }
+        }
+    }
+
+    func testLovedIDsAreTheRatingsOfValueOne() throws {
+        let data = Data(#"{"data":[{"id":"1","type":"ratings","attributes":{"value":1}},{"id":"2","attributes":{"value":-1}},{"id":"3","attributes":{}},{"attributes":{"value":1}}]}"#.utf8)
+        XCTAssertEqual(try LibraryEdit.lovedIDs(.success(data)), ["1"])
+        XCTAssertEqual(try LibraryEdit.lovedIDs(.success(Data(#"{"data":[]}"#.utf8))), [])
+        // No rating among the ids may come back as 404: none is loved.
+        let notFound = MusicAPIFailure(command: "favorites", status: 404, title: "Not Found", detail: "")
+        XCTAssertEqual(try LibraryEdit.lovedIDs(.failure(notFound)), [])
+        let denied = MusicAPIFailure(command: "favorites", status: 403, title: "Forbidden", detail: "")
+        XCTAssertThrowsError(try LibraryEdit.lovedIDs(.failure(denied)))
+    }
+
+    func testFavoritesAnswerHasEveryRequestedID() {
+        let answer = LibraryEdit.favoritesAnswer(["1", "2", "i.a"], loved: ["2", "9"])
+        XCTAssertEqual(answer["favorites"] as? [String: Bool], ["1": false, "2": true, "i.a": false])
+    }
+
     func testLibraryEditsDoNotWaitBehindPlayback() {
-        for cmd in ["createPlaylist", "addToPlaylist", "favorite", "setFavorite"] {
+        for cmd in ["createPlaylist", "addToPlaylist", "favorite", "favorites", "setFavorite"] {
             XCTAssertFalse(Request(id: "1", cmd: cmd).mutatesPlayback, cmd)
         }
     }

@@ -10,6 +10,8 @@
 //   Add Tracks to a Library Playlist   POST   /v1/me/library/playlists/{id}/tracks
 //   Get/Add/Delete a Personal (Library) Song Rating
 //                                      GET|PUT|DELETE /v1/me/ratings/{songs|library-songs}/{id}
+//   Get Multiple Personal (Library) Song(s) Ratings
+//                                      GET /v1/me/ratings/{songs|library-songs}?ids=a,b
 import Foundation
 
 /// One Apple Music API request: the helper turns it into a URLRequest.
@@ -146,6 +148,66 @@ public enum LibraryEdit {
     /// the song has none, which means "not a favorite".
     public static func favorite(_ request: Request) throws -> MusicAPICall {
         MusicAPICall(method: "GET", path: try ratingPath(request), body: nil)
+    }
+
+    /// The most ids one ratings read asks for; longer lists are split.
+    public static let maxRatingIDs = 100
+
+    /// The `songIds` of `favorites`: an array of strings, possibly empty.
+    public static func favoriteIDs(_ request: Request) throws -> [String] {
+        guard let ids = request.strings("songIds") else {
+            throw ArgumentError(description: #"\#(request.cmd) requires a "songIds" array of strings"#)
+        }
+        return ids
+    }
+
+    /// The ratings reads that answer `favorites` for ids: library ids
+    /// ("i.…") and catalog ids go to their own endpoint, each without
+    /// repeats and in batches of `maxRatingIDs`. Every id is checked (see
+    /// `songType`) before it goes into a query, so none can add a
+    /// parameter or another id.
+    public static func favoritesCalls(_ ids: [String]) throws -> [MusicAPICall] {
+        var byType: [(type: String, ids: [String])] = []
+        var seen: Set<String> = []
+        for id in ids {
+            let type = try songType(id)
+            guard seen.insert(id).inserted else { continue }
+            if let index = byType.firstIndex(where: { $0.type == type }) {
+                byType[index].ids.append(id)
+            } else {
+                byType.append((type, [id]))
+            }
+        }
+        return byType.flatMap { group in
+            CatalogBatches.split(group.ids, size: maxRatingIDs).map { batch in
+                MusicAPICall(
+                    method: "GET", path: "/v1/me/ratings/\(group.type)",
+                    query: [URLQueryItem(name: "ids", value: batch.joined(separator: ","))], body: nil)
+            }
+        }
+    }
+
+    /// The loved ids (rating value 1) in one ratings read. Songs without a
+    /// rating are simply absent; a 404 is read as none rated.
+    public static func lovedIDs(_ result: Result<Data, Error>) throws -> Set<String> {
+        switch result {
+        case .success(let data):
+            let object = try? JSONSerialization.jsonObject(with: data) as? JSONObject
+            let items = object?["data"] as? [JSONObject] ?? []
+            return Set(items.compactMap { item in
+                let value = (item["attributes"] as? JSONObject)?["value"] as? NSNumber
+                return value?.intValue == 1 ? item["id"] as? String : nil
+            })
+        case .failure(let failure as MusicAPIFailure) where failure.status == 404:
+            return []
+        case .failure(let error):
+            throw error
+        }
+    }
+
+    /// The answer to `favorites`: every requested id, loved or not.
+    public static func favoritesAnswer(_ ids: [String], loved: Set<String>) -> JSONObject {
+        ["favorites": Dictionary(ids.map { ($0, loved.contains($0)) }) { first, _ in first }]
     }
 
     /// `setFavorite`: `on` true loves `songId` (rating 1, what Apple Music

@@ -17,7 +17,7 @@ Fifth round of user feedback (2026-09-29, testing `feat/library-edit-ui`).
 
 ## Tasks
 
-- [ ] V1 — Backend: diagnose and fix "failed to prepare to play" (inspect catalog songs' playParameters/availability read-only; drop unplayable items from queues, fall back gracefully, report clearly); repeat mode (`setRepeat` off/all/one via `ApplicationMusicPlayer.state.repeatMode`, reported in state); batch favorites read (`GET /v1/me/ratings/songs?ids=…`). Branch `fix/prepare-repeat`. Route: delegated.
+- [x] V1 — Backend: diagnose and fix "failed to prepare to play" (inspect catalog songs' playParameters/availability read-only; drop unplayable items from queues, fall back gracefully, report clearly); repeat mode (`setRepeat` off/all/one via `ApplicationMusicPlayer.state.repeatMode`, reported in state); batch favorites read (`GET /v1/me/ratings/songs?ids=…`). Branch `fix/prepare-repeat`. Route: delegated.
 - [ ] V2 — UI: play the rest of the list from any song row (results, top songs, album, playlist, search rows); loop control; prefetch favorites for a page in one batch; single controls for keyboard + mouse (remove mouse-only duplicates). Branch `feat/queue-loop-ui`. Route: delegated.
 
 ## Constraints
@@ -27,7 +27,9 @@ Fifth round of user feedback (2026-09-29, testing `feat/library-edit-ui`).
 ## Progress
 
 - Branch `fix/prepare-repeat` from `feat/library-edit-ui` `c036721` (not yet merged to main).
+- V1 done (route: delegated writer). Bug 6 root cause (reproduced with `prepareToPlay`, no audio): a multi-song queue whose start is a catalog song fails to prepare if it contains any song stored in this Mac's local library ("Para Qué", "Tú"); it prepares when the start is the library copy. Fix: pure `PreparedQueue` — if the picked song is local, use library copies for local songs; otherwise skip local songs (reported `skipped`); on any Code=6 fall back to the picked song alone (`startedAlone`) with a clear error if that fails. Repeat: `SetRepeat` off/all/one + `State.Repeat` (serialized playback command). Batch favorites: `Favorites(ctx, ids)` via `GET /v1/me/ratings/{songs|library-songs}?ids=` (100 per request). RED/GREEN: Swift 133, Go 649. Live read-only checks OK (album plays with skipped "Para Qué"; favorites read). Open: skipped/startedAlone not surfaced to Go; skipping loved local songs is a trade-off.
+- Volume spike (isolated worktree, branch `spike/audio-tap`, commit `053a522`, user consented to audio + permission): MusicKit audio renders in `com.apple.MediaPlayer.RemotePlayerService`; a muted Core Audio process tap captures real audio and gain re-render works (0.3× measured); TCC is attributed to the terminal unless the helper is spawned with private `responsibility_spawnattrs_setdisclaim`. Integration ~300–500 lines; decision pending with the user.
 
 ## Next step
 
-V1; ask the user about the independent volume.
+Review V1; V2 UI; decide volume integration.

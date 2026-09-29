@@ -157,6 +157,17 @@ const (
 	StatusSeeking     Status = "seeking"
 )
 
+// RepeatMode is what the player plays after the current song.
+type RepeatMode string
+
+// Repeat modes: RepeatOff ends the queue after its last song, RepeatAll
+// starts the queue over and RepeatOne starts the current song over.
+const (
+	RepeatOff RepeatMode = "off"
+	RepeatAll RepeatMode = "all"
+	RepeatOne RepeatMode = "one"
+)
+
 // State is a point-in-time snapshot of the player.
 type State struct {
 	Status   Status
@@ -166,6 +177,8 @@ type State struct {
 	SongID   string
 	Duration time.Duration
 	Position time.Duration
+	// Repeat is the player's repeat mode; RepeatOff when it reports none.
+	Repeat RepeatMode
 }
 
 // AuthStatus is the outcome of a music library authorization request.
@@ -219,6 +232,8 @@ type Player interface {
 	Previous(ctx context.Context) error
 	Stop(ctx context.Context) error
 	Seek(ctx context.Context, position time.Duration) error
+	// SetRepeat sets the repeat mode; States reports it as State.Repeat.
+	SetRepeat(ctx context.Context, mode RepeatMode) error
 	// Volume reports the output volume, from 0 (silent) to 1 (full).
 	Volume(ctx context.Context) (float64, error)
 	// SetVolume sets the output volume; level is clamped with ClampVolume.
@@ -232,6 +247,10 @@ type Player interface {
 	AddToPlaylist(ctx context.Context, playlistID string, songIDs []string) error
 	// Favorite reports whether the song is a favorite.
 	Favorite(ctx context.Context, songID string) (bool, error)
+	// Favorites reports, for each of the songs, whether it is a favorite:
+	// one call for a whole page of songs. Every id is a key of the map;
+	// no ids answer an empty map without asking the backend.
+	Favorites(ctx context.Context, songIDs []string) (map[string]bool, error)
 	// SetFavorite marks the song as a favorite, or clears the mark.
 	SetFavorite(ctx context.Context, songID string, on bool) error
 	States() <-chan State

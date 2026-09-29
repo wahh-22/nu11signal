@@ -61,63 +61,135 @@ final class SongQueueTests: XCTestCase {
     }
 }
 
-final class QueueStartTests: XCTestCase {
-    func testOnlyTheUnexpectedStartItemErrorIsRetried() {
-        let domain = QueueStart.playerErrorDomain
-        let code = QueueStart.unexpectedStartItemCode
-        XCTAssertEqual(code, 6)
-        XCTAssertTrue(QueueStart.isUnexpectedStartItem(NSError(domain: domain, code: code)))
-        XCTAssertFalse(QueueStart.isUnexpectedStartItem(NSError(domain: domain, code: code - 1)))
-        XCTAssertFalse(QueueStart.isUnexpectedStartItem(NSError(domain: "OtherDomain", code: code)))
-        XCTAssertFalse(QueueStart.isUnexpectedStartItem(ArgumentError(description: "x")))
+final class PreparedQueueTests: XCTestCase {
+    private struct Song: Equatable {
+        let id: String
+        var library = false
     }
 
-    private let unexpectedStart = NSError(domain: QueueStart.playerErrorDomain, code: QueueStart.unexpectedStartItemCode)
+    private func prepared(_ ids: [String], start: Int, local: [String]) -> PreparedQueue<Song> {
+        let copies = Dictionary(uniqueKeysWithValues: local.map { ($0, Song(id: $0, library: true)) })
+        return PreparedQueue(items: ids.map { Song(id: $0) }, start: start, id: \.id, libraryCopies: copies)
+    }
 
-    /// Runs startRetryingOnce with attempts that fail with the given
-    /// errors in turn (nil succeeds); returns the attempts made, the
-    /// errors announced as retried, and the error thrown, if any.
-    private func run(_ outcomes: [Error?]) async -> (attempts: Int, retried: [Error], thrown: Error?) {
-        var attempts = 0
-        var retried: [Error] = []
-        do {
-            try await QueueStart.startRetryingOnce({
-                defer { attempts += 1 }
-                if let error = outcomes[attempts] { throw error }
-            }, beforeRetry: { retried.append($0) })
-            return (attempts, retried, nil)
-        } catch {
-            return (attempts, retried, error)
+    func testAQueueWithoutLocalLibrarySongsIsUnchanged() {
+        let q = prepared(["a", "b", "c"], start: 1, local: [])
+        XCTAssertEqual(q.items, ["a", "b", "c"].map { Song(id: $0) })
+        XCTAssertEqual(q.start, 1)
+        XCTAssertEqual(q.skipped, [])
+    }
+
+    func testALocalStartSongQueuesEveryLocalSongAsItsLibraryCopy() {
+        // The player prepares a mixed queue when its start is a library item.
+        let q = prepared(["a", "b", "c", "b"], start: 1, local: ["b", "c"])
+        XCTAssertEqual(q.items, [Song(id: "a"), Song(id: "b", library: true), Song(id: "c", library: true), Song(id: "b", library: true)])
+        XCTAssertEqual(q.start, 1)
+        XCTAssertEqual(q.skipped, [])
+    }
+
+    func testACatalogStartSongLeavesTheLocalSongsOutAndKeepsTheStart() {
+        // With a catalog start, any local library song fails the whole
+        // queue ("failed to prepare to play"), as a catalog or library item.
+        let q = prepared(["a", "b", "c", "d", "b"], start: 3, local: ["b", "c"])
+        XCTAssertEqual(q.items.map(\.id), ["a", "d"])
+        XCTAssertEqual(q.start, 1)
+        XCTAssertEqual(q.skipped, ["b", "c", "b"])
+        XCTAssertFalse(q.items.contains { $0.library })
+    }
+
+    func testALibraryCopyIsMatchedByTheCatalogIDInItsPlayParameters() {
+        // PlayParameters is opaque; its Codable form names the catalog id.
+        let json = #"{"isLibrary":true,"kind":"song","id":"i.5PkLbY7FbmX2YNp","catalogId":"1825270816","musicKit_persistentID":"-678"}"#
+        XCTAssertEqual(PreparedQueue<Song>.catalogID(playParameters: Data(json.utf8)), "1825270816")
+        for other in [#"{"id":"i.a","kind":"song"}"#, #"{"catalogId":""}"#, #"{"catalogId":7}"#, "", "[]"] {
+            XCTAssertNil(PreparedQueue<Song>.catalogID(playParameters: Data(other.utf8)), other)
         }
     }
 
-    func testAFirstSuccessIsNotRetried() async {
-        let r = await run([nil])
-        XCTAssertEqual(r.attempts, 1)
-        XCTAssertTrue(r.retried.isEmpty)
+    func testTheStartIsKeptWhenEverythingElseIsLeftOut() {
+        let q = prepared(["a", "b"], start: 0, local: ["b"])
+        XCTAssertEqual(q.items.map(\.id), ["a"])
+        XCTAssertEqual(q.start, 0)
+        XCTAssertEqual(q.skipped, ["b"])
+    }
+}
+
+final class QueueStartTests: XCTestCase {
+    func testOnlyThePlayersPrepareFailureFallsBack() {
+        let domain = QueueStart.playerErrorDomain
+        let code = QueueStart.prepareFailureCode
+        XCTAssertEqual(code, 6)
+        XCTAssertTrue(QueueStart.isPrepareFailure(NSError(domain: domain, code: code)))
+        XCTAssertFalse(QueueStart.isPrepareFailure(NSError(domain: domain, code: code - 1)))
+        XCTAssertFalse(QueueStart.isPrepareFailure(NSError(domain: "OtherDomain", code: code)))
+        XCTAssertFalse(QueueStart.isPrepareFailure(ArgumentError(description: "x")))
+    }
+
+    private let prepareFailure = NSError(
+        domain: QueueStart.playerErrorDomain, code: QueueStart.prepareFailureCode,
+        userInfo: [NSDebugDescriptionErrorKey: "Failed to prepare to play"])
+
+    /// Runs startWithFallback with a queue attempt and a fallback that
+    /// fail with the given errors (nil succeeds); returns what ran, the
+    /// errors announced before the fallback, whether it was used and the
+    /// error thrown, if any.
+    private func run(_ queue: Error?, _ fallback: Error?) async -> (runs: [String], announced: [Error], usedFallback: Bool?, thrown: Error?) {
+        var runs: [String] = []
+        var announced: [Error] = []
+        do {
+            let used = try await QueueStart.startWithFallback({
+                runs.append("queue")
+                if let queue { throw queue }
+            }, fallback: {
+                runs.append("fallback")
+                if let fallback { throw fallback }
+            }, beforeFallback: { announced.append($0) })
+            return (runs, announced, used, nil)
+        } catch {
+            return (runs, announced, nil, error)
+        }
+    }
+
+    func testAQueueThatStartsNeedsNoFallback() async {
+        let r = await run(nil, nil)
+        XCTAssertEqual(r.runs, ["queue"])
+        XCTAssertTrue(r.announced.isEmpty)
+        XCTAssertEqual(r.usedFallback, false)
+    }
+
+    func testAPrepareFailureFallsBackOnceAndIsAnnounced() async {
+        let r = await run(prepareFailure, nil)
+        XCTAssertEqual(r.runs, ["queue", "fallback"])
+        XCTAssertEqual(r.announced.map { ($0 as NSError).code }, [QueueStart.prepareFailureCode])
+        XCTAssertEqual(r.usedFallback, true)
         XCTAssertNil(r.thrown)
     }
 
-    func testAnUnexpectedStartItemIsRetriedOnceAndAnnounced() async {
-        let r = await run([unexpectedStart, nil])
-        XCTAssertEqual(r.attempts, 2)
-        XCTAssertEqual(r.retried.map { ($0 as NSError).code }, [QueueStart.unexpectedStartItemCode])
-        XCTAssertNil(r.thrown)
-    }
-
-    func testASecondFailureIsReportedWithoutAThirdAttempt() async {
-        let second = NSError(domain: QueueStart.playerErrorDomain, code: QueueStart.unexpectedStartItemCode, userInfo: ["n": 2])
-        let r = await run([unexpectedStart, second, nil])
-        XCTAssertEqual(r.attempts, 2)
-        XCTAssertEqual(r.retried.count, 1)
+    func testAFailedFallbackIsReported() async {
+        let second = NSError(domain: QueueStart.playerErrorDomain, code: QueueStart.prepareFailureCode, userInfo: ["n": 2])
+        let r = await run(prepareFailure, second)
+        XCTAssertEqual(r.runs, ["queue", "fallback"])
         XCTAssertEqual((r.thrown as NSError?)?.userInfo["n"] as? Int, 2)
     }
 
-    func testOtherErrorsAreNotRetried() async {
+    func testOtherErrorsDoNotFallBack() async {
         let other = NSError(domain: QueueStart.playerErrorDomain, code: 5)
-        let r = await run([other, nil])
-        XCTAssertEqual(r.attempts, 1)
-        XCTAssertTrue(r.retried.isEmpty)
+        let r = await run(other, nil)
+        XCTAssertEqual(r.runs, ["queue"])
+        XCTAssertTrue(r.announced.isEmpty)
         XCTAssertEqual((r.thrown as NSError?)?.code, 5)
+    }
+
+    func testAFailureToStartNamesTheSongAndThePlayersReason() {
+        XCTAssertEqual(
+            String(describing: QueueStart.failure(prepareFailure, song: "Para Qué")),
+            #"Apple Music could not prepare "Para Qué" to play (MPMusicPlayerControllerErrorDomain 6: Failed to prepare to play)"#)
+        XCTAssertEqual(
+            String(describing: QueueStart.failure(NSError(domain: QueueStart.playerErrorDomain, code: 2), song: "X")),
+            #"Apple Music could not prepare "X" to play (MPMusicPlayerControllerErrorDomain 2)"#)
+        // Errors that are not the player's pass through unchanged.
+        XCTAssertEqual(
+            String(describing: QueueStart.failure(ArgumentError(description: "boom"), song: "X")), "boom")
+        XCTAssertEqual((QueueStart.failure(NSError(domain: "D", code: 2), song: "X") as NSError).domain, "D")
     }
 }

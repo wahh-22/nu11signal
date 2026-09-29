@@ -463,25 +463,29 @@ One JSON object per line.
 | `catalogPlaylist` | `playlistId` | `{"playlist":{...},"tracks":[...],"notes"}` |
 | `playlists` | none | `{"playlists":[{"id","name","editable"}]}`: alphabetical, with Apple Music API library ids (`p.…`); `editable` is false for playlists followed from the catalog |
 | `libraryPlaylist` | `playlistId` (an API library id, `p.…`) | `{"playlist":{"id","name"},"tracks":[...],"notes"}`; songs only, with their catalog ids; a song not in the catalog keeps its library id (`i.…`) and carries `"libraryOnly":true` |
-| `playSongs` | `ids`, `startIndex` | `{}` or `{"missing":[...]}` |
-| `playPlaylist` | `playlistId`, optional `startIndex` (an index into the `libraryPlaylist` tracks) | `{}` or `{"missing":[...]}`; the playlist's catalog songs are queued (library-only songs are skipped; starting at one is an error). The UI plays library playlists with `playSongs` from the tracks it loaded instead |
+| `playSongs` | `ids`, `startIndex` | `{}`, or any of `{"missing":[...],"skipped":[...],"startedAlone":true}` (see [Queue preparation](#queue-preparation)) |
+| `playPlaylist` | `playlistId`, optional `startIndex` (an index into the `libraryPlaylist` tracks) | Same as `playSongs`; the playlist's catalog songs are queued (library-only songs are skipped; starting at one is an error). The UI plays library playlists with `playSongs` from the tracks it loaded instead |
 | `pause`, `resume`, `next`, `previous`, `stop` | none | `{}` |
+| `setRepeat` | `mode`: `off`, `all` (the queue), or `one` (the current song) | `{}`; `state` events report the mode as `repeat` (`off` when the player has none) |
 | `seek` | `seconds` (>= 0) | `{}`, followed by a `state` event |
 | `volume` | none | `{"level":...}`: the system output volume, 0 to 1 (runs concurrently) |
 | `setVolume` | `level` (clamped to 0-1) | `{}`, or an error when the output device's volume cannot be changed (runs concurrently) |
 | `createPlaylist` | `name` (not blank), optional `description`, optional `songIds` (in order) | `{"id","name"}`: the new playlist, with its Apple Music API library id (`p.…`) |
 | `addToPlaylist` | `playlistId` (an API library id, `p.…`), `songIds` (not empty) | `{}`, or an error such as `playlist is not editable` |
 | `favorite` | `songId` | `{"favorite":true\|false}`: whether the song is loved (no rating is `false`) |
+| `favorites` | `songIds` (possibly empty) | `{"favorites":{"<id>":true\|false,...}}`: every requested id, loved or not; one ratings read per 100 ids of each kind (runs concurrently) |
 | `setFavorite` | `songId`, `on` (a boolean) | `{}`: `true` loves the song, `false` removes its rating (a song without one included) |
 
-Playback commands run one at a time in arrival order, each bounded by 10 s
+Playback commands (`setRepeat` included) run one at a time in arrival order, each bounded by 10 s
 (a hung one is answered with a timeout error); `authorize`, `playlists`, and
 the catalog commands run concurrently. Catalog commands stay within their own
 time budget (`CatalogBudget` in `helper/Sources/Nu11SignalProtocol/Catalog.swift`),
 below the Go client's deadline; an artist page section that fails or hangs is
 left empty instead of failing the page. The library edits (`createPlaylist`,
-`addToPlaylist`, `favorite`, `setFavorite`) run concurrently too, one Apple Music
-API request each (`/v1/me/library/playlists`, `/v1/me/ratings/...`) through
+`addToPlaylist`, `favorite`, `setFavorite`) and the `favorites` read run
+concurrently too, one Apple Music API request each (`/v1/me/library/playlists`,
+`/v1/me/ratings/...`; `favorites` sends one `GET /v1/me/ratings/songs?ids=...`
+or `.../library-songs?ids=...` per batch) through
 MusicKit's `MusicDataRequest`, as MusicKit's own library editing is unavailable on
 macOS. `playlists` and `libraryPlaylist` read the library through the same API
 (`GET /v1/me/library/playlists` and `.../{id}/tracks`, following pages up to 500
@@ -491,6 +495,20 @@ checked (letters, digits, and dots only) before they go into a request path. A
 `createPlaylist` or `addToPlaylist` that times out may still be applied: its
 error says the outcome is unknown, and it is not retried. At stdin EOF the helper finishes in-flight work
 (up to 3 s), stops playback, and exits.
+
+### Queue preparation
+
+On macOS, `ApplicationMusicPlayer` refuses a queue whose first song comes from
+the catalog when the queue also holds a song of this Mac's local library
+(`MPMusicPlayerControllerErrorDomain` code 6, "Failed to prepare to play" or
+"Prepare queue failed with unexpected start item"), although each song prepares
+on its own. So `playSongs` and `playPlaylist` look the queued songs up in the
+local library first (`MusicLibraryRequest`, up to 1.5 s): when the chosen song
+is in it, every local song is queued as its library copy; otherwise the local
+songs are left out and listed as `"skipped"`. If the player still cannot prepare
+the queue, the chosen song is queued on its own (`"startedAlone":true`); if even
+that fails, the error names the song. Both steps are logged to the helper's
+stderr.
 
 ## Troubleshooting
 
