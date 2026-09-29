@@ -179,7 +179,10 @@ single rename to `dist/v0.2.0` only after those checks pass; a failed or
 interrupted run removes the staging directory and leaves `dist/` untouched.
 An existing `dist/v0.2.0` is never overwritten: `make release VERSION=0.2.0
 FORCE=1` (`--force`) renames it to `dist/v0.2.0.replaced-<timestamp>` first
-and restores it if the promotion fails. If notarization is rejected it prints
+and restores it if the promotion fails or is interrupted. Earlier backups are
+listed as a warning (delete them when no longer needed); if only a backup is
+left (a run killed between the two renames), the release is refused until it
+is restored or deleted. If notarization is rejected it prints
 the `xcrun notarytool log` command. `make release-dry-run` writes to
 `build/release-dry-run/v0.2.0/` instead. Overrides: `NU11SIGNAL_SIGN_IDENTITY`,
 `NU11SIGNAL_PROFILE`, `NU11SIGNAL_NOTARY_PROFILE`, `NU11SIGNAL_TEAM_ID`.

@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Test stub: records every rename, then performs it with the real mv.
 # STUB_MV_FAIL_STAGING=1 makes renaming a .staging-* directory fail.
+# STUB_MV_TERM_AFTER_BACKUP=1 sends SIGTERM to the caller right after a rename
+# to a *.replaced-* backup (an interruption between the two --force renames).
 echo "mv $*" >>"$STUB_LOG"
 if [[ "${STUB_MV_FAIL_STAGING:-0}" == 1 && "$*" == *"/.staging-"* ]]; then
   echo "mv: rename failed (stub)" >&2
   exit 1
 fi
-exec /bin/mv "$@"
+/bin/mv "$@" || exit
+if [[ "${STUB_MV_TERM_AFTER_BACKUP:-0}" == 1 && "${!#}" == *".replaced-"* ]]; then
+  kill -TERM "$PPID"
+fi
