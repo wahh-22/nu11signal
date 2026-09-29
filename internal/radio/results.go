@@ -85,112 +85,152 @@ func (m Model) resultsEnter() (Model, tea.Cmd) {
 	if cur < 0 || cur >= len(items) {
 		return m, nil
 	}
-	switch it := items[cur]; it.Kind {
-	case playback.ItemArtist:
-		return m.openArtist(it.Artist)
-	case playback.ItemAlbum:
-		return m.openAlbum(it.Album)
-	case playback.ItemSong:
-		return m.openSong(it.Song)
-	case playback.ItemPlaylist:
-		return m.openPlaylist(it.Playlist)
+	it := items[cur]
+	kind, ok := resultKinds[it.Kind]
+	if !ok {
+		return m, nil
 	}
-	return m, nil
+	return kind.open(m, it)
 }
 
-// resultItems lists the selectable rows of the results page on top.
-func (m Model) resultItems() []playback.SearchItem {
-	_, items := m.resultsLayout(m.listBodyWidth())
-	return items
+// resultKind is what the RESULTS page knows of one kind of row: how it
+// looks and which view it opens. The kinds without an entry have no view;
+// the player should send no other, but a row that does nothing must not
+// show.
+type resultKind struct {
+	glyph string
+	style lipgloss.Style
+	// describe is the row's name and its details (artist · year of an
+	// album, artist of a song, curator of a playlist, genre of an artist).
+	describe func(playback.SearchItem) (name string, details []string)
+	open     func(Model, playback.SearchItem) (Model, tea.Cmd)
 }
 
-// resultsLayout lays out the loaded results page on top in w cells: its
-// sections in Apple Music order, empty ones left out, and the selectable
-// rows. A top result is tagged with its kind; the rows of the other
-// sections need no tag.
-func (m Model) resultsLayout(w int) ([]pageLine, []playback.SearchItem) {
-	res := m.top().results.found
-	cur := m.cursor()
-	var lines []pageLine
-	var items []playback.SearchItem
+var resultKinds = map[playback.SearchItemKind]resultKind{
+	playback.ItemArtist: {
+		glyph: "◆", style: stYellow,
+		describe: func(it playback.SearchItem) (string, []string) {
+			var genre []string
+			if len(it.Artist.Genres) > 0 {
+				genre = it.Artist.Genres[:1]
+			}
+			return it.Artist.Name, genre
+		},
+		open: func(m Model, it playback.SearchItem) (Model, tea.Cmd) { return m.openArtist(it.Artist) },
+	},
+	playback.ItemAlbum: {
+		glyph: "◈", style: stYellow,
+		describe: func(it playback.SearchItem) (string, []string) {
+			return it.Album.Title, []string{it.Album.Artist, yearOf(it.Album)}
+		},
+		open: func(m Model, it playback.SearchItem) (Model, tea.Cmd) { return m.openAlbum(it.Album) },
+	},
+	playback.ItemSong: {
+		glyph: "♪", style: stCyan,
+		describe: func(it playback.SearchItem) (string, []string) {
+			return it.Song.Title, []string{it.Song.Artist}
+		},
+		open: func(m Model, it playback.SearchItem) (Model, tea.Cmd) { return m.openSong(it.Song) },
+	},
+	playback.ItemPlaylist: {
+		glyph: "≡", style: stCyan,
+		describe: func(it playback.SearchItem) (string, []string) {
+			return it.Playlist.Name, []string{it.Playlist.Curator}
+		},
+		open: func(m Model, it playback.SearchItem) (Model, tea.Cmd) { return m.openPlaylist(it.Playlist) },
+	},
+}
 
-	section := func(name string, n int) {
-		if n == 0 {
-			return
-		}
-		if len(lines) > 0 {
-			lines = append(lines, pageLine{text: "", item: -1})
-		}
-		lines = append(lines, pageLine{text: " " + stYellow.Render("▞ ") + stMuted.Render(spaced(name)), item: -1})
-	}
-	item := func(it playback.SearchItem, tagged bool) {
-		n := len(items)
-		items = append(items, it)
-		lines = append(lines, pageLine{text: resultLine(it, tagged, n == cur, w), item: n})
-	}
+// openable reports whether a top result of kind opens a view.
+func openable(kind playback.SearchItemKind) bool {
+	_, ok := resultKinds[kind]
+	return ok
+}
 
+// resultSection is one non-empty section of the RESULTS page. A top result
+// is tagged with its kind; the rows of the other sections need no tag.
+type resultSection struct {
+	name   string
+	items  []playback.SearchItem
+	tagged bool
+}
+
+// resultSections is the item model of the RESULTS page: its sections in
+// Apple Music order, empty ones left out. It renders nothing, so counting
+// or selecting rows costs no layout.
+func resultSections(res playback.SearchResults) []resultSection {
 	var top []playback.SearchItem
 	for _, it := range res.Top {
 		if openable(it.Kind) {
 			top = append(top, it)
 		}
 	}
-	section("TOP RESULTS", len(top))
-	for _, it := range top {
-		item(it, true)
+	sections := []resultSection{{name: "TOP RESULTS", items: top, tagged: true}}
+	add := func(name string, n int, item func(int) playback.SearchItem) {
+		s := resultSection{name: name}
+		for i := range n {
+			s.items = append(s.items, item(i))
+		}
+		sections = append(sections, s)
 	}
-	section("ARTISTS", len(res.Artists))
-	for _, a := range res.Artists {
-		item(playback.SearchItem{Kind: playback.ItemArtist, Artist: a}, false)
+	add("ARTISTS", len(res.Artists), func(i int) playback.SearchItem {
+		return playback.SearchItem{Kind: playback.ItemArtist, Artist: res.Artists[i]}
+	})
+	add("ALBUMS", len(res.Albums), func(i int) playback.SearchItem {
+		return playback.SearchItem{Kind: playback.ItemAlbum, Album: res.Albums[i]}
+	})
+	add("SONGS", len(res.Songs), func(i int) playback.SearchItem {
+		return playback.SearchItem{Kind: playback.ItemSong, Song: res.Songs[i]}
+	})
+	add("PLAYLISTS", len(res.Playlists), func(i int) playback.SearchItem {
+		return playback.SearchItem{Kind: playback.ItemPlaylist, Playlist: res.Playlists[i]}
+	})
+	var shown []resultSection
+	for _, s := range sections {
+		if len(s.items) > 0 {
+			shown = append(shown, s)
+		}
 	}
-	section("ALBUMS", len(res.Albums))
-	for _, a := range res.Albums {
-		item(playback.SearchItem{Kind: playback.ItemAlbum, Album: a}, false)
-	}
-	section("SONGS", len(res.Songs))
-	for _, s := range res.Songs {
-		item(playback.SearchItem{Kind: playback.ItemSong, Song: s}, false)
-	}
-	section("PLAYLISTS", len(res.Playlists))
-	for _, p := range res.Playlists {
-		item(playback.SearchItem{Kind: playback.ItemPlaylist, Playlist: p}, false)
-	}
-	return lines, items
+	return shown
 }
 
-// openable reports whether a top result of kind opens a view; the player
-// should send no other, but a row that does nothing must not show.
-func openable(kind playback.SearchItemKind) bool {
-	switch kind {
-	case playback.ItemArtist, playback.ItemAlbum, playback.ItemSong, playback.ItemPlaylist:
-		return true
+// resultItems lists the selectable rows of the results page on top, in
+// order.
+func (m Model) resultItems() []playback.SearchItem {
+	var items []playback.SearchItem
+	for _, s := range resultSections(m.top().results.found) {
+		items = append(items, s.items...)
 	}
-	return false
+	return items
+}
+
+// resultsLayout renders the loaded results page on top in w cells: each
+// section's header, then its rows.
+func (m Model) resultsLayout(w int) []pageLine {
+	cur := m.cursor()
+	var lines []pageLine
+	n := 0
+	for _, s := range resultSections(m.top().results.found) {
+		if len(lines) > 0 {
+			lines = append(lines, pageLine{text: "", item: -1})
+		}
+		lines = append(lines, pageLine{text: " " + stYellow.Render("▞ ") + stMuted.Render(spaced(s.name)), item: -1})
+		for _, it := range s.items {
+			lines = append(lines, pageLine{text: resultLine(it, s.tagged, n == cur, w), item: n})
+			n++
+		}
+	}
+	return lines
 }
 
 // resultLine renders one results row in exactly w cells: the glyph of its
-// kind, the name and its details (artist · year of an album, artist of a
-// song, curator of a playlist, genre of an artist), after the kind when
-// tagged.
+// kind, the name and its details, after the kind when tagged.
 func resultLine(it playback.SearchItem, tagged, selected bool, w int) string {
-	var glyph, text string
-	var style lipgloss.Style
+	kind := resultKinds[it.Kind]
+	var name string
 	var details []string
-	switch it.Kind {
-	case playback.ItemArtist:
-		glyph, style, text = "◆", stYellow, it.Artist.Name
-		if len(it.Artist.Genres) > 0 {
-			details = append(details, it.Artist.Genres[0])
-		}
-	case playback.ItemAlbum:
-		glyph, style, text = "◈", stYellow, it.Album.Title
-		details = append(details, it.Album.Artist, yearOf(it.Album))
-	case playback.ItemSong:
-		glyph, style, text = "♪", stCyan, it.Song.Title
-		details = append(details, it.Song.Artist)
-	case playback.ItemPlaylist:
-		glyph, style, text = "≡", stCyan, it.Playlist.Name
-		details = append(details, it.Playlist.Curator)
+	if kind.describe != nil {
+		name, details = kind.describe(it)
 	}
 	if tagged {
 		details = append([]string{string(it.Kind)}, details...)
@@ -201,7 +241,7 @@ func resultLine(it playback.SearchItem, tagged, selected bool, w int) string {
 			shown = append(shown, strings.ToUpper(d))
 		}
 	}
-	return detailLine(glyph, style, strings.ToUpper(text), strings.Join(shown, " · "), selected, w)
+	return detailLine(kind.glyph, kind.style, strings.ToUpper(name), strings.Join(shown, " · "), selected, w)
 }
 
 // resultsCode is the serial code in the results panel's bottom edge.
@@ -219,10 +259,10 @@ func (m Model) resultsCode() string {
 // resultsBody renders the results page on top in w x h cells: the term, a
 // rule and the sections, scrolled to keep the cursor near the middle.
 // Every line is exactly w cells wide.
-func (m Model) resultsBody(w, h int) []string {
+func (m Model) resultsBody(w, h int) ([]string, zones) {
 	page := m.top().results
 	head := stYellow.Render("⌕ ") + stYellowB.Render(strings.ToUpper(cleanLine(page.term)))
-	lines, _ := m.resultsLayout(w)
+	lines := m.resultsLayout(w)
 	notice := pageNotice(page.loading, page.err, "SEARCH", len(lines) == 0)
 	return m.pageBody(w, h, []string{" " + head}, lines, notice)
 }

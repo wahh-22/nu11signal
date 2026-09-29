@@ -30,6 +30,9 @@ type Options struct {
 }
 
 const (
+	// searchLimit caps each kind of the live rows under the search input,
+	// a dropdown kept short; resultsLimit caps each section of the RESULTS
+	// page, which scrolls and so can hold more.
 	searchLimit         = 10
 	resultsLimit        = 25
 	searchDebounce      = 250 * time.Millisecond

@@ -233,7 +233,8 @@ func TestEscPopsTheSearchViewButNeverTheRoot(t *testing.T) {
 	if len(m.stack) != 1 || m.top().kind != viewStations {
 		t.Fatalf("esc popped the root: %v", m.stack)
 	}
-	if strings.Contains(plain(m), "SEARCH") {
+	// The SEARCH tab stays; the panel is gone.
+	if strings.Contains(plain(m), "▮ SEARCH") {
 		t.Fatal("search panel still shown after esc")
 	}
 	if len(catalogCalls(f)) != 0 {

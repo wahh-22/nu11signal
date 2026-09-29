@@ -149,35 +149,40 @@ func pageNotice(loading bool, err error, feed string, empty bool) string {
 
 // pageBody renders a page in w x h cells: its head lines, a rule, then the
 // notice, if any, and the lines scrolled to keep the cursor near the
-// middle. Every line is exactly w cells wide.
-func (m Model) pageBody(w, h int, head []string, lines []pageLine, notice string) []string {
+// middle. Every line is exactly w cells wide. Its zones are the selectable
+// rows shown and, on a failed page, the retry notice.
+func (m Model) pageBody(w, h int, head []string, lines []pageLine, notice string) ([]string, zones) {
 	if h <= 0 || w <= 0 {
-		return nil
+		return nil, nil
 	}
 	var out []string
+	var zs zones
 	for _, l := range head {
 		if len(out) == h {
-			return out
+			return out, zs
 		}
 		out = append(out, fit(l, w))
 	}
 	if len(out) == h {
-		return out
+		return out, zs
 	}
 	out = append(out, stFrameDim.Render(strings.Repeat("─", w)))
 	if notice != "" {
 		if len(out) < h {
+			if m.pageFailed() {
+				zs.add(zoneRetry, 0, len(out), w)
+			}
 			out = append(out, fit(" "+notice, w))
 		}
 		if len(lines) == 0 || len(out) >= h {
-			return out
+			return out, zs
 		}
 		// A failed page may still offer rows (a SONG view's lone song).
 		out = append(out, fit("", w))
 	}
 	room := h - len(out)
 	if room <= 0 {
-		return out
+		return out, zs
 	}
 
 	at := 0
@@ -188,9 +193,12 @@ func (m Model) pageBody(w, h int, head []string, lines []pageLine, notice string
 	}
 	offset := max(0, min(at-(room-1)/2, len(lines)-room))
 	for i := offset; i < len(lines) && i-offset < room; i++ {
+		if lines[i].item >= 0 {
+			zs.add(rowZone(lines[i].item), 0, len(out), w)
+		}
 		out = append(out, fit(lines[i].text, w))
 	}
-	return out
+	return out, zs
 }
 
 // wrapNotes wraps notes to fit a page w cells wide. Folded, only the first

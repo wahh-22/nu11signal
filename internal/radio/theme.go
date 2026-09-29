@@ -18,6 +18,7 @@ var (
 	colDim      = lipgloss.Color("#5A1E1E")
 	colMuted    = lipgloss.Color("#9A3B37")
 	colSelectBg = lipgloss.Color("#0E2A2F")
+	colInk      = lipgloss.Color("#0A0A0A")
 )
 
 var (
@@ -32,6 +33,8 @@ var (
 	stDim      = lipgloss.NewStyle().Foreground(colDim)
 	stMuted    = lipgloss.NewStyle().Foreground(colMuted)
 	stSelected = lipgloss.NewStyle().Foreground(colCyan).Background(colSelectBg).Bold(true)
+	// stButtonOn fills the active button: dark ink on neon yellow.
+	stButtonOn = lipgloss.NewStyle().Foreground(colInk).Background(colYellow).Bold(true)
 )
 
 func inputStyles() textinput.Styles {

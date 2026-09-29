@@ -177,8 +177,9 @@ func TestAlbumPageShowsHeaderTracksAndFacts(t *testing.T) {
 		}
 		last += 1 + i
 	}
-	if strings.Contains(view, "▶") {
-		t.Errorf("an album opened from the artist page highlights a track:\n%s", view)
+	// The transport buttons carry ▶ too; only the track rows count.
+	if body := ansi.Strip(strings.Join(linesOf(m.trackBody(90, 50)), "\n")); strings.Contains(body, "▶") {
+		t.Errorf("an album opened from the artist page highlights a track:\n%s", body)
 	}
 }
 
@@ -487,7 +488,7 @@ func TestLoneSongBodyFitsEveryHeight(t *testing.T) {
 	f.MethodErr = map[string]error{"SongAlbum": errors.New("timed out")}
 	m := openSong(t, f, 1)
 	for h := range 9 {
-		rows := m.trackBody(30, h)
+		rows := linesOf(m.trackBody(30, h))
 		if len(rows) > h {
 			t.Errorf("h=%d: %d rows", h, len(rows))
 		}
@@ -497,7 +498,7 @@ func TestLoneSongBodyFitsEveryHeight(t *testing.T) {
 			}
 		}
 	}
-	if rows := m.trackBody(30, 8); !strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "DIGITAL LOVE") {
+	if rows := linesOf(m.trackBody(30, 8)); !strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "DIGITAL LOVE") {
 		t.Fatalf("lone song not drawn: %q", rows)
 	}
 }
@@ -511,7 +512,7 @@ func TestTrackBodyLinesFillWidth(t *testing.T) {
 	for _, w := range []int{9, 30, 46} {
 		for cur := range len(m.trackItems()) {
 			m.stack[len(m.stack)-1].cursor = cur
-			for i, row := range m.trackBody(w, 14) {
+			for i, row := range linesOf(m.trackBody(w, 14)) {
 				if got := ansi.StringWidth(row); got != w {
 					t.Errorf("w=%d cursor=%d: row %d is %d cells: %q", w, cur, i, got, ansi.Strip(row))
 				}

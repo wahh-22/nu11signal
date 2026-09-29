@@ -196,7 +196,7 @@ func TestResultsRowsOpenTheirViews(t *testing.T) {
 			if want := []viewKind{viewStations, viewSearch, viewResults, tt.kind}; !reflect.DeepEqual(stackKinds(m), want) {
 				t.Fatalf("stack %v; want %v", stackKinds(m), want)
 			}
-			if title, _, _ := m.listView(40, 10); title != tt.title {
+			if title, _, _, _ := m.listView(40, 10); title != tt.title {
 				t.Errorf("panel title %q; want %q", title, tt.title)
 			}
 			if calls := callsOf(f, tt.method); len(calls) != 1 || calls[0].Args[0] != tt.arg {
@@ -381,7 +381,7 @@ func TestResultsBodyLinesFillWidth(t *testing.T) {
 	for _, w := range []int{9, 30, 70} {
 		for cur := 0; cur < len(m.resultItems()); cur++ {
 			m.stack[len(m.stack)-1].cursor = cur
-			for i, row := range m.resultsBody(w, 40) {
+			for i, row := range linesOf(m.resultsBody(w, 40)) {
 				if got := ansi.StringWidth(row); got != w {
 					t.Errorf("w=%d cursor=%d: row %d is %d cells: %q", w, cur, i, got, ansi.Strip(row))
 				}

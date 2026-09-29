@@ -19,6 +19,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 	case tickMsg:
 		if msg.gen != m.tickGen {
 			return m, nil // superseded chain
@@ -156,10 +158,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyEnter:
 		return m.playSelection()
 	case keySpace:
-		if m.isPlaying() {
-			return m, m.action("PAUSE", m.player.Pause)
-		}
-		return m, m.action("RESUME", m.player.Resume)
+		return m, m.togglePlay()
 	case keyNext:
 		return m, m.action("NEXT", m.player.Next)
 	case keyPrev:
@@ -183,6 +182,14 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// togglePlay pauses while playing, else resumes.
+func (m Model) togglePlay() tea.Cmd {
+	if m.isPlaying() {
+		return m.action("PAUSE", m.player.Pause)
+	}
+	return m.action("RESUME", m.player.Resume)
 }
 
 // moveCursor moves the stations cursor, the only list handleKey drives.
@@ -226,15 +233,28 @@ func (m Model) onPlay(msg playMsg) Model {
 	return m
 }
 
+// seekable reports whether the song playing has a known length to seek
+// in.
+func (m Model) seekable() bool { return m.hasState && m.state.Duration > 0 }
+
+// seek jumps delta from the position, or from the pending seek's target.
 func (m Model) seek(delta time.Duration) (tea.Model, tea.Cmd) {
-	if !m.hasState || m.state.Duration <= 0 {
+	if !m.seekable() {
 		return m, nil
 	}
 	from := m.position()
 	if m.seekPending {
 		from = m.seekTarget
 	}
-	target := clampDuration(from+delta, 0, m.state.Duration)
+	return m.seekTo(from + delta)
+}
+
+// seekTo jumps to target, clamped to the song.
+func (m Model) seekTo(target time.Duration) (tea.Model, tea.Cmd) {
+	if !m.seekable() {
+		return m, nil
+	}
+	target = clampDuration(target, 0, m.state.Duration)
 	m.seekSeq++
 	m.seekPending, m.seekTarget = true, target
 	seq := m.seekSeq

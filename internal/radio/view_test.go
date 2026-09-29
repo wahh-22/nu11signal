@@ -86,7 +86,7 @@ func TestSearchRowsFillWidthWithWideCharacters(t *testing.T) {
 	for _, w := range []int{9, 20, 41} {
 		for cur := -1; cur < 3; cur++ {
 			m.stack[len(m.stack)-1].cursor = cur
-			for i, row := range m.searchBody(w, 8) {
+			for i, row := range linesOf(m.searchBody(w, 8)) {
 				if got := ansi.StringWidth(row); got != w {
 					t.Errorf("w=%d cursor=%d: row %d is %d cells: %q", w, cur, i, got, ansi.Strip(row))
 				}

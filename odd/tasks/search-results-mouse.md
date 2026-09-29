@@ -17,7 +17,7 @@ User feedback (2026-09-29) after testing the catalog-browse release:
 
 - S1 — Search branch resume: leaving the search branch (tab/stations) keeps its frames; `/` (and the future SEARCH button) restores the exact frame and cursor left; `/` while inside the search branch returns to the SEARCH input with the term kept for editing.
 - S2 — Results page: `SearchCatalog` also returns albums, playlists and top results (MusicCatalogSearchRequest types Artist/Album/Song/Playlist + `includeTopResults`); Enter on a suggestion or on the input opens a RESULTS view with sections TOP RESULTS, ARTISTS, ALBUMS, SONGS, PLAYLISTS (non-empty only); rows open the existing ARTIST/ALBUM/SONG/PLAYLIST views.
-- S3 — Mouse: enable mouse events; clickable rows (click = select + activate), wheel scrolling, clickable search input, MORE, retry; cyberpunk buttons: nav tabs (STATIONS / SEARCH), BACK, and transport (PREV / PLAY-PAUSE / NEXT); click on the progress bar seeks. Hit-testing via `github.com/lrstanley/bubblezone`.
+- S3 — Mouse: enable mouse events; clickable rows (click = select + activate), wheel scrolling, clickable search input, MORE, retry; cyberpunk buttons: nav tabs (STATIONS / SEARCH), BACK, and transport (PREV / PLAY-PAUSE / NEXT); click on the progress bar seeks. Hit-testing: planned via bubblezone; implemented with an in-house zone registry returned by `Model.layout()` (see progress).
 
 ## Constraints
 
@@ -33,7 +33,7 @@ User feedback (2026-09-29) after testing the catalog-browse release:
 
 - [x] S1 — Search branch resume. Branch `fix/search-resume`. Route: delegated (writer trigger: 2+ non-trivial files).
 - [x] S2 — Search results page with top results, artists, albums, songs, playlists. Branch `feat/search-results`. Route: delegated.
-- [ ] S3 — Mouse support and cyberpunk buttons. Branch `feat/mouse-controls`. Route: delegated.
+- [x] S3 — Mouse support and cyberpunk buttons. Branch `feat/mouse-controls`. Route: delegated.
 
 ## Acceptance criteria
 
@@ -51,7 +51,8 @@ User feedback (2026-09-29) after testing the catalog-browse release:
 - Branch `fix/search-resume` created from `main` `ccaadd9`.
 - S1 done (route: delegated writer). RED: 8 new resume tests failed (e.g. `/ restored stack [0 1]; want [0 1 2]`). GREEN: `go test -race ./...` ok (parent spot check), `go vet` clean, `gofmt` empty. Design: `Model.parked []frame`; tab parks the branch, `/` or tab from stations restores it; parked loads keep running and settle into the parked frame; `/` on a detail page returns to SEARCH with the term; `esc` on SEARCH closes the branch (fresh next time). README keys updated. Commit `1c8b9df`. RDD: high, 375 lines, consent granted, lineage `review-0cb0f04f926847b7`, 4 lenses, APPROVED, acknowledged (burned); boundary → `1c8b9df`. Advisories (folded into S2): searchAgain fallback undocumented; rename openSearch to reflect restore; parked page failure status shown off-screen; no test for parked album/playlist settle; parkBranch should cancel previously parked frames it replaces.
 - S2 done (route: delegated writer). RED: adapter round trip/sparse and demo tests (empty Top/Albums/Playlists), TUI behavioural failures (e.g. `top 1 input "abba"; want RESULTS`, parked failure reaching stations, replaced parked page kept loading), missing golden. GREEN: `go test -race ./...` ok (parent spot check), `go vet`, `gofmt` clean, `swift test` 55 passed. Live helper: "queen" limit 10 → suggestions 3, top 6 (song, artist, song, album, song, playlist), artists 3, albums 9, songs 10, playlists 1. Decisions: dropdown limit 10, RESULTS limit 25, helper caps top results at 6; S1 advisories (a)–(e) fixed. Commits `54aaf67` (backend, branch `feat/search-results-backend`) and `0580ba9` (view, branch `feat/search-results`). RDD: high, 1291 lines, consent granted, lineage `review-00c7d8f7e70f0800`, 4 lenses, APPROVED, acknowledged (burned); boundary → `0580ba9`. Advisories (folded into S3): comment searchLimit vs resultsLimit; openable top-result kinds repeated; resultItems renders the whole layout to count items; untested short recent term branch; esc onto SEARCH re-runs the live search even when unchanged.
+- S3 done (route: delegated writer). Hit-testing decision: in-house zones (renderers return lines + zones; `Model.layout()` shared by render, clicks and tests); lipgloss v2 Compositor.Hit needs a layer-based rewrite, bubblezone/v2 exists but embeds markers that `fit`/`ansi.Truncate` could cut; no new dependency. Mouse via `tea.View.MouseMode = MouseModeCellMotion`; left press activates, wheel scrolls. Buttons: nav tabs STATIONS/SEARCH + BACK, transport PREV/PLAY-PAUSE/NEXT (glyph-only when narrow), progress bar seeks. RED: 15 mouse tests failed with stub layout; S2 advisories (d),(e) already held and are now pinned by tests; (a)–(c) fixed. GREEN: `go test -race ./...` ok (parent spot check), `go vet`/`gofmt` clean, `go mod tidy` no change. Manual checks pending: real-terminal mouse delivery (tmux/zellij may capture the wheel), wide-glyph click precision.
 
 ## Next step
 
-S3 on `feat/mouse-controls`.
+Review S3; then the user decides push/PRs (chain: fix/search-resume → feat/search-results-backend → feat/search-results → feat/mouse-controls).
