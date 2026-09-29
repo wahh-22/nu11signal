@@ -15,7 +15,8 @@
 # The tap checkout is $NU11SIGNAL_TAP_DIR (default: ../homebrew-tap next to
 # this repository). It is cloned from $NU11SIGNAL_TAP_REPO (default
 # https://github.com/wahh-22/homebrew-tap.git) when missing, fast-forwarded
-# when present, and refused when any path other than Casks/nu11signal.rb has
+# when present and behind its upstream, and refused when it has diverged from
+# its upstream or when any path other than Casks/nu11signal.rb has
 # uncommitted changes or untracked files (a cask rendered by an earlier run
 # without --push is fine).
 #
@@ -88,6 +89,16 @@ echo "    sha256 $SHA256 ($ARCHIVE_NAME)"
 
 # --- Tap checkout ----------------------------------------------------------
 
+# commits N: "1 commit" or "N commits".
+commits() { if (($1 == 1)); then echo "1 commit"; else echo "$1 commits"; fi; }
+
+# set_upstream: UPSTREAM is the tracking branch of the tap checkout's branch.
+UPSTREAM=""
+set_upstream() {
+  UPSTREAM="$(git -C "$TAP_DIR" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)" ||
+    die "the current branch of $TAP_DIR has no upstream; check it out on a tracking branch"
+}
+
 if [[ -d "$TAP_DIR/.git" ]]; then
   TAP_DIR="$(cd "$TAP_DIR" && pwd)"
   step "Updating the tap checkout $TAP_DIR"
@@ -99,20 +110,39 @@ if [[ -d "$TAP_DIR/.git" ]]; then
   [[ -z "$dirty" ]] ||
     die "the tap checkout $TAP_DIR has uncommitted changes other than $CASK_REL; commit or discard them first:
 $dirty"
-  git -C "$TAP_DIR" pull --ff-only --quiet ||
-    die "could not fast-forward $TAP_DIR from its upstream (diverged?); resolve it by hand"
+  set_upstream
+  git -C "$TAP_DIR" fetch --quiet ||
+    die "could not fetch $UPSTREAM into $TAP_DIR; check the network and the remote, then rerun"
+  # Compare with the upstream before touching the checkout: only a checkout
+  # that is behind (and not ahead) is fast-forwarded.
+  read -r ahead behind <<<"$(git -C "$TAP_DIR" rev-list --left-right --count "HEAD...$UPSTREAM")"
+  if ((ahead > 0 && behind > 0)); then
+    die "the tap checkout $TAP_DIR has diverged from $UPSTREAM:
+       the checkout has $(commits "$ahead") not on $UPSTREAM, and $UPSTREAM has $(commits "$behind") not in the checkout.
+       Local commits:
+$(git -C "$TAP_DIR" log --format='      %h %s' "$UPSTREAM..HEAD")
+       If they are an earlier unpushed bump, drop them (git -C $TAP_DIR reset --hard $UPSTREAM) and rerun;
+       to keep them, rebase them first (git -C $TAP_DIR pull --rebase), then rerun."
+  elif ((behind > 0)); then
+    echo "    behind $UPSTREAM by $(commits "$behind"); fast-forwarding"
+    git -C "$TAP_DIR" merge --ff-only --quiet "$UPSTREAM" ||
+      die "could not fast-forward $TAP_DIR to $UPSTREAM; resolve it by hand, then rerun"
+  elif ((ahead > 0)); then
+    echo "    ahead of $UPSTREAM by $(commits "$ahead") (checked below)"
+  else
+    echo "    up to date with $UPSTREAM"
+  fi
 elif [[ -e "$TAP_DIR" ]]; then
   die "$TAP_DIR exists but is not a git checkout; set NU11SIGNAL_TAP_DIR"
 else
   step "Cloning $TAP_REPO into $TAP_DIR"
   git clone --quiet "$TAP_REPO" "$TAP_DIR"
   TAP_DIR="$(cd "$TAP_DIR" && pwd)"
+  set_upstream
 fi
 
 # Commits left by an earlier --push whose push failed. Only bump commits for
 # this VERSION that touch nothing but the cask can be resumed.
-UPSTREAM="$(git -C "$TAP_DIR" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)" ||
-  die "the current branch of $TAP_DIR has no upstream; check it out on a tracking branch"
 UNPUSHED="$(git -C "$TAP_DIR" log --format='%h %s' "$UPSTREAM..HEAD")"
 if [[ -n "$UNPUSHED" ]]; then
   BUMP_SUBJECT="chore: bump nu11signal to $VERSION"

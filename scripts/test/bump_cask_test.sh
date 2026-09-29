@@ -214,3 +214,59 @@ test_bump_explains_unpushed_bumps_with_no_net_change() {
   assert_output_contains "reset --hard origin/main"
   [[ "$(origin_commits)" == 1 ]] || fail "empty bump commits were pushed"
 }
+
+# advance_origin: a new upstream commit (README.md only) the tap does not have.
+advance_origin() {
+  printf 'upstream\n' >>"$T/seed/README.md"
+  git -C "$T/seed" commit --quiet -am "docs: upstream change"
+  git -C "$T/seed" push --quiet origin HEAD:main 2>/dev/null
+}
+
+test_bump_reports_an_up_to_date_tap() {
+  setup_tap
+  clone_tap
+  write_checksum 0.2.1 "$SHA_B"
+  bump 0.2.1
+  assert_status 0
+  assert_output_contains "up to date with origin/main"
+}
+
+test_bump_fast_forwards_a_tap_behind_its_upstream() {
+  setup_tap
+  clone_tap
+  write_checksum 0.2.1 "$SHA_B"
+  advance_origin
+  bump 0.2.1
+  assert_status 0
+  assert_output_contains "behind origin/main by 1 commit"
+  [[ "$(git -C "$TAP" rev-parse HEAD)" == "$(git --git-dir="$ORIGIN" rev-parse main)" ]] ||
+    fail "the tap was not fast-forwarded"
+}
+
+test_bump_refuses_a_diverged_tap_before_pulling() {
+  setup_tap
+  write_checksum 0.2.1 "$SHA_B"
+  leave_unpushed_bump 0.2.1
+  advance_origin
+  local head
+  head="$(git -C "$TAP" rev-parse HEAD)"
+  bump 0.2.1 --push
+  assert_failed
+  assert_output_contains "has diverged from origin/main"
+  assert_output_contains "the checkout has 1 commit not on origin/main"
+  assert_output_contains "chore: bump nu11signal to 0.2.1"
+  assert_output_contains "pull --rebase"
+  assert_output_lacks "could not fast-forward"
+  [[ "$(git -C "$TAP" rev-parse HEAD)" == "$head" ]] || fail "the diverged tap was changed"
+  [[ "$(origin_commits)" == 2 ]] || fail "origin changed"
+}
+
+test_bump_refuses_a_tap_branch_without_upstream() {
+  setup_tap
+  clone_tap
+  write_checksum 0.2.1 "$SHA_B"
+  git -C "$TAP" checkout --quiet -b local-only
+  bump 0.2.1
+  assert_failed
+  assert_output_contains "has no upstream"
+}
