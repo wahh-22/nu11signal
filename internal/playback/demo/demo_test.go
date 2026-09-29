@@ -3,6 +3,7 @@ package demo
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -97,6 +98,41 @@ func TestSearchAndPlaySongs(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitState(t, p, func(s playback.State) bool { return s.SongID == songs[0].ID && s.Status == playback.StatusPlaying })
+}
+
+func TestSearchCatalogMatchesArtistsSongsAndSuggestions(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+
+	res, err := p.SearchCatalog(ctx, "CHROME", 25)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantArtists := []playback.Artist{{ID: "demo-artist-chrome-saints", Name: "Chrome Saints", Genres: []string{"Synthwave"}}}
+	if !reflect.DeepEqual(res.Artists, wantArtists) {
+		t.Errorf("Artists = %+v; want %+v", res.Artists, wantArtists)
+	}
+	var ids []string
+	for _, s := range res.Songs {
+		ids = append(ids, s.ID)
+	}
+	// Chrome Saints' two songs plus "Ghost in the Chrome", in catalog order.
+	if want := []string{"d01", "d03", "d08"}; !reflect.DeepEqual(ids, want) {
+		t.Errorf("song ids = %v; want %v", ids, want)
+	}
+	if want := []string{"chrome saints", "ghost in the chrome"}; !reflect.DeepEqual(res.Suggestions, want) {
+		t.Errorf("Suggestions = %v; want %v", res.Suggestions, want)
+	}
+
+	limited, err := p.SearchCatalog(ctx, "chrome", 1)
+	if err != nil || len(limited.Artists) != 1 || len(limited.Songs) != 1 || len(limited.Suggestions) != 1 {
+		t.Errorf("limit 1 = %+v, %v; want one of each", limited, err)
+	}
+
+	none, err := p.SearchCatalog(ctx, "no such thing", 25)
+	if err != nil || len(none.Artists)+len(none.Songs)+len(none.Suggestions) != 0 {
+		t.Errorf("no match = %+v, %v; want empty", none, err)
+	}
 }
 
 func TestInvalidRequestsFail(t *testing.T) {

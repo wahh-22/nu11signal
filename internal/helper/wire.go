@@ -55,6 +55,18 @@ type searchResult struct {
 	Songs []wireSong `json:"songs"`
 }
 
+type wireArtist struct {
+	ID     string   `json:"id"`
+	Name   string   `json:"name"`
+	Genres []string `json:"genres"`
+}
+
+type searchCatalogResult struct {
+	Suggestions []string     `json:"suggestions"`
+	Artists     []wireArtist `json:"artists"`
+	Songs       []wireSong   `json:"songs"`
+}
+
 type playlistsResult struct {
 	Playlists []struct {
 		ID   string `json:"id"`
@@ -106,4 +118,20 @@ func (s wireSong) toDomain() playback.Song {
 		Album:    s.Album,
 		Duration: seconds(s.Duration),
 	}
+}
+
+func (a wireArtist) toDomain() playback.Artist {
+	return playback.Artist{ID: a.ID, Name: a.Name, Genres: a.Genres}
+}
+
+// toDomain keeps lists the helper omitted nil.
+func (r searchCatalogResult) toDomain() playback.SearchResults {
+	res := playback.SearchResults{Suggestions: r.Suggestions}
+	for _, a := range r.Artists {
+		res.Artists = append(res.Artists, a.toDomain())
+	}
+	for _, s := range r.Songs {
+		res.Songs = append(res.Songs, s.toDomain())
+	}
+	return res
 }

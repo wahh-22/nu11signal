@@ -27,6 +27,16 @@ var catalog = []playback.Song{
 	song("d12", "Afterparty Uptown", "Kuroi Hana", "Signal Bleed", 219),
 }
 
+// artists are the demo catalog's artists, in the order search returns them.
+var artists = []playback.Artist{
+	{ID: "demo-artist-chrome-saints", Name: "Chrome Saints", Genres: []string{"Synthwave"}},
+	{ID: "demo-artist-lux-vendetta", Name: "Lux Vendetta", Genres: []string{"Darkwave"}},
+	{ID: "demo-artist-dust-protocol", Name: "Dust Protocol", Genres: []string{"Rock"}},
+	{ID: "demo-artist-the-netrunners", Name: "The Netrunners", Genres: []string{"Industrial"}},
+	{ID: "demo-artist-midnight-surgeon", Name: "Midnight Surgeon", Genres: []string{"Electronic"}},
+	{ID: "demo-artist-kuroi-hana", Name: "Kuroi Hana", Genres: []string{"J-Pop", "Electronic"}},
+}
+
 type station struct {
 	playback.Playlist
 	ids []string

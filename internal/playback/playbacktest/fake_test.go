@@ -15,6 +15,7 @@ func TestFakeRecordsCallsAndReturnsCannedResults(t *testing.T) {
 	f := New()
 	f.SearchResult = []playback.Song{{ID: "s1"}}
 	f.PlaylistsResult = []playback.Playlist{{ID: "p1"}}
+	f.SearchCatalogResult = playback.SearchResults{Artists: []playback.Artist{{ID: "a1"}}}
 	ctx := t.Context()
 
 	if st, err := f.Authorize(ctx); err != nil || st != playback.AuthAuthorized {
@@ -22,6 +23,9 @@ func TestFakeRecordsCallsAndReturnsCannedResults(t *testing.T) {
 	}
 	if songs, _ := f.Search(ctx, "daft", 5); len(songs) != 1 {
 		t.Fatalf("Search = %v", songs)
+	}
+	if res, _ := f.SearchCatalog(ctx, "daft", 3); len(res.Artists) != 1 {
+		t.Fatalf("SearchCatalog = %+v", res)
 	}
 	if lists, _ := f.Playlists(ctx); len(lists) != 1 {
 		t.Fatalf("Playlists = %v", lists)
@@ -32,6 +36,7 @@ func TestFakeRecordsCallsAndReturnsCannedResults(t *testing.T) {
 	want := []Call{
 		{Method: "Authorize"},
 		{Method: "Search", Args: []any{"daft", 5}},
+		{Method: "SearchCatalog", Args: []any{"daft", 3}},
 		{Method: "Playlists"},
 		{Method: "PlaySongs", Args: []any{[]string{"s1"}, 0}},
 		{Method: "Seek", Args: []any{3 * time.Second}},
@@ -92,5 +97,19 @@ func TestFakeErrPushAndClose(t *testing.T) {
 	}
 	if !f.Closed() {
 		t.Fatal("Closed() = false")
+	}
+}
+
+func TestFakeSearchCatalogMethodErr(t *testing.T) {
+	f := New()
+	boom := errors.New("boom")
+	f.SearchCatalogResult = playback.SearchResults{Songs: []playback.Song{{ID: "s1"}}}
+	f.MethodErr = map[string]error{"SearchCatalog": boom}
+	res, err := f.SearchCatalog(t.Context(), "x", 1)
+	if !errors.Is(err, boom) {
+		t.Fatalf("SearchCatalog err = %v; want boom", err)
+	}
+	if !reflect.DeepEqual(res, playback.SearchResults{}) {
+		t.Fatalf("SearchCatalog result on error = %+v; want zero", res)
 	}
 }
