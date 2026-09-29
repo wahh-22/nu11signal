@@ -26,6 +26,19 @@ const (
 	zoneExpand      = "expand"
 	zoneVolDown     = "vol:down"
 	zoneVolUp       = "vol:up"
+	// zoneRowFavorite and zoneRowAdd are the ♥ and + ending the selected
+	// song row; zoneFavPlaying the ♥ button of the song playing.
+	zoneRowFavorite = "fav:row"
+	zoneRowAdd      = "add:row"
+	zoneFavPlaying  = "fav:playing"
+	// zoneNewPlaylist is the + NEW PLAYLIST row over the playlists, and
+	// zoneNavNewPlaylist its button in the nav bar.
+	zoneNewPlaylist    = "new-playlist"
+	zoneNavNewPlaylist = "tab:new-playlist"
+	// zoneEditCreate and zoneEditCancel are the buttons under the NEW
+	// PLAYLIST name.
+	zoneEditCreate = "edit:create"
+	zoneEditCancel = "edit:cancel"
 	// zonePanelList and zonePanelPlayer cover the whole list and NOW
 	// PLAYING panels, frame included, under the zones drawn in them.
 	zonePanelList    = "panel:list"

@@ -179,9 +179,12 @@ func (m Model) artistLayout(w int) ([]pageLine, []artistItem) {
 	if len(d.TopSongs) > 0 {
 		section("TOP SONGS")
 		for i, s := range d.TopSongs {
-			item(artistItem{kind: itemSong, index: i}, func(sel bool) string {
-				return detailLine("♪", stCyan, strings.ToUpper(s.Title), strings.ToUpper(s.Album), sel, w)
+			n := len(items)
+			items = append(items, artistItem{kind: itemSong, index: i})
+			text, actions := m.songRow(s, n == cur, w, func(w int) string {
+				return detailLine("♪", stCyan, strings.ToUpper(s.Title), strings.ToUpper(s.Album), n == cur, w)
 			})
+			lines = append(lines, pageLine{text: text, item: n, actions: actions})
 		}
 	}
 	albumSection("ESSENTIAL ALBUMS", d.EssentialAlbums)

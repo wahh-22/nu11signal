@@ -16,6 +16,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.input.SetWidth(m.inputWidth())
+		m.nameInput.SetWidth(m.inputWidth())
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -35,12 +36,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.stationsFailed = false
-		m.stations = cleanEach(msg.playlists, func(p playback.Playlist) playback.Playlist {
+		return m.onPlaylists(cleanEach(msg.playlists, func(p playback.Playlist) playback.Playlist {
 			p.Name = cleanLine(p.Name)
 			return p
-		})
-		m.setStationCursor(min(m.stationCursor(), max(len(m.stations)-1, 0)))
-		return m, nil
+		})), nil
 	case recentsMsg:
 		return m.onRecents(msg), nil
 	case recentSavedMsg:
@@ -72,6 +71,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case playMsg:
 		return m.onPlay(msg), nil
+	case favoriteMsg:
+		return m.onFavorite(msg), nil
+	case setFavoriteMsg:
+		return m.onSetFavorite(msg), nil
+	case addedMsg:
+		return m.onAdded(msg)
+	case createdMsg:
+		return m.onCreated(msg)
 	case seekMsg:
 		return m.onSeek(msg), nil
 	case volumeMsg:
@@ -93,6 +100,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errorsClosedMsg:
 		m.lostErrs = true
 		return m, nil
+	}
+	if m.editor.mode == editName {
+		// Cursor blinks and other input internals of the name.
+		var cmd tea.Cmd
+		m.nameInput, cmd = m.nameInput.Update(msg)
+		return m, cmd
 	}
 	if m.top().kind == viewSearch {
 		// Cursor blinks and other input internals.
@@ -137,7 +150,10 @@ func (m Model) onTick() (tea.Model, tea.Cmd) {
 	if m.status != "" && !m.now().Before(m.statusUntil) {
 		m.status = ""
 	}
-	return m, m.scheduleTick()
+	// The favorite states shown are read here, not on every cursor move,
+	// so a held arrow key never floods the player.
+	m, read := m.readFavorites()
+	return m, tea.Batch(m.scheduleTick(), read)
 }
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -177,6 +193,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.stepVolume(-volumeStep)
 		case keyExpand:
 			return m.toggleExpand()
+		}
+		if m.editor.mode != editClosed {
+			return m.handleEditorKey(msg)
 		}
 	}
 	if m.top().kind == viewSearch {
@@ -224,6 +243,11 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.setStatus("RESCANNING PLAYLISTS")
 			return m, m.loadPlaylistsCmd()
 		}
+	case keyLove:
+		// No song row here: the song playing.
+		return m.loveTarget()
+	case keyAdd:
+		return m.addTarget()
 	default:
 		if next, cmd, ok := m.playerKey(k); ok {
 			return next, cmd
@@ -240,14 +264,18 @@ func (m Model) togglePlay() tea.Cmd {
 	return m.action("RESUME", m.player.Resume)
 }
 
-// moveCursor moves the stations cursor, the only list handleKey drives.
+// moveCursor moves the stations cursor, the only list handleKey drives,
+// from the + NEW PLAYLIST row to the last playlist.
 func (m *Model) moveCursor(delta int) {
-	m.setStationCursor(max(0, min(m.stationCursor()+delta, len(m.stations)-1)))
+	m.setStationCursor(max(m.firstStationRow(), min(m.stationCursor()+delta, len(m.stations)-1)))
 }
 
-// openSelection opens the page of the selected library playlist; the
-// page plays it.
+// openSelection opens the page of the selected library playlist, which
+// plays it, or on + NEW PLAYLIST asks for the new playlist's name.
 func (m Model) openSelection() (tea.Model, tea.Cmd) {
+	if m.stationCursor() < 0 {
+		return m.openName(playback.Song{}, false)
+	}
 	if len(m.stations) == 0 {
 		return m, nil
 	}

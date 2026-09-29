@@ -353,6 +353,8 @@ func TestPlayerKeysActOnTheTabs(t *testing.T) {
 				if view == "search" {
 					m, _ = press(t, m, "/")
 					m = typeText(t, m, "da")
+				} else {
+					m, _ = press(t, m, "up") // the + NEW PLAYLIST row
 				}
 				m, _ = press(t, m, "up")
 				if m.focus != areaTabs {

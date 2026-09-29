@@ -138,9 +138,16 @@ func TestLibraryPlaylistEnterPlaysFromTheTrack(t *testing.T) {
 	m := openStation(t, loaded(t, f, newClock()), 1)
 	m, cmd := press(t, m, "down", "down", "enter") // the second track
 	m = settle(t, m, cmd)
-	assertCall(t, f, "PlayPlaylistFrom", "pl-2", 1)
-	if n := len(callsOf(f, "PlaySongs")); n != 0 {
-		t.Fatal("a library track was played by id")
+	// The page's songs are played by id, from the ones it loaded: the
+	// playlist is not read again inside the playback budget.
+	assertCall(t, f, "PlaySongs", []string{"i.1", "i.2", "i.3"}, 1)
+	for _, method := range []string{"PlayPlaylist", "PlayPlaylistFrom"} {
+		if n := len(callsOf(f, method)); n != 0 {
+			t.Fatalf("a library track was played through %s", method)
+		}
+	}
+	if n := len(callsOf(f, "LibraryPlaylist")); n != 1 {
+		t.Fatalf("LibraryPlaylist called %d times; want only the page load", n)
 	}
 	if m.playingStation != "pl-2" {
 		t.Fatalf("playingStation %q; want the playlist on air", m.playingStation)
@@ -155,8 +162,11 @@ func TestLibraryPlaylistPlayRowPlaysFromTheStart(t *testing.T) {
 	f := playbacktest.New()
 	m := openStation(t, loaded(t, f, newClock()), 2)
 	m, cmd := press(t, m, "enter")
-	settle(t, m, cmd)
-	assertCall(t, f, "PlayPlaylist", "pl-3")
+	m = settle(t, m, cmd)
+	assertCall(t, f, "PlaySongs", []string{"i.1", "i.2", "i.3"}, 0)
+	if m.playingStation != "pl-3" {
+		t.Fatalf("playingStation %q; want the playlist on air", m.playingStation)
+	}
 }
 
 func TestClickOnALibraryTrackPlaysThePlaylistFromIt(t *testing.T) {
@@ -164,7 +174,7 @@ func TestClickOnALibraryTrackPlaysThePlaylistFromIt(t *testing.T) {
 	m := openStation(t, loaded(t, f, newClock()), 0)
 	m, cmd := click(t, m, rowZone(3))
 	settle(t, m, cmd)
-	assertCall(t, f, "PlayPlaylistFrom", "pl-1", 2)
+	assertCall(t, f, "PlaySongs", []string{"i.1", "i.2", "i.3"}, 2)
 }
 
 func TestLibraryPlaylistFailureOffersRetry(t *testing.T) {
@@ -317,7 +327,12 @@ func TestLibraryOnlyTrackIsMutedAndNotPlayed(t *testing.T) {
 
 	m, cmd = press(t, m, "down", "enter") // TURBO KILLER still plays from itself
 	settle(t, m, cmd)
-	assertCall(t, f, "PlayPlaylistFrom", "pl-1", 2)
+	// RESONANCE is skipped: TURBO KILLER is the second song queued.
+	assertCall(t, f, "PlaySongs", []string{"i.1", "i.3"}, 1)
+	m.setCursor(0) // ▶ PLAY
+	m, cmd = press(t, m, "enter")
+	settle(t, m, cmd)
+	assertCall(t, f, "PlaySongs", []string{"i.1", "i.3"}, 0)
 }
 
 // deadlinePlayer records the deadline of the Playlists call.

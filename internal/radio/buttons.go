@@ -58,15 +58,20 @@ func buttonBar(bs []button, w int) (string, zones) {
 
 // navButtons are the PLAYLISTS and SEARCH tabs, the one of the branch
 // shown lit, and BACK (esc) while a page is on top of a root view (the
-// playlists or the SEARCH base). The tab the keyboard is on is marked.
+// playlists or the SEARCH base) or the library editor is open. The tab the
+// keyboard is on is marked. On the playlists, + NEW PLAYLIST follows; it
+// is not a tab (tabIDs leaves it out): the keyboard has its row.
 func (m Model) navButtons() []button {
 	lit := m.litTab()
 	bs := []button{
 		{id: zoneTabStations, label: "PLAYLISTS", tone: stRed, active: lit == zoneTabStations},
 		{id: zoneTabSearch, label: "SEARCH", tone: stRed, active: lit == zoneTabSearch},
 	}
-	if isPage(m.top().kind) {
+	switch {
+	case isPage(m.top().kind) || m.editor.mode != editClosed:
 		bs = append(bs, button{id: zoneBack, label: "◀ BACK", tone: stYellow})
+	case m.top().kind == viewStations && m.auth == authOK:
+		bs = append(bs, button{id: zoneNavNewPlaylist, label: "+ NEW PLAYLIST", tone: stYellow})
 	}
 	if m.focus == areaTabs && m.tab < len(bs) {
 		bs[m.tab].focused = true

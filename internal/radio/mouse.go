@@ -4,6 +4,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // Mouse input is additive: every click or wheel turn does what a key
@@ -80,6 +82,12 @@ func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 	if c, ok := controlOf(z.id); ok {
 		return m.pressControl(c)
 	}
+	if z.id == zoneFavPlaying {
+		if m.focus != areaPlayer {
+			m.focusPlayer(ctlPlay)
+		}
+		return m.loveTarget()
+	}
 	if z.id == zonePanelPlayer {
 		// Elsewhere on NOW PLAYING: the focus only, on PLAY coming from
 		// elsewhere, else on the control it has.
@@ -105,6 +113,11 @@ func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 // clickListZone acts on a zone outside the player, the list having the
 // focus.
 func (m Model) clickListZone(z zone) (tea.Model, tea.Cmd) {
+	if m.editor.mode != editClosed {
+		if next, cmd, ok := m.clickEditorZone(z); ok {
+			return next, cmd
+		}
+	}
 	if row, ok := rowOf(z.id); ok {
 		// Select the row, then act on it as enter does.
 		m.setCursor(row)
@@ -131,6 +144,15 @@ func (m Model) clickListZone(z zone) (tea.Model, tea.Cmd) {
 		return m.searchTab()
 	case zoneBack:
 		return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	case zoneRowFavorite:
+		return m.loveTarget()
+	case zoneRowAdd:
+		return m.addTarget()
+	case zoneNewPlaylist:
+		m.setStationCursor(-1)
+		return m.openName(playback.Song{}, false)
+	case zoneNavNewPlaylist:
+		return m.openName(playback.Song{}, false)
 	}
 	return m, nil
 }

@@ -57,9 +57,9 @@ func TestBackButtonShowsOnlyOverARootView(t *testing.T) {
 
 func TestUpPastTheTopOfTheStationsFocusesTheTabs(t *testing.T) {
 	m := loaded(t, playbacktest.New(), newClock())
-	m, _ = press(t, m, "down", "up")
-	if m.focus != areaList || m.stationCursor() != 0 {
-		t.Fatalf("focus %v cursor %d; want the list on the first station", m.focus, m.stationCursor())
+	m, _ = press(t, m, "down", "up", "up")
+	if m.focus != areaList || m.stationCursor() != -1 {
+		t.Fatalf("focus %v cursor %d; want the list on + NEW PLAYLIST, over the first station", m.focus, m.stationCursor())
 	}
 	m, _ = press(t, m, "up")
 	if m.focus != areaTabs || m.tab != 0 {
@@ -77,8 +77,8 @@ func TestUpPastTheTopOfTheStationsFocusesTheTabs(t *testing.T) {
 		t.Fatalf("focus %v; want the tabs kept", m.focus)
 	}
 	m, _ = press(t, m, "down")
-	if m.focus != areaList || m.stationCursor() != 0 {
-		t.Fatalf("down: focus %v cursor %d; want back on the first station", m.focus, m.stationCursor())
+	if m.focus != areaList || m.stationCursor() != -1 {
+		t.Fatalf("down: focus %v cursor %d; want back on + NEW PLAYLIST", m.focus, m.stationCursor())
 	}
 	// k is the volume, not up: the list keeps the focus.
 	m, _ = press(t, m, "k")
@@ -93,7 +93,7 @@ func TestUpPastTheTopOfTheStationsFocusesTheTabs(t *testing.T) {
 
 func TestTabsWalkAndActivate(t *testing.T) {
 	m := loaded(t, playbacktest.New(), newClock())
-	m, _ = press(t, m, "up", "left")
+	m, _ = press(t, m, "up", "up", "left")
 	if m.focus != areaTabs || m.tab != 0 {
 		t.Fatalf("left from the first tab: focus %v tab %d; want it kept", m.focus, m.tab)
 	}
@@ -212,8 +212,10 @@ func TestUpFromTheButtonsWithNothingToSeekFocusesTheTabs(t *testing.T) {
 
 func TestWheelUpAtTheTopKeepsTheList(t *testing.T) {
 	m := loaded(t, playbacktest.New(), newClock())
+	// The wheel stops on the top row, + NEW PLAYLIST.
 	m = wheel(t, m, tea.MouseWheelUp)
-	if m.focus != areaList || m.stationCursor() != 0 {
+	m = wheel(t, m, tea.MouseWheelUp)
+	if m.focus != areaList || m.stationCursor() != -1 {
 		t.Fatalf("focus %v cursor %d; want the list kept", m.focus, m.stationCursor())
 	}
 }

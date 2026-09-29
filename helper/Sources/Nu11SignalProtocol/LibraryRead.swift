@@ -84,6 +84,9 @@ public struct LibraryPage<Item> {
     public let items: [Item]
     /// The next page, or nil on the last one.
     public let next: MusicAPICall?
+    /// How many resources the API sent, items left out included: a page
+    /// whose resources were all left out (music videos) is not the end.
+    public let resources: Int
 }
 
 public enum LibraryRead {
@@ -119,7 +122,7 @@ public enum LibraryRead {
             return LibraryPlaylistSummary(
                 id: id, name: attributes["name"] as? String ?? "", editable: attributes["canEdit"] as? Bool ?? false)
         }
-        return LibraryPage(items: items, next: next)
+        return LibraryPage(items: items, next: next, resources: resources.count)
     }
 
     /// A page of a playlist's tracks: its songs, library or catalog, in
@@ -142,7 +145,7 @@ public enum LibraryRead {
                 album: attributes["albumName"] as? String ?? "",
                 duration: millis.isFinite && millis > 0 ? millis / 1000 : 0)
         }
-        return LibraryPage(items: items, next: next)
+        return LibraryPage(items: items, next: next, resources: resources.count)
     }
 
     /// The playlist a `playlistCall` answer holds.
@@ -160,8 +163,9 @@ public enum LibraryRead {
 
     /// Fetches `first` and the pages after it, collecting at most cap
     /// items in order. It stops at the last page, at the cap (no page is
-    /// fetched past it), or at an empty page, so a `next` that points back
-    /// cannot loop.
+    /// fetched past it), at a page the API sent empty, or at a `next` whose
+    /// offset was already fetched, so a `next` that points back can neither
+    /// loop nor list a resource twice.
     public static func collect<Item>(
         from first: MusicAPICall,
         cap: Int,
@@ -169,13 +173,20 @@ public enum LibraryRead {
         page read: (Data, MusicAPICall) throws -> LibraryPage<Item>
     ) async throws -> [Item] {
         var items: [Item] = []
+        var fetched: Set<Int> = []
         var call: MusicAPICall? = first
-        while let current = call, items.count < cap {
+        while let current = call, items.count < cap, fetched.insert(offset(of: current)).inserted {
             let page = try read(try await fetch(current), current)
             items += page.items
-            call = page.items.isEmpty ? nil : page.next
+            call = page.resources == 0 ? nil : page.next
         }
         return Array(items.prefix(cap))
+    }
+
+    /// The offset a page call starts at: its `offset` query item, 0 when
+    /// absent (the first page) or unreadable.
+    static func offset(of call: MusicAPICall) -> Int {
+        call.query.last { $0.name == "offset" }?.value.flatMap { Int($0) } ?? 0
     }
 
     private static func playlistID(_ request: Request) throws -> String {

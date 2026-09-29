@@ -224,7 +224,9 @@ brings back the same view (an artist or album page included) with its cursor.
 
 `enter` on a library playlist opens its PLAYLIST page over the PLAYLISTS
 root: `▶ PLAY` plays it from the start, and `enter` on a track plays the
-playlist from that track (the dial then shows the playlist on air). Songs
+playlist from that track (the dial then shows the playlist on air). The songs
+the page loaded are queued by their catalog ids (`playSongs`), so playing
+never reads the playlist again. Songs
 that are only in your library (uploads, or songs no longer in the Apple Music
 catalog) are listed muted and skipped: `enter` on one only shows a notice. `esc` or
 the `PLAYLISTS` tab goes back to the list; `tab` or `/` goes to SEARCH (the
@@ -256,6 +258,34 @@ Limitations:
   left out when it is absent.
 - Relationships (an artist's albums, singles, playlists, and so on) show the
   first page the catalog returns, not the full list.
+- Playlists cannot be renamed or deleted, nor songs removed from them: the
+  Apple Music API does not offer it. A page already open does not show songs
+  added from the picker until it is opened again.
+
+## Editing the library
+
+- **Love** a song (Apple Music's favorite): `l` on a song row (a track, a
+  top song, a song among the results or the search rows), or with no song
+  row selected (the playlists, the player), the song playing. The selected
+  song row ends in `♡ +` (`♥` once loved); a loved song keeps its `♥` on any
+  row, and NOW PLAYING shows a `╱ ♡ ╱` button beside the title. The state is
+  read when the selection rests (on the next animation tick), cached per
+  song, and a change shows at once: a refused one is reported on the status
+  line and read back.
+- **Add to a playlist**: `a` (or the row's `+`) opens ADD TO PLAYLIST over
+  the list: `+ NEW PLAYLIST`, then the playlists songs can be added to
+  (ones followed from the catalog, such as "Canciones favoritas", are left
+  out). `enter` adds the selected song and closes the picker; a failure keeps
+  it open. `esc` or `◀ BACK` cancels.
+- **New playlist**: the `+ NEW PLAYLIST` row over the playlists, its button
+  in the nav bar, or the picker's row (the new playlist then holds the song).
+  Type the name, `enter` (or `CREATE`) creates it, `esc` (or `CANCEL`)
+  cancels (back to the picker when it came from there). The new playlist is
+  listed and selected at once; the list is read again, and a playlist the
+  API does not list yet is kept.
+
+Songs only in your library cannot be loved or added (the ratings and
+playlist endpoints take catalog ids): `l` and `a` show a notice.
 
 ## Keys
 
@@ -263,8 +293,10 @@ PLAYLISTS (and anywhere the key is not taken by the view):
 
 | Key | Action |
 |-----|--------|
-| `↑`/`↓` | Move the cursor; `↑` on the first playlist moves the focus to the nav tabs (see below) |
-| `enter` | Open the playlist's page |
+| `↑`/`↓` | Move the cursor; `↑` on the top row (`+ NEW PLAYLIST`) moves the focus to the nav tabs (see below) |
+| `enter` | Open the playlist's page; on `+ NEW PLAYLIST`, name a new playlist |
+| `l` | Love the song playing, or unlove it |
+| `a` | Add the song playing to a playlist |
 | `space` | Play / pause |
 | `n` / `p` | Next / previous track |
 | `shift+←` / `shift+→` or `,` / `.` | Seek -10 s / +10 s |
@@ -288,6 +320,7 @@ SEARCH (typing goes to the input, so letter shortcuts are off):
 | `ctrl+f` | Expand or restore the player (`f` is typed) |
 | `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, open its SONG view |
 | `ctrl+d` / `delete` | On a recent term, delete it (on the input, they edit the text) |
+| `l` / `a` | On a song row, love it / add it to a playlist (on the input or another row, they are typed) |
 | `tab` | Back to the playlists (the search is kept for the next `/` or `tab`) |
 | `esc` | Back one view (closing the search: the next `/` starts empty) |
 | `ctrl+c` | Quit |
@@ -302,7 +335,18 @@ RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 | `tab` | Back to the playlists (the page and the ones below it are kept for the next `/` or `tab`); from a library playlist page, over to SEARCH |
 | `/` | Back to the SEARCH input, with the term kept for editing (the pages above it are closed) |
 | `r` | Retry after the page failed to load |
+| `l` | Love the selected song (a track, a top song, a song result), or unlove it; on another row, the song playing |
+| `a` | Add the selected song to a playlist; on another row, the song playing |
 | `space`, `n` / `p`, seek and volume keys, `→`, `f` / `ctrl+f`, `q` | As on the playlists |
+
+ADD TO PLAYLIST and NEW PLAYLIST (over the list):
+
+| Key | Action |
+|-----|--------|
+| `↑`/`↓` | Move between `+ NEW PLAYLIST` and the playlists (picker) |
+| `enter` | Add the song to the selected playlist, or on `+ NEW PLAYLIST` name a new one (picker); create the playlist (name) |
+| `esc` | Cancel (from a name opened in the picker, back to the picker) |
+| `space`, `n` / `p`, seek and volume keys, `→`, `q` | As on the playlists (picker only: the name types every key but `enter` and `esc`; `ctrl+c` quits) |
 
 Player (after `→` from the list, or a click on its panel; the lit
 panel frame shows which side has the focus):
@@ -313,6 +357,7 @@ panel frame shows which side has the focus):
 | `↑` / `↓` | Move between the progress bar (when the song can seek), the transport row, and the volume row (`VOL-` under `PREV`/`PLAY`, `VOL+` under `NEXT`/`EXPAND`); `↑` from the bar (or from the transport row, with nothing to seek) moves the focus to the nav tabs |
 | `←` / `→` on the progress bar | Seek -10 s / +10 s |
 | `enter` | Press the focused button (as a click) |
+| `l` / `a` | Love / add to a playlist the song playing |
 | `esc` | Back to the list (restoring an expanded player) |
 | `space`, `n` / `p`, seek and volume keys, `f` / `ctrl+f` | As on the playlists |
 
@@ -351,9 +396,13 @@ The mouse does what the keys do; the keys keep working.
 | A row (playlist, search row, page row, `▶ PLAY`, MORE/LESS) | Select it and act as `enter` |
 | The SEARCH input | Select the input |
 | `✕` at the end of a recent term | Delete that term (as `ctrl+d` / `delete`) |
+| `♡` / `♥` and `+` at the end of the selected song row | Love or unlove it (as `l`); add it to a playlist (as `a`) |
+| `╱ ♡ ╱` beside the title (NOW PLAYING) | Love or unlove the song playing |
+| `+ NEW PLAYLIST` (row over the playlists, or nav bar button on the playlists) | Name a new playlist |
+| A picker row, `CREATE`, `CANCEL` | As `enter` on the row; create; cancel |
 | A `[R] RETRY` notice | Retry, as `r` |
 | `PLAYLISTS` / `SEARCH` tabs (header rule) | `PLAYLISTS` as `tab` (from a library playlist page, back to the list); `SEARCH` as `/`; the lit tab is the branch shown |
-| `◀ BACK` (on RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST) | As `esc` |
+| `◀ BACK` (on RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST, and over ADD TO PLAYLIST and NEW PLAYLIST) | As `esc` |
 | `◀◀ PREV`, `▶ PLAY` / `❚❚ PAUSE`, `NEXT ▶▶` (NOW PLAYING) | As `p`, `space`, `n`; the focus moves to the button |
 | `⤢ EXPAND` / `⤡ RESTORE` (NOW PLAYING) | Expand the player to the full width, or restore it |
 | `-` / `+` around the `VOL` readout (NOW PLAYING) | Volume down / up by 5%, as `j` / `k`; the focus moves to the button |
@@ -407,7 +456,7 @@ One JSON object per line.
 | `playlists` | none | `{"playlists":[{"id","name","editable"}]}`: alphabetical, with Apple Music API library ids (`p.…`); `editable` is false for playlists followed from the catalog |
 | `libraryPlaylist` | `playlistId` (an API library id, `p.…`) | `{"playlist":{"id","name"},"tracks":[...],"notes"}`; songs only, with their catalog ids; a song not in the catalog keeps its library id (`i.…`) and carries `"libraryOnly":true` |
 | `playSongs` | `ids`, `startIndex` | `{}` or `{"missing":[...]}` |
-| `playPlaylist` | `playlistId`, optional `startIndex` (an index into the `libraryPlaylist` tracks) | `{}` or `{"missing":[...]}`; the playlist's catalog songs are queued (library-only songs are skipped; starting at one is an error) |
+| `playPlaylist` | `playlistId`, optional `startIndex` (an index into the `libraryPlaylist` tracks) | `{}` or `{"missing":[...]}`; the playlist's catalog songs are queued (library-only songs are skipped; starting at one is an error). The UI plays library playlists with `playSongs` from the tracks it loaded instead |
 | `pause`, `resume`, `next`, `previous`, `stop` | none | `{}` |
 | `seek` | `seconds` (>= 0) | `{}`, followed by a `state` event |
 | `volume` | none | `{"level":...}`: the system output volume, 0 to 1 (runs concurrently) |

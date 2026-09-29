@@ -143,6 +143,8 @@ func (m Model) renderCompact() ([]string, zones) {
 	var panels zones
 	playerTop := len(lines)
 	title, artist := m.titleLines()
+	title, hz := m.heartTitle(title, w-1)
+	zs.addAt(0, len(lines), hz)
 	lines = append(lines, title, artist)
 	progress, barW := m.progressLine(w - 1)
 	if m.seekable() {
@@ -331,6 +333,9 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	}
 	head := label + strings.Repeat(" ", max(iw-1-ansi.StringWidth(label)-ansi.StringWidth(tag), 1)) + tag
 
+	title, hz := m.heartTitle(title, iw-2)
+	var zs zones
+	zs.addAt(1, 2, hz)
 	lines := []string{
 		" " + head,
 		"",
@@ -339,7 +344,6 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 		" " + album,
 		"",
 	}
-	var zs zones
 	progress, barW := m.progressLine(iw - 2)
 	if m.seekable() {
 		zs.add(zoneSeek, 1, len(lines), barW)
@@ -411,6 +415,10 @@ func (m Model) listPanel(w, h int) ([]string, zones) {
 // its panel title and code, and its body rendered in w x h cells with the
 // zones of its rows.
 func (m Model) listView(w, h int) (title, code string, body []string, zs zones) {
+	if m.editor.mode != editClosed {
+		body, zs = m.editorBody(w, h)
+		return m.editorTitle(), m.editorCode(), body, zs
+	}
 	switch m.top().kind {
 	case viewSearch:
 		body, zs = m.searchBody(w, h)
@@ -429,31 +437,35 @@ func (m Model) listView(w, h int) (title, code string, body []string, zs zones) 
 	return "PLAYLISTS", fmt.Sprintf("BAND FM // %02d CH", len(m.stations)), body, zs
 }
 
-// stationRows renders the visible window of the station list, scrolled so
-// the cursor stays on screen.
+// stationRows renders the visible window of the station list, the + NEW
+// PLAYLIST row over it once the library is reachable, scrolled so the
+// cursor stays on screen.
 func (m Model) stationRows(w, h int) ([]string, zones) {
 	if h <= 0 {
 		return nil, nil
 	}
 	n := len(m.stations)
-	if n == 0 {
+	cur := m.stationCursor()
+	rows := make([]string, 0, h)
+	var zs zones
+	for i := max(m.firstStationRow(), cur-h+1); i < n && len(rows) < h; i++ {
+		if i < 0 {
+			zs.add(zoneNewPlaylist, 0, len(rows), w)
+			rows = append(rows, newPlaylistLine(cur < 0, w))
+			continue
+		}
+		zs.add(rowZone(i), 0, len(rows), w)
+		rows = append(rows, m.stationRow(i, i == cur, w))
+	}
+	if n == 0 && len(rows) < h {
 		msg := "SCANNING BANDS..."
-		var zs zones
 		if m.stationsFailed {
 			msg = "[R] RETRY // SCAN FAILED"
-			zs.add(zoneRetry, 0, 0, w)
+			zs.add(zoneRetry, 0, len(rows), w)
 		} else if m.auth == authOK {
 			msg = "NO PLAYLISTS // LIBRARY EMPTY"
 		}
-		return []string{" " + stDim.Render(msg)}, zs
-	}
-	cur := m.stationCursor()
-	offset := max(0, cur-h+1)
-	rows := make([]string, 0, h)
-	var zs zones
-	for i := offset; i < n && len(rows) < h; i++ {
-		zs.add(rowZone(i), 0, len(rows), w)
-		rows = append(rows, m.stationRow(i, i == cur, w))
+		rows = append(rows, " "+stDim.Render(msg))
 	}
 	return rows, zs
 }
@@ -495,13 +507,19 @@ func (m Model) hintLine(w int) string {
 	hints := playerHints
 	switch kind := m.top().kind; {
 	case m.focus == areaTabs:
-		hints = tabsFocusHints(kind == viewSearch)
+		hints = tabsFocusHints(kind == viewSearch || m.editor.mode == editName)
 	case m.focus == areaPlayer:
-		hints = playerFocusHints(m.expanded, kind == viewSearch)
+		hints = playerFocusHints(m.expanded, kind == viewSearch || m.editor.mode == editName)
+	case m.editor.mode == editPick:
+		hints = pickerHints
+	case m.editor.mode == editName:
+		hints = nameHints
 	case kind == viewSearch:
 		hints = searchHints
 		if m.recentSelected() {
 			hints = recentHints
+		} else if _, ok := m.selectedSong(); ok {
+			hints = searchSongHints
 		}
 	case kind == viewResults:
 		hints = resultsHints

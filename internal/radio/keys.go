@@ -37,6 +37,11 @@ const (
 	keyQuit               = "q"
 	keyRetry              = "r"
 	keyCtrlC              = "ctrl+c"
+	// keyLove toggles the favorite state of the selected song, or of the
+	// song playing; keyAdd adds it to a library playlist. Both act
+	// wherever typing does not take them (on SEARCH, on a song row).
+	keyLove = "l"
+	keyAdd  = "a"
 	// keyDelete and keyDeleteAlt delete the selected recent search.
 	keyDelete    = "delete"
 	keyDeleteAlt = "ctrl+d"
@@ -56,6 +61,8 @@ var playerHints = []hint{
 	{"N/P", "NEXT/PREV"},
 	{"J/K", "VOL"},
 	{"F", "EXPAND"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"↑↓", "MOVE"},
 	{"Q", "QUIT"},
 }
@@ -79,6 +86,7 @@ func playerFocusHints(expanded, typing bool) []hint {
 		{"ESC", "LIST"},
 		expand,
 		{"SPACE", "PLAY/PAUSE"},
+		{"L", "LOVE"},
 		quit,
 	}
 }
@@ -106,6 +114,8 @@ func tabsFocusHints(typing bool) []hint {
 var artistHints = []hint{
 	{"ENTER", "SELECT/MORE"},
 	{"↑↓", "MOVE"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
 	{"N/P", "NEXT/PREV"},
@@ -118,6 +128,8 @@ var artistHints = []hint{
 var resultsHints = []hint{
 	{"ENTER", "OPEN"},
 	{"↑↓", "MOVE"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
 	{"N/P", "NEXT/PREV"},
@@ -130,11 +142,42 @@ var resultsHints = []hint{
 var trackHints = []hint{
 	{"ENTER", "PLAY/MORE"},
 	{"↑↓", "MOVE"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
 	{"Q", "QUIT"},
+}
+
+// pickerHints replace the view's hints while ADD TO PLAYLIST is open, and
+// nameHints while NEW PLAYLIST takes a name: every key but enter and esc
+// is typed there, so ctrl+c quits.
+var pickerHints = []hint{
+	{"ENTER", "ADD"},
+	{"↑↓", "MOVE"},
+	{"ESC", "CANCEL"},
+	{"SPACE", "PLAY/PAUSE"},
+	{"Q", "QUIT"},
+}
+
+var nameHints = []hint{
+	{"ENTER", "CREATE"},
+	{"ESC", "CANCEL"},
+	{"CTRL+C", "QUIT"},
+}
+
+// searchSongHints replace searchHints while a song row is selected, where
+// l and a act instead of being typed.
+var searchSongHints = []hint{
+	{"ENTER", "SELECT"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
+	{"↑↓", "MOVE"},
+	{"TAB", "PLAYLISTS"},
+	{"ESC", "BACK"},
+	{"CTRL+C", "QUIT"},
 }
 
 // searchHints replace playerHints while the search view is open: typing
