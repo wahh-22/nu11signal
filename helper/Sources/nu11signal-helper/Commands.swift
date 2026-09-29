@@ -27,13 +27,6 @@ final class CommandHandler {
     /// in internal/radio) so the helper reports the timeout first.
     static let playbackTimeout: TimeInterval = 6
 
-    /// Upper bound for each optional part of an artist page (one
-    /// relationship, or the origin/formed lookup). A part that fails or runs
-    /// out of time degrades to an empty section instead of failing the
-    /// command. Kept below the Go client's artist deadline (15s,
-    /// `artistCallTimeout` in internal/radio) minus the artist lookup itself.
-    static let artistSectionTimeout: TimeInterval = 8
-
     /// Runs one request and sends exactly one response. With a timeout, a
     /// command that has not finished in time is answered with an error.
     func respond(to request: Request, timeout: TimeInterval? = nil) async {
@@ -61,6 +54,9 @@ final class CommandHandler {
         case "authorize": return try await authorize()
         case "searchCatalog": return try await searchCatalog(request)
         case "artist": return try await artist(request)
+        case "album": return try await album(request)
+        case "songAlbum": return try await songAlbum(request)
+        case "catalogPlaylist": return try await catalogPlaylist(request)
         case "playlists": return try await playlists()
         case "playSongs": return try await playSongs(request)
         case "playPlaylist": return try await playPlaylist(request)
@@ -119,14 +115,14 @@ final class CommandHandler {
     /// can fail the command; each section is its own concurrent request
     /// (`with` loads one relationship at a time) so one that fails or hangs
     /// leaves just that section empty. `featuredAlbums` stands in for
-    /// "Essential Albums", and artist playlists fall back to
-    /// `featuredPlaylists` when `playlists` is empty.
+    /// "Essential Albums". The command stays within `CatalogBudget.artist`:
+    /// the lookup, then the parts under one section deadline each.
     private func artist(_ request: Request) async throws -> JSONObject {
-        guard let id = request.string("artistId"), !id.isEmpty else {
-            throw CommandError("artist requires a non-empty \"artistId\"")
+        let id = try request.requiredID("artistId")
+        let artist = try await Deadline.run(seconds: CatalogBudget.lookup) {
+            try await MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: MusicItemID(id)).response().items.first
         }
-        let lookup = MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: MusicItemID(id))
-        guard let artist = try await lookup.response().items.first else {
+        guard let artist else {
             throw CommandError("artist \(id) was not found in the catalog")
         }
         async let topSongs = Self.section(artist, .topSongs, \.topSongs)
@@ -134,16 +130,11 @@ final class CommandHandler {
         async let albums = Self.section(artist, .fullAlbums, \.fullAlbums)
         async let singles = Self.section(artist, .singles, \.singles)
         async let compilations = Self.section(artist, .compilationAlbums, \.compilationAlbums)
-        async let playlists = Self.section(artist, .playlists, \.playlists)
-        async let featuredPlaylists = Self.section(artist, .featuredPlaylists, \.featuredPlaylists)
-        async let facts = Self.artistFacts(id: id)
+        async let playlists = Self.artistPlaylists(artist)
+        async let loadedFacts = Self.artistFacts(id: id)
 
         let notes = artist.editorialNotes.flatMap { $0.standard ?? $0.short } ?? ""
-        var lists = await playlists
-        if lists.isEmpty {
-            lists = await featuredPlaylists
-        }
-        let origin = await facts
+        let facts = await loadedFacts
         return [
             "artist": artistJSON(artist),
             "topSongs": await topSongs.map(songJSON),
@@ -151,27 +142,38 @@ final class CommandHandler {
             "albums": await albums.map(albumJSON),
             "singles": await singles.map(albumJSON),
             "compilations": await compilations.map(albumJSON),
-            "playlists": lists.map { ["id": $0.id.rawValue, "name": $0.name, "curator": $0.curatorName ?? ""] },
+            "playlists": await playlists.map(catalogPlaylistJSON),
             "about": [
                 "notes": EditorialText.plain(notes),
                 "genre": artist.genreNames?.first ?? "",
-                "origin": origin.origin,
-                "formed": origin.formed,
+                "origin": facts.origin,
+                "formed": facts.formed,
             ],
         ]
     }
 
     /// Loads one relationship of artist, or nothing when it fails or takes
-    /// longer than `artistSectionTimeout`.
+    /// longer than `CatalogBudget.section`.
     private nonisolated static func section<Item>(
         _ artist: Artist,
         _ property: MusicRelationshipProperty<Artist, Item>,
         _ items: KeyPath<Artist, MusicItemCollection<Item>?>
     ) async -> [Item] {
-        guard let loaded = try? await Deadline.run(seconds: artistSectionTimeout, {
+        guard let loaded = try? await Deadline.run(seconds: CatalogBudget.section, {
             try await artist.with([property])
         }) else { return [] }
         return Array(loaded[keyPath: items] ?? [])
+    }
+
+    /// The artist's playlists, falling back to `featuredPlaylists` only when
+    /// `playlists` is empty. Both requests share one section deadline, so
+    /// the fallback never stretches the command past its budget.
+    private nonisolated static func artistPlaylists(_ artist: Artist) async -> [Playlist] {
+        (try? await Deadline.run(seconds: CatalogBudget.section) {
+            let own = try await artist.with([.playlists]).playlists ?? []
+            if !own.isEmpty { return Array(own) }
+            return Array(try await artist.with([.featuredPlaylists]).featuredPlaylists ?? [])
+        }) ?? []
     }
 
     /// Where the artist is from and when it was born or formed. MusicKit
@@ -179,7 +181,7 @@ final class CommandHandler {
     /// failure leaves them empty.
     private nonisolated static func artistFacts(id: String) async -> ArtistFacts {
         let none = ArtistFacts(origin: "", formed: "")
-        return (try? await Deadline.run(seconds: artistSectionTimeout) {
+        return (try? await Deadline.run(seconds: CatalogBudget.section) {
             let storefront = try await MusicDataRequest.currentCountryCode
             var url = URLComponents()
             url.scheme = "https"
@@ -190,6 +192,82 @@ final class CommandHandler {
             let response = try await MusicDataRequest(urlRequest: URLRequest(url: url)).response()
             return ArtistFacts.parse(response.data)
         }) ?? none
+    }
+
+    /// An album page: the album with its tracks (songs only; music videos
+    /// are left out) and the facts listed under them.
+    private func album(_ request: Request) async throws -> JSONObject {
+        let id = try request.requiredID("albumId")
+        return try await albumPage(id: id)
+    }
+
+    /// The page of the album containing a song: its first album. Two
+    /// sequential lookups, within `CatalogBudget.songAlbum`.
+    private func songAlbum(_ request: Request) async throws -> JSONObject {
+        let id = try request.requiredID("songId")
+        let song = try await Deadline.run(seconds: CatalogBudget.lookup) {
+            var lookup = MusicCatalogResourceRequest<Song>(matching: \.id, equalTo: MusicItemID(id))
+            lookup.properties = [.albums]
+            return try await lookup.response().items.first
+        }
+        guard let song else {
+            throw CommandError("song \(id) was not found in the catalog")
+        }
+        guard let album = song.albums?.first else {
+            throw CommandError("song \(id) has no album in the catalog")
+        }
+        return try await albumPage(id: album.id.rawValue)
+    }
+
+    /// Looks up an album with its tracks, within `CatalogBudget.lookup`.
+    private func albumPage(id: String) async throws -> JSONObject {
+        let album = try await Deadline.run(seconds: CatalogBudget.lookup) {
+            var lookup = MusicCatalogResourceRequest<Album>(matching: \.id, equalTo: MusicItemID(id))
+            lookup.properties = [.tracks]
+            return try await lookup.response().items.first
+        }
+        guard let album else {
+            throw CommandError("album \(id) was not found in the catalog")
+        }
+        let notes = album.editorialNotes.flatMap { $0.standard ?? $0.short } ?? ""
+        return [
+            "album": albumJSON(album),
+            "tracks": Self.songs(in: album.tracks).map(trackJSON),
+            "genre": album.genreNames.first ?? "",
+            "releaseDate": album.releaseDate.map(CatalogDate.iso) ?? "",
+            "recordLabel": album.recordLabelName ?? "",
+            "copyright": album.copyright ?? "",
+            "notes": EditorialText.plain(notes),
+        ]
+    }
+
+    /// A catalog playlist page: its songs in order (music videos are left
+    /// out) and its description.
+    private func catalogPlaylist(_ request: Request) async throws -> JSONObject {
+        let id = try request.requiredID("playlistId")
+        let playlist = try await Deadline.run(seconds: CatalogBudget.lookup) {
+            var lookup = MusicCatalogResourceRequest<Playlist>(matching: \.id, equalTo: MusicItemID(id))
+            lookup.properties = [.tracks]
+            return try await lookup.response().items.first
+        }
+        guard let playlist else {
+            throw CommandError("playlist \(id) was not found in the catalog")
+        }
+        let notes = playlist.standardDescription ?? playlist.shortDescription ?? ""
+        return [
+            "playlist": catalogPlaylistJSON(playlist),
+            "tracks": Self.songs(in: playlist.tracks).map(songJSON),
+            "notes": EditorialText.plain(notes),
+        ]
+    }
+
+    /// The songs of a track list, in order. Only the loaded batch is used:
+    /// very long lists are cut at the catalog's first page.
+    private nonisolated static func songs(in tracks: MusicItemCollection<Track>?) -> [Song] {
+        (tracks ?? []).compactMap { track in
+            if case let .song(song) = track { return song }
+            return nil
+        }
     }
 
     private func playlists() async throws -> JSONObject {
@@ -269,23 +347,27 @@ final class CommandHandler {
         ]
     }
 
-    /// Release years are read in UTC: catalog release dates are calendar
-    /// dates, and a local time zone west of UTC would move 1 January back a
-    /// year.
-    private static let utcCalendar: Calendar = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
-        return calendar
-    }()
-
     private func albumJSON(_ album: Album) -> JSONObject {
         [
             "id": album.id.rawValue,
             "title": album.title,
             "artist": album.artistName,
-            "year": album.releaseDate.map { Self.utcCalendar.component(.year, from: $0) } ?? 0,
+            // Read in UTC (see CatalogDate), or 1 January could move back a year.
+            "year": album.releaseDate.map { CatalogDate.utc.component(.year, from: $0) } ?? 0,
             "trackCount": album.trackCount,
         ]
+    }
+
+    private func catalogPlaylistJSON(_ playlist: Playlist) -> JSONObject {
+        ["id": playlist.id.rawValue, "name": playlist.name, "curator": playlist.curatorName ?? ""]
+    }
+
+    /// A song on an album, with its position; 0 when unknown.
+    private func trackJSON(_ song: Song) -> JSONObject {
+        songJSON(song).merging([
+            "trackNumber": song.trackNumber ?? 0,
+            "discNumber": song.discNumber ?? 0,
+        ]) { _, position in position }
     }
 
     private func songJSON(_ song: Song) -> JSONObject {

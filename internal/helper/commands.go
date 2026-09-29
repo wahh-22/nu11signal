@@ -38,6 +38,35 @@ func (c *Client) Artist(ctx context.Context, artistID string) (playback.ArtistDe
 	return res.toDomain(), nil
 }
 
+// Album loads a catalog album page; the id travels as "albumId".
+func (c *Client) Album(ctx context.Context, albumID string) (playback.AlbumDetail, error) {
+	var res albumResult
+	if err := c.call(ctx, "album", map[string]any{"albumId": albumID}, &res); err != nil {
+		return playback.AlbumDetail{}, err
+	}
+	return res.toDomain(), nil
+}
+
+// SongAlbum loads the page of the album that contains a catalog song; the
+// id travels as "songId".
+func (c *Client) SongAlbum(ctx context.Context, songID string) (playback.AlbumDetail, error) {
+	var res albumResult
+	if err := c.call(ctx, "songAlbum", map[string]any{"songId": songID}, &res); err != nil {
+		return playback.AlbumDetail{}, err
+	}
+	return res.toDomain(), nil
+}
+
+// CatalogPlaylist loads a catalog playlist page; the id travels as
+// "playlistId".
+func (c *Client) CatalogPlaylist(ctx context.Context, playlistID string) (playback.PlaylistDetail, error) {
+	var res catalogPlaylistResult
+	if err := c.call(ctx, "catalogPlaylist", map[string]any{"playlistId": playlistID}, &res); err != nil {
+		return playback.PlaylistDetail{}, err
+	}
+	return res.toDomain(), nil
+}
+
 // Playlists lists the user's library playlists, sorted by name.
 func (c *Client) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	var res playlistsResult

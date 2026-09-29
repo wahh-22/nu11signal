@@ -93,6 +93,29 @@ type artistResult struct {
 	} `json:"about"`
 }
 
+// wireTrack is a song on an album, with its position.
+type wireTrack struct {
+	wireSong
+	TrackNumber int `json:"trackNumber"`
+	DiscNumber  int `json:"discNumber"`
+}
+
+type albumResult struct {
+	Album       wireAlbum   `json:"album"`
+	Tracks      []wireTrack `json:"tracks"`
+	Genre       string      `json:"genre"`
+	ReleaseDate string      `json:"releaseDate"`
+	RecordLabel string      `json:"recordLabel"`
+	Copyright   string      `json:"copyright"`
+	Notes       string      `json:"notes"`
+}
+
+type catalogPlaylistResult struct {
+	Playlist wireCatalogPlaylist `json:"playlist"`
+	Tracks   []wireSong          `json:"tracks"`
+	Notes    string              `json:"notes"`
+}
+
 type playlistsResult struct {
 	Playlists []struct {
 		ID   string `json:"id"`
@@ -189,7 +212,36 @@ func (r artistResult) toDomain() playback.ArtistDetail {
 		d.TopSongs = append(d.TopSongs, s.toDomain())
 	}
 	for _, p := range r.Playlists {
-		d.Playlists = append(d.Playlists, playback.CatalogPlaylist{ID: p.ID, Name: p.Name, Curator: p.Curator})
+		d.Playlists = append(d.Playlists, p.toDomain())
+	}
+	return d
+}
+
+func (p wireCatalogPlaylist) toDomain() playback.CatalogPlaylist {
+	return playback.CatalogPlaylist{ID: p.ID, Name: p.Name, Curator: p.Curator}
+}
+
+// toDomain keeps tracks the helper omitted nil.
+func (r albumResult) toDomain() playback.AlbumDetail {
+	d := playback.AlbumDetail{
+		Album:       r.Album.toDomain(),
+		Genre:       r.Genre,
+		ReleaseDate: r.ReleaseDate,
+		RecordLabel: r.RecordLabel,
+		Copyright:   r.Copyright,
+		Notes:       r.Notes,
+	}
+	for _, t := range r.Tracks {
+		d.Tracks = append(d.Tracks, playback.Track{Song: t.wireSong.toDomain(), Number: t.TrackNumber, Disc: t.DiscNumber})
+	}
+	return d
+}
+
+// toDomain keeps tracks the helper omitted nil.
+func (r catalogPlaylistResult) toDomain() playback.PlaylistDetail {
+	d := playback.PlaylistDetail{Playlist: r.Playlist.toDomain(), Notes: r.Notes}
+	for _, s := range r.Tracks {
+		d.Tracks = append(d.Tracks, s.toDomain())
 	}
 	return d
 }

@@ -201,6 +201,51 @@ func (p *Player) Artist(ctx context.Context, artistID string) (playback.ArtistDe
 	return d, err
 }
 
+// Album returns the demo page of an album from an artist page; an unknown
+// id is an error.
+func (p *Player) Album(ctx context.Context, albumID string) (playback.AlbumDetail, error) {
+	var d playback.AlbumDetail
+	err := p.do(ctx, false, func() error {
+		var ok bool
+		if d, ok = albumPage(albumID); !ok {
+			return fmt.Errorf("demo: unknown album %q", albumID)
+		}
+		return nil
+	})
+	return d, err
+}
+
+// SongAlbum returns the demo page of the album holding a catalog song; an
+// unknown id is an error.
+func (p *Player) SongAlbum(ctx context.Context, songID string) (playback.AlbumDetail, error) {
+	var d playback.AlbumDetail
+	err := p.do(ctx, false, func() error {
+		s, ok := songByID(songID)
+		if !ok {
+			return fmt.Errorf("demo: unknown song %q", songID)
+		}
+		if d, ok = albumPage(albumID(s.Album)); !ok {
+			return fmt.Errorf("demo: song %q has no album", songID)
+		}
+		return nil
+	})
+	return d, err
+}
+
+// CatalogPlaylist returns the demo page of an artist playlist; an unknown
+// id is an error.
+func (p *Player) CatalogPlaylist(ctx context.Context, playlistID string) (playback.PlaylistDetail, error) {
+	var d playback.PlaylistDetail
+	err := p.do(ctx, false, func() error {
+		var ok bool
+		if d, ok = playlistPage(playlistID); !ok {
+			return fmt.Errorf("demo: unknown playlist %q", playlistID)
+		}
+		return nil
+	})
+	return d, err
+}
+
 // Playlists returns the demo stations.
 func (p *Player) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	var out []playback.Playlist

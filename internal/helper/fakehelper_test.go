@@ -51,18 +51,21 @@ func startFake(t *testing.T, scenario string, opts Options) *Client {
 // expectedArgs is what the standard scenario requires for each command;
 // any mismatch is answered with an error response.
 var expectedArgs = map[string]map[string]any{
-	"authorize":     {},
-	"searchCatalog": {"term": "daft", "limit": float64(3)},
-	"artist":        {"artistId": "a1"},
-	"playlists":     {},
-	"playSongs":     {"ids": []any{"s1", "s2"}, "startIndex": float64(1)},
-	"playPlaylist":  {"playlistId": "p1"},
-	"pause":         {},
-	"resume":        {},
-	"next":          {},
-	"previous":      {},
-	"stop":          {},
-	"seek":          {"seconds": 90.5},
+	"authorize":       {},
+	"searchCatalog":   {"term": "daft", "limit": float64(3)},
+	"artist":          {"artistId": "a1"},
+	"album":           {"albumId": "al1"},
+	"songAlbum":       {"songId": "s1"},
+	"catalogPlaylist": {"playlistId": "pl1"},
+	"playlists":       {},
+	"playSongs":       {"ids": []any{"s1", "s2"}, "startIndex": float64(1)},
+	"playPlaylist":    {"playlistId": "p1"},
+	"pause":           {},
+	"resume":          {},
+	"next":            {},
+	"previous":        {},
+	"stop":            {},
+	"seek":            {"seconds": 90.5},
 }
 
 var stdout = bufio.NewWriter(os.Stdout)
@@ -149,6 +152,20 @@ func runFakeHelper(scenario string) int {
 				answerSparseArtist(id, req["artistId"])
 				continue
 			}
+		case "sparseDetail":
+			// Answers the album and playlist pages by id: fields
+			// missing, or an error.
+			switch cmd {
+			case "album":
+				answerSparseDetail(id, req["albumId"], "album not found")
+				continue
+			case "songAlbum":
+				answerSparseDetail(id, req["songId"], "song not found")
+				continue
+			case "catalogPlaylist":
+				answerSparseDetail(id, req["playlistId"], "playlist not found")
+				continue
+			}
 		case "sparseCatalog":
 			// Answers searchCatalog by term: empty result, fields
 			// missing, or an error response.
@@ -202,6 +219,27 @@ func answer(id, cmd string) {
 			"playlists":       []any{map[string]any{"id": "pl1", "name": "Daft Punk Essentials", "curator": "Apple Music Electronic"}},
 			"about":           map[string]any{"notes": "French duo.", "genre": "Electronic", "origin": "Paris, France", "formed": "1993"},
 		})
+	case "album", "songAlbum":
+		track := func(id, title string, secs float64, number int) map[string]any {
+			return map[string]any{"id": id, "title": title, "artist": "Daft Punk", "album": "Discovery", "duration": secs, "trackNumber": number, "discNumber": 1}
+		}
+		ok(id, map[string]any{
+			"album":       map[string]any{"id": "al1", "title": "Discovery", "artist": "Daft Punk", "year": 2001, "trackCount": 2},
+			"tracks":      []any{track("s1", "One More Time", 320.5, 1), track("s2", "Aerodynamic", 207, 2)},
+			"genre":       "Electronic",
+			"releaseDate": "2001-03-07",
+			"recordLabel": "Parlophone",
+			"copyright":   "℗ 2001 Daft Life Ltd.",
+			"notes":       "The robots arrive.",
+		})
+	case "catalogPlaylist":
+		ok(id, map[string]any{
+			"playlist": map[string]any{"id": "pl1", "name": "Daft Punk Essentials", "curator": "Apple Music Electronic"},
+			"tracks": []any{
+				map[string]any{"id": "s3", "title": "Get Lucky", "artist": "Daft Punk", "album": "Random Access Memories", "duration": 369},
+			},
+			"notes": "Robot rock.",
+		})
 	case "playlists":
 		ok(id, map[string]any{"playlists": []any{
 			map[string]any{"id": "p1", "name": "Night City"},
@@ -251,5 +289,20 @@ func answerSparseArtist(id string, artistID any) {
 		})
 	default:
 		fail(id, "artist not found")
+	}
+}
+
+func answerSparseDetail(id string, entityID any, missing string) {
+	switch entityID {
+	case "empty":
+		ok(id, map[string]any{})
+	case "sparse":
+		ok(id, map[string]any{
+			"album":    map[string]any{"id": "al1", "title": "Discovery"},
+			"playlist": map[string]any{"id": "pl1", "name": "Mix"},
+			"tracks":   []any{map[string]any{"id": "s1", "title": "One More Time"}},
+		})
+	default:
+		fail(id, missing)
 	}
 }

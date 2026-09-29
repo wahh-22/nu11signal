@@ -22,6 +22,18 @@ final class EditorialTextTests: XCTestCase {
         XCTAssertEqual(EditorialText.plain("  a \n\n\n  b\t\tc &bogus; &#xZZ; "), "a\nb c &bogus; &#xZZ;")
     }
 
+    func testDropsControlCharactersButKeepsNewlines() {
+        // A decoded ESC would let catalog text drive the terminal.
+        XCTAssertEqual(EditorialText.plain("a&#27;[31mb&#x1B;c"), "a[31mbc")
+        XCTAssertEqual(EditorialText.plain("bell\u{7}\u{7F}&#128;&#x9F;!"), "bell!")
+        XCTAssertEqual(EditorialText.plain("one&#10;two"), "one\ntwo")
+    }
+
+    func testControlWhitespaceBecomesSpaces() {
+        XCTAssertEqual(EditorialText.plain("tab&#9;bed\tx&#133;y"), "tab bed x y")
+        XCTAssertEqual(EditorialText.plain("crlf\r\nline"), "crlf\nline")
+    }
+
     func testPlainTextPassesThrough() {
         XCTAssertEqual(EditorialText.plain("Rock & roll > pop"), "Rock & roll > pop")
         XCTAssertEqual(EditorialText.plain(""), "")

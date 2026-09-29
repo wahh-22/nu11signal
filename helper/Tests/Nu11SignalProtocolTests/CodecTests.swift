@@ -16,7 +16,7 @@ final class CodecTests: XCTestCase {
     }
 
     func testReadOnlyCommandsDoNotMutatePlayback() {
-        for cmd in ["authorize", "searchCatalog", "artist", "playlists"] {
+        for cmd in ["authorize", "searchCatalog", "artist", "album", "songAlbum", "catalogPlaylist", "playlists"] {
             XCTAssertFalse(Request(id: "1", cmd: cmd).mutatesPlayback, cmd)
         }
         XCTAssertTrue(Request(id: "1", cmd: "playSongs").mutatesPlayback)

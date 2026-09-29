@@ -252,3 +252,127 @@ func TestArtistRejectsUnknownIDAndClosedPlayer(t *testing.T) {
 		t.Errorf("Artist after Close = %v; want ErrClosed", err)
 	}
 }
+
+func TestAlbumReturnsItsTracksAndFacts(t *testing.T) {
+	p := newPlayer(t)
+	d, err := p.Album(context.Background(), "demo-album-last-call-sessions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantAlbum := playback.Album{ID: "demo-album-last-call-sessions", Title: "Last Call Sessions", Artist: "Chrome Saints", Year: 2076, TrackCount: 2}
+	if d.Album != wantAlbum {
+		t.Errorf("Album = %+v; want %+v", d.Album, wantAlbum)
+	}
+	d01, _ := songByID("d01")
+	d03, _ := songByID("d03")
+	wantTracks := []playback.Track{{Song: d01, Number: 1, Disc: 1}, {Song: d03, Number: 2, Disc: 1}}
+	if !reflect.DeepEqual(d.Tracks, wantTracks) {
+		t.Errorf("Tracks = %+v; want %+v", d.Tracks, wantTracks)
+	}
+	if d.Genre != "Synthwave" || d.ReleaseDate != "2076-03-14" || d.RecordLabel == "" || d.Copyright != "℗ 2076 Chrome Saints" || d.Notes == "" {
+		t.Errorf("album facts = %+v", d)
+	}
+}
+
+// TestEveryArtistPageEntryOpens walks every album, single and playlist an
+// artist page lists: each must open, and every track must be playable.
+func TestEveryArtistPageEntryOpens(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	playable := func(where string, s playback.Song) {
+		if _, ok := songByID(s.ID); !ok {
+			t.Errorf("%s: track %q is not in the catalog", where, s.ID)
+		}
+	}
+	for _, a := range artists {
+		page, err := p.Artist(ctx, a.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, section := range [][]playback.Album{page.EssentialAlbums, page.Albums, page.Singles, page.Compilations} {
+			for _, al := range section {
+				d, err := p.Album(ctx, al.ID)
+				if err != nil {
+					t.Errorf("Album(%s): %v", al.ID, err)
+					continue
+				}
+				if d.Album != al || len(d.Tracks) != al.TrackCount || len(d.Tracks) == 0 {
+					t.Errorf("Album(%s) = %+v with %d tracks; want the listed album %+v", al.ID, d.Album, len(d.Tracks), al)
+				}
+				for _, tr := range d.Tracks {
+					playable(al.ID, tr.Song)
+				}
+			}
+		}
+		for _, pl := range page.Playlists {
+			d, err := p.CatalogPlaylist(ctx, pl.ID)
+			if err != nil {
+				t.Errorf("CatalogPlaylist(%s): %v", pl.ID, err)
+				continue
+			}
+			if d.Playlist != pl || len(d.Tracks) == 0 || d.Notes == "" {
+				t.Errorf("CatalogPlaylist(%s) = %+v; want the listed playlist with tracks and notes", pl.ID, d)
+			}
+			for _, s := range d.Tracks {
+				playable(pl.ID, s)
+			}
+		}
+	}
+}
+
+func TestSongAlbumIsTheAlbumHoldingTheSong(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	for _, s := range catalog {
+		d, err := p.SongAlbum(ctx, s.ID)
+		if err != nil {
+			t.Fatalf("SongAlbum(%s): %v", s.ID, err)
+		}
+		found := false
+		for _, tr := range d.Tracks {
+			found = found || tr.ID == s.ID
+		}
+		if d.Album.Title != s.Album || !found {
+			t.Errorf("SongAlbum(%s) = %q without the song; want %q", s.ID, d.Album.Title, s.Album)
+		}
+		byID, _ := p.Album(ctx, d.Album.ID)
+		if !reflect.DeepEqual(d, byID) {
+			t.Errorf("SongAlbum(%s) differs from Album(%s)", s.ID, d.Album.ID)
+		}
+	}
+}
+
+func TestDetailsRejectUnknownIDsAndClosedPlayer(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	if _, err := p.Album(ctx, "nope"); err == nil {
+		t.Error("unknown album accepted")
+	}
+	if _, err := p.SongAlbum(ctx, "nope"); err == nil {
+		t.Error("unknown song accepted")
+	}
+	if _, err := p.CatalogPlaylist(ctx, "nope"); err == nil {
+		t.Error("unknown playlist accepted")
+	}
+	_ = p.Close()
+	if _, err := p.Album(ctx, "demo-album-route-77"); !errors.Is(err, ErrClosed) {
+		t.Errorf("Album after Close = %v; want ErrClosed", err)
+	}
+	if _, err := p.SongAlbum(ctx, "d04"); !errors.Is(err, ErrClosed) {
+		t.Errorf("SongAlbum after Close = %v; want ErrClosed", err)
+	}
+	if _, err := p.CatalogPlaylist(ctx, "demo-playlist-chrome-saints-essentials"); !errors.Is(err, ErrClosed) {
+		t.Errorf("CatalogPlaylist after Close = %v; want ErrClosed", err)
+	}
+}
+
+// TestArtistPageToleratesSparseData builds the page of an artist the demo
+// knows nothing about: no genres, songs or extras.
+func TestArtistPageToleratesSparseData(t *testing.T) {
+	a := playback.Artist{ID: "demo-artist-ghost", Name: "Ghost"}
+	d := buildArtistPage(a, catalog, artistExtras{})
+	want := playback.ArtistDetail{Artist: a}
+	if !reflect.DeepEqual(d, want) {
+		t.Fatalf("sparse page = %+v; want %+v", d, want)
+	}
+}

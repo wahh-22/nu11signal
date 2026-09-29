@@ -1,6 +1,8 @@
 package demo
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -72,22 +74,35 @@ func songByID(id string) (playback.Song, bool) {
 	return playback.Song{}, false
 }
 
-// albumYears dates the demo albums; every album is by one artist.
-var albumYears = map[string]int{
-	"Last Call Sessions": 2076,
-	"Dockside Nights":    2075,
-	"Route 77":           2071,
-	"Spire Tower":        2077,
-	"Implants":           2074,
-	"Signal Bleed":       2077,
+// albumReleases dates the demo albums ("2006-01-02"); every album is by
+// one artist.
+var albumReleases = map[string]string{
+	"Last Call Sessions": "2076-03-14",
+	"Dockside Nights":    "2075-10-31",
+	"Route 77":           "2071-06-27",
+	"Spire Tower":        "2077-01-09",
+	"Implants":           "2074-08-02",
+	"Signal Bleed":       "2077-05-20",
 }
+
+// albumNotes are the editorial notes of the albums that have some.
+var albumNotes = map[string]string{
+	"Last Call Sessions": "Recorded in one night at the Afterlife after the last call, with the doors locked and the " +
+		"bartender on backing vocals. Neon Arteries was the first take; Overclocked Heart the last, at dawn, " +
+		"when the city's power grid dipped and the tape machines kept rolling anyway.",
+}
+
+// demoLabel is the record label of every demo release.
+const demoLabel = "Nu11Signal Records"
 
 // artistExtras is what an artist page adds to the catalog: its about text,
 // singles and playlists. Top songs and albums come from the catalog.
 type artistExtras struct {
 	notes, origin, formed string
-	singles               []string
-	playlists             []string
+	// singles are edits of catalog songs: "Overclocked Heart (Edit)" is
+	// the song "Overclocked Heart".
+	singles   []string
+	playlists []string
 }
 
 var extras = map[string]artistExtras{
@@ -120,21 +135,51 @@ var extras = map[string]artistExtras{
 	},
 }
 
-// artistPage builds the demo page of the artist with id.
-func artistPage(id string) (playback.ArtistDetail, bool) {
-	var d playback.ArtistDetail
-	found := false
+func albumID(title string) string   { return "demo-album-" + slug(title) }
+func singleID(title string) string  { return "demo-single-" + slug(title) }
+func playlistID(name string) string { return "demo-playlist-" + slug(name) }
+func artistByID(id string) (playback.Artist, bool) {
 	for _, a := range artists {
 		if a.ID == id {
-			d.Artist, found = a, true
+			return a, true
 		}
 	}
-	if !found {
-		return d, false
-	}
-	name := d.Artist.Name
+	return playback.Artist{}, false
+}
+
+// yearOf is the year of a "2006-01-02" date; 0 when there is none.
+func yearOf(date string) int {
+	year, _ := strconv.Atoi(strings.SplitN(date, "-", 2)[0])
+	return year
+}
+
+// singleSong is the catalog song a single by artist edits: its title up to
+// the parenthesised edit name.
+func singleSong(single, artist string) (playback.Song, bool) {
+	base, _, _ := strings.Cut(single, " (")
 	for _, s := range catalog {
-		if s.Artist != name {
+		if s.Title == base && s.Artist == artist {
+			return s, true
+		}
+	}
+	return playback.Song{}, false
+}
+
+// artistPage builds the demo page of the artist with id.
+func artistPage(id string) (playback.ArtistDetail, bool) {
+	a, ok := artistByID(id)
+	if !ok {
+		return playback.ArtistDetail{}, false
+	}
+	return buildArtistPage(a, catalog, extras[id]), true
+}
+
+// buildArtistPage lays out the page of a from the songs by it in songs and
+// its extras. Sections with nothing in them stay nil.
+func buildArtistPage(a playback.Artist, songs []playback.Song, x artistExtras) playback.ArtistDetail {
+	d := playback.ArtistDetail{Artist: a}
+	for _, s := range songs {
+		if s.Artist != a.Name {
 			continue
 		}
 		d.TopSongs = append(d.TopSongs, s)
@@ -143,19 +188,120 @@ func artistPage(id string) (playback.ArtistDetail, bool) {
 			continue
 		}
 		d.Albums = append(d.Albums, playback.Album{
-			ID: "demo-album-" + slug(s.Album), Title: s.Album, Artist: name, Year: albumYears[s.Album], TrackCount: 1,
+			ID: albumID(s.Album), Title: s.Album, Artist: a.Name, Year: yearOf(albumReleases[s.Album]), TrackCount: 1,
 		})
 	}
-	d.EssentialAlbums = append([]playback.Album(nil), d.Albums[:1]...)
-	x := extras[id]
+	if len(d.Albums) > 0 {
+		// The first album stands in for Apple Music's "Essential Albums".
+		d.EssentialAlbums = []playback.Album{d.Albums[0]}
+	}
 	for _, title := range x.singles {
-		d.Singles = append(d.Singles, playback.Album{ID: "demo-single-" + slug(title), Title: title, Artist: name, Year: 2077, TrackCount: 1})
+		if single, ok := singleAlbum(title, a); ok {
+			d.Singles = append(d.Singles, single.Album)
+		}
 	}
 	for _, pl := range x.playlists {
-		d.Playlists = append(d.Playlists, playback.CatalogPlaylist{ID: "demo-playlist-" + slug(pl), Name: pl, Curator: "Nu11Signal"})
+		d.Playlists = append(d.Playlists, playback.CatalogPlaylist{ID: playlistID(pl), Name: pl, Curator: "Nu11Signal"})
 	}
-	d.About = playback.ArtistAbout{Notes: x.notes, Genre: d.Artist.Genres[0], Origin: x.origin, Formed: x.formed}
-	return d, true
+	d.About = playback.ArtistAbout{Notes: x.notes, Origin: x.origin, Formed: x.formed}
+	if len(a.Genres) > 0 {
+		d.About.Genre = a.Genres[0]
+	}
+	return d
+}
+
+// albumDetail completes an album page with its release facts; the artist's
+// first genre is the album's.
+func albumDetail(al playback.Album, tracks []playback.Track, release string, a playback.Artist) playback.AlbumDetail {
+	d := playback.AlbumDetail{Album: al, Tracks: tracks, ReleaseDate: release, RecordLabel: demoLabel, Notes: albumNotes[al.Title]}
+	if len(a.Genres) > 0 {
+		d.Genre = a.Genres[0]
+	}
+	if al.Year > 0 {
+		d.Copyright = fmt.Sprintf("℗ %d %s", al.Year, a.Name)
+	}
+	return d
+}
+
+// catalogAlbum is the page of the catalog album with id: its songs in
+// catalog order.
+func catalogAlbum(id string) (playback.AlbumDetail, bool) {
+	var tracks []playback.Track
+	var first playback.Song
+	for _, s := range catalog {
+		if albumID(s.Album) == id {
+			if len(tracks) == 0 {
+				first = s
+			}
+			tracks = append(tracks, playback.Track{Song: s, Number: len(tracks) + 1, Disc: 1})
+		}
+	}
+	if len(tracks) == 0 {
+		return playback.AlbumDetail{}, false
+	}
+	release := albumReleases[first.Album]
+	al := playback.Album{ID: id, Title: first.Album, Artist: first.Artist, Year: yearOf(release), TrackCount: len(tracks)}
+	var artist playback.Artist
+	for _, a := range artists {
+		if a.Name == first.Artist {
+			artist = a
+		}
+	}
+	if artist.Name == "" {
+		artist.Name = first.Artist
+	}
+	return albumDetail(al, tracks, release, artist), true
+}
+
+// singleAlbum is the page of single title by a: the one song it edits,
+// released with the album that song is from (a single without its song is
+// left out).
+func singleAlbum(title string, a playback.Artist) (playback.AlbumDetail, bool) {
+	s, ok := singleSong(title, a.Name)
+	if !ok {
+		return playback.AlbumDetail{}, false
+	}
+	release := albumReleases[s.Album]
+	al := playback.Album{ID: singleID(title), Title: title, Artist: a.Name, Year: yearOf(release), TrackCount: 1}
+	return albumDetail(al, []playback.Track{{Song: s, Number: 1, Disc: 1}}, release, a), true
+}
+
+// albumPage is the page of the album or single with id.
+func albumPage(id string) (playback.AlbumDetail, bool) {
+	if d, ok := catalogAlbum(id); ok {
+		return d, true
+	}
+	for _, a := range artists {
+		for _, title := range extras[a.ID].singles {
+			if singleID(title) == id {
+				return singleAlbum(title, a)
+			}
+		}
+	}
+	return playback.AlbumDetail{}, false
+}
+
+// playlistPage is the page of the artist playlist with id: the artist's
+// songs in catalog order.
+func playlistPage(id string) (playback.PlaylistDetail, bool) {
+	for _, a := range artists {
+		for _, name := range extras[a.ID].playlists {
+			if playlistID(name) != id {
+				continue
+			}
+			d := playback.PlaylistDetail{
+				Playlist: playback.CatalogPlaylist{ID: id, Name: name, Curator: "Nu11Signal"},
+				Notes:    "Handpicked by Nu11Signal: every " + a.Name + " track on the demo network, in broadcast order.",
+			}
+			for _, s := range catalog {
+				if s.Artist == a.Name {
+					d.Tracks = append(d.Tracks, s)
+				}
+			}
+			return d, true
+		}
+	}
+	return playback.PlaylistDetail{}, false
 }
 
 // slug turns a title into an id fragment: "Route 77" -> "route-77".

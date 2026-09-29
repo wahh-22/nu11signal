@@ -71,6 +71,37 @@ type ArtistDetail struct {
 	About           ArtistAbout
 }
 
+// Track is a song as it appears on an album: the song and its position.
+type Track struct {
+	Song
+	// Number is the track number on its disc; 0 when unknown.
+	Number int
+	// Disc is the disc number; 0 when unknown.
+	Disc int
+}
+
+// AlbumDetail is an album page: the album, its tracks in order and the
+// facts Apple Music lists under them. Every field but Album may be empty.
+type AlbumDetail struct {
+	Album  Album
+	Tracks []Track
+	Genre  string
+	// ReleaseDate is the release date as "2006-01-02"; empty when unknown.
+	ReleaseDate string
+	RecordLabel string
+	Copyright   string
+	// Notes is the editorial text, as plain text.
+	Notes string
+}
+
+// PlaylistDetail is a catalog playlist page: the playlist, its songs in
+// order and its description as plain text.
+type PlaylistDetail struct {
+	Playlist CatalogPlaylist
+	Tracks   []Song
+	Notes    string
+}
+
 // Playlist is a library playlist; the UI presents it as a radio station.
 type Playlist struct {
 	ID   string
@@ -120,6 +151,11 @@ type Player interface {
 	Authorize(ctx context.Context) (AuthStatus, error)
 	SearchCatalog(ctx context.Context, term string, limit int) (SearchResults, error)
 	Artist(ctx context.Context, artistID string) (ArtistDetail, error)
+	// Album loads a catalog album page.
+	Album(ctx context.Context, albumID string) (AlbumDetail, error)
+	// SongAlbum loads the page of the album that contains the catalog song.
+	SongAlbum(ctx context.Context, songID string) (AlbumDetail, error)
+	CatalogPlaylist(ctx context.Context, playlistID string) (PlaylistDetail, error)
 	Playlists(ctx context.Context) ([]Playlist, error)
 	PlaySongs(ctx context.Context, ids []string, start int) error
 	PlayPlaylist(ctx context.Context, id string) error
