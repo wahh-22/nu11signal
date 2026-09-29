@@ -118,8 +118,9 @@ The first run asks for Apple Music access.
 | `make test` | `go test -race ./...` and `swift test` in `helper/` |
 | `make vet` / `make fmt-check` | `go vet`; fails if `gofmt -l .` lists files |
 | `make release VERSION=x.y.z` | Signed, notarized `dist/nu11signal-x.y.z-macos-universal.tar.gz` (see Releasing) |
-| `make release-dry-run VERSION=x.y.z` | Same layout in `dist/`, ad-hoc signed, not notarized; lists missing release setup |
-| `make clean` | Removes `bin/`, `build/`, and `dist/` |
+| `make release-dry-run VERSION=x.y.z` | Same layout in `build/release-dry-run/`, ad-hoc signed, not notarized; lists missing release setup |
+| `make clean` | Removes `bin/` and `build/`; release archives in `dist/` are kept |
+| `make clean-dist` | Removes `dist/` (release archives) |
 
 ## Releasing
 
@@ -162,7 +163,9 @@ make release VERSION=0.2.0
 tracked files have uncommitted changes. It builds both binaries, signs them,
 notarizes the whole layout, staples the helper app, and writes
 `dist/nu11signal-0.2.0-macos-universal.tar.gz` plus `.sha256`, then checks the
-unpacked archive with `spctl` and `codesign --verify --strict`. If
+unpacked archive with `spctl` and `codesign --verify --strict`. Everything is
+built in a staging directory and moved into `dist/` only after those checks
+pass, so a failed run leaves an earlier `dist/nu11signal-0.2.0*` untouched. If
 notarization is rejected it prints the `xcrun notarytool log` command.
 Overrides: `NU11SIGNAL_SIGN_IDENTITY`, `NU11SIGNAL_PROFILE`,
 `NU11SIGNAL_NOTARY_PROFILE`, `NU11SIGNAL_TEAM_ID`.

@@ -5,7 +5,9 @@
 #
 # Produces dist/nu11signal-VERSION-macos-universal.tar.gz and its .sha256,
 # containing nu11signal-VERSION/{bin/nu11signal, libexec/Nu11SignalHelper.app,
-# LICENSE, README.md}.
+# LICENSE, README.md}. Everything is built in a staging directory and moved
+# into dist/ only after notarization and the final checks pass, so a failed
+# or interrupted run leaves any earlier dist/nu11signal-VERSION* untouched.
 #
 # Requires (see README.md, "Releasing"):
 #   - a "Developer ID Application" certificate for the team in the keychain;
@@ -16,7 +18,8 @@
 #
 # --dry-run (or DRY_RUN=1) reports missing requirements without aborting,
 # builds and assembles everything with ad-hoc signatures, and skips
-# notarization, stapling, and archiving. Its output is not distributable.
+# notarization, stapling, and archiving. It writes the layout to
+# build/release-dry-run/nu11signal-VERSION (never dist/); it is not distributable.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -28,7 +31,7 @@ for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     -h | --help)
-      sed -n '2,20s/^# \{0,1\}//p' "$0"
+      sed -n '2,/^[^#]/s/^# \{0,1\}//p' "$0"
       exit 0
       ;;
     -*)
@@ -117,14 +120,35 @@ fi
 # --- Build -----------------------------------------------------------------
 
 NAME="nu11signal-$VERSION"
-DIST="$ROOT/dist"
-STAGE="$DIST/$NAME"
-ARCHIVE="$DIST/$NAME-macos-universal.tar.gz"
+ARCHIVE_NAME="$NAME-macos-universal.tar.gz"
+if [[ "$DRY_RUN" == 1 ]]; then
+  OUT_DIR="$ROOT/build/release-dry-run"
+else
+  OUT_DIR="$ROOT/dist"
+fi
+mkdir -p "$OUT_DIR"
+# The staging directory lives inside OUT_DIR so that promoting its results
+# is a same-filesystem rename. Nothing in OUT_DIR changes before promotion.
+STAGE_ROOT="$(mktemp -d "$OUT_DIR/.staging-$NAME.XXXXXX")"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nu11signal-release.XXXXXX")"
-trap 'rm -rf "$WORK_DIR"' EXIT
-
-rm -rf "$STAGE" "$ARCHIVE" "$ARCHIVE.sha256"
+trap 'rm -rf "$WORK_DIR" "$STAGE_ROOT"' EXIT
+STAGE="$STAGE_ROOT/$NAME"
+ARCHIVE="$STAGE_ROOT/$ARCHIVE_NAME"
 mkdir -p "$STAGE/bin" "$STAGE/libexec"
+
+# promote NAME...: replaces each OUT_DIR/NAME with STAGE_ROOT/NAME. A
+# replaced directory is first moved aside into the staging area (removed on
+# exit); files are replaced by an atomic rename.
+promote() {
+  local item
+  mkdir -p "$STAGE_ROOT/.replaced"
+  for item in "$@"; do
+    if [[ -d "$OUT_DIR/$item" ]]; then
+      mv "$OUT_DIR/$item" "$STAGE_ROOT/.replaced/$item"
+    fi
+    mv -f "$STAGE_ROOT/$item" "$OUT_DIR/$item"
+  done
+}
 
 step "Building universal nu11signal $VERSION"
 for arch in arm64 amd64; do
@@ -158,7 +182,8 @@ if [[ "$DRY_RUN" == 1 ]]; then
   step "Dry run: skipping notarization, stapling, and archiving"
   lipo -archs "$STAGE/bin/nu11signal"
   lipo -archs "$STAGE/libexec/Nu11SignalHelper.app/Contents/MacOS/nu11signal-helper"
-  echo "Assembled (ad hoc, not distributable): $STAGE"
+  promote "$NAME"
+  echo "Assembled (ad hoc, not distributable): $OUT_DIR/$NAME"
   exit 0
 fi
 
@@ -186,10 +211,10 @@ xcrun stapler validate "$STAGE/libexec/Nu11SignalHelper.app"
 
 # --- Archive ---------------------------------------------------------------
 
-step "Archiving $ARCHIVE"
+step "Archiving $ARCHIVE_NAME"
 # COPYFILE_DISABLE keeps AppleDouble (._*) files out of the archive.
-COPYFILE_DISABLE=1 tar -C "$DIST" -czf "$ARCHIVE" "$NAME"
-(cd "$DIST" && shasum -a 256 "$(basename "$ARCHIVE")" >"$(basename "$ARCHIVE").sha256")
+COPYFILE_DISABLE=1 tar -C "$STAGE_ROOT" -czf "$ARCHIVE" "$NAME"
+(cd "$STAGE_ROOT" && shasum -a 256 "$ARCHIVE_NAME" >"$ARCHIVE_NAME.sha256")
 
 # --- Final checks ------------------------------------------------------------
 
@@ -203,6 +228,9 @@ codesign --verify --strict --verbose=2 "$CHECK_DIR/$NAME/bin/nu11signal"
 [[ "$("$CHECK_DIR/$NAME/bin/nu11signal" --version)" == "$VERSION" ]] ||
   die "archived nu11signal --version does not print $VERSION"
 
+step "Moving the release into $OUT_DIR"
+promote "$NAME" "$ARCHIVE_NAME" "$ARCHIVE_NAME.sha256"
+
 step "Release ready"
-cat "$ARCHIVE.sha256"
-echo "Next: upload $(basename "$ARCHIVE") to the v$VERSION GitHub release and put the sha256 in the cask."
+cat "$OUT_DIR/$ARCHIVE_NAME.sha256"
+echo "Next: upload $ARCHIVE_NAME to the v$VERSION GitHub release and put the sha256 in the cask."
