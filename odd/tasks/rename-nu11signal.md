@@ -77,13 +77,21 @@ Route: delegated (one writer; writer trigger: 2+ non-trivial files).
 
 ## Backlog work (branch `chore/release-backlog`, user-requested 2026-09-29)
 
-- [ ] B1 — `bump-cask.sh --push`: detect and push a bump commit left unpushed after an earlier failed push (tap ahead of origin); narrow the dirty-check exclusion to exactly `Casks/nu11signal.rb`.
-- [ ] B2 — `release.sh`: promote into `dist/` as a single atomic step (one directory rename per version instead of several separate moves), so an interruption never leaves a half-promoted release.
-- [ ] B3 — Script tests: a hermetic test harness for `bump-cask.sh` and `release.sh` (stubbed `brew`/`git`/`xcrun`/`codesign` on PATH, temp dirs), runnable from `make test`.
+- [x] B1 — `bump-cask.sh --push`: detect and push a bump commit left unpushed after an earlier failed push (tap ahead of origin); narrow the dirty-check exclusion to exactly `Casks/nu11signal.rb`. Route: delegated (writer trigger). Commit `c781f18`.
+- [x] B2 — `release.sh`: promote into `dist/` as a single atomic step (one directory rename per version instead of several separate moves), so an interruption never leaves a half-promoted release. Route: delegated (writer trigger). Commit `1fb0c6c`.
+- [x] B3 — Script tests: a hermetic test harness for `bump-cask.sh` and `release.sh` (stubbed `brew`/`git`/`xcrun`/`codesign` on PATH, temp dirs), runnable from `make test`. Route: delegated (writer trigger). Harness and release tests in `1fb0c6c`, bump-cask tests in `c781f18`.
 - [ ] B4 — Rename the local working directory `~/wahh22/soul-king` → `~/wahh22/nu11signal` (last step; the session must be restarted in the new path).
 
 Route: delegated (one writer, B1–B3); B4 inline, last.
 
+### Backlog evidence
+
+- Design: B2 layout `dist/v<ver>/{nu11signal-<ver>/, nu11signal-<ver>-macos-universal.tar.gz, .sha256}`, built in `dist/.staging-v<ver>.XXXXXX` and promoted with one `mv` (staging chmod 755 first; `mktemp -d` makes it 0700). An existing `dist/v<ver>` is refused before building unless `--force`/`FORCE=1`; then it is renamed to `dist/v<ver>.replaced-<timestamp>` (kept) and the EXIT trap renames it back if the second rename does not happen (only SIGKILL/power loss between the two renames can leave it missing). Dry runs use `build/release-dry-run/v<ver>/` and replace an earlier dry run. B1: dirty check parses `git status --porcelain=v1 --untracked-files=all` and allows only `[ MA][ MA]`/`??` entries for exactly `Casks/nu11signal.rb`, listing everything else; commits ahead of `@{upstream}` must all be `chore: bump nu11signal to VERSION` and touch only the cask; the render is compared against `HEAD`, so an unchanged render never commits; a matching unpushed bump is reported (no `--push`) or pushed (`--push`); a mismatching one is refused with `--push`. B3: `scripts/test/run.sh` (plain bash runner; `bats` and `shellcheck` are not installed), `lib.sh` sandbox that copies the scripts into a temp ROOT (no env seams needed), PATH limited to stubs + system dirs; stubs for `brew`, `ruby`, `go`, `swift`, `lipo`, `codesign`, `security`, `xcrun`, `spctl`, a logging `mv`, and a release-only `git`; bump tests use real git against a local bare origin.
+- RED (tests written first, against the scripts at `9da1953`): 18 of 22 failed. Release: single rename, other versions untouched, refuse without `--force`, `--force` (exit 2, unknown option), dry-run layout failed; the two failure-leaves-dist-untouched tests already passed. Bump: every test past validation failed on the checksum path; after only the `dist/v<ver>` path change, 7 still failed — the three dirty-check tests (offending path not listed), unpushed bump not reported, `--push` did not push the earlier bump ("nothing to commit"), mismatched bump not refused, and an unrelated local commit was pushed along with a new bump commit (exit 0).
+- GREEN: `make test-scripts` → 23 passed, 0 failed (adds a `--force` promotion-failure restore test). `make test`: Go 146 passed (6 packages, -race), Swift 33 passed, scripts 23 passed; exit 0. `make vet` clean; `make fmt-check` exit 0. `bash -n` OK on every script and stub; shellcheck not installed.
+- `make release-dry-run VERSION=0.2.1` → exit 0, `build/release-dry-run/v0.2.1/nu11signal-0.2.1/{bin,libexec,LICENSE,README.md}`, `lipo -archs` `x86_64 arm64`, `--version` 0.2.1, no staging left. `dist/` content hash (`find dist -type f -exec shasum {} + | sort | shasum`) `de9cc992…` identical before and after the session. `brew tap` output identical before and after; no `nu11signal-bump-*` tap left. Nothing pushed.
+- Pending for the parent: migrate the local `dist/` to the new layout (`dist/v0.2.0/…`, and `dist/v0.1.0/` for the `soul-king-0.1.0*` files if wanted); until then `make cask VERSION=0.2.0` reports the checksum missing at `dist/v0.2.0/…`.
+
 ## Next step
 
-B1–B3, then B4.
+Parent: migrate local `dist/` to `dist/v<ver>/`, native review of `9da1953..c781f18`, then B4.
