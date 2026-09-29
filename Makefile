@@ -8,7 +8,7 @@ GO     ?= go
 BIN    := bin/nu11signal
 PKG    := ./cmd/nu11signal
 
-.PHONY: all build helper go demo test vet fmt-check release release-dry-run cask check-version clean clean-dist
+.PHONY: all build helper go demo test test-scripts vet fmt-check release release-dry-run cask check-version clean clean-dist
 
 all: build
 
@@ -27,10 +27,15 @@ go:
 demo: go
 	./$(BIN) --demo
 
-## test: Go tests with the race detector, then the Swift protocol tests
+## test: Go tests with the race detector, the Swift protocol tests, then the script tests
 test:
 	$(GO) test -race ./...
 	cd helper && swift test
+	./scripts/test/run.sh
+
+## test-scripts: hermetic tests for scripts/release.sh and scripts/bump-cask.sh (stubbed tools, temp dirs)
+test-scripts:
+	./scripts/test/run.sh
 
 ## vet: go vet
 vet:
@@ -40,15 +45,15 @@ vet:
 fmt-check:
 	@out="$$(gofmt -l .)"; if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 
-## release: signed, notarized universal archive in dist/ (VERSION=x.y.z required)
+## release: signed, notarized universal archive in dist/vVERSION/ (VERSION=x.y.z required; FORCE=1 replaces an existing dist/vVERSION)
 release: check-version
-	./scripts/release.sh $(VERSION)
+	./scripts/release.sh $(if $(filter 1,$(FORCE)),--force) $(VERSION)
 
-## release-dry-run: assemble the release layout ad hoc in build/release-dry-run, without notarizing
+## release-dry-run: assemble the release layout ad hoc in build/release-dry-run/vVERSION, without notarizing
 release-dry-run: check-version
 	./scripts/release.sh --dry-run $(VERSION)
 
-## cask: render the Homebrew cask for VERSION into the tap checkout and audit it (PUSH=1 commits and pushes)
+## cask: render the Homebrew cask for VERSION (sha256 from dist/vVERSION/) into the tap checkout and audit it (PUSH=1 commits and pushes, or pushes an earlier unpushed bump)
 cask: check-version
 	./scripts/bump-cask.sh $(VERSION) $(if $(filter 1,$(PUSH)),--push)
 

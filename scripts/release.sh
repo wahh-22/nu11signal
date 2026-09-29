@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
 # Builds a signed, notarized Nu11Signal release for macOS (arm64 + x86_64).
 #
-# Usage: scripts/release.sh [--dry-run] VERSION      (VERSION: x.y.z or x.y.z-pre)
+# Usage: scripts/release.sh [--dry-run] [--force] VERSION   (VERSION: x.y.z or x.y.z-pre)
 #
-# Produces dist/nu11signal-VERSION-macos-universal.tar.gz and its .sha256,
-# containing nu11signal-VERSION/{bin/nu11signal, libexec/Nu11SignalHelper.app,
-# LICENSE, README.md}. Everything is built in a staging directory and moved
-# into dist/ only after notarization and the final checks pass, so a failed
-# or interrupted run leaves any earlier dist/nu11signal-VERSION* untouched.
+# Produces dist/vVERSION/ with nu11signal-VERSION/{bin/nu11signal,
+# libexec/Nu11SignalHelper.app, LICENSE, README.md},
+# nu11signal-VERSION-macos-universal.tar.gz (that tree), and its .sha256.
+#
+# Everything is built in dist/.staging-vVERSION.XXXXXX (same filesystem) and
+# promoted only after notarization and the final checks pass, with a single
+# rename of the staging directory to dist/vVERSION. A failed or interrupted
+# run removes the staging directory and leaves dist/ untouched.
+#
+# An existing dist/vVERSION is never overwritten unless --force is given. Then
+# it is first renamed to dist/vVERSION.replaced-<timestamp> (kept) and the
+# staging directory renamed into place: two renames, because macOS has no
+# atomic directory swap from the shell. If the second rename fails, or the run
+# is interrupted between them, the backup is renamed back on exit; only a
+# hard kill (SIGKILL, power loss) in that instant can leave dist/vVERSION
+# missing with the previous release in the backup.
 #
 # Requires (see README.md, "Releasing"):
 #   - a "Developer ID Application" certificate for the team in the keychain;
@@ -19,17 +30,20 @@
 # --dry-run (or DRY_RUN=1) reports missing requirements without aborting,
 # builds and assembles everything with ad-hoc signatures, and skips
 # notarization, stapling, and archiving. It writes the layout to
-# build/release-dry-run/nu11signal-VERSION (never dist/); it is not distributable.
+# build/release-dry-run/vVERSION/nu11signal-VERSION (never dist/), replacing an
+# earlier dry run; it is not distributable.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 DRY_RUN="${DRY_RUN:-0}"
+FORCE=0
 VERSION=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
+    --force) FORCE=1 ;;
     -h | --help)
       sed -n '2,/^[^#]/s/^# \{0,1\}//p' "$0"
       exit 0
@@ -63,13 +77,26 @@ die() {
 
 # --- Preflight -------------------------------------------------------------
 
-[[ -n "$VERSION" ]] || die "usage: scripts/release.sh [--dry-run] VERSION"
+[[ -n "$VERSION" ]] || die "usage: scripts/release.sh [--dry-run] [--force] VERSION"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] ||
   die "VERSION must be semver (x.y.z or x.y.z-pre), got: $VERSION"
 
 for tool in go swift xcrun codesign lipo ditto plutil shasum tar git security; do
   command -v "$tool" >/dev/null 2>&1 || die "required tool not found: $tool"
 done
+
+NAME="nu11signal-$VERSION"
+ARCHIVE_NAME="$NAME-macos-universal.tar.gz"
+if [[ "$DRY_RUN" == 1 ]]; then
+  OUT_DIR="$ROOT/build/release-dry-run"
+else
+  OUT_DIR="$ROOT/dist"
+fi
+DEST="$OUT_DIR/v$VERSION"
+
+if [[ "$DRY_RUN" != 1 && "$FORCE" != 1 ]] && [[ -e "$DEST" || -L "$DEST" ]]; then
+  die "$DEST already exists; pass --force (make release VERSION=$VERSION FORCE=1) to replace it"
+fi
 
 step "Preflight for nu11signal $VERSION$([[ "$DRY_RUN" == 1 ]] && echo " (dry run)")"
 missing=()
@@ -119,35 +146,50 @@ fi
 
 # --- Build -----------------------------------------------------------------
 
-NAME="nu11signal-$VERSION"
-ARCHIVE_NAME="$NAME-macos-universal.tar.gz"
-if [[ "$DRY_RUN" == 1 ]]; then
-  OUT_DIR="$ROOT/build/release-dry-run"
-else
-  OUT_DIR="$ROOT/dist"
-fi
 mkdir -p "$OUT_DIR"
-# The staging directory lives inside OUT_DIR so that promoting its results
-# is a same-filesystem rename. Nothing in OUT_DIR changes before promotion.
-STAGE_ROOT="$(mktemp -d "$OUT_DIR/.staging-$NAME.XXXXXX")"
+# The staging directory lives inside OUT_DIR so that promoting it is a
+# same-filesystem rename. Nothing in OUT_DIR changes before promotion.
+STAGE_ROOT="$(mktemp -d "$OUT_DIR/.staging-v$VERSION.XXXXXX")"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nu11signal-release.XXXXXX")"
-trap 'rm -rf "$WORK_DIR" "$STAGE_ROOT"' EXIT
+BACKUP=""
+cleanup() {
+  # Interrupted between the two --force renames: put the previous release back.
+  if [[ -n "$BACKUP" && -e "$BACKUP" && ! -e "$DEST" ]]; then
+    mv "$BACKUP" "$DEST" && echo "restored the previous $DEST" >&2
+  fi
+  rm -rf "$WORK_DIR" ${STAGE_ROOT:+"$STAGE_ROOT"}
+}
+trap cleanup EXIT
 STAGE="$STAGE_ROOT/$NAME"
 ARCHIVE="$STAGE_ROOT/$ARCHIVE_NAME"
 mkdir -p "$STAGE/bin" "$STAGE/libexec"
 
-# promote NAME...: replaces each OUT_DIR/NAME with STAGE_ROOT/NAME. A
-# replaced directory is first moved aside into the staging area (removed on
-# exit); files are replaced by an atomic rename.
+# promote: renames the staging directory to DEST in one step. An existing
+# DEST is removed first in a dry run, and renamed to a timestamped backup with
+# --force (restored by cleanup if the second rename does not happen).
 promote() {
-  local item
-  mkdir -p "$STAGE_ROOT/.replaced"
-  for item in "$@"; do
-    if [[ -d "$OUT_DIR/$item" ]]; then
-      mv "$OUT_DIR/$item" "$STAGE_ROOT/.replaced/$item"
+  chmod 755 "$STAGE_ROOT" # mktemp -d creates it 0700
+  if [[ -e "$DEST" || -L "$DEST" ]]; then
+    if [[ "$DRY_RUN" == 1 ]]; then
+      rm -rf "$DEST"
+    elif [[ "$FORCE" == 1 ]]; then
+      local backup
+      backup="$DEST.replaced-$(date +%Y%m%dT%H%M%S)"
+      [[ ! -e "$backup" ]] || die "$backup already exists; retry in a second"
+      mv "$DEST" "$backup"
+      BACKUP="$backup"
+    else
+      die "$DEST appeared during the build; pass --force to replace it"
     fi
-    mv -f "$STAGE_ROOT/$item" "$OUT_DIR/$item"
-  done
+  fi
+  # mv would move the staging directory *into* an existing DEST; it was
+  # checked (or moved aside) just above.
+  mv "$STAGE_ROOT" "$DEST" || die "could not rename $STAGE_ROOT to $DEST"
+  STAGE_ROOT=""
+  if [[ -n "$BACKUP" ]]; then
+    echo "    previous release kept at $BACKUP"
+    BACKUP=""
+  fi
 }
 
 step "Building universal nu11signal $VERSION"
@@ -182,8 +224,8 @@ if [[ "$DRY_RUN" == 1 ]]; then
   step "Dry run: skipping notarization, stapling, and archiving"
   lipo -archs "$STAGE/bin/nu11signal"
   lipo -archs "$STAGE/libexec/Nu11SignalHelper.app/Contents/MacOS/nu11signal-helper"
-  promote "$NAME"
-  echo "Assembled (ad hoc, not distributable): $OUT_DIR/$NAME"
+  promote
+  echo "Assembled (ad hoc, not distributable): $DEST/$NAME"
   exit 0
 fi
 
@@ -228,9 +270,9 @@ codesign --verify --strict --verbose=2 "$CHECK_DIR/$NAME/bin/nu11signal"
 [[ "$("$CHECK_DIR/$NAME/bin/nu11signal" --version)" == "$VERSION" ]] ||
   die "archived nu11signal --version does not print $VERSION"
 
-step "Moving the release into $OUT_DIR"
-promote "$NAME" "$ARCHIVE_NAME" "$ARCHIVE_NAME.sha256"
+step "Promoting the release to $DEST"
+promote
 
 step "Release ready"
-cat "$OUT_DIR/$ARCHIVE_NAME.sha256"
-echo "Next: upload $ARCHIVE_NAME to the v$VERSION GitHub release, then run: make cask VERSION=$VERSION"
+cat "$DEST/$ARCHIVE_NAME.sha256"
+echo "Next: upload $DEST/$ARCHIVE_NAME and its .sha256 to the v$VERSION GitHub release, then run: make cask VERSION=$VERSION"

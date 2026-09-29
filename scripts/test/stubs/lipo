@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Test stub: `lipo -create -output OUT IN...` copies the first input;
+# `lipo -archs FILE` reports a universal binary.
+echo "lipo $*" >>"$STUB_LOG"
+case "${1:-}" in
+  -create) cp "$4" "$3" ;;
+  -archs) echo "x86_64 arm64" ;;
+  *) echo "lipo stub: unsupported: $*" >&2; exit 1 ;;
+esac

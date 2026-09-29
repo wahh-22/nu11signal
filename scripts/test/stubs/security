@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Test stub: the keychain holds a Developer ID identity for the default team.
+echo "security $*" >>"$STUB_LOG"
+echo '  1) 0123456789ABCDEF "Developer ID Application: Test (W6GZP998GQ)"'
+echo '     1 valid identities found'
