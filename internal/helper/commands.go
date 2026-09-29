@@ -81,6 +81,16 @@ func (c *Client) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	return lists, nil
 }
 
+// LibraryPlaylist loads a library playlist page: its songs (music videos
+// are left out) with their library ids. The id travels as "playlistId".
+func (c *Client) LibraryPlaylist(ctx context.Context, playlistID string) (playback.PlaylistDetail, error) {
+	var res catalogPlaylistResult
+	if err := c.call(ctx, "libraryPlaylist", map[string]any{"playlistId": playlistID}, &res); err != nil {
+		return playback.PlaylistDetail{}, err
+	}
+	return res.toDomain(), nil
+}
+
 // PlaySongs queues the catalog songs and starts playing at index start.
 func (c *Client) PlaySongs(ctx context.Context, ids []string, start int) error {
 	return c.call(ctx, "playSongs", map[string]any{"ids": ids, "startIndex": start}, nil)
@@ -92,6 +102,13 @@ func (c *Client) PlaySongs(ctx context.Context, ids []string, start int) error {
 // correlation id, so an argument named "id" can never reach the helper.
 func (c *Client) PlayPlaylist(ctx context.Context, id string) error {
 	return c.call(ctx, "playPlaylist", map[string]any{"playlistId": id}, nil)
+}
+
+// PlayPlaylistFrom queues a library playlist and starts playing at the song
+// with index start in its libraryPlaylist tracks: the same command as
+// PlayPlaylist, with "startIndex".
+func (c *Client) PlayPlaylistFrom(ctx context.Context, playlistID string, start int) error {
+	return c.call(ctx, "playPlaylist", map[string]any{"playlistId": playlistID, "startIndex": start}, nil)
 }
 
 // Pause pauses playback.
@@ -112,4 +129,19 @@ func (c *Client) Stop(ctx context.Context) error { return c.call(ctx, "stop", ni
 // Seek moves the playhead to position within the current entry.
 func (c *Client) Seek(ctx context.Context, position time.Duration) error {
 	return c.call(ctx, "seek", map[string]any{"seconds": position.Seconds()}, nil)
+}
+
+// Volume reports the system output volume, 0...1.
+func (c *Client) Volume(ctx context.Context) (float64, error) {
+	var res volumeResult
+	if err := c.call(ctx, "volume", nil, &res); err != nil {
+		return 0, err
+	}
+	return playback.ClampVolume(res.Level), nil
+}
+
+// SetVolume sets the system output volume. The level is clamped here, as
+// JSON cannot carry NaN, and again by the helper.
+func (c *Client) SetVolume(ctx context.Context, level float64) error {
+	return c.call(ctx, "setVolume", map[string]any{"level": playback.ClampVolume(level)}, nil)
 }

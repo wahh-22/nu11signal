@@ -65,6 +65,15 @@ var stations = []station{
 	{playback.Playlist{ID: "demo-6", Name: "Static FM"}, []string{"d12", "d01", "d05", "d07", "d09"}},
 }
 
+func stationByID(id string) (station, bool) {
+	for _, s := range stations {
+		if s.ID == id {
+			return s, true
+		}
+	}
+	return station{}, false
+}
+
 func songByID(id string) (playback.Song, bool) {
 	for _, s := range catalog {
 		if s.ID == id {

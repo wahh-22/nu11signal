@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math"
 	"os"
 	"reflect"
 	"strings"
@@ -36,6 +37,7 @@ func TestRoundTrip(t *testing.T) {
 	}{
 		{"playSongs", func() error { return c.PlaySongs(ctx, []string{"s1", "s2"}, 1) }},
 		{"playPlaylist", func() error { return c.PlayPlaylist(ctx, "p1") }},
+		{"playPlaylistFrom", func() error { return c.PlayPlaylistFrom(ctx, "p1", 2) }},
 		{"pause", func() error { return c.Pause(ctx) }},
 		{"seek", func() error { return c.Seek(ctx, 90*time.Second+500*time.Millisecond) }},
 	}
@@ -560,17 +562,22 @@ func TestDetailsTolerateMissingFields(t *testing.T) {
 		}
 	}
 
-	empty, err := c.CatalogPlaylist(ctx, "empty")
-	if err != nil || !reflect.DeepEqual(empty, playback.PlaylistDetail{}) {
-		t.Errorf("empty playlist = %+v, %v; want a zero page", empty, err)
-	}
-	sparse, err := c.CatalogPlaylist(ctx, "sparse")
-	want := playback.PlaylistDetail{
-		Playlist: playback.CatalogPlaylist{ID: "pl1", Name: "Mix"},
-		Tracks:   []playback.Song{{ID: "s1", Title: "One More Time"}},
-	}
-	if err != nil || !reflect.DeepEqual(sparse, want) {
-		t.Errorf("sparse playlist = %+v, %v; want %+v", sparse, err, want)
+	for name, load := range map[string]func(string) (playback.PlaylistDetail, error){
+		"catalog": func(id string) (playback.PlaylistDetail, error) { return c.CatalogPlaylist(ctx, id) },
+		"library": func(id string) (playback.PlaylistDetail, error) { return c.LibraryPlaylist(ctx, id) },
+	} {
+		empty, err := load("empty")
+		if err != nil || !reflect.DeepEqual(empty, playback.PlaylistDetail{}) {
+			t.Errorf("empty %s playlist = %+v, %v; want a zero page", name, empty, err)
+		}
+		sparse, err := load("sparse")
+		want := playback.PlaylistDetail{
+			Playlist: playback.CatalogPlaylist{ID: "pl1", Name: "Mix"},
+			Tracks:   []playback.Song{{ID: "s1", Title: "One More Time"}},
+		}
+		if err != nil || !reflect.DeepEqual(sparse, want) {
+			t.Errorf("sparse %s playlist = %+v, %v; want %+v", name, sparse, err, want)
+		}
 	}
 }
 
@@ -584,6 +591,7 @@ func TestDetailErrorResponses(t *testing.T) {
 		{"album", "album not found", func() error { _, err := c.Album(ctx, "gone"); return err }},
 		{"songAlbum", "song not found", func() error { _, err := c.SongAlbum(ctx, "gone"); return err }},
 		{"catalogPlaylist", "playlist not found", func() error { _, err := c.CatalogPlaylist(ctx, "gone"); return err }},
+		{"libraryPlaylist", "playlist not found in the library", func() error { _, err := c.LibraryPlaylist(ctx, "gone"); return err }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.command, func(t *testing.T) {
@@ -592,5 +600,74 @@ func TestDetailErrorResponses(t *testing.T) {
 				t.Fatalf("error = %v; want CommandError{%s, %s}", err, tt.command, tt.message)
 			}
 		})
+	}
+}
+
+func TestVolumeRoundTrip(t *testing.T) {
+	c := startFake(t, "standard", Options{})
+	ctx := t.Context()
+	if v, err := c.Volume(ctx); err != nil || v != 0.42 {
+		t.Fatalf("Volume = %v, %v; want 0.42", v, err)
+	}
+	// The fake helper answers only {"level": 0.25}, so a wrong argument
+	// name fails the call.
+	if err := c.SetVolume(ctx, 0.25); err != nil {
+		t.Fatalf("SetVolume: %v", err)
+	}
+}
+
+func TestSetVolumeClampsBeforeSending(t *testing.T) {
+	// The "volume" scenario stores the level it is sent and reports it back.
+	c := startFake(t, "volume", Options{})
+	ctx := t.Context()
+	tests := []struct {
+		name      string
+		set, want float64
+	}{
+		{"within range", 0.6, 0.6},
+		{"above one", 1.7, 1},
+		{"below zero", -0.3, 0},
+		{"not a number", math.NaN(), 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := c.SetVolume(ctx, tt.set); err != nil {
+				t.Fatalf("SetVolume(%v): %v", tt.set, err)
+			}
+			if got, err := c.Volume(ctx); err != nil || got != tt.want {
+				t.Fatalf("Volume after SetVolume(%v) = %v, %v; want %v", tt.set, got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestVolumeErrorResponses(t *testing.T) {
+	// The "volume" scenario refuses a level of exactly 0.5, as a device
+	// without a settable volume refuses every level.
+	c := startFake(t, "volume", Options{})
+	ctx := t.Context()
+	var cmdErr *CommandError
+	err := c.SetVolume(ctx, 0.5)
+	if !errors.As(err, &cmdErr) || cmdErr.Command != "setVolume" || cmdErr.Message != "output device has no settable volume" {
+		t.Fatalf("SetVolume error = %v; want a setVolume CommandError", err)
+	}
+	if _, err := c.Volume(ctx); err != nil {
+		t.Fatalf("Volume after a failed set: %v", err)
+	}
+}
+
+func TestLibraryPlaylistRoundTrip(t *testing.T) {
+	c := startFake(t, "standard", Options{})
+	got, err := c.LibraryPlaylist(t.Context(), "p1")
+	want := playback.PlaylistDetail{
+		Playlist: playback.CatalogPlaylist{ID: "p1", Name: "Night City"},
+		Tracks: []playback.Song{
+			{ID: "i.s1", Title: "Nightcall", Artist: "Kavinsky", Album: "OutRun", Duration: 258 * time.Second},
+			{ID: "i.s2", Title: "Resonance", Artist: "Home", Album: "Odyssey", Duration: 212*time.Second + 250*time.Millisecond},
+		},
+		Notes: "After hours.",
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("LibraryPlaylist = %+v, %v; want %+v", got, err, want)
 	}
 }

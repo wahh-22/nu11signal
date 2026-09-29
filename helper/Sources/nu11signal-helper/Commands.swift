@@ -58,6 +58,9 @@ final class CommandHandler {
         case "songAlbum": return try await songAlbum(request)
         case "catalogPlaylist": return try await catalogPlaylist(request)
         case "playlists": return try await playlists()
+        case "libraryPlaylist": return try await libraryPlaylist(request)
+        case "volume": return ["level": try SystemVolume.level()]
+        case "setVolume": try SystemVolume.setLevel(VolumeLevel.requested(request)); return [:]
         case "playSongs": return try await playSongs(request)
         case "playPlaylist": return try await playPlaylist(request)
         case "pause": player.pause(); return [:]
@@ -321,18 +324,69 @@ final class CommandHandler {
         return missing.isEmpty ? [:] : ["missing": missing]
     }
 
-    private func playPlaylist(_ request: Request) async throws -> JSONObject {
-        guard let id = request.string("playlistId"), !id.isEmpty else {
-            throw CommandError("playPlaylist requires a non-empty \"playlistId\"")
+    /// A library playlist page: its songs in order, with library ids (music
+    /// videos are left out), and its description. Two sequential library
+    /// reads, each within `CatalogBudget.lookup`, keep the command below the
+    /// Go client's detail deadline.
+    private func libraryPlaylist(_ request: Request) async throws -> JSONObject {
+        let id = try request.requiredID("playlistId")
+        let playlist = try await Deadline.run(seconds: CatalogBudget.lookup) {
+            try await Self.libraryPlaylist(id: id)
         }
+        let songs = try await Deadline.run(seconds: CatalogBudget.lookup) {
+            try await Self.songEntries(of: playlist)
+        }
+        let notes = playlist.standardDescription ?? playlist.shortDescription ?? ""
+        return [
+            "playlist": ["id": playlist.id.rawValue, "name": playlist.name],
+            "tracks": songs.map { librarySongJSON($0.song) },
+            "notes": EditorialText.plain(notes),
+        ]
+    }
+
+    /// Plays a library playlist from its first entry or, with `startIndex`,
+    /// from that song of the list `libraryPlaylist` returns.
+    private func playPlaylist(_ request: Request) async throws -> JSONObject {
+        let id = try request.requiredID("playlistId")
+        let start = try PlaylistStart.index(request)
+        let playlist = try await Self.libraryPlaylist(id: id)
+        if let start {
+            let songs = try await Self.songEntries(of: playlist)
+            let entry = try PlaylistStart.item(in: songs, at: start).entry
+            player.queue = ApplicationMusicPlayer.Queue(playlist: playlist, startingAt: entry)
+        } else {
+            player.queue = [playlist]
+        }
+        try await player.play()
+        return [:]
+    }
+
+    private nonisolated static func libraryPlaylist(id: String) async throws -> Playlist {
         var library = MusicLibraryRequest<Playlist>()
         library.filter(matching: \.id, equalTo: MusicItemID(id))
         guard let playlist = try await library.response().items.first else {
             throw CommandError("playlist \(id) was not found in the library")
         }
-        player.queue = [playlist]
-        try await player.play()
-        return [:]
+        return playlist
+    }
+
+    /// Upper bound on the entries read from one playlist.
+    private nonisolated static let maxPlaylistEntries = 1000
+
+    /// The song entries of a library playlist, in order, following further
+    /// batches up to `maxPlaylistEntries` entries. `libraryPlaylist` and
+    /// `playPlaylist` share it, so a `startIndex` means the same song.
+    private nonisolated static func songEntries(of playlist: Playlist) async throws -> [(entry: Playlist.Entry, song: Song)] {
+        guard var batch = try await playlist.with([.entries]).entries else { return [] }
+        var entries = Array(batch)
+        while batch.hasNextBatch, entries.count < maxPlaylistEntries, let next = try await batch.nextBatch() {
+            entries += next
+            batch = next
+        }
+        return entries.prefix(maxPlaylistEntries).compactMap { entry in
+            if case let .song(song) = entry.item { return (entry, song) }
+            return nil
+        }
     }
 
     private func seek(_ request: Request) throws -> JSONObject {
@@ -382,6 +436,12 @@ final class CommandHandler {
             "trackNumber": song.trackNumber ?? 0,
             "discNumber": song.discNumber ?? 0,
         ]) { _, position in position }
+    }
+
+    /// A library song: its library id, and its duration normalized to
+    /// seconds (see LibraryDuration).
+    private func librarySongJSON(_ song: Song) -> JSONObject {
+        songJSON(song).merging(["duration": LibraryDuration.seconds(song.duration)]) { _, seconds in seconds }
     }
 
     private func songJSON(_ song: Song) -> JSONObject {

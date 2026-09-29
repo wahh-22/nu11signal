@@ -31,6 +31,10 @@ type Fake struct {
 	SongAlbumResult       playback.AlbumDetail
 	CatalogPlaylistResult playback.PlaylistDetail
 	PlaylistsResult       []playback.Playlist
+	LibraryPlaylistResult playback.PlaylistDetail
+	// VolumeResult answers Volume; a successful SetVolume stores its
+	// level there, clamped.
+	VolumeResult float64
 	// Err, when set, is returned by every method; MethodErr overrides it
 	// per method name (for example "SearchCatalog").
 	Err       error
@@ -133,12 +137,23 @@ func (f *Fake) Playlists(context.Context) ([]playback.Playlist, error) {
 	return f.PlaylistsResult, nil
 }
 
+func (f *Fake) LibraryPlaylist(_ context.Context, playlistID string) (playback.PlaylistDetail, error) {
+	if err := f.record("LibraryPlaylist", playlistID); err != nil {
+		return playback.PlaylistDetail{}, err
+	}
+	return f.LibraryPlaylistResult, nil
+}
+
 func (f *Fake) PlaySongs(_ context.Context, ids []string, start int) error {
 	return f.record("PlaySongs", append([]string(nil), ids...), start)
 }
 
 func (f *Fake) PlayPlaylist(_ context.Context, id string) error {
 	return f.record("PlayPlaylist", id)
+}
+
+func (f *Fake) PlayPlaylistFrom(_ context.Context, playlistID string, start int) error {
+	return f.record("PlayPlaylistFrom", playlistID, start)
 }
 
 func (f *Fake) Pause(context.Context) error    { return f.record("Pause") }
@@ -149,6 +164,25 @@ func (f *Fake) Stop(context.Context) error     { return f.record("Stop") }
 
 func (f *Fake) Seek(_ context.Context, position time.Duration) error {
 	return f.record("Seek", position)
+}
+
+func (f *Fake) Volume(context.Context) (float64, error) {
+	if err := f.record("Volume"); err != nil {
+		return 0, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.VolumeResult, nil
+}
+
+func (f *Fake) SetVolume(_ context.Context, level float64) error {
+	if err := f.record("SetVolume", level); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.VolumeResult = playback.ClampVolume(level)
+	return nil
 }
 
 func (f *Fake) States() <-chan playback.State { return f.states }

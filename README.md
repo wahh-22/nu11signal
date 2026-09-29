@@ -383,10 +383,13 @@ One JSON object per line.
 | `songAlbum` | `songId` | Same as `album`, for the album holding the song |
 | `catalogPlaylist` | `playlistId` | `{"playlist":{...},"tracks":[...],"notes"}` |
 | `playlists` | none | `{"playlists":[{"id":...,"name":...}]}` |
+| `libraryPlaylist` | `playlistId` (a library id) | `{"playlist":{"id","name"},"tracks":[...],"notes"}`; songs only, with library ids |
 | `playSongs` | `ids`, `startIndex` | `{}` or `{"missing":[...]}` |
-| `playPlaylist` | `playlistId` | `{}` |
+| `playPlaylist` | `playlistId`, optional `startIndex` (an index into the `libraryPlaylist` tracks) | `{}` |
 | `pause`, `resume`, `next`, `previous`, `stop` | none | `{}` |
 | `seek` | `seconds` (>= 0) | `{}`, followed by a `state` event |
+| `volume` | none | `{"level":...}`: the system output volume, 0 to 1 (runs concurrently) |
+| `setVolume` | `level` (clamped to 0-1) | `{}`, or an error when the output device's volume cannot be changed (runs concurrently) |
 
 Playback commands run one at a time in arrival order, each bounded by 10 s
 (a hung one is answered with a timeout error); `authorize`, `playlists`, and
