@@ -410,13 +410,22 @@ One JSON object per line.
 | `seek` | `seconds` (>= 0) | `{}`, followed by a `state` event |
 | `volume` | none | `{"level":...}`: the system output volume, 0 to 1 (runs concurrently) |
 | `setVolume` | `level` (clamped to 0-1) | `{}`, or an error when the output device's volume cannot be changed (runs concurrently) |
+| `createPlaylist` | `name` (not blank), optional `description`, optional `songIds` (in order) | `{"id","name"}`: the new playlist, with its Apple Music API library id (`p.…`) |
+| `addToPlaylist` | `playlistId` (an API library id, `p.…`), `songIds` (not empty) | `{}`, or an error such as `playlist is not editable` |
+| `favorite` | `songId` | `{"favorite":true\|false}`: whether the song is loved (no rating is `false`) |
+| `setFavorite` | `songId`, `on` (a boolean) | `{}`: `true` loves the song, `false` removes its rating |
 
 Playback commands run one at a time in arrival order, each bounded by 10 s
 (a hung one is answered with a timeout error); `authorize`, `playlists`, and
 the catalog commands run concurrently. Catalog commands stay within their own
 time budget (`CatalogBudget` in `helper/Sources/Nu11SignalProtocol/Catalog.swift`),
 below the Go client's deadline; an artist page section that fails or hangs is
-left empty instead of failing the page. At stdin EOF the helper finishes in-flight work
+left empty instead of failing the page. The library edits (`createPlaylist`,
+`addToPlaylist`, `favorite`, `setFavorite`) run concurrently too, one Apple Music
+API request each (`/v1/me/library/playlists`, `/v1/me/ratings/...`) through
+MusicKit's `MusicDataRequest`, as MusicKit's own library editing is unavailable on
+macOS. Their song ids are catalog ids or API library ids (`i.…`): the persistent
+ids `playlists` and `libraryPlaylist` return are refused. At stdin EOF the helper finishes in-flight work
 (up to 3 s), stops playback, and exits.
 
 ## Troubleshooting

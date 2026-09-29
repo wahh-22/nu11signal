@@ -130,6 +130,16 @@ type catalogPlaylistResult struct {
 	Notes    string              `json:"notes"`
 }
 
+// createPlaylistResult answers createPlaylist: the new library playlist.
+type createPlaylistResult struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type favoriteResult struct {
+	Favorite bool `json:"favorite"`
+}
+
 type volumeResult struct {
 	Level float64 `json:"level"`
 }

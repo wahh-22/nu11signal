@@ -56,6 +56,7 @@ func (s station) songs() []playback.Song {
 	return out
 }
 
+// stations seed each player's library (see Player.library).
 var stations = []station{
 	{playback.Playlist{ID: "demo-1", Name: "Heat Sink Radio"}, []string{"d01", "d03", "d09"}},
 	{playback.Playlist{ID: "demo-2", Name: "Night Drive"}, []string{"d02", "d05", "d11", "d12"}},
@@ -63,15 +64,6 @@ var stations = []station{
 	{playback.Playlist{ID: "demo-4", Name: "Coastline Dreams"}, []string{"d06", "d08", "d10"}},
 	{playback.Playlist{ID: "demo-5", Name: "Low Orbit"}, []string{"d10", "d08", "d03", "d11"}},
 	{playback.Playlist{ID: "demo-6", Name: "Static FM"}, []string{"d12", "d01", "d05", "d07", "d09"}},
-}
-
-func stationByID(id string) (station, bool) {
-	for _, s := range stations {
-		if s.ID == id {
-			return s, true
-		}
-	}
-	return station{}, false
 }
 
 func songByID(id string) (playback.Song, bool) {

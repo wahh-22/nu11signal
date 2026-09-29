@@ -658,6 +658,7 @@ func TestCatalogBudgetMatchesTheHelper(t *testing.T) {
 		{"album", detailCallTimeout},
 		{"catalogPlaylist", detailCallTimeout},
 		{"songAlbum", detailCallTimeout},
+		{"libraryEdit", detailCallTimeout},
 	}
 	for _, c := range commands {
 		if got := seconds(c.name); got <= 0 || got >= c.timeout {

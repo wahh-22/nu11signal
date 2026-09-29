@@ -69,6 +69,10 @@ var expectedArgs = map[string]map[string]any{
 	"volume":          {},
 	"setVolume":       {"level": 0.25},
 	"libraryPlaylist": {"playlistId": "p1"},
+	"createPlaylist":  {"name": "Night Drive", "description": "After hours", "songIds": []any{"s1", "i.s2"}},
+	"addToPlaylist":   {"playlistId": "p.new", "songIds": []any{"s1"}},
+	"favorite":        {"songId": "s1"},
+	"setFavorite":     {"songId": "s1", "on": true},
 }
 
 // playPlaylistFromArgs is what the standard scenario requires for a
@@ -216,6 +220,11 @@ func runFakeHelper(scenario string) int {
 				outOfRange = outOfRange[1:]
 				continue
 			}
+		case "libraryEdit":
+			// Library edit edge cases and failures, by argument.
+			if answerLibraryEdit(id, cmd, req) {
+				continue
+			}
 		case "sparseCatalog":
 			// Answers searchCatalog by term: empty result, fields
 			// missing, or an error response.
@@ -314,6 +323,10 @@ func answer(id, cmd string) {
 		})
 	case "volume":
 		ok(id, map[string]any{"level": 0.42})
+	case "createPlaylist":
+		ok(id, map[string]any{"id": "p.new", "name": "Night Drive"})
+	case "favorite":
+		ok(id, map[string]any{"favorite": true})
 	case "resume":
 		emit(map[string]any{"event": "state", "state": map[string]any{
 			"status": "playing", "title": "One More Time", "artist": "Daft Punk",
@@ -383,4 +396,33 @@ func answerSparseDetail(id string, entityID any, missing string) {
 	default:
 		fail(id, missing)
 	}
+}
+
+// answerLibraryEdit answers the "libraryEdit" scenario; it reports false
+// for a request it does not handle.
+func answerLibraryEdit(id, cmd string, req map[string]any) bool {
+	switch {
+	case cmd == "createPlaylist" && req["name"] == "Empty":
+		// Only an explicit empty array and no description are accepted.
+		if songs, isList := req["songIds"].([]any); !isList || len(songs) != 0 || req["description"] != nil {
+			fail(id, fmt.Sprintf("unexpected args for createPlaylist: %v", req))
+		} else {
+			ok(id, map[string]any{"id": "p.empty", "name": "Empty"})
+		}
+	case cmd == "createPlaylist" && req["name"] == "boom":
+		fail(id, "Apple Music failed (HTTP 500)")
+	case cmd == "addToPlaylist" && req["playlistId"] == "p.locked":
+		fail(id, "playlist is not editable (Forbidden)")
+	case cmd == "favorite" && req["songId"] == "unrated":
+		ok(id, map[string]any{"favorite": false})
+	case cmd == "favorite" && req["songId"] == "denied":
+		fail(id, "Apple Music did not accept the credentials")
+	case cmd == "setFavorite" && req["songId"] == "s1" && req["on"] == false:
+		ok(id, map[string]any{})
+	case cmd == "setFavorite" && req["songId"] == "123456789012345678":
+		fail(id, `song "123456789012345678" has no Apple Music API id`)
+	default:
+		return false
+	}
+	return true
 }

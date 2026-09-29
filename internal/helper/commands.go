@@ -145,3 +145,51 @@ func (c *Client) Volume(ctx context.Context) (float64, error) {
 func (c *Client) SetVolume(ctx context.Context, level float64) error {
 	return c.call(ctx, "setVolume", map[string]any{"level": playback.ClampVolume(level)}, nil)
 }
+
+// CreatePlaylist creates a library playlist through the Apple Music API.
+// The songs travel as "songIds", always an array (possibly empty); an
+// empty description is left out. The helper accepts catalog song ids and
+// API library ids ("i.…"), not the persistent ids LibraryPlaylist lists,
+// and answers with the playlist's API library id ("p.…").
+func (c *Client) CreatePlaylist(ctx context.Context, name, description string, songIDs []string) (playback.Playlist, error) {
+	args := map[string]any{"name": name, "songIds": nonNil(songIDs)}
+	if description != "" {
+		args["description"] = description
+	}
+	var res createPlaylistResult
+	if err := c.call(ctx, "createPlaylist", args, &res); err != nil {
+		return playback.Playlist{}, err
+	}
+	return playback.Playlist{ID: res.ID, Name: res.Name}, nil
+}
+
+// AddToPlaylist appends songs to a library playlist through the Apple
+// Music API. The playlist must have an API library id ("p.…", as
+// CreatePlaylist returns); the ids travel as "playlistId" and "songIds".
+func (c *Client) AddToPlaylist(ctx context.Context, playlistID string, songIDs []string) error {
+	return c.call(ctx, "addToPlaylist", map[string]any{"playlistId": playlistID, "songIds": nonNil(songIDs)}, nil)
+}
+
+// Favorite reports whether a song is a favorite (loved); the id travels
+// as "songId".
+func (c *Client) Favorite(ctx context.Context, songID string) (bool, error) {
+	var res favoriteResult
+	if err := c.call(ctx, "favorite", map[string]any{"songId": songID}, &res); err != nil {
+		return false, err
+	}
+	return res.Favorite, nil
+}
+
+// SetFavorite loves a song (on) or clears its rating; the arguments
+// travel as "songId" and "on".
+func (c *Client) SetFavorite(ctx context.Context, songID string, on bool) error {
+	return c.call(ctx, "setFavorite", map[string]any{"songId": songID, "on": on}, nil)
+}
+
+// nonNil keeps a nil list from travelling as JSON null.
+func nonNil(ids []string) []string {
+	if ids == nil {
+		return []string{}
+	}
+	return ids
+}

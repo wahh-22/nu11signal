@@ -210,6 +210,17 @@ type Player interface {
 	Volume(ctx context.Context) (float64, error)
 	// SetVolume sets the output volume; level is clamped with ClampVolume.
 	SetVolume(ctx context.Context, level float64) error
+	// CreatePlaylist creates a library playlist holding the songs, in
+	// order; description and songIDs may be empty. The returned playlist's
+	// ID is what AddToPlaylist takes. A new playlist may take a moment to
+	// appear in Playlists.
+	CreatePlaylist(ctx context.Context, name, description string, songIDs []string) (Playlist, error)
+	// AddToPlaylist appends the songs, in order, to a library playlist.
+	AddToPlaylist(ctx context.Context, playlistID string, songIDs []string) error
+	// Favorite reports whether the song is a favorite.
+	Favorite(ctx context.Context, songID string) (bool, error)
+	// SetFavorite marks the song as a favorite, or clears the mark.
+	SetFavorite(ctx context.Context, songID string, on bool) error
 	States() <-chan State
 	Errors() <-chan error
 	Close() error

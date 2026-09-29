@@ -21,6 +21,16 @@ final class PlaylistStartTests: XCTestCase {
         }
     }
 
+    func testCheckRangeAcceptsOnlyAnIndexOfTheList() throws {
+        XCTAssertNoThrow(try PlaylistStart.checkRange(0, count: 3))
+        XCTAssertNoThrow(try PlaylistStart.checkRange(2, count: 3))
+        for (index, count) in [(3, 3), (-1, 3), (0, 0)] {
+            XCTAssertThrowsError(try PlaylistStart.checkRange(index, count: count)) { error in
+                XCTAssertEqual(String(describing: error), "startIndex \(index) is out of range: the playlist has \(count) songs")
+            }
+        }
+    }
+
     func testItemPicksTheSongAtTheIndex() throws {
         XCTAssertEqual(try PlaylistStart.item(in: ["a", "b", "c"], at: 0), "a")
         XCTAssertEqual(try PlaylistStart.item(in: ["a", "b", "c"], at: 2), "c")
