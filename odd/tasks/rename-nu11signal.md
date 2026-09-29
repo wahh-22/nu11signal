@@ -40,6 +40,8 @@ Rename the project from soul-king to **Nu11Signal** (display name) / **nu11signa
 - Local profiles renamed to the new defaults (`signing/Nu11Signal_Dev.provisionprofile`, `signing/Nu11Signal_DeveloperID.provisionprofile`); `make build` signs with them; tests green (Go 136, Swift 33).
 - N1 native review (range `a0c6081..e9661a7`): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-f45cf61dc4ffd80d`). Advisories (follow-ups): legacy `SOULKING_*` env vars are silently ignored (build.sh:34-37, locate.go:12) — documented as breaking in the v0.2.0 notes; duplicated legacy profile fallback (release.sh:52-55); profile fallback untested; CLI signing identifier change undocumented.
 
+- PR #3 merged (main `326871f`). N2 build from `326871f`: notarization `b471d916-74f1-4b29-8eb0-cc19c8ca1ff7` accepted, helper stapled; archive sha256 `0bf3eb78773c73221fa0704bdfa4162e5803c735f540c0e7b868f8213bb0fedc`. Quarantined download check: sha256 OK, helper `spctl` accepted (Notarized Developer ID), `--version` 0.2.0, universal, helper authorizes + searches. Pending: user live audio check.
+
 ## Next step
 
-Merge PR, then N2 release `v0.2.0` from main.
+User audio check, then tag + GitHub release v0.2.0, then N3 tap.
