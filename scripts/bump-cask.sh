@@ -5,7 +5,7 @@
 #
 # Renders packaging/homebrew/nu11signal.rb.template into Casks/nu11signal.rb
 # with VERSION and the sha256 from
-# dist/nu11signal-VERSION-macos-universal.tar.gz.sha256 (written by
+# dist/vVERSION/nu11signal-VERSION-macos-universal.tar.gz.sha256 (written by
 # scripts/release.sh), checks it with `ruby -c` and
 # `brew audit --cask --strict`, and shows the git diff. Nothing is committed
 # unless --push is given: then the change is committed as
@@ -63,7 +63,7 @@ done
 
 TEMPLATE="$ROOT/packaging/homebrew/nu11signal.rb.template"
 ARCHIVE_NAME="nu11signal-$VERSION-macos-universal.tar.gz"
-SHA_FILE="$ROOT/dist/$ARCHIVE_NAME.sha256"
+SHA_FILE="$ROOT/dist/v$VERSION/$ARCHIVE_NAME.sha256"
 TAP_REPO="${NU11SIGNAL_TAP_REPO:-https://github.com/wahh-22/homebrew-tap.git}"
 TAP_DIR="${NU11SIGNAL_TAP_DIR:-$ROOT/../homebrew-tap}"
 CASK_REL="Casks/nu11signal.rb"

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Test stub: `go build ... -ldflags "... -X main.version=V" -o OUT PKG` writes a
+# script to OUT that prints V for --version.
+echo "go $*" >>"$STUB_LOG"
+[[ "${1:-}" == build ]] || { echo "go stub: unsupported: $*" >&2; exit 1; }
+out="" version=dev prev=""
+for arg in "$@"; do
+  [[ "$prev" == -o ]] && out="$arg"
+  if [[ "$arg" == *main.version=* ]]; then
+    version="${arg##*main.version=}"
+    version="${version%% *}"
+  fi
+  prev="$arg"
+done
+[[ -n "$out" ]] || { echo "go stub: no -o" >&2; exit 1; }
+printf '#!/bin/sh\necho %s\n' "$version" >"$out"
+chmod +x "$out"

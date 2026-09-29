@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Test stub: signing and verification succeed.
+echo "codesign $*" >>"$STUB_LOG"

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Test stub: release.sh only checks that swift exists (helper/build.sh is faked).
+echo "swift $*" >>"$STUB_LOG"

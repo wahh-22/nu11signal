@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Test stub: `brew --repository` points at the sandbox; `brew audit` succeeds
+# unless STUB_BREW_AUDIT_EXIT says otherwise.
+echo "brew $*" >>"$STUB_LOG"
+case "${1:-}" in
+  --repository) echo "$STUB_BREW_REPO" ;;
+  audit) exit "${STUB_BREW_AUDIT_EXIT:-0}" ;;
+  *) echo "brew stub: unsupported: $*" >&2; exit 1 ;;
+esac

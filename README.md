@@ -115,10 +115,11 @@ The first run asks for Apple Music access.
 | `make build` | `build/Nu11SignalHelper.app` (signed) and `bin/nu11signal` |
 | `make helper` | Only the signed helper |
 | `make demo` | Builds only the Go binary and runs `bin/nu11signal --demo` |
-| `make test` | `go test -race ./...` and `swift test` in `helper/` |
+| `make test` | `go test -race ./...`, `swift test` in `helper/`, and the script tests |
+| `make test-scripts` | Only the hermetic tests for `scripts/release.sh` and `scripts/bump-cask.sh` |
 | `make vet` / `make fmt-check` | `go vet`; fails if `gofmt -l .` lists files |
-| `make release VERSION=x.y.z` | Signed, notarized `dist/nu11signal-x.y.z-macos-universal.tar.gz` (see Releasing) |
-| `make release-dry-run VERSION=x.y.z` | Same layout in `build/release-dry-run/`, ad-hoc signed, not notarized; lists missing release setup |
+| `make release VERSION=x.y.z` | Signed, notarized archive and checksum in `dist/vx.y.z/`; `FORCE=1` replaces an existing one (see Releasing) |
+| `make release-dry-run VERSION=x.y.z` | Same layout in `build/release-dry-run/vx.y.z/`, ad-hoc signed, not notarized; lists missing release setup |
 | `make cask VERSION=x.y.z` | Renders the Homebrew cask into a tap checkout and audits it; `PUSH=1` commits and pushes (see Releasing) |
 | `make clean` | Removes `bin/` and `build/`; release archives in `dist/` are kept |
 | `make clean-dist` | Removes `dist/` (release archives) |
@@ -162,14 +163,26 @@ make release VERSION=0.2.0
 
 `scripts/release.sh` refuses to start while any setup item is missing or
 tracked files have uncommitted changes. It builds both binaries, signs them,
-notarizes the whole layout, staples the helper app, and writes
-`dist/nu11signal-0.2.0-macos-universal.tar.gz` plus `.sha256`, then checks the
-unpacked archive with `spctl` and `codesign --verify --strict`. Everything is
-built in a staging directory and moved into `dist/` only after those checks
-pass, so a failed run leaves an earlier `dist/nu11signal-0.2.0*` untouched. If
-notarization is rejected it prints the `xcrun notarytool log` command.
-Overrides: `NU11SIGNAL_SIGN_IDENTITY`, `NU11SIGNAL_PROFILE`,
-`NU11SIGNAL_NOTARY_PROFILE`, `NU11SIGNAL_TEAM_ID`.
+notarizes the whole layout, staples the helper app, archives it, then checks
+the unpacked archive with `spctl` and `codesign --verify --strict`. Each
+version gets its own directory:
+
+```text
+dist/v0.2.0/
+  nu11signal-0.2.0/                              bin/, libexec/, LICENSE, README.md
+  nu11signal-0.2.0-macos-universal.tar.gz
+  nu11signal-0.2.0-macos-universal.tar.gz.sha256
+```
+
+Everything is built in a staging directory inside `dist/` and promoted with a
+single rename to `dist/v0.2.0` only after those checks pass; a failed or
+interrupted run removes the staging directory and leaves `dist/` untouched.
+An existing `dist/v0.2.0` is never overwritten: `make release VERSION=0.2.0
+FORCE=1` (`--force`) renames it to `dist/v0.2.0.replaced-<timestamp>` first
+and restores it if the promotion fails. If notarization is rejected it prints
+the `xcrun notarytool log` command. `make release-dry-run` writes to
+`build/release-dry-run/v0.2.0/` instead. Overrides: `NU11SIGNAL_SIGN_IDENTITY`,
+`NU11SIGNAL_PROFILE`, `NU11SIGNAL_NOTARY_PROFILE`, `NU11SIGNAL_TEAM_ID`.
 
 Publishing: tag `v0.2.0` and attach the archive and checksum to a GitHub
 release. Then update the Homebrew cask:
@@ -180,12 +193,16 @@ make cask VERSION=0.2.0 PUSH=1   # same, then commit "chore: bump nu11signal to 
 ```
 
 `scripts/bump-cask.sh` fills `packaging/homebrew/nu11signal.rb.template` with
-the version and the sha256 from `dist/nu11signal-0.2.0-macos-universal.tar.gz.sha256`
+the version and the sha256 from `dist/v0.2.0/nu11signal-0.2.0-macos-universal.tar.gz.sha256`
 and writes `Casks/nu11signal.rb` in a checkout of
 [wahh-22/homebrew-tap](https://github.com/wahh-22/homebrew-tap):
 `NU11SIGNAL_TAP_DIR` (default `../homebrew-tap`), cloned when missing and
 fast-forwarded when present. It refuses a checkout with other uncommitted
 changes. Without `PUSH=1` nothing is committed.
+
+`make test-scripts` (part of `make test`) runs hermetic tests for both scripts
+(`scripts/test/`): stubbed `brew`, `xcrun`, `codesign`, `go`, and friends, temp
+directories for `dist/` and the tap, and a local bare repository as its origin.
 
 ## Keys
 

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Test stub: notarytool history/submit and stapler. The submission status is
+# $STUB_NOTARY_STATUS (default Accepted).
+echo "xcrun $*" >>"$STUB_LOG"
+case "${1:-} ${2:-}" in
+  "notarytool history") exit 0 ;;
+  "notarytool submit")
+    printf '{"id":"stub-submission","status":"%s"}\n' "${STUB_NOTARY_STATUS:-Accepted}"
+    ;;
+  "stapler staple" | "stapler validate") exit 0 ;;
+  *) echo "xcrun stub: unsupported: $*" >&2; exit 1 ;;
+esac
