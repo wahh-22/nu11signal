@@ -112,6 +112,8 @@ Evidence:
 - GREEN: `make test-scripts` 34 passed, 0 failed; `make test` exit 0 (Go ok, Swift 33 tests 0 failures, scripts 34 passed); `make vet` and `make fmt-check` exit 0; `bash -n` on every script and stub ok; shellcheck not installed.
 - `dist/` content hash identical before and after (`64c2f12e…ccd9e`); `brew tap` output identical.
 
+- A1–A3 native review (range `9c04b5c..HEAD`): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-5b904e19ec02a8af`). Only SUGGESTION-level notes remain (no warnings); intentionally not scheduled.
+
 ## Next step
 
-Review, PR, merge.
+Done.
