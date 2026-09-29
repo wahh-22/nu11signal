@@ -1,0 +1,181 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/wahh-22/nu11signal/internal/helper"
+	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/demo"
+)
+
+// fakePlayer is a helper-backed player stand-in that records Close calls.
+// Calling any other Player method panics (nil embedded interface).
+type fakePlayer struct {
+	playback.Player
+	closed int
+}
+
+func (p *fakePlayer) Close() error {
+	p.closed++
+	return nil
+}
+
+// testEnv wires run to fakes; each test overrides only what it exercises.
+type testEnv struct {
+	stdout, stderr bytes.Buffer
+	d              deps
+	uiPlayer       playback.Player
+	uiRuns         int
+}
+
+func newTestEnv(t *testing.T) *testEnv {
+	t.Helper()
+	e := &testEnv{}
+	e.d = deps{
+		stdout: &e.stdout,
+		stderr: &e.stderr,
+		locateHelper: func() (string, error) {
+			t.Error("locateHelper called unexpectedly")
+			return "", errors.New("unexpected locate")
+		},
+		startHelper: func(context.Context, string) (playback.Player, error) {
+			t.Error("startHelper called unexpectedly")
+			return nil, errors.New("unexpected start")
+		},
+		runUI: func(p playback.Player) error {
+			e.uiRuns++
+			e.uiPlayer = p
+			return nil
+		},
+	}
+	return e
+}
+
+func TestRunVersionPrintsVersionAndExitsZero(t *testing.T) {
+	e := newTestEnv(t)
+	if code := run([]string{"--version"}, e.d); code != 0 {
+		t.Fatalf("exit code = %d; want 0", code)
+	}
+	if got, want := e.stdout.String(), version+"\n"; got != want {
+		t.Fatalf("stdout = %q; want %q", got, want)
+	}
+	if e.uiRuns != 0 {
+		t.Fatal("--version started the UI")
+	}
+}
+
+func TestRunHelpExitsZeroWithUsage(t *testing.T) {
+	e := newTestEnv(t)
+	if code := run([]string{"-h"}, e.d); code != 0 {
+		t.Fatalf("exit code = %d; want 0", code)
+	}
+	if !strings.Contains(e.stderr.String(), "-demo") {
+		t.Fatalf("stderr = %q; want usage listing -demo", e.stderr.String())
+	}
+}
+
+func TestRunUnknownFlagExitsTwo(t *testing.T) {
+	e := newTestEnv(t)
+	if code := run([]string{"--nope"}, e.d); code != 2 {
+		t.Fatalf("exit code = %d; want 2", code)
+	}
+	if !strings.Contains(e.stderr.String(), "flag provided but not defined: -nope") {
+		t.Fatalf("stderr = %q; want the flag error", e.stderr.String())
+	}
+	if e.uiRuns != 0 {
+		t.Fatal("a flag error started the UI")
+	}
+}
+
+func TestRunHelperNotFoundExitsOne(t *testing.T) {
+	e := newTestEnv(t)
+	e.d.locateHelper = func() (string, error) {
+		return "", fmt.Errorf("%w: set NU11SIGNAL_HELPER or build the helper", helper.ErrHelperNotFound)
+	}
+	if code := run(nil, e.d); code != 1 {
+		t.Fatalf("exit code = %d; want 1", code)
+	}
+	want := "nu11signal: nu11signal-helper not found: set NU11SIGNAL_HELPER or build the helper\n"
+	if got := e.stderr.String(); got != want {
+		t.Fatalf("stderr = %q; want %q", got, want)
+	}
+	if e.uiRuns != 0 {
+		t.Fatal("the UI started without a helper")
+	}
+}
+
+func TestRunHelperStartFailureExitsOne(t *testing.T) {
+	e := newTestEnv(t)
+	e.d.locateHelper = func() (string, error) { return "/opt/helper", nil }
+	var gotPath string
+	e.d.startHelper = func(_ context.Context, path string) (playback.Player, error) {
+		gotPath = path
+		return nil, errors.New("helper exited")
+	}
+	if code := run(nil, e.d); code != 1 {
+		t.Fatalf("exit code = %d; want 1", code)
+	}
+	if gotPath != "/opt/helper" {
+		t.Fatalf("startHelper path = %q; want the located one", gotPath)
+	}
+	if got, want := e.stderr.String(), "nu11signal: start helper: helper exited\n"; got != want {
+		t.Fatalf("stderr = %q; want %q", got, want)
+	}
+}
+
+func TestRunPlaysThroughHelperAndClosesIt(t *testing.T) {
+	e := newTestEnv(t)
+	player := &fakePlayer{}
+	e.d.locateHelper = func() (string, error) { return "/opt/helper", nil }
+	e.d.startHelper = func(context.Context, string) (playback.Player, error) { return player, nil }
+	if code := run(nil, e.d); code != 0 {
+		t.Fatalf("exit code = %d; want 0 (stderr %q)", code, e.stderr.String())
+	}
+	if e.uiPlayer != playback.Player(player) {
+		t.Fatalf("UI got player %T; want the helper player", e.uiPlayer)
+	}
+	if player.closed != 1 {
+		t.Fatalf("player closed %d times; want 1", player.closed)
+	}
+}
+
+func TestRunDemoUsesSimulatedPlayerWithoutHelper(t *testing.T) {
+	e := newTestEnv(t) // locateHelper and startHelper fail the test if called
+	if code := run([]string{"--demo"}, e.d); code != 0 {
+		t.Fatalf("exit code = %d; want 0 (stderr %q)", code, e.stderr.String())
+	}
+	if _, ok := e.uiPlayer.(*demo.Player); !ok {
+		t.Fatalf("UI got player %T; want *demo.Player", e.uiPlayer)
+	}
+}
+
+func TestRunUIExitPaths(t *testing.T) {
+	tests := []struct {
+		name       string
+		uiErr      error
+		wantCode   int
+		wantStderr string
+	}{
+		{"interrupt is a clean exit", tea.ErrInterrupted, 0, ""},
+		{"UI failure exits one", errors.New("no tty"), 1, "nu11signal: no tty\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.d.runUI = func(playback.Player) error { return tt.uiErr }
+			if code := run([]string{"--demo"}, e.d); code != tt.wantCode {
+				t.Fatalf("exit code = %d; want %d", code, tt.wantCode)
+			}
+			if got := e.stderr.String(); got != tt.wantStderr {
+				t.Fatalf("stderr = %q; want %q", got, tt.wantStderr)
+			}
+		})
+	}
+}
