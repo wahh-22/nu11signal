@@ -1,6 +1,6 @@
-# Homebrew cask for Nu11Signal. Copy to Casks/nu11signal.rb in a tap, then
-# replace __VERSION__ and __SHA256__ with the release version (no "v") and
-# the digest from dist/nu11signal-<version>-macos-universal.tar.gz.sha256.
+# Homebrew cask for Nu11Signal. Rendered into Casks/nu11signal.rb in
+# wahh-22/homebrew-tap by `make cask VERSION=x.y.z` (scripts/bump-cask.sh),
+# which fills __VERSION__ and __SHA256__ from the release checksum.
 #
 # Homebrew symlinks bin/nu11signal into its prefix; nu11signal resolves the
 # symlink and finds the helper in the archive's ../libexec.
