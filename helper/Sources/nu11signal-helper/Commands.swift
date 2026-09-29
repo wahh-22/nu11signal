@@ -87,14 +87,10 @@ final class CommandHandler {
     /// are best effort: when that request fails the command still succeeds
     /// with an empty list.
     private func searchCatalog(_ request: Request) async throws -> JSONObject {
-        guard let term = request.string("term"), !term.isEmpty else {
-            throw CommandError("searchCatalog requires a non-empty \"term\"")
-        }
-        // The catalog search endpoint accepts at most 25 results per page.
-        let limit = min(max(try optionalInt(request, "limit") ?? 25, 1), 25)
-        var search = MusicCatalogSearchRequest(term: term, types: [Artist.self, Song.self])
-        search.limit = limit
-        async let suggestions = suggestionTerms(for: term, limit: limit)
+        let query = try CatalogSearchQuery(request)
+        var search = MusicCatalogSearchRequest(term: query.term, types: [Artist.self, Song.self])
+        search.limit = query.limit
+        async let suggestions = suggestionTerms(for: query.term, limit: query.suggestionLimit)
         let response = try await search.response()
         return [
             "suggestions": await suggestions,
@@ -105,8 +101,7 @@ final class CommandHandler {
 
     private func suggestionTerms(for term: String, limit: Int) async -> [String] {
         var request = MusicCatalogSearchSuggestionsRequest(term: term)
-        // The suggestions endpoint returns at most 10 terms.
-        request.limit = min(limit, 10)
+        request.limit = limit
         guard let response = try? await request.response() else { return [] }
         return response.suggestions.map(\.searchTerm)
     }

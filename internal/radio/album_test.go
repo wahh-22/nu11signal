@@ -295,6 +295,62 @@ func TestTrackPageFailureOffersRetry(t *testing.T) {
 	}
 }
 
+func TestSongStaysPlayableWhenItsAlbumFails(t *testing.T) {
+	f := playbacktest.New()
+	f.MethodErr = map[string]error{"SongAlbum": errors.New("no album on file")}
+	m := openSong(t, f, 1)
+	view := plain(m)
+	if !strings.Contains(view, "[R] RETRY") || !strings.Contains(view, "NO ALBUM ON FILE") {
+		t.Fatalf("failed song page lacks the retry notice or the reason:\n%s", view)
+	}
+	if !strings.Contains(view, "DIGITAL LOVE · DAFT PUNK") || !strings.Contains(view, "SONG FEED FAILED") {
+		t.Fatalf("failed song page does not offer the song or name the SONG feed:\n%s", view)
+	}
+	if m.trackCode() != "ERR" || m.pageItemCount() != 1 || m.cursor() != 0 {
+		t.Fatalf("code %q, %d rows, cursor %d; want ERR and the song selected", m.trackCode(), m.pageItemCount(), m.cursor())
+	}
+	m, cmd := press(t, m, "enter")
+	m = settle(t, m, cmd)
+	assertCall(t, f, "PlaySongs", []string{"s2"}, 0)
+
+	// r still retries the album, which then replaces the lone song.
+	f.MethodErr = nil
+	m, cmd = press(t, m, "r")
+	m = settle(t, m, cmd)
+	if len(callsOf(f, "SongAlbum")) != 2 || m.pageItemCount() != 5 || m.cursor() != 2 {
+		t.Fatalf("retried song page: %d rows, cursor %d:\n%s", m.pageItemCount(), m.cursor(), plain(m))
+	}
+}
+
+func TestTrackPagesNameTheirKind(t *testing.T) {
+	tests := []struct {
+		name string
+		page trackPage
+		want string
+	}{
+		{"album", trackPage{kind: viewAlbum, album: playback.Album{ID: "al1"}}, "ALBUM"},
+		{"song", trackPage{kind: viewAlbum, song: playback.Song{ID: "s1"}}, "SONG"},
+		{"playlist", trackPage{kind: viewPlaylist, playlist: playback.CatalogPlaylist{ID: "pl1"}}, "PLAYLIST"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.page.title(); got != tt.want {
+				t.Fatalf("title = %q; want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSongPageLoadingNamesTheSongFeed(t *testing.T) {
+	f := playbacktest.New()
+	f.SearchCatalogResult = catalog()
+	m := searchFor(t, loaded(t, f, newClock()), "daft")
+	m, _ = press(t, m, "down", "down", "down", "down", "enter")
+	if view := plain(m); !strings.Contains(view, "DECRYPTING SONG FEED") {
+		t.Fatalf("loading song page does not name the SONG feed:\n%s", view)
+	}
+}
+
 func TestTrackPageEmptyShowsNoData(t *testing.T) {
 	f := playbacktest.New()
 	m := openFromArtist(t, f, itemPlaylist)
@@ -425,6 +481,26 @@ func TestTrackViewsFitEverySize(t *testing.T) {
 	}
 }
 
+func TestLoneSongBodyFitsEveryHeight(t *testing.T) {
+	f := playbacktest.New()
+	f.MethodErr = map[string]error{"SongAlbum": errors.New("timed out")}
+	m := openSong(t, f, 1)
+	for h := range 9 {
+		rows := m.trackBody(30, h)
+		if len(rows) > h {
+			t.Errorf("h=%d: %d rows", h, len(rows))
+		}
+		for i, row := range rows {
+			if got := ansi.StringWidth(row); got != 30 {
+				t.Errorf("h=%d: row %d is %d cells: %q", h, i, got, ansi.Strip(row))
+			}
+		}
+	}
+	if rows := m.trackBody(30, 8); !strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "DIGITAL LOVE") {
+		t.Fatalf("lone song not drawn: %q", rows)
+	}
+}
+
 func TestTrackBodyLinesFillWidth(t *testing.T) {
 	f := playbacktest.New()
 	f.AlbumResult = discovery()
@@ -476,34 +552,80 @@ func TestTrackFormatting(t *testing.T) {
 
 // TestCatalogBudgetMatchesTheHelper pins the Go deadlines to the helper's
 // budget (helper/Sources/Nu11SignalProtocol/Catalog.swift): each catalog
-// command must answer, or time out on its own, before the Go call gives up.
+// command's budget, as the helper derives it, must answer or time out on
+// its own before the Go call gives up.
 func TestCatalogBudgetMatchesTheHelper(t *testing.T) {
-	src, err := os.ReadFile("../../helper/Sources/Nu11SignalProtocol/Catalog.swift")
-	if err != nil {
-		t.Fatal(err)
-	}
+	budget := helperBudget(t)
 	seconds := func(name string) time.Duration {
 		t.Helper()
-		m := regexp.MustCompile(`static let ` + name + `: TimeInterval = (\d+)`).FindSubmatch(src)
-		if m == nil {
-			t.Fatalf("Catalog.swift has no %s", name)
+		v, ok := budget[name]
+		if !ok {
+			t.Fatalf("CatalogBudget has no %s", name)
 		}
-		n, _ := strconv.Atoi(string(m[1]))
-		return time.Duration(n) * time.Second
+		return v
 	}
-	lookup, section := seconds("lookup"), seconds("section")
 	if got := seconds("goArtistCallTimeout"); got != artistCallTimeout {
 		t.Errorf("helper mirrors the artist timeout as %v; Go uses %v", got, artistCallTimeout)
 	}
 	if got := seconds("goDetailCallTimeout"); got != detailCallTimeout {
 		t.Errorf("helper mirrors the detail timeout as %v; Go uses %v", got, detailCallTimeout)
 	}
-	if lookup+section >= artistCallTimeout {
-		t.Errorf("artist budget %v does not fit in %v", lookup+section, artistCallTimeout)
+	commands := []struct {
+		name    string
+		timeout time.Duration
+	}{
+		{"artist", artistCallTimeout},
+		{"album", detailCallTimeout},
+		{"catalogPlaylist", detailCallTimeout},
+		{"songAlbum", detailCallTimeout},
 	}
-	if 2*lookup >= detailCallTimeout {
-		t.Errorf("song album budget %v does not fit in %v", 2*lookup, detailCallTimeout)
+	for _, c := range commands {
+		if got := seconds(c.name); got <= 0 || got >= c.timeout {
+			t.Errorf("helper %s budget %v does not fit in the Go timeout %v", c.name, got, c.timeout)
+		}
 	}
+}
+
+// helperBudget reads the constants of CatalogBudget in Catalog.swift,
+// evaluating the derived ones: sums of products of integers and constants
+// defined above them.
+func helperBudget(t *testing.T) map[string]time.Duration {
+	t.Helper()
+	src, err := os.ReadFile("../../helper/Sources/Nu11SignalProtocol/Catalog.swift")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := regexp.MustCompile(`(?s)enum CatalogBudget \{(.*?)\n\}`).FindSubmatch(src)
+	if body == nil {
+		t.Fatal("Catalog.swift has no CatalogBudget")
+	}
+	secs := map[string]int{}
+	decl := regexp.MustCompile(`static let (\w+)(?:: TimeInterval)? = ([^\n]+)`)
+	for _, m := range decl.FindAllSubmatch(body[1], -1) {
+		name, sum := string(m[1]), 0
+		for _, term := range strings.Split(string(m[2]), "+") {
+			product := 1
+			for _, f := range strings.Split(term, "*") {
+				f = strings.TrimSpace(f)
+				n, err := strconv.Atoi(f)
+				if err != nil {
+					v, ok := secs[f]
+					if !ok {
+						t.Fatalf("CatalogBudget.%s uses %q, which is not a known constant", name, f)
+					}
+					n = v
+				}
+				product *= n
+			}
+			sum += product
+		}
+		secs[name] = sum
+	}
+	out := make(map[string]time.Duration, len(secs))
+	for k, v := range secs {
+		out[k] = time.Duration(v) * time.Second
+	}
+	return out
 }
 
 func TestTrackViewGolden(t *testing.T) {

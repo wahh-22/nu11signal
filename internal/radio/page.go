@@ -119,8 +119,8 @@ func pageNotice(loading bool, err error, feed string, empty bool) string {
 }
 
 // pageBody renders a page in w x h cells: its head lines, a rule, then the
-// notice or the lines scrolled to keep the cursor near the middle. Every
-// line is exactly w cells wide.
+// notice, if any, and the lines scrolled to keep the cursor near the
+// middle. Every line is exactly w cells wide.
 func (m Model) pageBody(w, h int, head []string, lines []pageLine, notice string) []string {
 	if h <= 0 || w <= 0 {
 		return nil
@@ -136,11 +136,18 @@ func (m Model) pageBody(w, h int, head []string, lines []pageLine, notice string
 		return out
 	}
 	out = append(out, stFrameDim.Render(strings.Repeat("─", w)))
-	room := h - len(out)
 	if notice != "" {
-		if room > 0 {
+		if len(out) < h {
 			out = append(out, fit(" "+notice, w))
 		}
+		if len(lines) == 0 || len(out) >= h {
+			return out
+		}
+		// A failed page may still offer rows (a SONG view's lone song).
+		out = append(out, fit("", w))
+	}
+	room := h - len(out)
+	if room <= 0 {
 		return out
 	}
 

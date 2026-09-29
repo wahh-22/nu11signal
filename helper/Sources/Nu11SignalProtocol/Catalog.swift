@@ -8,7 +8,8 @@ import Foundation
 /// the Go client's deadline for it, so the helper's own error (not a Go
 /// timeout) reaches the UI. The Go deadlines are mirrored here and pinned
 /// on the Go side by `TestCatalogBudgetMatchesTheHelper` in
-/// internal/radio, which reads this file.
+/// internal/radio, which reads this file: keep each derived budget a sum
+/// of products of integers and the constants declared above it.
 public enum CatalogBudget {
     /// One catalog lookup by id, relationships included.
     public static let lookup: TimeInterval = 5

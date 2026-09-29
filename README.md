@@ -2,7 +2,8 @@
 
 A lightweight terminal player for Apple Music, styled after a neon cyberpunk
 car radio: your library playlists are "stations" on a pseudo FM dial, with a
-now-playing panel, decorative EQ bars, and catalog search.
+now-playing panel, decorative EQ bars, and Apple Music style catalog browsing
+(search, artist pages, albums, songs, and playlists).
 
 It plays through a tiny windowless MusicKit helper (about 31 MB RSS measured
 during playback, near 0% CPU) instead of a browser.
@@ -214,20 +215,71 @@ commit is refused.
 (`scripts/test/`): stubbed `brew`, `xcrun`, `codesign`, `go`, and friends, temp
 directories for `dist/` and the tap, and a local bare repository as its origin.
 
+## Browsing the catalog
+
+Views stack like Apple Music's: stations → SEARCH → ARTIST → ALBUM, SONG, or
+PLAYLIST. `esc` goes back one view, `tab` returns to the stations.
+
+| View | Shows |
+|------|-------|
+| SEARCH | RECENT searches while the input is empty; once you type 2+ characters, live suggestions, then matching artists (with their genre) and songs |
+| ARTIST | Its non-empty sections in Apple Music order: TOP SONGS, ESSENTIAL ALBUMS, ALBUMS, ARTIST PLAYLISTS, SINGLES & EPS, COMPILATIONS, then ABOUT (editorial notes folded behind MORE, FROM, FORMED, GENRE) |
+| ALBUM | The tracks (by disc when there are several), release date, song count and length, copyright, record label, and notes |
+| SONG | The album holding the song, with the song highlighted (`▶`) and selected; if the album cannot be loaded, the song alone, still playable |
+| PLAYLIST | The tracks with their artists, song count and length, curator, and notes |
+
+Recent searches are the last 10 terms you ran with `enter` or opened an
+artist or song from, stored in
+`nu11signal/recent.json` under `os.UserConfigDir()`
+(`~/Library/Application Support/nu11signal/recent.json` on macOS). Demo mode
+keeps them in memory only.
+
+Limitations:
+
+- No artwork: artists, albums, and playlists are text rows.
+- FROM and FORMED rely on an undocumented Apple Music API field; they are
+  left out when it is absent.
+- Relationships (an artist's albums, singles, playlists, and so on) show the
+  first page the catalog returns, not the full list.
+
 ## Keys
+
+Stations (and anywhere the key is not taken by the view):
 
 | Key | Action |
 |-----|--------|
 | `↑`/`↓` or `k`/`j` | Move the cursor |
-| `enter` | Tune the station or play the selected result |
+| `enter` | Tune the station |
 | `space` | Play / pause |
 | `n` / `p` | Next / previous track |
 | `←` / `→` | Seek -10 s / +10 s |
-| `/` | Catalog scan (search); `enter` runs it, `esc` cancels |
-| `tab` | Switch between stations and results |
-| `esc` | Back to stations |
+| `/` | Open SEARCH with an empty input |
+| `tab` | Back to the last search |
+| `esc` | Back one view |
 | `r` | Retry loading stations after a failure |
 | `q` / `ctrl+c` | Quit |
+
+SEARCH (typing goes to the input, so letter shortcuts are off):
+
+| Key | Action |
+|-----|--------|
+| `↑`/`↓` | Move between the input and the rows |
+| `enter` | On the input, search now; on a recent term or suggestion, search it; on an artist, open its page; on a song, open its SONG view |
+| `tab` | Back to the stations (the search is kept for the next `tab`) |
+| `esc` | Back one view |
+| `ctrl+c` | Quit |
+
+ARTIST, ALBUM, SONG, and PLAYLIST:
+
+| Key | Action |
+|-----|--------|
+| `↑`/`↓` or `k`/`j` | Move the cursor |
+| `enter` | Play the top songs or tracks from the selected one; open an album or playlist; MORE/LESS folds the notes |
+| `esc` | Back one view |
+| `tab` | Back to the stations |
+| `/` | Open a new SEARCH |
+| `r` | Retry after the page failed to load |
+| `space`, `n` / `p`, `←` / `→`, `q` | As on the stations |
 
 ## Helper lookup
 
@@ -253,7 +305,11 @@ One JSON object per line.
 | Command | Args | Result |
 |---------|------|--------|
 | `authorize` | none | `{"status":...}`: `authorized`, `denied`, `restricted`, or `notDetermined` |
-| `search` | `term`, `limit` (1-25) | `{"songs":[...]}` |
+| `searchCatalog` | `term` (not blank), `limit` (clamped to 1-25; suggestions to 10) | `{"suggestions":[...],"artists":[...],"songs":[...]}` |
+| `artist` | `artistId` | `{"artist":{...},"topSongs":[...],"essentialAlbums":[...],"albums":[...],"singles":[...],"compilations":[...],"playlists":[...],"about":{"notes","genre","origin","formed"}}` |
+| `album` | `albumId` | `{"album":{...},"tracks":[...],"genre","releaseDate","recordLabel","copyright","notes"}` |
+| `songAlbum` | `songId` | Same as `album`, for the album holding the song |
+| `catalogPlaylist` | `playlistId` | `{"playlist":{...},"tracks":[...],"notes"}` |
 | `playlists` | none | `{"playlists":[{"id":...,"name":...}]}` |
 | `playSongs` | `ids`, `startIndex` | `{}` or `{"missing":[...]}` |
 | `playPlaylist` | `playlistId` | `{}` |
@@ -261,8 +317,11 @@ One JSON object per line.
 | `seek` | `seconds` (>= 0) | `{}`, followed by a `state` event |
 
 Playback commands run one at a time in arrival order, each bounded by 10 s
-(a hung one is answered with a timeout error); `authorize`, `search`, and
-`playlists` run concurrently. At stdin EOF the helper finishes in-flight work
+(a hung one is answered with a timeout error); `authorize`, `playlists`, and
+the catalog commands run concurrently. Catalog commands stay within their own
+time budget (`CatalogBudget` in `helper/Sources/Nu11SignalProtocol/Catalog.swift`),
+below the Go client's deadline; an artist page section that fails or hangs is
+left empty instead of failing the page. At stdin EOF the helper finishes in-flight work
 (up to 3 s), stops playback, and exits.
 
 ## Troubleshooting
