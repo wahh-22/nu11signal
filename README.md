@@ -95,7 +95,7 @@ MusicKit only works in a signed app with an embedded provisioning profile.
 |----------|---------|---------|
 | `NU11SIGNAL_BUNDLE_ID` | Bundle ID of the App ID | `dev.wahh.soulking.player` |
 | `NU11SIGNAL_TEAM_ID` | Your Team ID | `W6GZP998GQ` |
-| `NU11SIGNAL_PROFILE` | Path to the profile | `signing/Nu11Signal_Dev.provisionprofile`; if missing, the pre-rename `signing/SoulKing_Player.provisionprofile`, then `spike/SoulKing_Player.provisionprofile` |
+| `NU11SIGNAL_PROFILE` | Path to the profile | `signing/Nu11Signal_Dev.provisionprofile` (`signing/Nu11Signal_DeveloperID.provisionprofile` in release mode) |
 | `NU11SIGNAL_SIGN_IDENTITY` | `codesign` identity | `Apple Development` |
 | `NU11SIGNAL_BUILD_DIR` | Where `Nu11SignalHelper.app` is written | `build` |
 | `NU11SIGNAL_SIGN_MODE` | `development`, or `release` (universal, hardened runtime; used by `make release`) | `development` |
@@ -140,8 +140,7 @@ provisioning profile (MusicKit needs it), and are notarized.
    Distribution > Developer ID, choose the App ID `dev.wahh.soulking.player`
    (MusicKit enabled) and the Developer ID certificate, generate, download,
    and save it as `signing/Nu11Signal_DeveloperID.provisionprofile`
-   (gitignored; the pre-rename name
-   `signing/SoulKing_Player_DeveloperID.provisionprofile` is still accepted).
+   (gitignored).
 3. **Notary credentials.** Create an app-specific password at
    [account.apple.com](https://account.apple.com) (Sign-In and Security >
    App-Specific Passwords), then store it in the keychain:
@@ -234,6 +233,5 @@ Playback commands run one at a time in arrival order, each bounded by 10 s
 ## Repository notes
 
 - `spike/` is the historical proof of concept (authorize, search, play from a
-  signed windowless app). It is kept for reference and not used by the build,
-  except as a fallback profile location.
+  signed windowless app). It is kept for reference and not used by the build.
 - License: MIT — see [LICENSE](LICENSE).

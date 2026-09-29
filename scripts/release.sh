@@ -10,8 +10,7 @@
 # Requires (see README.md, "Releasing"):
 #   - a "Developer ID Application" certificate for the team in the keychain;
 #   - the Developer ID provisioning profile at $NU11SIGNAL_PROFILE
-#     (default signing/Nu11Signal_DeveloperID.provisionprofile; the pre-rename
-#     name signing/SoulKing_Player_DeveloperID.provisionprofile is still accepted);
+#     (default signing/Nu11Signal_DeveloperID.provisionprofile);
 #   - a notarytool keychain profile $NU11SIGNAL_NOTARY_PROFILE (default soulking-notary);
 #   - no uncommitted changes to tracked files.
 #
@@ -50,10 +49,6 @@ TEAM_ID="${NU11SIGNAL_TEAM_ID:-W6GZP998GQ}"
 BUNDLE_ID="${NU11SIGNAL_BUNDLE_ID:-dev.wahh.soulking.player}"
 IDENTITY="${NU11SIGNAL_SIGN_IDENTITY:-Developer ID Application}"
 PROFILE="${NU11SIGNAL_PROFILE:-signing/Nu11Signal_DeveloperID.provisionprofile}"
-LEGACY_PROFILE="signing/SoulKing_Player_DeveloperID.provisionprofile" # name before the rename
-if [[ -z "${NU11SIGNAL_PROFILE:-}" && ! -f "$PROFILE" && -f "$LEGACY_PROFILE" ]]; then
-  PROFILE="$LEGACY_PROFILE"
-fi
 NOTARY_PROFILE="${NU11SIGNAL_NOTARY_PROFILE:-soulking-notary}"
 CLI_IDENTIFIER="${NU11SIGNAL_CLI_IDENTIFIER:-dev.wahh.nu11signal.cli}"
 
