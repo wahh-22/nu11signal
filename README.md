@@ -25,6 +25,14 @@ Signed, notarized builds (macOS 14 or later, Apple Silicon and Intel) are
 published on [GitHub Releases](https://github.com/wahh-22/nu11signal/releases).
 No Apple Developer account is needed to run them.
 
+With [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask wahh-22/tap/nu11signal
+```
+
+Or manually from a release archive:
+
 ```sh
 tar -xzf nu11signal-<version>-macos-universal.tar.gz
 nu11signal-<version>/bin/nu11signal          # keep bin/ and libexec/ together
@@ -32,9 +40,10 @@ nu11signal-<version>/bin/nu11signal --version
 ```
 
 Symlink `bin/nu11signal` onto your `PATH` if you like; the helper is found
-through the symlink. A Homebrew cask (`packaging/homebrew/nu11signal.rb.template`)
-will be offered once a tap is published. The first launch asks for Apple Music
-access.
+through the symlink. The cask lives in
+[wahh-22/homebrew-tap](https://github.com/wahh-22/homebrew-tap) and is generated
+from `packaging/homebrew/nu11signal.rb.template`. The first launch asks for
+Apple Music access.
 
 ## Architecture
 
