@@ -52,7 +52,6 @@ final class CommandHandler {
     private func handle(_ request: Request) async throws -> JSONObject {
         switch request.cmd {
         case "authorize": return try await authorize()
-        case "search": return try await search(request)
         case "searchCatalog": return try await searchCatalog(request)
         case "playlists": return try await playlists()
         case "playSongs": return try await playSongs(request)
@@ -77,17 +76,6 @@ final class CommandHandler {
         @unknown default: status = "notDetermined"
         }
         return ["status": status]
-    }
-
-    private func search(_ request: Request) async throws -> JSONObject {
-        guard let term = request.string("term"), !term.isEmpty else {
-            throw CommandError("search requires a non-empty \"term\"")
-        }
-        var search = MusicCatalogSearchRequest(term: term, types: [Song.self])
-        // The catalog search endpoint accepts at most 25 results per page.
-        search.limit = min(max(try optionalInt(request, "limit") ?? 25, 1), 25)
-        let response = try await search.response()
-        return ["songs": response.songs.map(songJSON)]
     }
 
     /// Mixed catalog search, as Apple Music shows it: term suggestions, then

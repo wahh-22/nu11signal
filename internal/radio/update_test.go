@@ -48,6 +48,8 @@ func keyMsg(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyUp}
 	case "down":
 		return tea.KeyPressMsg{Code: tea.KeyDown}
+	case "backspace":
+		return tea.KeyPressMsg{Code: tea.KeyBackspace}
 	case "ctrl+c":
 		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	}
@@ -209,80 +211,6 @@ func TestNavigationClampsToList(t *testing.T) {
 	m, _ = press(t, m, "down", "j", "j", "j", "j")
 	if m.cursor() != 2 {
 		t.Fatalf("cursor = %d after moving past the end, want 2", m.cursor())
-	}
-}
-
-func TestSearchThenPlayResult(t *testing.T) {
-	f := playbacktest.New()
-	f.SearchResult = songs()
-	m := loaded(t, f, newClock())
-
-	m, _ = press(t, m, "/")
-	m = typeText(t, m, "daft q")
-	if !strings.Contains(m.render(), "CATALOG SCAN") {
-		t.Fatal("search input not shown")
-	}
-	m, cmd := press(t, m, "enter")
-	m, _ = step(t, m, run(t, cmd))
-	assertCall(t, f, "Search", "daft q", 25)
-	if f.Closed() {
-		t.Fatal("typing q in the search input quit the player")
-	}
-	if view := m.render(); !strings.Contains(view, "HARDER") || strings.Contains(view, "SCANNING") {
-		t.Fatalf("results not shown, or scan status left behind:\n%s", view)
-	}
-
-	m, cmd = press(t, m, "j", "enter")
-	run(t, cmd)
-	assertCall(t, f, "PlaySongs", []string{"s1", "s2", "s3"}, 1)
-}
-
-func TestSearchEscCancelsInput(t *testing.T) {
-	f := playbacktest.New()
-	m := loaded(t, f, newClock())
-	m, _ = press(t, m, "/")
-	m = typeText(t, m, "abc")
-	m, cmd := press(t, m, "esc")
-	if cmd != nil {
-		run(t, cmd)
-	}
-	if strings.Contains(m.render(), "CATALOG SCAN") {
-		t.Fatal("search input still shown after esc")
-	}
-	for _, c := range f.Calls() {
-		if c.Method == "Search" {
-			t.Fatal("esc ran a search")
-		}
-	}
-}
-
-func TestTabAndEscSwitchBetweenStationsAndResults(t *testing.T) {
-	f := playbacktest.New()
-	f.SearchResult = songs()
-	m := loaded(t, f, newClock())
-
-	m, _ = press(t, m, "tab")
-	if m.showingResults() {
-		t.Fatal("tab switched to results with no results")
-	}
-	m, _ = press(t, m, "/")
-	m = typeText(t, m, "x")
-	m, cmd := press(t, m, "enter")
-	m, _ = step(t, m, run(t, cmd))
-	if !m.showingResults() {
-		t.Fatal("search results not shown")
-	}
-	m, _ = press(t, m, "tab")
-	if m.showingResults() {
-		t.Fatal("tab did not return to stations")
-	}
-	m, _ = press(t, m, "tab")
-	if !m.showingResults() {
-		t.Fatal("tab did not return to results")
-	}
-	m, _ = press(t, m, "esc")
-	if m.showingResults() {
-		t.Fatal("esc did not leave results")
 	}
 }
 
@@ -541,23 +469,21 @@ func TestStationMarkedOnAirOnlyAfterHelperConfirms(t *testing.T) {
 	})
 	t.Run("failed song play keeps the station", func(t *testing.T) {
 		f := playbacktest.New()
-		f.SearchResult = songs()
+		f.SearchCatalogResult = playback.SearchResults{Songs: songs()}
 		m := loaded(t, f, newClock())
 		m, cmd := press(t, m, "enter")
 		m, _ = step(t, m, run(t, cmd))
-		m, _ = press(t, m, "/")
-		m = typeText(t, m, "daft")
-		m, cmd = press(t, m, "enter")
-		m, _ = step(t, m, run(t, cmd))
+		m = searchFor(t, m, "daft")
+		m, _ = press(t, m, "down")
 		f.MethodErr = map[string]error{"PlaySongs": errors.New("offline")}
 		m, cmd = press(t, m, "enter")
-		m, _ = step(t, m, run(t, cmd))
+		m = settle(t, m, cmd)
 		if m.playingStation != "pl-1" {
 			t.Fatalf("playingStation = %q after a failed song play; want pl-1", m.playingStation)
 		}
 		f.MethodErr = nil
 		m, cmd = press(t, m, "enter")
-		m, _ = step(t, m, run(t, cmd))
+		m = settle(t, m, cmd)
 		if m.playingStation != "" {
 			t.Fatalf("playingStation = %q after playing songs; want none", m.playingStation)
 		}

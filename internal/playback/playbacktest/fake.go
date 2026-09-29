@@ -23,11 +23,10 @@ type Call struct {
 // handing it to the code under test; methods are safe for concurrent use.
 type Fake struct {
 	AuthStatus          playback.AuthStatus
-	SearchResult        []playback.Song
 	SearchCatalogResult playback.SearchResults
 	PlaylistsResult     []playback.Playlist
 	// Err, when set, is returned by every method; MethodErr overrides it
-	// per method name (for example "Search").
+	// per method name (for example "SearchCatalog").
 	Err       error
 	MethodErr map[string]error
 
@@ -84,13 +83,6 @@ func (f *Fake) Authorize(context.Context) (playback.AuthStatus, error) {
 		return "", err
 	}
 	return f.AuthStatus, nil
-}
-
-func (f *Fake) Search(_ context.Context, term string, limit int) ([]playback.Song, error) {
-	if err := f.record("Search", term, limit); err != nil {
-		return nil, err
-	}
-	return f.SearchResult, nil
 }
 
 func (f *Fake) SearchCatalog(_ context.Context, term string, limit int) (playback.SearchResults, error) {

@@ -16,14 +16,14 @@ final class CodecTests: XCTestCase {
     }
 
     func testReadOnlyCommandsDoNotMutatePlayback() {
-        for cmd in ["authorize", "search", "searchCatalog", "playlists"] {
+        for cmd in ["authorize", "searchCatalog", "playlists"] {
             XCTAssertFalse(Request(id: "1", cmd: cmd).mutatesPlayback, cmd)
         }
         XCTAssertTrue(Request(id: "1", cmd: "playSongs").mutatesPlayback)
     }
 
     func testBooleansAreNotNumbers() throws {
-        let request = try Codec.decode(#"{"id":"1","cmd":"search","limit":true}"#).get()
+        let request = try Codec.decode(#"{"id":"1","cmd":"searchCatalog","limit":true}"#).get()
         XCTAssertNil(request.int("limit"))
     }
 
@@ -58,13 +58,13 @@ final class CodecTests: XCTestCase {
     }
 
     func testIntRejectsFractionalNumbersInsteadOfTruncating() throws {
-        let request = try Codec.decode(#"{"id":"1","cmd":"search","limit":1.9,"startIndex":-2.5}"#).get()
+        let request = try Codec.decode(#"{"id":"1","cmd":"searchCatalog","limit":1.9,"startIndex":-2.5}"#).get()
         XCTAssertNil(request.int("limit"))
         XCTAssertNil(request.int("startIndex"))
     }
 
     func testIntRejectsValuesOutsideTheExactRange() throws {
-        let request = try Codec.decode(#"{"id":"1","cmd":"search","huge":1e30,"big":9007199254740993}"#).get()
+        let request = try Codec.decode(#"{"id":"1","cmd":"searchCatalog","huge":1e30,"big":9007199254740993}"#).get()
         XCTAssertNil(request.int("huge"))
         XCTAssertNil(request.int("big"))
     }
@@ -73,7 +73,7 @@ final class CodecTests: XCTestCase {
         // ±(2^53 - 1) is the largest exact range; 2^53 itself is ambiguous
         // (2^53 + 1 rounds to it), so it is rejected in either spelling.
         let request = try Codec.decode(
-            #"{"id":"1","cmd":"search","maxInt":9007199254740991,"minInt":-9007199254740991,"# +
+            #"{"id":"1","cmd":"searchCatalog","maxInt":9007199254740991,"minInt":-9007199254740991,"# +
                 #""limitInt":9007199254740992,"limitNegInt":-9007199254740992,"# +
                 #""maxDouble":9007199254740991.0,"limitDouble":9007199254740992.0,"limitNegDouble":-9007199254740992.0}"#
         ).get()
@@ -87,7 +87,7 @@ final class CodecTests: XCTestCase {
     }
 
     func testIntAcceptsIntegralNumbers() throws {
-        let request = try Codec.decode(#"{"id":"1","cmd":"search","a":3,"b":2.0,"c":-1,"d":0}"#).get()
+        let request = try Codec.decode(#"{"id":"1","cmd":"searchCatalog","a":3,"b":2.0,"c":-1,"d":0}"#).get()
         XCTAssertEqual(request.int("a"), 3)
         XCTAssertEqual(request.int("b"), 2)
         XCTAssertEqual(request.int("c"), -1)

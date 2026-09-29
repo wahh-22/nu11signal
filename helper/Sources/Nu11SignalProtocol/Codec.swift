@@ -56,7 +56,7 @@ public struct Request {
     }
 
     /// Commands that change playback run one at a time in arrival order;
-    /// read-only commands (authorize, search, searchCatalog, playlists) run
+    /// read-only commands (authorize, searchCatalog, playlists) run
     /// concurrently.
     public static let playbackCommands: Set<String> = [
         "playSongs", "playPlaylist", "pause", "resume", "next", "previous", "stop", "seek",

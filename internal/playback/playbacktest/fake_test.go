@@ -13,16 +13,12 @@ var _ playback.Player = (*Fake)(nil)
 
 func TestFakeRecordsCallsAndReturnsCannedResults(t *testing.T) {
 	f := New()
-	f.SearchResult = []playback.Song{{ID: "s1"}}
 	f.PlaylistsResult = []playback.Playlist{{ID: "p1"}}
 	f.SearchCatalogResult = playback.SearchResults{Artists: []playback.Artist{{ID: "a1"}}}
 	ctx := t.Context()
 
 	if st, err := f.Authorize(ctx); err != nil || st != playback.AuthAuthorized {
 		t.Fatalf("Authorize = %q, %v", st, err)
-	}
-	if songs, _ := f.Search(ctx, "daft", 5); len(songs) != 1 {
-		t.Fatalf("Search = %v", songs)
 	}
 	if res, _ := f.SearchCatalog(ctx, "daft", 3); len(res.Artists) != 1 {
 		t.Fatalf("SearchCatalog = %+v", res)
@@ -35,7 +31,6 @@ func TestFakeRecordsCallsAndReturnsCannedResults(t *testing.T) {
 
 	want := []Call{
 		{Method: "Authorize"},
-		{Method: "Search", Args: []any{"daft", 5}},
 		{Method: "SearchCatalog", Args: []any{"daft", 3}},
 		{Method: "Playlists"},
 		{Method: "PlaySongs", Args: []any{[]string{"s1"}, 0}},

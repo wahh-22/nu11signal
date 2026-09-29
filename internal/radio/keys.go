@@ -36,8 +36,12 @@ var playerHints = []hint{
 	{"Q", "QUIT"},
 }
 
+// searchHints replace playerHints while the search view is open: typing
+// goes to the input, so only non-text keys act.
 var searchHints = []hint{
-	{"ENTER", "SCAN"},
-	{"ESC", "CANCEL"},
+	{"ENTER", "SELECT"},
+	{"↑↓", "MOVE"},
+	{"TAB", "STATIONS"},
+	{"ESC", "BACK"},
 	{"CTRL+C", "QUIT"},
 }

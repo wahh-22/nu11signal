@@ -20,6 +20,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wahh-22/nu11signal/internal/helper"
+	"github.com/wahh-22/nu11signal/internal/history"
 	"github.com/wahh-22/nu11signal/internal/playback"
 	"github.com/wahh-22/nu11signal/internal/playback/demo"
 	"github.com/wahh-22/nu11signal/internal/radio"
@@ -48,8 +49,9 @@ type deps struct {
 	locateHelper func() (string, error)
 	// startHelper launches the helper at path; ctx bounds only startup.
 	startHelper func(ctx context.Context, path string) (playback.Player, error)
-	// runUI runs the radio UI against player until the user quits.
-	runUI func(player playback.Player) error
+	// runUI runs the radio UI against player until the user quits; recents
+	// stores recent searches (nil keeps them in memory only).
+	runUI func(player playback.Player, recents history.Recents) error
 }
 
 // run executes the command with args (without the program name) and
@@ -86,14 +88,28 @@ func play(demoMode bool, d deps) error {
 	// shutdown and kills a helper that does not exit.
 	defer player.Close()
 
-	if err := d.runUI(player); err != nil && !errors.Is(err, tea.ErrInterrupted) {
+	if err := d.runUI(player, openRecents(demoMode)); err != nil && !errors.Is(err, tea.ErrInterrupted) {
 		return err
 	}
 	return nil
 }
 
-func runUI(player playback.Player) error {
-	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano())})
+// openRecents returns the recent-searches file in the user's config
+// directory. The demo, and a system without a config directory, keep
+// recent searches in memory instead (nil).
+func openRecents(demoMode bool) history.Recents {
+	if demoMode {
+		return nil
+	}
+	path, err := history.DefaultPath()
+	if err != nil {
+		return nil
+	}
+	return history.NewFile(path)
+}
+
+func runUI(player playback.Player, recents history.Recents) error {
+	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano()), Recents: recents})
 	_, err := tea.NewProgram(model).Run()
 	return err
 }

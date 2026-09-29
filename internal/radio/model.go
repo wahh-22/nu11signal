@@ -4,11 +4,13 @@ package radio
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wahh-22/nu11signal/internal/history"
 	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
@@ -23,10 +25,14 @@ type Options struct {
 	// CloseTimeout bounds how long quitting waits for Player.Close before
 	// the UI exits anyway (default 3s).
 	CloseTimeout time.Duration
+	// Recents keeps recent search terms; nil keeps them in memory only.
+	Recents history.Recents
 }
 
 const (
 	searchLimit         = 25
+	searchDebounce      = 250 * time.Millisecond
+	minSearchRunes      = 2
 	seekStep            = 10 * time.Second
 	statusTTL           = 4 * time.Second
 	glitchFrames        = 6
@@ -44,12 +50,25 @@ const (
 	authFailed
 )
 
-type listView int
+// viewKind names what the list panel shows.
+type viewKind int
 
 const (
-	viewStations listView = iota
-	viewResults
+	// viewStations is the root of the navigation stack.
+	viewStations viewKind = iota
+	// viewSearch is the catalog search; its state lives in Model.search so
+	// that it survives being popped and restored with tab.
+	viewSearch
 )
+
+// frame is one entry of the navigation stack: a view and its cursor. Browse
+// views pushed later (artist, album) add the state they need to own per
+// entry here, so that popping one reveals the previous entry untouched.
+type frame struct {
+	kind viewKind
+	// cursor is the selected row; in the search view -1 selects the input.
+	cursor int
+}
 
 // Model is the Bubble Tea model of the radio.
 type Model struct {
@@ -64,12 +83,10 @@ type Model struct {
 	auth       authPhase
 	authDetail string
 
-	stations      []playback.Playlist
-	results       []playback.Song
-	resultsTerm   string
-	list          listView
-	stationCursor int
-	resultCursor  int
+	stations []playback.Playlist
+	// stack is the navigation stack; stack[0] is the stations list and the
+	// list panel shows the top entry.
+	stack []frame
 	// playingStation is the station the player confirmed tuning to.
 	playingStation string
 	// playSeq numbers play requests; only the answer to the latest one
@@ -78,8 +95,10 @@ type Model struct {
 	// stationsFailed means loading the station list failed; r retries.
 	stationsFailed bool
 
-	searching bool
-	input     textinput.Model
+	input        textinput.Model
+	search       searchState
+	recents      []string
+	recentsStore history.Recents
 
 	// seekPending holds the target of the latest seek (seekSeq) until the
 	// player answers it, so rapid seeks accumulate instead of restarting
@@ -117,9 +136,12 @@ func New(p playback.Player, opts Options) Model {
 	if opts.CloseTimeout <= 0 {
 		opts.CloseTimeout = defaultCloseTimeout
 	}
+	if opts.Recents == nil {
+		opts.Recents = history.NewMemory()
+	}
 	in := textinput.New()
 	in.Prompt = ""
-	in.Placeholder = "ARTIST, TRACK, ALBUM"
+	in.Placeholder = "ARTISTS, SONGS"
 	in.CharLimit = 120
 	in.SetStyles(inputStyles())
 	return Model{
@@ -128,13 +150,16 @@ func New(p playback.Player, opts Options) Model {
 		seed:         opts.Seed,
 		timeout:      opts.CallTimeout,
 		closeTimeout: opts.CloseTimeout,
+		stack:        []frame{{kind: viewStations}},
 		input:        in,
+		recentsStore: opts.Recents,
 	}
 }
 
-// Init authorizes, starts listening to the player, and starts animating.
+// Init authorizes, loads recent searches, starts listening to the player,
+// and starts animating.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.authorizeCmd(), m.waitStates(), m.waitErrors(), tickAfter(idleTick, m.tickGen))
+	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.waitStates(), m.waitErrors(), tickAfter(idleTick, m.tickGen))
 }
 
 // Messages produced by the model's commands.
@@ -146,11 +171,6 @@ type (
 	playlistsMsg struct {
 		playlists []playback.Playlist
 		err       error
-	}
-	searchMsg struct {
-		term  string
-		songs []playback.Song
-		err   error
 	}
 	// actionMsg reports the outcome of a fire-and-forget Player call.
 	actionMsg struct {
@@ -197,15 +217,6 @@ func (m Model) loadPlaylistsCmd() tea.Cmd {
 		defer cancel()
 		pls, err := m.player.Playlists(ctx)
 		return playlistsMsg{playlists: pls, err: err}
-	}
-}
-
-func (m Model) searchCmd(term string) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := m.ctx()
-		defer cancel()
-		songs, err := m.player.Search(ctx, term, searchLimit)
-		return searchMsg{term: term, songs: songs, err: err}
 	}
 }
 
@@ -305,13 +316,38 @@ func (m Model) position() time.Duration {
 // signalLost reports that the player shut down underneath the UI.
 func (m Model) signalLost() bool { return m.lostState || m.lostErrs }
 
-func (m Model) showingResults() bool { return m.list == viewResults && len(m.results) > 0 }
+// top is the navigation entry the list panel shows.
+func (m Model) top() frame { return m.stack[len(m.stack)-1] }
 
-func (m Model) cursor() int {
-	if m.showingResults() {
-		return m.resultCursor
+func (m Model) cursor() int { return m.top().cursor }
+
+// stationCursor is the selected station: the cursor of the stations root,
+// whatever view is on top.
+func (m Model) stationCursor() int { return m.stack[0].cursor }
+
+func (m *Model) setStationCursor(c int) { m.setCursorAt(0, c) }
+
+// The stack helpers copy the stack before changing it: Models are values,
+// and an older copy must never see a newer one's navigation.
+
+func (m *Model) push(f frame) { m.stack = append(slices.Clone(m.stack), f) }
+
+// pop removes the top entry; the stations root is never popped.
+func (m *Model) pop() {
+	if len(m.stack) > 1 {
+		m.stack = slices.Clone(m.stack[:len(m.stack)-1])
 	}
-	return m.stationCursor
+}
+
+func (m *Model) popToRoot() { m.stack = slices.Clone(m.stack[:1]) }
+
+// setCursor moves the cursor of the top entry.
+func (m *Model) setCursor(c int) { m.setCursorAt(len(m.stack)-1, c) }
+
+// setCursorAt moves the cursor of stack entry i.
+func (m *Model) setCursorAt(i, c int) {
+	m.stack = slices.Clone(m.stack)
+	m.stack[i].cursor = c
 }
 
 func (m *Model) setStatus(s string) {

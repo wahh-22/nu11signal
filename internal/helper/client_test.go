@@ -25,15 +25,6 @@ func TestRoundTrip(t *testing.T) {
 		t.Fatalf("Authorize = %q, %v; want authorized", status, err)
 	}
 
-	songs, err := c.Search(ctx, "daft punk", 2)
-	if err != nil {
-		t.Fatalf("Search: %v", err)
-	}
-	wantFirst := playback.Song{ID: "s1", Title: "One More Time", Artist: "Daft Punk", Album: "Discovery", Duration: 320*time.Second + 500*time.Millisecond}
-	if len(songs) != 2 || songs[0] != wantFirst || songs[1].Duration != 301*time.Second {
-		t.Fatalf("Search = %+v", songs)
-	}
-
 	lists, err := c.Playlists(ctx)
 	if err != nil || len(lists) != 1 || lists[0] != (playback.Playlist{ID: "p1", Name: "Night City"}) {
 		t.Fatalf("Playlists = %+v, %v", lists, err)
@@ -134,15 +125,15 @@ func TestOutOfOrderResponsesAreCorrelated(t *testing.T) {
 	ctx := t.Context()
 
 	var wg sync.WaitGroup
-	var songs []playback.Song
+	var found playback.SearchResults
 	var lists []playback.Playlist
 	var searchErr, listErr error
-	wg.Go(func() { songs, searchErr = c.Search(ctx, "daft punk", 2) })
+	wg.Go(func() { found, searchErr = c.SearchCatalog(ctx, "daft", 3) })
 	wg.Go(func() { lists, listErr = c.Playlists(ctx) })
 	wg.Wait()
 
-	if searchErr != nil || len(songs) != 2 || songs[0].ID != "s1" {
-		t.Fatalf("Search = %+v, %v", songs, searchErr)
+	if searchErr != nil || len(found.Songs) != 1 || found.Songs[0].ID != "s1" {
+		t.Fatalf("SearchCatalog = %+v, %v", found, searchErr)
 	}
 	if listErr != nil || len(lists) != 1 || lists[0].ID != "p1" {
 		t.Fatalf("Playlists = %+v, %v", lists, listErr)
@@ -209,9 +200,9 @@ func TestCrashFailsPendingCallsAndClosesChannels(t *testing.T) {
 	var stderr bytes.Buffer
 	c := startFake(t, "crash", Options{Stderr: &stderr})
 
-	_, err := c.Search(t.Context(), "daft punk", 2)
+	_, err := c.SearchCatalog(t.Context(), "daft", 3)
 	if !errors.Is(err, ErrHelperExited) {
-		t.Fatalf("Search error = %v; want ErrHelperExited", err)
+		t.Fatalf("SearchCatalog error = %v; want ErrHelperExited", err)
 	}
 	if !strings.Contains(err.Error(), "fatal: helper crashed") {
 		t.Fatalf("error %q does not include the helper's stderr", err)
@@ -270,16 +261,16 @@ func TestWriteToStuckHelperIsBoundedByContext(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := c.Search(ctx, term, 1)
+		_, err := c.SearchCatalog(ctx, term, 1)
 		done <- err
 	}()
 	select {
 	case err := <-done:
 		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatalf("Search error = %v; want deadline exceeded", err)
+			t.Fatalf("SearchCatalog error = %v; want deadline exceeded", err)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("Search blocked on a helper that never reads stdin")
+		t.Fatal("SearchCatalog blocked on a helper that never reads stdin")
 	}
 }
 
@@ -317,8 +308,8 @@ func TestCloseIsBoundedWhileAWriteIsStuck(t *testing.T) {
 	term := strings.Repeat("x", 1<<20)
 	for range 2 {
 		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
-		if _, err := c.Search(ctx, term, 1); !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatalf("Search error = %v; want deadline exceeded", err)
+		if _, err := c.SearchCatalog(ctx, term, 1); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("SearchCatalog error = %v; want deadline exceeded", err)
 		}
 		cancel()
 	}

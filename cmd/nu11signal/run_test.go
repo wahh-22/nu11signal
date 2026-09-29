@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wahh-22/nu11signal/internal/helper"
+	"github.com/wahh-22/nu11signal/internal/history"
 	"github.com/wahh-22/nu11signal/internal/playback"
 	"github.com/wahh-22/nu11signal/internal/playback/demo"
 )
@@ -32,6 +33,7 @@ type testEnv struct {
 	stdout, stderr bytes.Buffer
 	d              deps
 	uiPlayer       playback.Player
+	uiRecents      history.Recents
 	uiRuns         int
 }
 
@@ -49,9 +51,9 @@ func newTestEnv(t *testing.T) *testEnv {
 			t.Error("startHelper called unexpectedly")
 			return nil, errors.New("unexpected start")
 		},
-		runUI: func(p playback.Player) error {
+		runUI: func(p playback.Player, r history.Recents) error {
 			e.uiRuns++
-			e.uiPlayer = p
+			e.uiPlayer, e.uiRecents = p, r
 			return nil
 		},
 	}
@@ -131,6 +133,11 @@ func TestRunHelperStartFailureExitsOne(t *testing.T) {
 }
 
 func TestRunPlaysThroughHelperAndClosesIt(t *testing.T) {
+	// The recent-searches file lives in the user's config directory; point
+	// it at a temporary home so the test never depends on the host's.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", home)
 	e := newTestEnv(t)
 	player := &fakePlayer{}
 	e.d.locateHelper = func() (string, error) { return "/opt/helper", nil }
@@ -144,6 +151,9 @@ func TestRunPlaysThroughHelperAndClosesIt(t *testing.T) {
 	if player.closed != 1 {
 		t.Fatalf("player closed %d times; want 1", player.closed)
 	}
+	if _, ok := e.uiRecents.(*history.File); !ok {
+		t.Fatalf("UI got recents %T; want the recent-searches file", e.uiRecents)
+	}
 }
 
 func TestRunDemoUsesSimulatedPlayerWithoutHelper(t *testing.T) {
@@ -153,6 +163,10 @@ func TestRunDemoUsesSimulatedPlayerWithoutHelper(t *testing.T) {
 	}
 	if _, ok := e.uiPlayer.(*demo.Player); !ok {
 		t.Fatalf("UI got player %T; want *demo.Player", e.uiPlayer)
+	}
+	// The demo keeps recent searches in memory, off the user's config.
+	if e.uiRecents != nil {
+		t.Fatalf("UI got recents %T; want none (in-memory fallback)", e.uiRecents)
 	}
 }
 
@@ -169,7 +183,7 @@ func TestRunUIExitPaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newTestEnv(t)
-			e.d.runUI = func(playback.Player) error { return tt.uiErr }
+			e.d.runUI = func(playback.Player, history.Recents) error { return tt.uiErr }
 			if code := run([]string{"--demo"}, e.d); code != tt.wantCode {
 				t.Fatalf("exit code = %d; want %d", code, tt.wantCode)
 			}

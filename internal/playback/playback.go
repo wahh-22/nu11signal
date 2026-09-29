@@ -78,7 +78,6 @@ const (
 // closed when the player shuts down, whether through Close or a backend crash.
 type Player interface {
 	Authorize(ctx context.Context) (AuthStatus, error)
-	Search(ctx context.Context, term string, limit int) ([]Song, error)
 	SearchCatalog(ctx context.Context, term string, limit int) (SearchResults, error)
 	Playlists(ctx context.Context) ([]Playlist, error)
 	PlaySongs(ctx context.Context, ids []string, start int) error

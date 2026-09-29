@@ -10,7 +10,7 @@ final class RoutingTests: XCTestCase {
     }
 
     func testReadOnlyAndUnknownCommandsRunConcurrently() {
-        for cmd in ["authorize", "search", "playlists", "bogus"] {
+        for cmd in ["authorize", "searchCatalog", "playlists", "bogus"] {
             XCTAssertFalse(Request(id: "1", cmd: cmd).mutatesPlayback, cmd)
         }
     }
