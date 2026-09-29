@@ -61,17 +61,25 @@ const (
 	viewSearch
 	// viewArtist is an artist page; its state lives in its frame.
 	viewArtist
+	// viewAlbum is an album page, or a song's (the SONG view); its state
+	// lives in its frame.
+	viewAlbum
+	// viewPlaylist is a catalog playlist page; its state lives in its
+	// frame.
+	viewPlaylist
 )
 
 // frame is one entry of the navigation stack: a view and its cursor. Browse
-// views pushed later (artist, album) add the state they need to own per
-// entry here, so that popping one reveals the previous entry untouched.
+// pages keep the state they own per entry here, so that popping one
+// reveals the previous entry untouched.
 type frame struct {
 	kind viewKind
 	// cursor is the selected row; in the search view -1 selects the input.
 	cursor int
 	// artist is the page of a viewArtist entry.
 	artist artistPage
+	// tracks is the page of a viewAlbum or viewPlaylist entry.
+	tracks trackPage
 }
 
 // Model is the Bubble Tea model of the radio.
@@ -105,6 +113,8 @@ type Model struct {
 	recentsStore history.Recents
 	// artistSeq numbers artist page loads (see artistPage.seq).
 	artistSeq uint64
+	// detailSeq numbers album and playlist page loads (see trackPage.seq).
+	detailSeq uint64
 
 	// seekPending holds the target of the latest seek (seekSeq) until the
 	// player answers it, so rapid seeks accumulate instead of restarting
@@ -374,7 +384,9 @@ func (m *Model) setCursorAt(i, c int) {
 	m.stack[i].cursor = c
 }
 
+// setStatus shows s on the status line; it may carry network text (an
+// error from the helper), so it is cleaned first.
 func (m *Model) setStatus(s string) {
-	m.status = s
+	m.status = cleanLine(s)
 	m.statusUntil = m.now().Add(statusTTL)
 }

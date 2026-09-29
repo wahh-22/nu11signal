@@ -470,11 +470,14 @@ func TestStationMarkedOnAirOnlyAfterHelperConfirms(t *testing.T) {
 	t.Run("failed song play keeps the station", func(t *testing.T) {
 		f := playbacktest.New()
 		f.SearchCatalogResult = playback.SearchResults{Songs: songs()}
+		f.SongAlbumResult = playback.AlbumDetail{Tracks: []playback.Track{{Song: songs()[0]}, {Song: songs()[1]}}}
 		m := loaded(t, f, newClock())
 		m, cmd := press(t, m, "enter")
 		m, _ = step(t, m, run(t, cmd))
 		m = searchFor(t, m, "daft")
-		m, _ = press(t, m, "down")
+		// A song row opens its album; enter there plays.
+		m, cmd = press(t, m, "down", "enter")
+		m = settle(t, m, cmd)
 		f.MethodErr = map[string]error{"PlaySongs": errors.New("offline")}
 		m, cmd = press(t, m, "enter")
 		m = settle(t, m, cmd)

@@ -237,7 +237,7 @@ func (m Model) onCatalog(msg catalogMsg) Model {
 	if msg.seq != m.search.seq {
 		return m
 	}
-	m.search = searchState{seq: msg.seq, term: msg.term, results: msg.results, err: msg.err}
+	m.search = searchState{seq: msg.seq, term: msg.term, results: cleanResults(msg.results), err: msg.err}
 	if msg.err != nil {
 		// The panel is narrow; the status line has room for the reason.
 		m.setStatus("CATALOG SCAN FAILED // " + msg.err.Error())
@@ -269,12 +269,8 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 		return next, tea.Batch(open, save)
 	case rowSong:
 		save := m.remember(m.search.term)
-		id := row.song.ID
-		m.playSeq++
-		play := m.playCmd(m.playSeq, "PLAY", "", func(ctx context.Context) error {
-			return m.player.PlaySongs(ctx, []string{id}, 0)
-		})
-		return m, tea.Batch(play, save)
+		next, open := m.openSong(row.song)
+		return next, tea.Batch(open, save)
 	}
 	m.input.SetValue(row.term)
 	m.input.CursorEnd()
