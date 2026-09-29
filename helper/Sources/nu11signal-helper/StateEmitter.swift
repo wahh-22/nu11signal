@@ -16,6 +16,12 @@ final class StateEmitter {
     private var lastSignature: String?
     private var ticker: Task<Void, Never>?
 
+    /// The catalog id of each library copy in the queue, keyed by the
+    /// copy's id (see `PreparedQueue.catalogIDs`): a state names the
+    /// catalog song the UI asked for, not the copy the player holds.
+    /// `playSongs` replaces it with each queue it hands the player.
+    var catalogIDs: [String: String] = [:]
+
     func start() {
         stateSubscription = player.state.objectWillChange
             .sink { [weak self] in self?.scheduleCheck() }
@@ -32,7 +38,7 @@ final class StateEmitter {
     /// changed.
     func checkForChange() {
         observeQueue()
-        let snapshot = Snapshot(player: player)
+        let snapshot = Snapshot(player: player, catalogIDs: catalogIDs)
         if snapshot.signature != lastSignature {
             emit(snapshot)
         }
@@ -42,11 +48,11 @@ final class StateEmitter {
     /// position the status/entry signature does not capture).
     func emitNow() {
         observeQueue()
-        emit(Snapshot(player: player))
+        emit(Snapshot(player: player, catalogIDs: catalogIDs))
     }
 
     private func tick() {
-        let snapshot = Snapshot(player: player)
+        let snapshot = Snapshot(player: player, catalogIDs: catalogIDs)
         if snapshot.status == "playing" || snapshot.signature != lastSignature {
             emit(snapshot)
         }
@@ -89,7 +95,7 @@ private struct Snapshot {
     var repeatMode: String
 
     @MainActor
-    init(player: ApplicationMusicPlayer) {
+    init(player: ApplicationMusicPlayer, catalogIDs: [String: String]) {
         status = Snapshot.name(of: player.state.playbackStatus)
         position = max(0, player.playbackTime)
         repeatMode = Snapshot.name(of: player.state.repeatMode)
@@ -102,7 +108,7 @@ private struct Snapshot {
         case let .song(song):
             artist = song.artistName
             album = song.albumTitle ?? ""
-            songId = song.id.rawValue
+            songId = catalogIDs[song.id.rawValue] ?? song.id.rawValue
             duration = LibraryDuration.seconds(song.duration)
         case let .musicVideo(video):
             artist = video.artistName

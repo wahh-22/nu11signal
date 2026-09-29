@@ -90,7 +90,7 @@ func TestCatalogTextNeverReachesTheTerminalRaw(t *testing.T) {
 		t.Fatal("search results or player state reached the terminal with a control character")
 	}
 	m, _ = press(t, m, "down", "down", "down", "down")
-	m, cmd := press(t, m, "enter")
+	m, cmd := press(t, m, keyAlbum)
 	m = settle(t, m, cmd)
 	if view := m.render(); strings.Contains(view, "\x07") || !strings.Contains(plain(m), "DISCOVERY]0;PWNED") {
 		t.Fatalf("album page not cleaned:\n%q", plain(m))

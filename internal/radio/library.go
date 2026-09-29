@@ -19,9 +19,12 @@ import (
 // and creating one. The Apple Music API offers nothing more: playlists
 // cannot be renamed or deleted, nor songs removed from them.
 //
-// A song's favorite state is read lazily, on the animation tick, for the
-// song on the selected row and the song playing only: holding ↓ never
-// floods the helper. A failed read is tried again favoriteRetryAfter later.
+// A page's songs have their favorite states read as the page loads, in
+// one Favorites call for all of them, so its hearts show at once. The
+// animation tick reads, one by one, only what that left unknown: the song
+// playing when it is not on the page, or the selected song when the page
+// read failed. Holding ↓ never floods the helper. A failed tick read is
+// tried again favoriteRetryAfter later.
 // States are cached per song; a change shows at once and is sent to the
 // player, one at a time per song: presses meanwhile only move the state
 // shown, and the latest one is sent when the change in flight answers (as
@@ -92,6 +95,13 @@ type (
 		seq uint64
 		on  bool
 		err error
+	}
+	// favoritesMsg answers the page read number seq, for ids.
+	favoritesMsg struct {
+		ids   []string
+		seq   uint64
+		loved map[string]bool
+		err   error
 	}
 	setFavoriteMsg struct {
 		song playback.Song
@@ -264,6 +274,57 @@ func (m Model) favoriteTargets() []playback.Song {
 	return out
 }
 
+// prefetchFavorites reads, in one call, the favorite states of the songs
+// of a page just loaded: those with a catalog id that are not known, being
+// read or changed.
+func (m Model) prefetchFavorites(songs []playback.Song) (Model, tea.Cmd) {
+	if m.auth != authOK || m.signalLost() {
+		return m, nil
+	}
+	var ids []string
+	for _, s := range songs {
+		f := m.favs[s.ID]
+		if s.ID == "" || s.LibraryOnly || f.known || f.reading || f.writing || slices.Contains(ids, s.ID) {
+			continue
+		}
+		ids = append(ids, s.ID)
+	}
+	if len(ids) == 0 {
+		return m, nil
+	}
+	m.favSeq++
+	seq, player := m.favSeq, m.player
+	for _, id := range ids {
+		f := m.favs[id]
+		f.reading, f.seq = true, seq
+		m.setFavorite(id, f)
+	}
+	return m, func() tea.Msg {
+		ctx, cancel := m.libraryCtx()
+		defer cancel()
+		loved, err := player.Favorites(ctx, ids)
+		return favoritesMsg{ids: ids, seq: seq, loved: loved, err: err}
+	}
+}
+
+// onFavorites settles a page read, but for the songs a change or another
+// read overtook. A failed read leaves the states unknown, and quietly:
+// the tick then reads the ones it shows, one by one.
+func (m Model) onFavorites(msg favoritesMsg) Model {
+	for _, id := range msg.ids {
+		f := m.favs[id]
+		if f.seq != msg.seq {
+			continue
+		}
+		f.reading = false
+		if msg.err == nil {
+			f.on, f.known, f.failedAt = msg.loved[id], true, time.Time{}
+		}
+		m.setFavorite(id, f)
+	}
+	return m
+}
+
 // onFavorite settles a read; one a change overtook is dropped.
 func (m Model) onFavorite(msg favoriteMsg) Model {
 	f := m.favs[msg.id]
@@ -412,7 +473,7 @@ func (m Model) heartTitle(title string, w int) (string, zones) {
 	if !ok || w < heartTitleMinWidth {
 		return title, nil
 	}
-	b := button{id: zoneFavPlaying, label: "♡", tone: stMuted}
+	b := button{id: zoneFavPlaying, label: "♡", tone: stMuted, focused: m.focused(ctlFav)}
 	if on, _ := m.favoriteOf(s.ID); on {
 		b.label, b.tone = "♥", stYellow
 	}

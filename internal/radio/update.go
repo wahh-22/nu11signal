@@ -55,15 +55,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case searchDebounceMsg:
 		return m.onSearchDebounce(msg)
 	case catalogMsg:
-		return m.onCatalog(msg), nil
+		current := msg.seq == m.search.seq
+		m = m.onCatalog(msg)
+		if !current || msg.err != nil {
+			return m, nil
+		}
+		return m.prefetchFavorites(msg.results.Songs)
+	// A page that loaded reads the favorite states of its songs.
 	case artistMsg:
-		return m.onArtist(msg), nil
+		m = m.onArtist(msg)
+		if msg.err != nil {
+			return m, nil
+		}
+		return m.prefetchFavorites(msg.detail.TopSongs)
 	case albumMsg:
-		return m.onAlbum(msg), nil
+		m = m.onAlbum(msg)
+		if msg.err != nil {
+			return m, nil
+		}
+		songs := make([]playback.Song, len(msg.detail.Tracks))
+		for i, t := range msg.detail.Tracks {
+			songs[i] = t.Song
+		}
+		return m.prefetchFavorites(songs)
 	case playlistMsg:
-		return m.onPlaylist(msg), nil
+		m = m.onPlaylist(msg)
+		if msg.err != nil {
+			return m, nil
+		}
+		return m.prefetchFavorites(msg.detail.Tracks)
 	case resultsMsg:
-		return m.onResults(msg), nil
+		m = m.onResults(msg)
+		if msg.err != nil {
+			return m, nil
+		}
+		var songs []playback.Song
+		for _, it := range msg.found.Top {
+			if it.Kind == playback.ItemSong {
+				songs = append(songs, it.Song)
+			}
+		}
+		return m.prefetchFavorites(append(songs, msg.found.Songs...))
 	case actionMsg:
 		if msg.err != nil {
 			m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
@@ -73,6 +105,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onPlay(msg), nil
 	case favoriteMsg:
 		return m.onFavorite(msg), nil
+	case favoritesMsg:
+		return m.onFavorites(msg), nil
 	case setFavoriteMsg:
 		return m.onSetFavorite(msg)
 	case addedMsg:
@@ -81,6 +115,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onCreated(msg)
 	case seekMsg:
 		return m.onSeek(msg), nil
+	case loopMsg:
+		return m.onLoop(msg), nil
 	case volumeMsg:
 		return m.onVolume(msg)
 	case setVolumeMsg:
@@ -137,9 +173,13 @@ func (m Model) onState(s playback.State) Model {
 		m.seekPending = false // the pending target belonged to another song
 	}
 	m.state, m.hasState, m.stateAt = cleanState(s), true, m.now()
+	m.confirmLoop()
 	// With nothing left to seek in, the bar focus falls back to the
-	// button below it.
+	// button below it; with no song, the ♥ focus to PLAY.
 	m.onBar = m.onBar && m.seekable()
+	if _, ok := m.playingSong(); !ok && m.control == ctlFav {
+		m.control = ctlPlay
+	}
 	return m
 }
 

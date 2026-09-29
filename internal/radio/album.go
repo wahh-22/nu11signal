@@ -292,15 +292,25 @@ func (m Model) tracksEnter() (Model, tea.Cmd) {
 			return m.player.PlaySongs(ctx, ids, from)
 		})
 	}
-	songs := m.top().tracks.tracks()
+	return m.playSongs(songIDs(m.top().tracks.tracks()), it.index)
+}
+
+// playSongs plays the catalog songs ids from ids[start], the rest queued
+// around it: a song picked from a list plays on into that list.
+func (m Model) playSongs(ids []string, start int) (Model, tea.Cmd) {
+	m.playSeq++
+	return m, m.playCmd(m.playSeq, "PLAY", "", func(ctx context.Context) error {
+		return m.player.PlaySongs(ctx, ids, start)
+	})
+}
+
+// songIDs are the ids of songs, in order.
+func songIDs(songs []playback.Song) []string {
 	ids := make([]string, len(songs))
 	for i, s := range songs {
 		ids[i] = s.ID
 	}
-	m.playSeq++
-	return m, m.playCmd(m.playSeq, "PLAY", "", func(ctx context.Context) error {
-		return m.player.PlaySongs(ctx, ids, it.index)
-	})
+	return ids
 }
 
 // playableQueue is the catalog ids of songs, library-only ones left out,

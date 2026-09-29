@@ -168,15 +168,18 @@ func TestResultsRowsOpenTheirViews(t *testing.T) {
 		title  string
 		method string
 		arg    string
+		// key opens the row: enter, or the album key on a song row
+		// (enter plays it, see queue_test.go).
+		key string
 	}{
-		{"top artist", firstOf(playback.ItemArtist, 0), viewArtist, "ARTIST", "Artist", "a1"},
-		{"top song", firstOf(playback.ItemSong, 0), viewAlbum, "SONG", "SongAlbum", "s1"},
-		{"top album", firstOf(playback.ItemAlbum, 0), viewAlbum, "ALBUM", "Album", "al1"},
-		{"top playlist", firstOf(playback.ItemPlaylist, 0), viewPlaylist, "PLAYLIST", "CatalogPlaylist", "pl1"},
-		{"artist", firstOf(playback.ItemArtist, 4), viewArtist, "ARTIST", "Artist", "a1"},
-		{"second album", firstOf(playback.ItemAlbum, 6), viewAlbum, "ALBUM", "Album", "al2"},
-		{"second song", firstOf(playback.ItemSong, 8), viewAlbum, "SONG", "SongAlbum", "s2"},
-		{"playlist", firstOf(playback.ItemPlaylist, 9), viewPlaylist, "PLAYLIST", "CatalogPlaylist", "pl1"},
+		{"top artist", firstOf(playback.ItemArtist, 0), viewArtist, "ARTIST", "Artist", "a1", ""},
+		{"top song", firstOf(playback.ItemSong, 0), viewAlbum, "SONG", "SongAlbum", "s1", keyAlbum},
+		{"top album", firstOf(playback.ItemAlbum, 0), viewAlbum, "ALBUM", "Album", "al1", ""},
+		{"top playlist", firstOf(playback.ItemPlaylist, 0), viewPlaylist, "PLAYLIST", "CatalogPlaylist", "pl1", ""},
+		{"artist", firstOf(playback.ItemArtist, 4), viewArtist, "ARTIST", "Artist", "a1", ""},
+		{"second album", firstOf(playback.ItemAlbum, 6), viewAlbum, "ALBUM", "Album", "al2", ""},
+		{"second song", firstOf(playback.ItemSong, 8), viewAlbum, "SONG", "SongAlbum", "s2", keyAlbum},
+		{"playlist", firstOf(playback.ItemPlaylist, 9), viewPlaylist, "PLAYLIST", "CatalogPlaylist", "pl1", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -190,7 +193,10 @@ func TestResultsRowsOpenTheirViews(t *testing.T) {
 			for m.cursor() < target {
 				m, _ = press(t, m, "down")
 			}
-			m, cmd := press(t, m, "enter")
+			if tt.key == "" {
+				tt.key = "enter"
+			}
+			m, cmd := press(t, m, tt.key)
 			m = settle(t, m, cmd)
 
 			if want := []viewKind{viewStations, viewSearch, viewResults, tt.kind}; !reflect.DeepEqual(stackKinds(m), want) {

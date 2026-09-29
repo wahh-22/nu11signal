@@ -42,6 +42,14 @@ const (
 	// wherever typing does not take them (on SEARCH, on a song row).
 	keyLove = "l"
 	keyAdd  = "a"
+	// keyAlbum opens the SONG view (the album holding it) of the selected
+	// song row of SEARCH or RESULTS, where enter plays the row's list
+	// instead. It acts wherever typing does not take it (on SEARCH, on a
+	// song row).
+	keyAlbum = "g"
+	// keyLoop cycles the repeat mode, OFF, ALL, ONE, as the LOOP button
+	// does, wherever the player keys act.
+	keyLoop = "o"
 	// keyDelete and keyDeleteAlt delete the selected recent search.
 	keyDelete    = "delete"
 	keyDeleteAlt = "ctrl+d"
@@ -63,6 +71,7 @@ var playerHints = []hint{
 	{"F", "EXPAND"},
 	{"L", "LOVE"},
 	{"A", "ADD"},
+	{"O", "LOOP"},
 	{"↑↓", "MOVE"},
 	{"Q", "QUIT"},
 }
@@ -87,6 +96,7 @@ func playerFocusHints(expanded, typing bool) []hint {
 		expand,
 		{"SPACE", "PLAY/PAUSE"},
 		{"L", "LOVE"},
+		{"O", "LOOP"},
 		quit,
 	}
 }
@@ -126,14 +136,16 @@ var artistHints = []hint{
 }
 
 // resultsHints replace playerHints on the RESULTS page: enter opens the
-// selected artist, album, song or playlist.
+// selected artist, album or playlist, or plays the selected song with the
+// rest of its list; g opens a song's album.
 var resultsHints = []hint{
-	{"ENTER", "OPEN"},
+	{"ENTER", "OPEN/PLAY"},
 	{"↑↓", "MOVE"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
 	{"L", "LOVE"},
 	{"A", "ADD"},
+	{"G", "ALBUM"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
 	{"Q", "QUIT"},
@@ -171,14 +183,16 @@ var nameHints = []hint{
 }
 
 // searchSongHints replace searchHints while a song row is selected, where
-// l and a act instead of being typed.
+// l, a and g act instead of being typed: enter plays the song with the
+// songs listed after it, g opens its album.
 var searchSongHints = []hint{
-	{"ENTER", "SELECT"},
+	{"ENTER", "PLAY"},
 	{"↑↓", "MOVE"},
 	{"TAB", "PLAYLISTS"},
 	{"ESC", "BACK"},
 	{"L", "LOVE"},
 	{"A", "ADD"},
+	{"G", "ALBUM"},
 	{"CTRL+C", "QUIT"},
 }
 

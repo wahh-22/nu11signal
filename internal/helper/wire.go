@@ -199,12 +199,13 @@ func (s wireState) toDomain() playback.State {
 }
 
 // repeatMode reads the state's "repeat"; a helper that sends none (an
-// older one) reports RepeatOff.
+// older one), or a mode this build does not know, reports RepeatOff.
 func repeatMode(s string) playback.RepeatMode {
-	if s == "" {
-		return playback.RepeatOff
+	switch mode := playback.RepeatMode(s); mode {
+	case playback.RepeatAll, playback.RepeatOne:
+		return mode
 	}
-	return playback.RepeatMode(s)
+	return playback.RepeatOff
 }
 
 func (s wireSong) toDomain() playback.Song {

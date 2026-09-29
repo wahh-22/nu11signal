@@ -61,8 +61,9 @@ func essentials() playback.PlaylistDetail {
 	}
 }
 
-// openSong searches "daft" and opens the song row at index row (0 is the
-// first song), letting its album load.
+// openSong searches "daft" and opens the SONG view of the song row at
+// index row (0 is the first song) with the album key, letting its album
+// load.
 func openSong(t *testing.T, f *playbacktest.Fake, row int) Model {
 	t.Helper()
 	f.SearchCatalogResult = catalog()
@@ -72,7 +73,7 @@ func openSong(t *testing.T, f *playbacktest.Fake, row int) Model {
 	for range row {
 		m, _ = press(t, m, "down")
 	}
-	m, cmd := press(t, m, "enter")
+	m, cmd := press(t, m, keyAlbum)
 	return settle(t, m, cmd)
 }
 
@@ -102,14 +103,14 @@ func callsOf(f *playbacktest.Fake, method string) []playbacktest.Call {
 	return out
 }
 
-func TestSearchEnterOnSongOpensItsAlbumWithTheSongHighlighted(t *testing.T) {
+func TestAlbumKeyOnSearchSongOpensItsAlbumWithTheSongHighlighted(t *testing.T) {
 	f := playbacktest.New()
 	f.SearchCatalogResult = catalog()
 	f.SongAlbumResult = discovery()
 	r := &fakeRecents{}
 	m := searchFor(t, loadedWithRecents(t, f, r), "daft")
 	m, _ = press(t, m, "down", "down", "down", "down", "down") // the second song, Digital Love
-	m, cmd := press(t, m, "enter")
+	m, cmd := press(t, m, keyAlbum)
 
 	if m.top().kind != viewAlbum || len(m.stack) != 3 || m.stack[1].kind != viewSearch {
 		t.Fatalf("stack = %v; want stations, search, album", m.stack)
@@ -424,7 +425,7 @@ func TestSongPageLoadingNamesTheSongFeed(t *testing.T) {
 	f := playbacktest.New()
 	f.SearchCatalogResult = catalog()
 	m := searchFor(t, loaded(t, f, newClock()), "daft")
-	m, _ = press(t, m, "down", "down", "down", "down", "enter")
+	m, _ = press(t, m, "down", "down", "down", "down", keyAlbum)
 	if view := plain(m); !strings.Contains(view, "DECRYPTING SONG FEED") {
 		t.Fatalf("loading song page does not name the SONG feed:\n%s", view)
 	}
@@ -490,7 +491,7 @@ func TestLeavingALoadingTrackPageCancelsIt(t *testing.T) {
 			m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 			m = searchFor(t, m, "daft")
 			m, _ = press(t, m, "down", "down", "down", "down")
-			m, cmd := press(t, m, "enter")
+			m, cmd := press(t, m, keyAlbum)
 			done := make(chan tea.Msg, 4)
 			launch(cmd, done)
 			var ctx context.Context

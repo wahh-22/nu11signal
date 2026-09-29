@@ -342,6 +342,9 @@ final class CommandHandler {
             log("\(context): left out \(prepared.skipped.count) songs of the local library "
                 + "(\(prepared.skipped.joined(separator: ", "))): a catalog start cannot queue them")
         }
+        // Set before the queue changes: the player announces the new entry
+        // as soon as it is handed the queue.
+        emitter.catalogIDs = prepared.catalogIDs
         let startedAlone = try await play(prepared.items, from: prepared.start, context: context)
         var result: JSONObject = [:]
         if !queue.missing.isEmpty { result["missing"] = queue.missing }
@@ -385,16 +388,19 @@ final class CommandHandler {
     }
 
     /// Replaces the queue with songs and plays from `songs[start]`;
-    /// returns whether only the start song could be queued.
+    /// returns whether the start song had to be queued on its own.
     ///
     /// Each song gets its own queue entry and the start is named as that
     /// entry, so the player never has to find the start by matching a song
     /// (`Queue(for:startingAt:)` does, and a song listed twice matches its
     /// first copy). If the player cannot prepare the queue (Code=6, see
     /// QueueStart), playback is stopped and the start song is queued on its
-    /// own, which prepares where the whole queue does not; any other error,
-    /// or a failure of that fallback, is reported naming the song. Both
-    /// attempts share the command's `playbackTimeout`.
+    /// own, which prepares where the whole queue does not; once it plays,
+    /// the songs after it are appended (`QueueStart.followers`), so the
+    /// list still plays on. Any other error, or a failure of that fallback,
+    /// is reported naming the song; a failed append is only logged, the
+    /// start song playing on alone. Every step shares the command's
+    /// `playbackTimeout`.
     ///
     /// The fallback is logged to stderr with context (the command) and the
     /// player's reason, so a Code=6 that keeps happening shows in the
@@ -406,8 +412,9 @@ final class CommandHandler {
             try await player.play()
         }
         let song = songs[start]
+        let startedAlone: Bool
         do {
-            return try await QueueStart.startWithFallback({
+            startedAlone = try await QueueStart.startWithFallback({
                 try await startQueue(songs, at: start)
             }, fallback: {
                 try await startQueue([song], at: 0)
@@ -419,6 +426,16 @@ final class CommandHandler {
         } catch {
             throw QueueStart.failure(error, song: song.title)
         }
+        let followers = QueueStart.followers(of: songs, after: start)
+        if startedAlone, !followers.isEmpty {
+            do {
+                try await player.queue.insert(followers.map { MusicPlayer.Queue.Entry($0) }, position: .tail)
+            } catch {
+                log("\(context): could not append the \(followers.count) songs after \"\(song.title)\" "
+                    + "(\(QueueStart.failure(error, song: song.title))); it plays alone")
+            }
+        }
+        return startedAlone
     }
 
     /// A library playlist page: its songs in order (music videos are left

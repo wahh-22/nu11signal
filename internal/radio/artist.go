@@ -113,15 +113,7 @@ func (m Model) artistEnter() (Model, tea.Cmd) {
 	it := items[cur]
 	switch it.kind {
 	case itemSong:
-		top := m.top().artist.detail.TopSongs
-		ids := make([]string, len(top))
-		for i, s := range top {
-			ids[i] = s.ID
-		}
-		m.playSeq++
-		return m, m.playCmd(m.playSeq, "PLAY", "", func(ctx context.Context) error {
-			return m.player.PlaySongs(ctx, ids, it.index)
-		})
+		return m.playSongs(songIDs(m.top().artist.detail.TopSongs), it.index)
 	case itemMore:
 		f := m.top()
 		f.artist.aboutOpen = !f.artist.aboutOpen

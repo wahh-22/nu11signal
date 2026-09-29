@@ -73,9 +73,20 @@ func TestLoveTogglesTheSelectedTrackOptimistically(t *testing.T) {
 	}
 }
 
+// pageReadFails makes the Favorites read a page starts as it loads fail,
+// leaving the states to the tick's reads one by one (see prefetch_test.go
+// for the page read).
+func pageReadFails(f *playbacktest.Fake) {
+	if f.MethodErr == nil {
+		f.MethodErr = map[string]error{}
+	}
+	f.MethodErr["Favorites"] = errors.New("offline")
+}
+
 func TestFavoritesAreReadLazilyAndCached(t *testing.T) {
 	f := playbacktest.New()
 	f.Loved = map[string]bool{"s2": true}
+	pageReadFails(f)
 	m := openSong(t, f, 1) // DIGITAL LOVE (s2)
 	if n := len(callsOf(f, "Favorite")); n != 0 {
 		t.Fatalf("opening the page read %d favorites; want none before a tick", n)
@@ -115,6 +126,7 @@ func TestFavoritesAreReadLazilyAndCached(t *testing.T) {
 
 func TestAReadAnsweringAfterAToggleIsDropped(t *testing.T) {
 	f := playbacktest.New()
+	pageReadFails(f)
 	m := openSong(t, f, 1)
 	m, read := m.readFavorites()
 	msg := run(t, read) // answers false
@@ -387,9 +399,15 @@ func selectedStationText(t *testing.T, m Model) string {
 func TestNewPlaylistCancelAndMouse(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
-	m, _ = click(t, m, zoneNavNewPlaylist)
+	// One control for the keyboard and the mouse: the row, not a nav
+	// button besides.
+	_, zs := m.layout()
+	if hasZone(zs, "tab:new-playlist") || strings.Count(plain(m), "+ NEW PLAYLIST") != 1 {
+		t.Fatalf("+ NEW PLAYLIST is drawn more than once:\n%s", plain(m))
+	}
+	m, _ = click(t, m, zoneNewPlaylist)
 	if m.editor.mode != editName || !m.nameInput.Focused() {
-		t.Fatalf("NEW PLAYLIST button: editor %v; want the name input", m.editor.mode)
+		t.Fatalf("NEW PLAYLIST row: editor %v; want the name input", m.editor.mode)
 	}
 	// Letters are typed, the player's and quit included.
 	m = typeText(t, m, "xjkq")
@@ -697,6 +715,7 @@ func TestAFailedWriteStillSendsTheQueuedIntent(t *testing.T) {
 func TestFailedFavoriteReadsAreRetriedAfterABackoff(t *testing.T) {
 	f := playbacktest.New()
 	f.MethodErr = map[string]error{"Favorite": errors.New("offline")}
+	pageReadFails(f)
 	c := newClock()
 	m := openSong(t, f, 1)
 	m.now = c.now
@@ -710,7 +729,7 @@ func TestFailedFavoriteReadsAreRetriedAfterABackoff(t *testing.T) {
 		t.Fatal("a failed read was retried before the backoff")
 	}
 	c.advance(time.Second)
-	f.MethodErr = nil
+	delete(f.MethodErr, "Favorite")
 	m, cmd = m.readFavorites()
 	if cmd == nil {
 		t.Fatal("a failed read was never retried")
@@ -724,6 +743,7 @@ func TestFailedFavoriteReadsAreRetriedAfterABackoff(t *testing.T) {
 func TestAuthorizationClearsFailedFavoriteReads(t *testing.T) {
 	f := playbacktest.New()
 	f.MethodErr = map[string]error{"Favorite": errors.New("not authorized")}
+	pageReadFails(f)
 	m := openSong(t, f, 1)
 	m, cmd := m.readFavorites()
 	m = settle(t, m, cmd)

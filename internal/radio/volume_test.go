@@ -301,7 +301,9 @@ func TestArrowsReachTheVolumeRow(t *testing.T) {
 	}{
 		{"right", areaPlayer, ctlPlay},
 		{"down", areaPlayer, ctlVolDown},
-		{"down", areaPlayer, ctlVolDown}, // the bottom row stays
+		{"down", areaPlayer, ctlLoop},
+		{"down", areaPlayer, ctlLoop}, // the bottom row stays
+		{"up", areaPlayer, ctlVolDown},
 		{"right", areaPlayer, ctlVolUp},
 		{"right", areaPlayer, ctlVolUp}, // the last button stays
 		{"up", areaPlayer, ctlNext},
