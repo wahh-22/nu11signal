@@ -545,3 +545,126 @@ func TestArtistPageToleratesSparseData(t *testing.T) {
 		t.Fatalf("sparse page = %+v; want %+v", d, want)
 	}
 }
+
+func TestCreatedPlaylistJoinsTheLibrary(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	before, _ := p.Playlists(ctx)
+
+	pl, err := p.CreatePlaylist(ctx, "Late Shift", "For the night crew", []string{"d02", "d01"})
+	if err != nil || pl.ID == "" || pl.Name != "Late Shift" {
+		t.Fatalf("CreatePlaylist = %+v, %v; want a named playlist with an id", pl, err)
+	}
+	after, _ := p.Playlists(ctx)
+	if len(after) != len(before)+1 || after[len(after)-1] != pl {
+		t.Fatalf("Playlists after create = %+v; want the old ones then %+v", after, pl)
+	}
+	d, err := p.LibraryPlaylist(ctx, pl.ID)
+	if err != nil || d.Notes != "For the night crew" || !reflect.DeepEqual(songIDs(d.Tracks), []string{"d02", "d01"}) {
+		t.Fatalf("LibraryPlaylist(new) = %+v, %v; want its description and songs in order", d, err)
+	}
+
+	if err := p.AddToPlaylist(ctx, pl.ID, []string{"d03"}); err != nil {
+		t.Fatalf("AddToPlaylist: %v", err)
+	}
+	d, _ = p.LibraryPlaylist(ctx, pl.ID)
+	if !reflect.DeepEqual(songIDs(d.Tracks), []string{"d02", "d01", "d03"}) {
+		t.Fatalf("tracks after AddToPlaylist = %v; want d03 appended", songIDs(d.Tracks))
+	}
+	if err := p.PlayPlaylistFrom(ctx, pl.ID, 2); err != nil {
+		t.Fatalf("PlayPlaylistFrom(new, 2): %v", err)
+	}
+	waitState(t, p, func(s playback.State) bool { return s.SongID == "d03" })
+
+	empty, err := p.CreatePlaylist(ctx, "Empty", "", nil)
+	if err != nil || empty.ID == pl.ID {
+		t.Fatalf("CreatePlaylist(empty) = %+v, %v; want a second, distinct playlist", empty, err)
+	}
+}
+
+func TestLibraryEditsAreLocalToOnePlayer(t *testing.T) {
+	ctx := context.Background()
+	first := newPlayer(t)
+	pls, _ := first.Playlists(ctx)
+	if err := first.AddToPlaylist(ctx, pls[0].ID, []string{"d12"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.CreatePlaylist(ctx, "Mine", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.SetFavorite(ctx, "d01", true); err != nil {
+		t.Fatal(err)
+	}
+
+	second := newPlayer(t)
+	fresh, _ := second.Playlists(ctx)
+	if len(fresh) != len(pls) {
+		t.Fatalf("a new player lists %d playlists; want the %d stations", len(fresh), len(pls))
+	}
+	d, _ := second.LibraryPlaylist(ctx, pls[0].ID)
+	if ids := songIDs(d.Tracks); ids[len(ids)-1] == "d12" {
+		t.Fatalf("a new player sees another player's added song: %v", ids)
+	}
+	if on, _ := second.Favorite(ctx, "d01"); on {
+		t.Fatal("a new player sees another player's favorite")
+	}
+}
+
+func TestLibraryEditErrors(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	pls, _ := p.Playlists(ctx)
+	tests := []struct {
+		name string
+		call func() error
+	}{
+		{"blank name", func() error { _, err := p.CreatePlaylist(ctx, "  ", "", nil); return err }},
+		{"create with unknown song", func() error { _, err := p.CreatePlaylist(ctx, "x", "", []string{"nope"}); return err }},
+		{"add to unknown playlist", func() error { return p.AddToPlaylist(ctx, "nope", []string{"d01"}) }},
+		{"add no songs", func() error { return p.AddToPlaylist(ctx, pls[0].ID, nil) }},
+		{"add unknown song", func() error { return p.AddToPlaylist(ctx, pls[0].ID, []string{"d01", "nope"}) }},
+		{"favorite unknown song", func() error { _, err := p.Favorite(ctx, "nope"); return err }},
+		{"set favorite on unknown song", func() error { return p.SetFavorite(ctx, "nope", true) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.call(); err == nil {
+				t.Fatal("want an error")
+			}
+		})
+	}
+	// A failed add changes nothing, even for the songs before the bad one.
+	d, _ := p.LibraryPlaylist(ctx, pls[0].ID)
+	if want := len(stations[0].ids); pls[0].ID != stations[0].ID || len(d.Tracks) != want {
+		t.Fatalf("a failed AddToPlaylist left %d tracks; want %d", len(d.Tracks), want)
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := p.CreatePlaylist(cancelled, "x", "", nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("CreatePlaylist(cancelled) = %v; want context.Canceled", err)
+	}
+}
+
+func TestFavoriteToggles(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	if on, err := p.Favorite(ctx, "d05"); err != nil || on {
+		t.Fatalf("Favorite before = %v, %v; want false", on, err)
+	}
+	for _, want := range []bool{true, true, false} {
+		if err := p.SetFavorite(ctx, "d05", want); err != nil {
+			t.Fatalf("SetFavorite(%v): %v", want, err)
+		}
+		if on, err := p.Favorite(ctx, "d05"); err != nil || on != want {
+			t.Fatalf("Favorite after SetFavorite(%v) = %v, %v", want, on, err)
+		}
+	}
+}
+
+func songIDs(songs []playback.Song) []string {
+	ids := make([]string, len(songs))
+	for i, s := range songs {
+		ids[i] = s.ID
+	}
+	return ids
+}

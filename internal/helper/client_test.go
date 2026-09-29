@@ -683,3 +683,60 @@ func TestLibraryPlaylistRoundTrip(t *testing.T) {
 		t.Fatalf("LibraryPlaylist = %+v, %v; want %+v", got, err, want)
 	}
 }
+
+func TestLibraryEditsRoundTrip(t *testing.T) {
+	// The standard scenario answers only the exact arguments in
+	// expectedArgs, so a wrong argument name fails the call.
+	c := startFake(t, "standard", Options{})
+	ctx := t.Context()
+
+	pl, err := c.CreatePlaylist(ctx, "Night Drive", "After hours", []string{"s1", "i.s2"})
+	if err != nil || pl != (playback.Playlist{ID: "p.new", Name: "Night Drive"}) {
+		t.Fatalf("CreatePlaylist = %+v, %v; want p.new", pl, err)
+	}
+	if err := c.AddToPlaylist(ctx, "p.new", []string{"s1"}); err != nil {
+		t.Fatalf("AddToPlaylist: %v", err)
+	}
+	if on, err := c.Favorite(ctx, "s1"); err != nil || !on {
+		t.Fatalf("Favorite = %v, %v; want true", on, err)
+	}
+	if err := c.SetFavorite(ctx, "s1", true); err != nil {
+		t.Fatalf("SetFavorite: %v", err)
+	}
+}
+
+func TestLibraryEditEdgeCasesAndErrors(t *testing.T) {
+	c := startFake(t, "libraryEdit", Options{})
+	ctx := t.Context()
+
+	// No songs and no description: songIds still travels as an array,
+	// and description is left out.
+	pl, err := c.CreatePlaylist(ctx, "Empty", "", nil)
+	if err != nil || pl != (playback.Playlist{ID: "p.empty", Name: "Empty"}) {
+		t.Fatalf("CreatePlaylist(no songs) = %+v, %v; want p.empty", pl, err)
+	}
+	if on, err := c.Favorite(ctx, "unrated"); err != nil || on {
+		t.Fatalf("Favorite(unrated) = %v, %v; want false", on, err)
+	}
+	if err := c.SetFavorite(ctx, "s1", false); err != nil {
+		t.Fatalf("SetFavorite(off): %v", err)
+	}
+
+	tests := []struct {
+		command, message string
+		call             func() error
+	}{
+		{"addToPlaylist", "playlist is not editable (Forbidden)", func() error { return c.AddToPlaylist(ctx, "p.locked", []string{"s1"}) }},
+		{"favorite", "Apple Music did not accept the credentials", func() error { _, err := c.Favorite(ctx, "denied"); return err }},
+		{"createPlaylist", "Apple Music failed (HTTP 500)", func() error { _, err := c.CreatePlaylist(ctx, "boom", "", nil); return err }},
+		{"setFavorite", `song "123456789012345678" has no Apple Music API id`, func() error { return c.SetFavorite(ctx, "123456789012345678", true) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			var cmdErr *CommandError
+			if err := tt.call(); !errors.As(err, &cmdErr) || cmdErr.Command != tt.command || cmdErr.Message != tt.message {
+				t.Fatalf("error = %v; want CommandError{%s, %s}", err, tt.command, tt.message)
+			}
+		})
+	}
+}

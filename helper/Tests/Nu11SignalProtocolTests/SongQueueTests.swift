@@ -64,9 +64,60 @@ final class SongQueueTests: XCTestCase {
 final class QueueStartTests: XCTestCase {
     func testOnlyTheUnexpectedStartItemErrorIsRetried() {
         let domain = QueueStart.playerErrorDomain
-        XCTAssertTrue(QueueStart.isUnexpectedStartItem(NSError(domain: domain, code: 6)))
-        XCTAssertFalse(QueueStart.isUnexpectedStartItem(NSError(domain: domain, code: 5)))
-        XCTAssertFalse(QueueStart.isUnexpectedStartItem(NSError(domain: "OtherDomain", code: 6)))
+        let code = QueueStart.unexpectedStartItemCode
+        XCTAssertEqual(code, 6)
+        XCTAssertTrue(QueueStart.isUnexpectedStartItem(NSError(domain: domain, code: code)))
+        XCTAssertFalse(QueueStart.isUnexpectedStartItem(NSError(domain: domain, code: code - 1)))
+        XCTAssertFalse(QueueStart.isUnexpectedStartItem(NSError(domain: "OtherDomain", code: code)))
         XCTAssertFalse(QueueStart.isUnexpectedStartItem(ArgumentError(description: "x")))
+    }
+
+    private let unexpectedStart = NSError(domain: QueueStart.playerErrorDomain, code: QueueStart.unexpectedStartItemCode)
+
+    /// Runs startRetryingOnce with attempts that fail with the given
+    /// errors in turn (nil succeeds); returns the attempts made, the
+    /// errors announced as retried, and the error thrown, if any.
+    private func run(_ outcomes: [Error?]) async -> (attempts: Int, retried: [Error], thrown: Error?) {
+        var attempts = 0
+        var retried: [Error] = []
+        do {
+            try await QueueStart.startRetryingOnce({
+                defer { attempts += 1 }
+                if let error = outcomes[attempts] { throw error }
+            }, beforeRetry: { retried.append($0) })
+            return (attempts, retried, nil)
+        } catch {
+            return (attempts, retried, error)
+        }
+    }
+
+    func testAFirstSuccessIsNotRetried() async {
+        let r = await run([nil])
+        XCTAssertEqual(r.attempts, 1)
+        XCTAssertTrue(r.retried.isEmpty)
+        XCTAssertNil(r.thrown)
+    }
+
+    func testAnUnexpectedStartItemIsRetriedOnceAndAnnounced() async {
+        let r = await run([unexpectedStart, nil])
+        XCTAssertEqual(r.attempts, 2)
+        XCTAssertEqual(r.retried.map { ($0 as NSError).code }, [QueueStart.unexpectedStartItemCode])
+        XCTAssertNil(r.thrown)
+    }
+
+    func testASecondFailureIsReportedWithoutAThirdAttempt() async {
+        let second = NSError(domain: QueueStart.playerErrorDomain, code: QueueStart.unexpectedStartItemCode, userInfo: ["n": 2])
+        let r = await run([unexpectedStart, second, nil])
+        XCTAssertEqual(r.attempts, 2)
+        XCTAssertEqual(r.retried.count, 1)
+        XCTAssertEqual((r.thrown as NSError?)?.userInfo["n"] as? Int, 2)
+    }
+
+    func testOtherErrorsAreNotRetried() async {
+        let other = NSError(domain: QueueStart.playerErrorDomain, code: 5)
+        let r = await run([other, nil])
+        XCTAssertEqual(r.attempts, 1)
+        XCTAssertTrue(r.retried.isEmpty)
+        XCTAssertEqual((r.thrown as NSError?)?.code, 5)
     }
 }

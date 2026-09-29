@@ -243,3 +243,57 @@ func TestFakeLibraryPlaylistAndPlayPlaylistFrom(t *testing.T) {
 		t.Errorf("PlayPlaylistFrom on error = %v; want boom", err)
 	}
 }
+
+func TestFakeLibraryEdits(t *testing.T) {
+	f := New()
+	f.CreatePlaylistResult = playback.Playlist{ID: "p.new", Name: "Late Shift"}
+	ctx := t.Context()
+
+	ids := []string{"s1", "s2"}
+	if got, err := f.CreatePlaylist(ctx, "Late Shift", "notes", ids); err != nil || got != f.CreatePlaylistResult {
+		t.Fatalf("CreatePlaylist = %+v, %v; want the canned playlist", got, err)
+	}
+	ids[0] = "mutated"
+	if err := f.AddToPlaylist(ctx, "p.new", []string{"s3"}); err != nil {
+		t.Fatalf("AddToPlaylist: %v", err)
+	}
+	if on, err := f.Favorite(ctx, "s1"); err != nil || on {
+		t.Fatalf("Favorite before any set = %v, %v; want false", on, err)
+	}
+	// SetFavorite stores its value, so a later Favorite reads it back.
+	if err := f.SetFavorite(ctx, "s1", true); err != nil {
+		t.Fatalf("SetFavorite: %v", err)
+	}
+	if on, _ := f.Favorite(ctx, "s1"); !on {
+		t.Fatal("Favorite after SetFavorite(true) = false")
+	}
+	want := []Call{
+		{Method: "CreatePlaylist", Args: []any{"Late Shift", "notes", []string{"s1", "s2"}}},
+		{Method: "AddToPlaylist", Args: []any{"p.new", []string{"s3"}}},
+		{Method: "Favorite", Args: []any{"s1"}},
+		{Method: "SetFavorite", Args: []any{"s1", true}},
+		{Method: "Favorite", Args: []any{"s1"}},
+	}
+	if !reflect.DeepEqual(f.Calls(), want) {
+		t.Fatalf("Calls = %#v; want %#v", f.Calls(), want)
+	}
+
+	boom := errors.New("boom")
+	f.MethodErr = map[string]error{"CreatePlaylist": boom, "AddToPlaylist": boom, "Favorite": boom, "SetFavorite": boom}
+	if got, err := f.CreatePlaylist(ctx, "x", "", nil); !errors.Is(err, boom) || got != (playback.Playlist{}) {
+		t.Errorf("CreatePlaylist on error = %+v, %v; want zero, boom", got, err)
+	}
+	if err := f.AddToPlaylist(ctx, "p.new", []string{"s1"}); !errors.Is(err, boom) {
+		t.Errorf("AddToPlaylist on error = %v; want boom", err)
+	}
+	if on, err := f.Favorite(ctx, "s1"); !errors.Is(err, boom) || on {
+		t.Errorf("Favorite on error = %v, %v; want false, boom", on, err)
+	}
+	if err := f.SetFavorite(ctx, "s1", false); !errors.Is(err, boom) {
+		t.Errorf("SetFavorite on error = %v; want boom", err)
+	}
+	f.MethodErr = nil
+	if on, _ := f.Favorite(ctx, "s1"); !on {
+		t.Error("a failed SetFavorite changed the favorite")
+	}
+}

@@ -7,6 +7,13 @@ struct CommandError: Error, CustomStringConvertible {
     init(_ description: String) { self.description = description }
 }
 
+/// An Apple Music API request answered with an error status; description
+/// is the message for the UI (see LibraryEdit.failureMessage).
+struct MusicAPIError: Error, CustomStringConvertible {
+    let status: Int
+    let description: String
+}
+
 /// Maps protocol commands onto MusicKit. main.swift decides concurrency:
 /// playback commands arrive here one at a time in order, read-only ones
 /// concurrently, so a slow network call never blocks transport commands.
@@ -59,6 +66,10 @@ final class CommandHandler {
         case "catalogPlaylist": return try await catalogPlaylist(request)
         case "playlists": return try await playlists()
         case "libraryPlaylist": return try await libraryPlaylist(request)
+        case "createPlaylist": return try await createPlaylist(request)
+        case "addToPlaylist": _ = try await Self.send(LibraryEdit.addToPlaylist(request), for: request.cmd); return [:]
+        case "favorite": return try await favorite(request)
+        case "setFavorite": _ = try await Self.send(LibraryEdit.setFavorite(request), for: request.cmd); return [:]
         case "volume": return ["level": try SystemVolume.level()]
         case "setVolume": try SystemVolume.setLevel(VolumeLevel.requested(request)); return [:]
         case "playSongs": return try await playSongs(request)
@@ -314,7 +325,7 @@ final class CommandHandler {
         // The catalog may return songs in any order; SongQueue restores the
         // requested one and turns startIndex into a position in the queue.
         let queue = try SongQueue(ids: ids, found: Array(found), id: \.id.rawValue, startIndex: startIndex)
-        try await play(queue.items, from: queue.start)
+        try await play(queue.items, from: queue.start, context: "playSongs")
         return queue.missing.isEmpty ? [:] : ["missing": queue.missing]
     }
 
@@ -328,17 +339,21 @@ final class CommandHandler {
     /// queue is replaced, playback is stopped and a freshly built queue is
     /// tried exactly once more; any other error, or a second failure, is
     /// reported. Both attempts share the command's `playbackTimeout`.
-    private func play(_ songs: [Song], from start: Int) async throws {
+    ///
+    /// Each retry is logged to stderr with context (the command) and the
+    /// queue, so a Code=6 that keeps happening shows in the helper log.
+    /// The caller guarantees `songs.indices.contains(start)`.
+    private func play(_ songs: [Song], from start: Int, context: String) async throws {
         func startQueue() async throws {
             let entries = songs.map { MusicPlayer.Queue.Entry($0) }
             player.queue = ApplicationMusicPlayer.Queue(entries, startingAt: entries[start])
             try await player.play()
         }
-        do {
-            try await startQueue()
-        } catch where QueueStart.isUnexpectedStartItem(error) {
+        try await QueueStart.startRetryingOnce(startQueue) { error in
+            let error = error as NSError
+            log("\(context): \(error.domain) code \(error.code) starting \(songs.count) songs at "
+                + "\(start) (song \(songs[start].id.rawValue)); retrying once")
             player.stop()
-            try await startQueue()
         }
     }
 
@@ -382,8 +397,11 @@ final class CommandHandler {
             return [:]
         }
         let songs = try await Self.songEntries(of: playlist).map(\.song)
-        _ = try PlaylistStart.item(in: songs, at: start)
-        try await play(songs, from: start)
+        // play(_:from:) indexes songs[start]: a start past the end of the
+        // list (the playlist may have changed since libraryPlaylist listed
+        // it) must be reported here rather than trap there.
+        try PlaylistStart.checkRange(start, count: songs.count)
+        try await play(songs, from: start, context: "playPlaylist \(id)")
         return [:]
     }
 
@@ -412,6 +430,58 @@ final class CommandHandler {
         return entries.prefix(maxPlaylistEntries).compactMap { entry in
             if case let .song(song) = entry.item { return (entry, song) }
             return nil
+        }
+    }
+
+    /// Creates a library playlist, with its songs when `songIds` lists any,
+    /// and answers with its API library id ("p.…") and name. The new
+    /// playlist may take a moment to appear in `playlists`.
+    private func createPlaylist(_ request: Request) async throws -> JSONObject {
+        let call = try LibraryEdit.createPlaylist(request)
+        let data = try await Self.send(call, for: request.cmd)
+        let created = try LibraryEdit.createdPlaylist(data, requestedName: request.string("name") ?? "")
+        return ["id": created.id, "name": created.name]
+    }
+
+    /// Whether a song is a favorite (loved). A song without a rating is
+    /// answered with 404, which means false.
+    private func favorite(_ request: Request) async throws -> JSONObject {
+        let call = try LibraryEdit.favorite(request)
+        do {
+            return ["favorite": LibraryEdit.isFavorite(try await Self.send(call, for: request.cmd))]
+        } catch let error as MusicAPIError where error.status == 404 {
+            return ["favorite": false]
+        }
+    }
+
+    /// Sends one Apple Music API request within `CatalogBudget.libraryEdit`
+    /// and returns the response body. MusicDataRequest adds the developer
+    /// and user tokens; an error status becomes a MusicAPIError whose
+    /// message names the likely cause.
+    private nonisolated static func send(_ call: MusicAPICall, for command: String) async throws -> Data {
+        var url = URLComponents()
+        url.scheme = "https"
+        url.host = "api.music.apple.com"
+        url.path = call.path
+        guard let url = url.url else {
+            throw CommandError("\(command): invalid Apple Music API path \(call.path)")
+        }
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = call.method
+        if let body = call.body {
+            urlRequest.httpBody = body
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        let prepared = urlRequest
+        do {
+            return try await Deadline.run(seconds: CatalogBudget.libraryEdit) {
+                try await MusicDataRequest(urlRequest: prepared).response().data
+            }
+        } catch let error as MusicDataRequest.Error {
+            let detail = error.detailText.isEmpty ? error.title : error.detailText
+            throw MusicAPIError(
+                status: error.status,
+                description: LibraryEdit.failureMessage(command: command, status: error.status, detail: detail))
         }
     }
 

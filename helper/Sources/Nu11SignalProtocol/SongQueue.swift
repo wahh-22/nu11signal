@@ -62,6 +62,27 @@ public enum QueueStart {
     /// is sent again, so the helper retries it once.
     public static func isUnexpectedStartItem(_ error: Error) -> Bool {
         let error = error as NSError
-        return error.domain == playerErrorDomain && error.code == 6
+        return error.domain == playerErrorDomain && error.code == unexpectedStartItemCode
+    }
+
+    /// `MPMusicPlayerControllerErrorDomain` code of "prepare queue failed
+    /// with unexpected start item" (MPMusicPlayerControllerError has no
+    /// public Swift name for it on macOS).
+    public static let unexpectedStartItemCode = 6
+
+    /// Runs attempt; if it fails with the unexpected start item error,
+    /// calls beforeRetry with that error and runs attempt exactly once
+    /// more. Any other error, or the second attempt's error of any kind,
+    /// is thrown: never more than two attempts.
+    public static func startRetryingOnce(
+        _ attempt: () async throws -> Void,
+        beforeRetry: (Error) -> Void
+    ) async throws {
+        do {
+            try await attempt()
+        } catch where isUnexpectedStartItem(error) {
+            beforeRetry(error)
+            try await attempt()
+        }
     }
 }

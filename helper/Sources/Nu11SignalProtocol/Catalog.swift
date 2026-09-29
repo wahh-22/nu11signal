@@ -24,10 +24,15 @@ public enum CatalogBudget {
     public static let catalogPlaylist = lookup
     /// `songAlbum`: the song lookup, then the album lookup.
     public static let songAlbum = 2 * lookup
+    /// A library edit (createPlaylist, addToPlaylist, favorite,
+    /// setFavorite): one Apple Music API request. A write that times out
+    /// may still be applied later; the command reports the timeout.
+    public static let libraryEdit = lookup
 
     /// `artistCallTimeout` in internal/radio.
     public static let goArtistCallTimeout: TimeInterval = 15
-    /// `detailCallTimeout` in internal/radio (album, song album, playlist).
+    /// `detailCallTimeout` in internal/radio (album, song album, playlist,
+    /// and the library edits).
     public static let goDetailCallTimeout: TimeInterval = 12
 }
 

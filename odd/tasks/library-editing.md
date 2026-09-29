@@ -18,7 +18,7 @@ Fourth round of user feedback (2026-09-29, main `bc4f8b5`).
 
 - [x] B1 — Playback start fixes (helper + adapter): honor the start track for library playlists; make `playSongs` robust to Code=6 (root cause first: start item not in the prepared queue / id mismatch / race; fix or retry once, never loop). Branch `fix/playback-start`. Route: delegated (isolated worktree, parallel with U1).
 - [x] U1 — Volume on j/k and click-to-focus panels (internal/radio). Branch `feat/volume-keys-click`. Route: delegated (parallel with B1).
-- [ ] B2 — Library editing backend via the Apple Music API (`MusicDataRequest`, user decision 2026-09-29): create playlist (with songs), add songs to a library playlist, favorite (love rating) a song; no rename/remove/delete (not exposed by the API). Port + helper + adapters + fake + demo. Branch `feat/library-edit-backend`. Route: delegated.
+- [x] B2 — Library editing backend via the Apple Music API (`MusicDataRequest`, user decision 2026-09-29): create playlist (with songs), add songs to a library playlist, favorite (love rating) a song; no rename/remove/delete (not exposed by the API). Port + helper + adapters + fake + demo. Branch `feat/library-edit-backend`. Route: delegated.
 - [ ] U2 — Library editing UI: new playlist, rename, add song to a playlist (picker), remove track, favorite toggle; keyboard + mouse. Branch `feat/library-edit-ui`. Route: delegated.
 
 ## Constraints
@@ -37,7 +37,8 @@ Fourth round of user feedback (2026-09-29, main `bc4f8b5`).
 - B1 done (route: delegated writer, isolated worktree, `72e6851` cherry-picked as `f9b6f6d`). Inferred causes (no audio allowed): `Queue(playlist:startingAt:)` with a playlist loaded without entries ignores the start → queue built from the exact `libraryPlaylist` song list; Code=6 → start named as a queue entry (`Queue(entries, startingAt:)`, `SongQueue` pure helper) plus ONE retry on Code=6. RED: `SongQueue` missing; GREEN: `swift test` 72. Needs audio verification by the user.
 - U1 done (route: delegated writer). `k`/`j` volume up/down everywhere outside the SEARCH input; arrows alone move rows; panel-wide click zones registered under rows/controls give focus. RED: key/volume and panel-zone tests; GREEN: `go test -race ./...` 575 passed; commit `453104e` (rebased onto B1).
   - B1+U1 slice review (base `90ee87d`): high, 638 lines, consent granted, lineage `review-40d080d7ed45bdad`, 4 lenses, APPROVED, acknowledged (burned). Advisories → B2: log Code=6 retries to stderr; explicit range check in playPlaylist (no bare `_ =`); named Code=6 constant; test the retry path via a seam if feasible. Not scheduled: panel-zone ordering comment, compact click precedence test.
+- B2 done (route: delegated writer). Commands `createPlaylist`, `addToPlaylist`, `favorite`, `setFavorite` via `MusicDataRequest` (POST /v1/me/library/playlists, POST …/{id}/tracks, GET/PUT/DELETE /v1/me/ratings/{songs|library-songs}/{id}; 404 = not favorite); pure `LibraryEdit.swift`; budget `CatalogBudget.libraryEdit`; B1+U1 advisories fixed (stderr line per Code=6 retry, named code, `PlaylistStart.checkRange`, tested `startRetryingOnce` seam). RED/GREEN: Swift 93 tests, Go all ok. Live read-only: `favorite` on catalog song → `{"favorite":false}` (user token works). GAP (needs user decision): MusicKit's local library ids (numeric, e.g. `7193945518659293268`) are unknown to the web API (404 playlists, 400 library-song ratings); only catalog songs and web ids (`i.…`, `p.…`) work today.
 
 ## Next step
 
-B2 on `feat/library-edit-backend`.
+Decide how local library ids map to web API ids, then U2.

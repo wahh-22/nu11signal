@@ -51,6 +51,12 @@ public struct Request {
         return number.doubleValue
     }
 
+    /// A JSON boolean; numbers and strings are not booleans.
+    public func bool(_ key: String) -> Bool? {
+        guard let number = args[key] as? NSNumber, isBool(number) else { return nil }
+        return number.boolValue
+    }
+
     public func strings(_ key: String) -> [String]? {
         args[key] as? [String]
     }
@@ -58,7 +64,9 @@ public struct Request {
     /// Commands that change playback run one at a time in arrival order;
     /// read-only commands (authorize, searchCatalog, artist, album,
     /// songAlbum, catalogPlaylist, playlists, libraryPlaylist) run
-    /// concurrently. So do `volume` and `setVolume`: they touch the system
+    /// concurrently, and so do the library edits (createPlaylist,
+    /// addToPlaylist, favorite, setFavorite), which change the user's
+    /// library through the Apple Music API but never the player. So do `volume` and `setVolume`: they touch the system
     /// output device, not the player, and finish without suspending, so a
     /// volume key never waits behind a slow `playSongs`.
     public static let playbackCommands: Set<String> = [

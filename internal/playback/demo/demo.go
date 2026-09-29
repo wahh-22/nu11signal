@@ -48,6 +48,14 @@ type Player struct {
 	status playback.Status
 	pos    time.Duration
 	volume float64
+
+	// library is this player's copy of the stations, plus the playlists
+	// CreatePlaylist made (in creation order); edits never reach other
+	// players. notes holds the descriptions of created playlists.
+	library   []station
+	notes     map[string]string
+	favorites map[string]bool
+	created   int
 }
 
 // DefaultVolume is the demo player's volume until SetVolume changes it.
@@ -65,6 +73,12 @@ func New(opts Options) *Player {
 		errs:   make(chan error, 1),
 		status: playback.StatusStopped,
 		volume: DefaultVolume,
+		notes:  map[string]string{},
+
+		favorites: map[string]bool{},
+	}
+	for _, s := range stations {
+		p.library = append(p.library, station{s.Playlist, append([]string(nil), s.ids...)})
 	}
 	p.wg.Add(1)
 	go p.run()
@@ -256,11 +270,12 @@ func (p *Player) CatalogPlaylist(ctx context.Context, playlistID string) (playba
 	return d, err
 }
 
-// Playlists returns the demo stations.
+// Playlists returns the demo stations, then the playlists CreatePlaylist
+// made.
 func (p *Player) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	var out []playback.Playlist
 	err := p.do(ctx, false, func() error {
-		for _, s := range stations {
+		for _, s := range p.library {
 			out = append(out, s.Playlist)
 		}
 		return nil
@@ -291,13 +306,14 @@ func (p *Player) PlaySongs(ctx context.Context, ids []string, start int) error {
 func (p *Player) LibraryPlaylist(ctx context.Context, playlistID string) (playback.PlaylistDetail, error) {
 	var d playback.PlaylistDetail
 	err := p.do(ctx, false, func() error {
-		s, ok := stationByID(playlistID)
+		s, ok := p.stationLocked(playlistID)
 		if !ok {
 			return fmt.Errorf("demo: unknown playlist %q", playlistID)
 		}
 		d = playback.PlaylistDetail{
 			Playlist: playback.CatalogPlaylist{ID: s.ID, Name: s.Name},
 			Tracks:   s.songs(),
+			Notes:    p.notes[s.ID],
 		}
 		return nil
 	})
@@ -312,7 +328,7 @@ func (p *Player) PlayPlaylist(ctx context.Context, id string) error {
 // PlayPlaylistFrom plays a demo station from the track at index start.
 func (p *Player) PlayPlaylistFrom(ctx context.Context, playlistID string, start int) error {
 	return p.do(ctx, true, func() error {
-		s, ok := stationByID(playlistID)
+		s, ok := p.stationLocked(playlistID)
 		if !ok {
 			return fmt.Errorf("demo: unknown playlist %q", playlistID)
 		}
@@ -323,6 +339,98 @@ func (p *Player) PlayPlaylistFrom(ctx context.Context, playlistID string, start 
 		p.playLocked(songs, start)
 		return nil
 	})
+}
+
+// stationLocked finds a playlist of this player's library.
+func (p *Player) stationLocked(id string) (*station, bool) {
+	for i := range p.library {
+		if p.library[i].ID == id {
+			return &p.library[i], true
+		}
+	}
+	return nil, false
+}
+
+// CreatePlaylist adds a playlist of catalog songs to this player's
+// library; it lists after the stations. A blank name or an unknown song
+// is an error, as the helper reports one.
+func (p *Player) CreatePlaylist(ctx context.Context, name, description string, songIDs []string) (playback.Playlist, error) {
+	var pl playback.Playlist
+	err := p.do(ctx, false, func() error {
+		if strings.TrimSpace(name) == "" {
+			return errors.New("demo: playlist name is empty")
+		}
+		if err := checkSongs(songIDs); err != nil {
+			return err
+		}
+		p.created++
+		pl = playback.Playlist{ID: fmt.Sprintf("demo-new-%d", p.created), Name: name}
+		p.library = append(p.library, station{pl, append([]string(nil), songIDs...)})
+		if description != "" {
+			p.notes[pl.ID] = description
+		}
+		return nil
+	})
+	return pl, err
+}
+
+// AddToPlaylist appends catalog songs to a playlist of this player's
+// library, any playlist included (the helper refuses ones the Apple Music
+// API marks read-only). Nothing is added when any song is unknown.
+func (p *Player) AddToPlaylist(ctx context.Context, playlistID string, songIDs []string) error {
+	return p.do(ctx, false, func() error {
+		s, ok := p.stationLocked(playlistID)
+		if !ok {
+			return fmt.Errorf("demo: unknown playlist %q", playlistID)
+		}
+		if len(songIDs) == 0 {
+			return errors.New("demo: no songs to add")
+		}
+		if err := checkSongs(songIDs); err != nil {
+			return err
+		}
+		s.ids = append(s.ids, songIDs...)
+		return nil
+	})
+}
+
+// Favorite reports whether a catalog song is one of this player's
+// favorites.
+func (p *Player) Favorite(ctx context.Context, songID string) (bool, error) {
+	var on bool
+	err := p.do(ctx, false, func() error {
+		if err := checkSongs([]string{songID}); err != nil {
+			return err
+		}
+		on = p.favorites[songID]
+		return nil
+	})
+	return on, err
+}
+
+// SetFavorite marks or unmarks a catalog song as a favorite.
+func (p *Player) SetFavorite(ctx context.Context, songID string, on bool) error {
+	return p.do(ctx, false, func() error {
+		if err := checkSongs([]string{songID}); err != nil {
+			return err
+		}
+		if on {
+			p.favorites[songID] = true
+		} else {
+			delete(p.favorites, songID)
+		}
+		return nil
+	})
+}
+
+// checkSongs reports the first id that is not a demo catalog song.
+func checkSongs(ids []string) error {
+	for _, id := range ids {
+		if _, ok := songByID(id); !ok {
+			return fmt.Errorf("demo: unknown song %q", id)
+		}
+	}
+	return nil
 }
 
 func (p *Player) playLocked(queue []playback.Song, start int) {

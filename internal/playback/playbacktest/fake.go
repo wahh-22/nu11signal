@@ -35,6 +35,11 @@ type Fake struct {
 	// VolumeResult answers Volume; a successful SetVolume stores its
 	// level there, clamped.
 	VolumeResult float64
+	// CreatePlaylistResult answers CreatePlaylist.
+	CreatePlaylistResult playback.Playlist
+	// Favorites answers Favorite (absent means false); a successful
+	// SetFavorite stores its value there.
+	Favorites map[string]bool
 	// Err, when set, is returned by every method; MethodErr overrides it
 	// per method name (for example "SearchCatalog").
 	Err       error
@@ -182,6 +187,39 @@ func (f *Fake) SetVolume(_ context.Context, level float64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.VolumeResult = playback.ClampVolume(level)
+	return nil
+}
+
+func (f *Fake) CreatePlaylist(_ context.Context, name, description string, songIDs []string) (playback.Playlist, error) {
+	if err := f.record("CreatePlaylist", name, description, append([]string(nil), songIDs...)); err != nil {
+		return playback.Playlist{}, err
+	}
+	return f.CreatePlaylistResult, nil
+}
+
+func (f *Fake) AddToPlaylist(_ context.Context, playlistID string, songIDs []string) error {
+	return f.record("AddToPlaylist", playlistID, append([]string(nil), songIDs...))
+}
+
+func (f *Fake) Favorite(_ context.Context, songID string) (bool, error) {
+	if err := f.record("Favorite", songID); err != nil {
+		return false, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.Favorites[songID], nil
+}
+
+func (f *Fake) SetFavorite(_ context.Context, songID string, on bool) error {
+	if err := f.record("SetFavorite", songID, on); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Favorites == nil {
+		f.Favorites = map[string]bool{}
+	}
+	f.Favorites[songID] = on
 	return nil
 }
 

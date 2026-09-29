@@ -16,10 +16,16 @@ public enum PlaylistStart {
 
     /// The song at index, or an error naming how many songs there are.
     public static func item<Item>(in songs: [Item], at index: Int) throws -> Item {
-        guard songs.indices.contains(index) else {
-            throw ArgumentError(description: "startIndex \(index) is out of range: the playlist has \(songs.count) songs")
-        }
+        try checkRange(index, count: songs.count)
         return songs[index]
+    }
+
+    /// Throws unless index is a position in a list of count songs, naming
+    /// how many songs there are.
+    public static func checkRange(_ index: Int, count: Int) throws {
+        guard index >= 0, index < count else {
+            throw ArgumentError(description: "startIndex \(index) is out of range: the playlist has \(count) songs")
+        }
     }
 }
 
