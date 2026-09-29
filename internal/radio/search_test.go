@@ -196,67 +196,6 @@ func TestSearchResultsFollowAppleMusicOrder(t *testing.T) {
 	}
 }
 
-func TestSearchEnterOnSuggestionSearchesItNow(t *testing.T) {
-	f := playbacktest.New()
-	f.SearchCatalogResult = catalog()
-	r := &fakeRecents{}
-	m := searchFor(t, loadedWithRecents(t, f, r), "daft")
-
-	m, _ = press(t, m, "down", "down")
-	m, cmd := press(t, m, "enter")
-	if got := m.input.Value(); got != "daft punk discovery" {
-		t.Fatalf("input = %q; want the suggestion", got)
-	}
-	m = settle(t, m, cmd)
-	calls := catalogCalls(f)
-	if got := calls[len(calls)-1].Args[0]; got != "daft punk discovery" {
-		t.Fatalf("searched %q; want the suggestion", got)
-	}
-	if m.top().cursor != -1 {
-		t.Errorf("cursor = %d after a new search; want the input (-1)", m.top().cursor)
-	}
-	if len(r.Added()) != 0 {
-		t.Errorf("a suggestion was remembered: %q", r.Added())
-	}
-}
-
-func TestSearchEnterOnRecentTermSearchesItNow(t *testing.T) {
-	f := playbacktest.New()
-	r := &fakeRecents{terms: []string{"queen", "abba"}}
-	m := loadedWithRecents(t, f, r)
-	m, _ = press(t, m, "/", "down", "down")
-	m, cmd := press(t, m, "enter")
-	if got := m.input.Value(); got != "abba" {
-		t.Fatalf("input = %q; want the recent term", got)
-	}
-	settle(t, m, cmd)
-	if calls := catalogCalls(f); len(calls) != 1 || calls[0].Args[0] != "abba" {
-		t.Fatalf("SearchCatalog calls = %v; want one for abba", calls)
-	}
-}
-
-func TestSearchEnterOnInputRemembersAndSearchesNow(t *testing.T) {
-	f := playbacktest.New()
-	r := &fakeRecents{}
-	m := loadedWithRecents(t, f, r)
-	m, _ = press(t, m, "/")
-	m = typeText(t, m, "queen")
-	m, cmd := press(t, m, "enter")
-	m = settle(t, m, cmd)
-	if f.Closed() {
-		t.Fatal("typing q in the search input quit the player")
-	}
-	if calls := catalogCalls(f); len(calls) != 1 || calls[0].Args[0] != "queen" {
-		t.Fatalf("SearchCatalog calls = %v; want one for queen, without waiting", calls)
-	}
-	if got := r.Added(); !reflect.DeepEqual(got, []string{"queen"}) {
-		t.Fatalf("recents added = %q; want [queen]", got)
-	}
-	if m.top().kind != viewSearch {
-		t.Fatal("enter left the search view")
-	}
-}
-
 func TestSearchCursorStopsAtInputAndLastRow(t *testing.T) {
 	f := playbacktest.New()
 	f.SearchCatalogResult = catalog()
@@ -359,8 +298,8 @@ func TestRecentSaveFailureOnlyShowsStatus(t *testing.T) {
 	if !strings.Contains(plain(m), "DISK FULL") {
 		t.Fatalf("status line lacks the save failure:\n%s", plain(m))
 	}
-	if m.top().kind != viewSearch || m.recents[0] != "queen" {
-		t.Fatal("a save failure disturbed the search view")
+	if m.top().kind != viewResults || m.recents[0] != "queen" {
+		t.Fatal("a save failure disturbed the search")
 	}
 }
 
@@ -372,7 +311,8 @@ func TestWithoutRecentsStoreSearchStillRemembersInMemory(t *testing.T) {
 	m = typeText(t, m, "queen")
 	m, cmd := press(t, m, "enter")
 	m = settle(t, m, cmd)
-	m, _ = press(t, m, "esc", "/")
+	// Back to the search, closed, then a fresh one.
+	m, _ = press(t, m, "esc", "esc", "/")
 	if !strings.Contains(plain(m), "QUEEN") {
 		t.Fatalf("recent term not shown:\n%s", plain(m))
 	}
@@ -476,7 +416,7 @@ func TestInFlightSearchIsCancelled(t *testing.T) {
 		name string
 		act  func(t *testing.T, m Model) Model
 	}{
-		{"by a newer search", func(t *testing.T, m Model) Model {
+		{"by the results page", func(t *testing.T, m Model) Model {
 			m = typeText(t, m, "x")
 			m, _ = press(t, m, "enter")
 			return m
@@ -504,7 +444,7 @@ func TestInFlightSearchIsCancelled(t *testing.T) {
 			m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 			m, _ = press(t, m, "/")
 			m = typeText(t, m, "daft")
-			m, cmd := press(t, m, "enter")
+			m, cmd := step(t, m, searchDebounceMsg{seq: m.search.seq})
 			done := make(chan tea.Msg, 4)
 			launch(cmd, done)
 			var ctx context.Context

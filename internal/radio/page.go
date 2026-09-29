@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// The browse pages (ARTIST, ALBUM/SONG, PLAYLIST) share their mechanics:
+// The browse pages (RESULTS, ARTIST, ALBUM/SONG, PLAYLIST) share their mechanics:
 // keys, a fixed head over a scrolling body of lines, some of them
 // selectable, and editorial notes folded behind MORE.
 
@@ -17,7 +17,7 @@ const notesLines = 3
 
 // isPage reports whether kind is a browse page.
 func isPage(kind viewKind) bool {
-	return kind == viewArtist || kind == viewAlbum || kind == viewPlaylist
+	return kind == viewResults || kind == viewArtist || kind == viewAlbum || kind == viewPlaylist
 }
 
 // pageLine is one line of a page body below its head; item is the
@@ -41,7 +41,8 @@ func (m Model) handlePageKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 	case keyEsc:
 		m.pop()
 		if m.top().kind == viewSearch {
-			cmd = m.input.Focus()
+			// RESULTS may have left another term in the input.
+			cmd = tea.Batch(m.input.Focus(), m.resumeSearch())
 		}
 	case keyTab:
 		// Park the branch, loads included, for / or tab from the stations.
@@ -62,7 +63,10 @@ func (m Model) handlePageKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 
 // pageItemCount is the number of selectable rows of the page on top.
 func (m Model) pageItemCount() int {
-	if m.top().kind == viewArtist {
+	switch m.top().kind {
+	case viewResults:
+		return len(m.resultItems())
+	case viewArtist:
 		return len(m.artistItems())
 	}
 	return len(m.trackItems())
@@ -70,7 +74,10 @@ func (m Model) pageItemCount() int {
 
 // pageEnter acts on the selected row of the page on top.
 func (m Model) pageEnter() (Model, tea.Cmd) {
-	if m.top().kind == viewArtist {
+	switch m.top().kind {
+	case viewResults:
+		return m.resultsEnter()
+	case viewArtist:
 		return m.artistEnter()
 	}
 	return m.tracksEnter()
@@ -79,7 +86,10 @@ func (m Model) pageEnter() (Model, tea.Cmd) {
 // pageFailed reports whether the load of the page on top failed.
 func (m Model) pageFailed() bool {
 	f := m.top()
-	if f.kind == viewArtist {
+	switch f.kind {
+	case viewResults:
+		return f.results.err != nil
+	case viewArtist:
 		return f.artist.err != nil
 	}
 	return f.tracks.err != nil
@@ -88,7 +98,10 @@ func (m Model) pageFailed() bool {
 // reloadPage loads the page on top again, as it was selected.
 func (m *Model) reloadPage() tea.Cmd {
 	f := m.top()
-	if f.kind == viewArtist {
+	switch f.kind {
+	case viewResults:
+		return m.loadResults(f.results.term)
+	case viewArtist:
 		return m.loadArtist(f.artist.artist)
 	}
 	return m.loadTracks(f.tracks, f.kind)
@@ -97,11 +110,27 @@ func (m *Model) reloadPage() tea.Cmd {
 // cancelLoad cancels the load of a page frame, if one is in flight.
 func (f frame) cancelLoad() {
 	switch {
+	case f.kind == viewResults && f.results.cancel != nil:
+		f.results.cancel()
 	case f.kind == viewArtist && f.artist.cancel != nil:
 		f.artist.cancel()
 	case (f.kind == viewAlbum || f.kind == viewPlaylist) && f.tracks.cancel != nil:
 		f.tracks.cancel()
 	}
+}
+
+// loadFailure is the status line report of a page frame whose load
+// failed; empty for any other frame.
+func (f frame) loadFailure() string {
+	switch {
+	case f.kind == viewResults && f.results.err != nil:
+		return "SEARCH FAILED // " + f.results.err.Error()
+	case f.kind == viewArtist && f.artist.err != nil:
+		return "ARTIST FEED FAILED // " + f.artist.err.Error()
+	case (f.kind == viewAlbum || f.kind == viewPlaylist) && f.tracks.err != nil:
+		return f.tracks.title() + " FEED FAILED // " + f.tracks.err.Error()
+	}
+	return ""
 }
 
 // pageNotice is the notice a page body shows instead of its lines while it
