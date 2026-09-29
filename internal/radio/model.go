@@ -198,8 +198,11 @@ type Model struct {
 	volumeBusy    bool
 	volumePending float64
 	// volumeMode is the volume the player last said it drives (app or
-	// system; empty until it says): the readout's label.
-	volumeMode playback.VolumeMode
+	// system; empty until it says): the readout's label. volumeEpoch
+	// counts its changes; each volume call carries the epoch it was made
+	// in, so an answer for an older mode is recognized.
+	volumeMode  playback.VolumeMode
+	volumeEpoch int
 
 	// loopWant is the repeat mode LOOP asked for, shown while loopPending
 	// (until a state reports it, the player refuses it or loopUntil);

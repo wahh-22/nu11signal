@@ -488,9 +488,21 @@ output latency. The level persists in the helper's preferences.
   pipes), with the private `responsibility_spawnattrs_setdisclaim` spawn
   attribute (as LLDB and Chromium do), so the prompt names Nu11Signal. When
   the private function is missing, the helper stays on the system volume.
+- **Which process.** Only the `RemotePlayerService` copy macOS holds the
+  helper responsible for is tapped. Other apps' copies are never touched
+  (a muted tap on one would silence that app); if the helper's copy cannot
+  be identified, the system volume is used.
 - **Resources.** The tap is built when playback starts; its audio thread stops
-  while paused and everything is released when playback stops or the app
-  quits. A new default output device or player process rebuilds it.
+  while paused and everything is released when playback stops, when a play
+  fails, or when the app quits. A new default output device or player
+  process rebuilds it.
+- **Failures.** A failed rebuild (common in the middle of an output device
+  change) is retried three times over about five seconds, silently: the
+  music stays muted meanwhile rather than jumping to the system volume. If
+  it keeps failing, the rest of the session uses the system volume and the
+  status line says `APP VOLUME OFF`. The system volume is never changed
+  for you: if the music was playing quieter than the system volume, it is
+  paused instead, and plays at the system volume (`SYS`) when you resume.
 - **Opting out.** `NU11SIGNAL_VOLUME_MODE=system` in the environment keeps the
   system volume (no relaunch, no tap, no prompt).
 

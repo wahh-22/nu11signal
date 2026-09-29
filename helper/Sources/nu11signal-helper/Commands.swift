@@ -79,13 +79,25 @@ final class CommandHandler {
         case "playSongs": return try await playSongs(request)
         case "playPlaylist": return try await playPlaylist(request)
         case "pause": player.pause(); return [:]
-        case "resume": volume.prepareForPlayback(); try await player.play(); return [:]
+        case "resume": try await startPlayback(); return [:]
         case "next": try await player.skipToNextEntry(); return [:]
         case "previous": try await player.skipToPreviousEntry(); return [:]
         case "stop": player.stop(); emitter.catalogIDs = [:]; return [:]
         case "seek": return try seek(request)
         case "setRepeat": player.state.repeatMode = Self.repeatMode(try RepeatSetting.requested(request)); return [:]
         default: throw CommandError("unknown command: \(request.cmd)")
+        }
+    }
+
+    /// Plays, with the app volume's muted tap ready first; a play that
+    /// throws has that tap released (see AppVolume.playbackFailed).
+    private func startPlayback() async throws {
+        volume.prepareForPlayback()
+        do {
+            try await player.play()
+        } catch {
+            volume.playbackFailed()
+            throw error
         }
     }
 
@@ -429,8 +441,7 @@ final class CommandHandler {
         func startQueue(_ songs: [Song], at start: Int) async throws {
             let entries = songs.map { MusicPlayer.Queue.Entry($0) }
             player.queue = ApplicationMusicPlayer.Queue(entries, startingAt: entries[start])
-            volume.prepareForPlayback()
-            try await player.play()
+            try await startPlayback()
         }
         let song = songs[start]
         let startedAlone: Bool

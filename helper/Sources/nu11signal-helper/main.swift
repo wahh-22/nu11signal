@@ -11,7 +11,7 @@ Relaunch.disclaimIfNeeded()
 // A vanished reader must surface as a write error, not kill the process.
 signal(SIGPIPE, SIG_IGN)
 
-// The volume reads its baseline of the player's processes before playback.
+// The volume reads its permission and stored level before any playback.
 let volume = MainActor.assumeIsolated { AppVolume.shared }
 let emitter = MainActor.assumeIsolated { StateEmitter() }
 let handler = MainActor.assumeIsolated { CommandHandler(emitter: emitter) }
@@ -59,6 +59,8 @@ func readRequests() {
 
 MainActor.assumeIsolated {
     volume.onModeChange = { emitter.checkForChange() }
+    // A fallback to the louder system volume pauses rather than jumps.
+    volume.onLoudFallback = { ApplicationMusicPlayer.shared.pause() }
     emitter.start()
 }
 Output.shared.event("ready")

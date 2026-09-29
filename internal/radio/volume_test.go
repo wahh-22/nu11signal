@@ -16,7 +16,7 @@ import (
 // withVolume is m once the player reported level.
 func withVolume(t *testing.T, m Model, level float64) Model {
 	t.Helper()
-	m, _ = step(t, m, volumeMsg{level: level})
+	m, _ = step(t, m, volumeMsg{level: level, epoch: m.volumeEpoch})
 	return m
 }
 
@@ -416,6 +416,8 @@ func TestVolumeReadoutNamesTheSystemVolume(t *testing.T) {
 		{playback.VolumeSystem, "SYS "},
 	} {
 		m, _ = step(t, m, stateMsg{state: inMode(tt.mode)})
+		// A new mode's level is read again; here it is the same.
+		m = withVolume(t, m, 0.6)
 		got := volumeRow(t, m)
 		if !strings.Contains(got, tt.label) || !strings.Contains(got, "60%") {
 			t.Fatalf("mode %q: readout %q; want %q at 60%%", tt.mode, got, tt.label)
@@ -446,5 +448,97 @@ func TestAVolumeModeChangeReadsTheLevelAgain(t *testing.T) {
 	}
 	if got := volumeRow(t, m); !strings.Contains(got, "35%") || !strings.Contains(got, "VOL ") {
 		t.Fatalf("readout %q; want VOL at 35%%", got)
+	}
+}
+
+// volumeCalls is how many times Volume was called.
+func volumeCalls(f *playbacktest.Fake) int { return len(callsOf(f, "Volume")) }
+
+func TestAModeChangeDuringAChangeReadsTheNewLevel(t *testing.T) {
+	f := playbacktest.New()
+	m := withVolume(t, loaded(t, f, newClock()), 0.6)
+	m, _ = step(t, m, stateMsg{state: inMode(playback.VolumeApp)})
+	m, first := press(t, m, "+")
+	m, _ = press(t, m, "+") // coalesced against the app level
+	// The app volume fell back while the change was in flight.
+	m, _ = step(t, m, stateMsg{state: inMode(playback.VolumeSystem)})
+	answer := run(t, first)
+	f.VolumeResult = 0.3 // the system level (the fake remembers the set)
+	m, next := step(t, m, answer)
+	if next == nil {
+		t.Fatal("the answer did not read the new mode's level")
+	}
+	m, last := step(t, m, run(t, next))
+	if last != nil {
+		t.Fatal("a level computed against the old mode was sent")
+	}
+	if got := setVolumeCalls(f); !reflect.DeepEqual(got, []any{0.65}) {
+		t.Fatalf("SetVolume calls %v; want only the first", got)
+	}
+	if volumeCalls(f) != 1 {
+		t.Fatalf("%d Volume calls; want 1", volumeCalls(f))
+	}
+	if got := volumeRow(t, m); !strings.Contains(got, "SYS ") || !strings.Contains(got, "30%") {
+		t.Fatalf("readout %q; want SYS at 30%%", got)
+	}
+}
+
+func TestAModeChangeDuringAReadDropsItsAnswer(t *testing.T) {
+	f := playbacktest.New()
+	m := loaded(t, f, newClock()) // the startup read is in flight
+	m, _ = step(t, m, stateMsg{state: inMode(playback.VolumeApp)})
+	m, _ = step(t, m, stateMsg{state: inMode(playback.VolumeSystem)})
+	// The startup read answers with the app level: stale.
+	f.VolumeResult = 0.3
+	m, next := step(t, m, volumeMsg{level: 0.9})
+	if next == nil {
+		t.Fatal("a stale read was not followed by a new one")
+	}
+	if got := volumeRow(t, m); !strings.Contains(got, "--") {
+		t.Fatalf("readout %q; want the level unknown until the new read", got)
+	}
+	m, _ = step(t, m, run(t, next))
+	if got := volumeRow(t, m); !strings.Contains(got, "30%") {
+		t.Fatalf("readout %q; want 30%%", got)
+	}
+}
+
+func TestPressesDuringAModeChangeReadApplyToTheNewLevel(t *testing.T) {
+	f := playbacktest.New()
+	m := withVolume(t, loaded(t, f, newClock()), 0.6)
+	m, _ = step(t, m, stateMsg{state: inMode(playback.VolumeApp)})
+	f.VolumeResult = 0.3
+	m, cmd := step(t, m, stateMsg{state: inMode(playback.VolumeSystem)})
+	m, pressed := press(t, m, "+")
+	if pressed != nil {
+		t.Fatal("a press during the read called the player")
+	}
+	f.Close() // lets the state wait in the batch return
+	var send tea.Cmd
+	for _, msg := range runAll(t, cmd) {
+		if v, ok := msg.(volumeMsg); ok {
+			m, send = step(t, m, v)
+		}
+	}
+	m, _ = step(t, m, run(t, send))
+	if got := setVolumeCalls(f); !reflect.DeepEqual(got, []any{0.35}) {
+		t.Fatalf("SetVolume calls %v; want the new level stepped", got)
+	}
+	if m.volume != 0.35 {
+		t.Fatalf("level %v; want 0.35", m.volume)
+	}
+}
+
+func TestLosingTheAppVolumeIsReported(t *testing.T) {
+	f := playbacktest.New()
+	m := withVolume(t, loaded(t, f, newClock()), 0.6)
+	m, _ = step(t, m, stateMsg{state: inMode(playback.VolumeSystem)})
+	m, _ = step(t, m, stateMsg{state: inMode(playback.VolumeApp)})
+	if strings.Contains(m.status, "APP VOLUME OFF") {
+		t.Fatalf("status %q on gaining the app volume", m.status)
+	}
+	m, _ = step(t, m, stateMsg{state: inMode(playback.VolumeSystem)})
+	if !strings.Contains(m.status, "APP VOLUME OFF") {
+		t.Fatalf("status %q; want APP VOLUME OFF", m.status)
 	}
 }

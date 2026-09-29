@@ -5,7 +5,7 @@ final class HelperLaunchTests: XCTestCase {
     func testRelaunchesOnceUnlessSystemVolumeIsForced() {
         let cases: [(String, [String: String], Bool)] = [
             ("first launch", [:], true),
-            ("already relaunched", [HelperLaunch.relaunchedKey: "1"], false),
+            ("relaunch already attempted", [HelperLaunch.relaunchAttemptedKey: "1"], false),
             ("system volume forced", [HelperLaunch.volumeModeKey: "system"], false),
             ("app volume asked for", [HelperLaunch.volumeModeKey: "app"], true),
         ]
@@ -52,7 +52,9 @@ final class VolumeModePolicyTests: XCTestCase {
         XCTAssertEqual(CapturePermission(preflightResult: 0), .authorized)
         XCTAssertEqual(CapturePermission(preflightResult: 1), .denied)
         XCTAssertEqual(CapturePermission(preflightResult: 2), .undetermined)
-        XCTAssertEqual(CapturePermission(preflightResult: -1), .undetermined)
+        // Anything TCC does not document cannot be trusted either way.
+        XCTAssertEqual(CapturePermission(preflightResult: -1), .unavailable)
+        XCTAssertEqual(CapturePermission(preflightResult: 3), .unavailable)
     }
 }
 
@@ -152,29 +154,33 @@ final class RemotePlayerTargetTests: XCTestCase {
             record(2, pid: 400, output: false, responsible: 42),
             record(3, pid: 950, bundle: "com.example.other", output: true, responsible: 42),
         ]
-        XCTAssertEqual(RemotePlayerTarget.select(records, helperPID: 42, baseline: [])?.objectID, 2)
+        XCTAssertEqual(RemotePlayerTarget.select(records, helperPID: 42)?.objectID, 2)
     }
 
-    func testWithoutResponsibilityANewCopyPlayingWins() {
-        let records = [
-            record(1, pid: 100, output: true),  // another client's copy, older than the helper
-            record(2, pid: 300, output: false), // idle new copy
-            record(3, pid: 200, output: true),  // started after the helper, playing
+    func testACopyNotAttributedToTheHelperIsNeverTapped() {
+        // Another client's copy started after the helper, playing: tapping
+        // it would mute that client.
+        let unrelated = [
+            record(1, pid: 100, output: true, responsible: 77),
+            record(2, pid: 300, output: true, responsible: 300),
+            record(3, pid: 200, output: false),
         ]
-        XCTAssertEqual(RemotePlayerTarget.select(records, helperPID: 42, baseline: [100])?.objectID, 3)
+        XCTAssertNil(RemotePlayerTarget.select(unrelated, helperPID: 42))
+        XCTAssertNil(RemotePlayerTarget.select([record(1, pid: 100, bundle: "com.apple.Music", output: true, responsible: 42)],
+                                               helperPID: 42))
     }
 
-    func testANewIdleCopyIsTheLastResortAndOldCopiesNever() {
-        XCTAssertEqual(RemotePlayerTarget.select([record(1, pid: 100, output: true), record(2, pid: 300)],
-                                                 helperPID: 42, baseline: [100])?.objectID, 2)
-        XCTAssertNil(RemotePlayerTarget.select([record(1, pid: 100, output: true)], helperPID: 42, baseline: [100]))
-        XCTAssertNil(RemotePlayerTarget.select([record(1, pid: 100, bundle: "com.apple.Music", output: true)],
-                                               helperPID: 42, baseline: []))
+    func testTheHelpersCopyWinsBesideAnUnrelatedNewCopy() {
+        let records = [
+            record(1, pid: 500, output: true, responsible: 77), // new, playing, someone else's
+            record(2, pid: 400, output: false, responsible: 42),
+        ]
+        XCTAssertEqual(RemotePlayerTarget.select(records, helperPID: 42)?.objectID, 2)
     }
 
     func testAmongEqualCandidatesTheNewestPidWins() {
-        let records = [record(1, pid: 200, output: true), record(2, pid: 250, output: true)]
-        XCTAssertEqual(RemotePlayerTarget.select(records, helperPID: 42, baseline: [])?.objectID, 2)
+        let records = [record(1, pid: 200, output: true, responsible: 42), record(2, pid: 250, output: true, responsible: 42)]
+        XCTAssertEqual(RemotePlayerTarget.select(records, helperPID: 42)?.objectID, 2)
     }
 }
 
@@ -186,5 +192,155 @@ final class TapFormatTests: XCTestCase {
         XCTAssertFalse(TapFormat.isFloat32(formatID: lpcm, flags: float, bitsPerChannel: 64))
         XCTAssertFalse(TapFormat.isFloat32(formatID: lpcm, flags: 4, bitsPerChannel: 32))
         XCTAssertFalse(TapFormat.isFloat32(formatID: 0x6161_6320, flags: float, bitsPerChannel: 32))
+    }
+}
+
+final class PlaybackActivityTests: XCTestCase {
+    func testStatusNamesMapToActivities() {
+        let cases: [(String, PlaybackActivity)] = [
+            ("playing", .playing), ("seeking", .playing), ("stopped", .stopped),
+            ("paused", .paused), ("interrupted", .paused),
+        ]
+        for (status, want) in cases {
+            XCTAssertEqual(PlaybackActivity(status: status), want, status)
+            XCTAssertEqual(PlaybackActivity.isPlaying(status), want == .playing, status)
+        }
+    }
+}
+
+final class TapLifecycleTests: XCTestCase {
+    private typealias L = TapLifecycle
+
+    /// A lifecycle driven through events, collecting every action.
+    private func drive(_ events: [L.Event], from start: L = L()) -> (L, [L.Action]) {
+        var lifecycle = start
+        var actions: [L.Action] = []
+        for event in events { actions += lifecycle.handle(event) }
+        return (lifecycle, actions)
+    }
+
+    func testAPlayBuildsTheMutedTapFirstAndStartsItWhenTheAudioPlays() {
+        var lifecycle = L()
+        XCTAssertEqual(lifecycle.handle(.prepare), [.build])
+        XCTAssertEqual(lifecycle.phase, .building)
+        XCTAssertEqual(lifecycle.handle(.built), [])
+        XCTAssertEqual(lifecycle.phase, .building)
+        XCTAssertEqual(lifecycle.handle(.playback(.playing)), [.start])
+        XCTAssertEqual(lifecycle.handle(.started), [])
+        XCTAssertEqual(lifecycle.phase, .running)
+    }
+
+    func testPauseStopsTheAudioThreadAndStopReleasesEverything() {
+        var (lifecycle, _) = drive([.prepare, .built, .playback(.playing), .started])
+        XCTAssertEqual(lifecycle.handle(.playback(.paused)), [.stop])
+        XCTAssertEqual(lifecycle.phase, .paused)
+        XCTAssertEqual(lifecycle.handle(.prepare), [], "a resume keeps the paused tap")
+        XCTAssertEqual(lifecycle.handle(.playback(.playing)), [.start])
+        XCTAssertEqual(lifecycle.handle(.playback(.stopped)), [.teardown])
+        XCTAssertEqual(lifecycle.phase, .idle)
+    }
+
+    func testAFailedPlayLeavesNoMutedTap() {
+        var (lifecycle, _) = drive([.prepare, .built])
+        XCTAssertEqual(lifecycle.handle(.playFailed), [.teardown])
+        XCTAssertEqual(lifecycle.phase, .idle)
+        // A failed play of another queue while music plays keeps its tap.
+        (lifecycle, _) = drive([.prepare, .built, .playback(.playing), .started, .prepare])
+        XCTAssertEqual(lifecycle.handle(.playFailed), [])
+        XCTAssertEqual(lifecycle.phase, .running)
+    }
+
+    func testAFailedPlayCancelsAPendingRetry() {
+        var (lifecycle, _) = drive([.prepare, .failed(.transient("device busy"))])
+        XCTAssertEqual(lifecycle.handle(.playFailed), [.teardown], "no muted leftover")
+        XCTAssertEqual(lifecycle.phase, .idle)
+        XCTAssertEqual(lifecycle.handle(.retryDue), [], "the stale retry does nothing")
+    }
+
+    func testTransientFailuresRetryWithBackoffThenFallBack() {
+        var (lifecycle, _) = drive([.prepare, .built, .playback(.playing)])
+        var delays: [Double] = []
+        for attempt in 1...L.retryDelays.count {
+            let actions = lifecycle.handle(.failed(.transient("start failed")))
+            guard case let .scheduleRetry(after)? = actions.last else { return XCTFail("\(actions)") }
+            // The muted tap stays while retrying: silence, never a jump
+            // to the system volume.
+            XCTAssertEqual(actions.first, .stop)
+            XCTAssertFalse(actions.contains(.teardown))
+            XCTAssertEqual(lifecycle.phase, .retrying(attempt: attempt))
+            delays.append(after)
+            XCTAssertEqual(lifecycle.handle(.retryDue), [.build])
+            XCTAssertEqual(lifecycle.handle(.built), [.start])
+        }
+        XCTAssertEqual(delays, L.retryDelays)
+        XCTAssertEqual(delays, delays.sorted(), "the backoff grows")
+        let last = lifecycle.handle(.failed(.transient("start failed")))
+        guard last.count == 1, case let .fallBack(reason)? = last.last else { return XCTFail("\(last)") }
+        XCTAssertTrue(reason.contains("start failed"), reason)
+        XCTAssertEqual(lifecycle.phase, .fallback(reason: reason))
+        XCTAssertEqual(lifecycle.handle(.playback(.playing)), [], "the fallback lasts")
+        XCTAssertEqual(lifecycle.handle(.prepare), [])
+    }
+
+    func testAStartedTapForgetsEarlierFailures() {
+        var (lifecycle, _) = drive([.prepare, .playback(.playing), .failed(.transient("x")), .retryDue, .built])
+        XCTAssertEqual(lifecycle.phase, .running)
+        (lifecycle, _) = drive([.started], from: lifecycle)
+        for _ in 1...L.retryDelays.count {
+            let actions = lifecycle.handle(.failed(.transient("x")))
+            XCTAssertFalse(actions.contains { if case .fallBack = $0 { return true }; return false }, "\(actions)")
+            _ = lifecycle.handle(.retryDue)
+            _ = lifecycle.handle(.built)
+        }
+    }
+
+    func testAPermanentFailureFallsBackAtOnce() {
+        var (lifecycle, _) = drive([.prepare])
+        XCTAssertEqual(lifecycle.handle(.failed(.permanent("not float"))), [.fallBack(reason: "not float")])
+        XCTAssertEqual(lifecycle.phase, .fallback(reason: "not float"))
+    }
+
+    func testAMissingPlayerProcessWaitsBeforeTheAudioButRetriesOnceItPlays() {
+        var lifecycle = L()
+        _ = lifecycle.handle(.prepare)
+        XCTAssertEqual(lifecycle.handle(.noTarget), [])
+        XCTAssertEqual(lifecycle.phase, .idle)
+        // The process list changed: the copy may be there now.
+        XCTAssertEqual(lifecycle.handle(.rebuild), [.build])
+        XCTAssertEqual(lifecycle.handle(.noTarget), [])
+        // The audio plays and still no copy is attributed to the helper.
+        XCTAssertEqual(lifecycle.handle(.playback(.playing)), [.build])
+        let actions = lifecycle.handle(.noTarget)
+        XCTAssertEqual(actions.first, .stop)
+        XCTAssertEqual(actions.last, .scheduleRetry(after: L.retryDelays[0]))
+    }
+
+    func testDeviceOrProcessChangesRebuildOnlyWhatIsNeeded() {
+        var (lifecycle, _) = drive([.prepare, .built, .playback(.playing), .started])
+        XCTAssertEqual(lifecycle.handle(.rebuild), [.teardown, .build])
+        XCTAssertEqual(lifecycle.handle(.built), [.start])
+        _ = lifecycle.handle(.playback(.paused))
+        XCTAssertEqual(lifecycle.handle(.rebuild), [.teardown], "a paused tap is rebuilt on resume")
+        XCTAssertEqual(lifecycle.phase, .idle)
+        XCTAssertEqual(lifecycle.handle(.rebuild), [])
+        XCTAssertEqual(lifecycle.handle(.prepare), [.build])
+        // A retry already pending rebuilds by itself.
+        (lifecycle, _) = drive([.prepare, .failed(.transient("x"))])
+        XCTAssertEqual(lifecycle.handle(.rebuild), [])
+    }
+
+    func testStoppingDuringARetryCancelsIt() {
+        var (lifecycle, _) = drive([.prepare, .playback(.playing), .failed(.transient("x"))])
+        XCTAssertEqual(lifecycle.handle(.playback(.stopped)), [.teardown])
+        XCTAssertEqual(lifecycle.phase, .idle)
+        XCTAssertEqual(lifecycle.handle(.retryDue), [])
+    }
+
+    func testARetryDueWhilePausedWaitsForTheNextPlay() {
+        var (lifecycle, _) = drive([.prepare, .built, .playback(.playing), .started,
+                                    .failed(.transient("x")), .playback(.paused)])
+        XCTAssertEqual(lifecycle.handle(.retryDue), [.teardown])
+        XCTAssertEqual(lifecycle.phase, .idle)
+        XCTAssertEqual(lifecycle.handle(.prepare), [.build])
     }
 }

@@ -128,7 +128,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onSetVolume(msg)
 	case stateMsg:
 		m = m.onState(msg.state)
-		m, reread := m.followVolumeMode(msg.state.VolumeMode)
+		var reread tea.Cmd
+		m, reread = m.followVolumeMode(msg.state.VolumeMode)
 		if m.animating() && !m.tickFast {
 			return m, tea.Batch(m.waitStates(), m.scheduleTick(), reread)
 		}

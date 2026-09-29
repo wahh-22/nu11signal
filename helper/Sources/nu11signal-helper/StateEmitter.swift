@@ -3,7 +3,7 @@ import Foundation
 import MusicKit
 import Nu11SignalProtocol
 
-/// Publishes `state` events: every 500 ms while playing, and immediately
+/// Publishes `state` events: every 500 ms while playing (or seeking), and immediately
 /// whenever the playback status, the current queue entry, the repeat mode
 /// or the volume mode changes. It also hands each status to AppVolume,
 /// which starts and stops its tap with playback.
@@ -53,16 +53,17 @@ final class StateEmitter {
         emit(snapshot())
     }
 
-    /// The player's state now; AppVolume follows its status.
+    /// The player's state now. AppVolume follows its status first: that
+    /// may change the volume mode, which is read after it.
     private func snapshot() -> Snapshot {
-        let snapshot = Snapshot(player: player, catalogIDs: catalogIDs, volumeMode: AppVolume.shared.mode)
-        AppVolume.shared.playbackStatus(snapshot.status)
-        return snapshot
+        let status = Snapshot.name(of: player.state.playbackStatus)
+        AppVolume.shared.playbackStatus(status)
+        return Snapshot(player: player, status: status, catalogIDs: catalogIDs, volumeMode: AppVolume.shared.mode)
     }
 
     private func tick() {
         let snapshot = self.snapshot()
-        if snapshot.status == "playing" || snapshot.signature != lastSignature {
+        if PlaybackActivity.isPlaying(snapshot.status) || snapshot.signature != lastSignature {
             emit(snapshot)
         }
         observeQueue()
@@ -106,9 +107,9 @@ private struct Snapshot {
     var volumeMode: String
 
     @MainActor
-    init(player: ApplicationMusicPlayer, catalogIDs: [String: String], volumeMode: VolumeMode) {
+    init(player: ApplicationMusicPlayer, status: String, catalogIDs: [String: String], volumeMode: VolumeMode) {
         self.volumeMode = volumeMode.rawValue
-        status = Snapshot.name(of: player.state.playbackStatus)
+        self.status = status
         position = max(0, player.playbackTime)
         repeatMode = Snapshot.name(of: player.state.repeatMode)
         guard let entry = player.queue.currentEntry else { return }

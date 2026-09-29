@@ -12,32 +12,45 @@ import Nu11SignalProtocol
 /// its own output. In app mode it creates a Core Audio process tap on that
 /// process with `muteBehavior = .muted` (the process's own output goes
 /// silent), routes the tap into a private aggregate device on the default
-/// output device, and renders it there scaled by the app gain.
+/// output device, and renders it there scaled by the app gain. Only a copy
+/// macOS holds the helper responsible for is tapped (RemotePlayerTarget):
+/// muting another client's copy would silence that client.
 ///
 /// App mode needs the helper to be its own responsible process (see
 /// Relaunch), macOS 14.2+ and the audio capture permission; the permission
 /// is asked for on the first playback, and until it is granted (or when it
-/// is denied, or a tap cannot be built) the system volume is used. Nothing
-/// muted is ever created before the permission is known to be granted.
+/// is denied) the system volume is used. Nothing muted is ever created
+/// before the permission is known to be granted.
 ///
-/// Resources: the tap and aggregate are built lazily when playback starts;
-/// the IOProc stops when playback pauses (the muted tap stays, so resuming
-/// is never briefly loud) and everything is destroyed when playback stops,
-/// on exit, and before a rebuild (a new default output device, or a new
-/// RemotePlayerService copy).
+/// When the tap happens is TapLifecycle's decision; this class performs
+/// its actions on the HAL. The tap is built right before a play (so the
+/// audio never starts loud), its IOProc stops when playback pauses (the
+/// muted tap stays, so resuming is never briefly loud) and everything is
+/// destroyed when playback stops, on exit, and before a rebuild (a new
+/// default output device, or a new RemotePlayerService copy). A transient
+/// failure is retried a few times over about five seconds, silent
+/// meanwhile; if it keeps failing, or cannot work, the rest of the session
+/// uses the system volume. That fallback never changes the system volume:
+/// if the music was playing quieter than the system volume, the player is
+/// paused first (`onLoudFallback`), so it is never suddenly louder; it
+/// resumes at the system volume when the user plays again.
 @MainActor
 final class AppVolume {
     static let shared = AppVolume()
 
     /// Called whenever `mode` changes (the state emitter reports it).
     var onModeChange: (() -> Void)?
+    /// Called when the app volume falls back while the music plays quieter
+    /// than the system volume would: the owner pauses the player.
+    var onLoudFallback: (() -> Void)?
 
     private(set) var mode: VolumeMode = .system
     private let policy: VolumeModePolicy
     private var permission: CapturePermission
     private var requesting = false
-    /// Set once a tap failed: the rest of the session uses the system volume.
-    private var broken = false
+    /// Set once the lifecycle fell back: the rest of the session uses the
+    /// system volume.
+    private var fallbackReason: String?
 
     /// The app level, 0...1, as reported and stored.
     private var level: Double
@@ -48,11 +61,11 @@ final class AppVolume {
 
     private var tap: Tap?
     private var running = false
-    private var status = "stopped"
-    /// A play was asked for and the player has not reported a new status.
-    private var expectingPlayback = false
-    /// RemotePlayerService pids seen at startup: other clients' copies.
-    private let baseline: Set<Int32>
+    private var lifecycle = TapLifecycle()
+    /// The last player status seen; the lifecycle hears only changes.
+    private var lastStatus = "stopped"
+    /// Bumped to cancel a scheduled retry.
+    private var retryGeneration = 0
     private var listening = false
 
     private init() {
@@ -65,7 +78,6 @@ final class AppVolume {
         level = AppGain.stored(UserDefaults.standard.object(forKey: AppGain.defaultsKey))
         target.initialize(to: AppGain.amplitude(level: level))
         render.initialize(to: RenderState())
-        baseline = Set(HAL.processes().filter { $0.bundleID == RemotePlayerTarget.bundleID }.map(\.pid))
         updateMode()
         log("volume mode \(mode.rawValue) (responsible for itself: \(policy.disclaimed), capture permission: \(permission))")
     }
@@ -110,27 +122,20 @@ final class AppVolume {
                 permission = .unavailable
             }
         }
-        expectingPlayback = true
-        if mode == .app {
-            build()
-        }
+        if mode == .app { send(.prepare) }
+    }
+
+    /// Called when the play prepareForPlayback preceded threw: a tap built
+    /// for it must not stay behind, muted.
+    func playbackFailed() {
+        if mode == .app { send(.playFailed) }
     }
 
     /// The player's status, as the state emitter reads it (repeatedly).
-    func playbackStatus(_ status: String) {
-        guard status != self.status else { return }
-        self.status = status
-        expectingPlayback = false
-        guard mode == .app else { return }
-        switch status {
-        case "playing", "seeking":
-            build()
-            start()
-        case "stopped":
-            teardown()
-        default:
-            stop()
-        }
+    func playbackStatus(_ name: String) {
+        guard name != lastStatus else { return }
+        lastStatus = name
+        if mode == .app { send(.playback(PlaybackActivity(status: name))) }
     }
 
     /// Releases the tap and aggregate device; called on exit.
@@ -143,33 +148,89 @@ final class AppVolume {
         permission = granted ? .authorized : .denied
         log("audio capture permission \(granted ? "granted" : "denied")")
         updateMode()
-        if mode == .app, playing {
-            build()
-            start()
-        }
     }
 
-    private var playing: Bool { status == "playing" || status == "seeking" }
-
+    /// Follows the policy (or a fallback). Entering app mode starts a fresh
+    /// lifecycle told what the player is doing; leaving it releases the tap.
     private func updateMode() {
-        let next: VolumeMode = broken ? .system : policy.mode(permission)
+        let next: VolumeMode = fallbackReason != nil ? .system : policy.mode(permission)
         guard next != mode else { return }
         mode = next
+        lifecycle = TapLifecycle()
+        retryGeneration += 1
+        teardown()
         if mode == .app {
             target.pointee = AppGain.amplitude(level: level)
             listen()
-        } else {
-            teardown()
+            let activity = PlaybackActivity(status: lastStatus)
+            if activity != .stopped { send(.playback(activity)) }
         }
         onModeChange?()
     }
 
-    /// Gives up on the app volume for this session.
-    private func fail(_ reason: String) {
-        log("app volume unavailable (\(reason)); using the system volume")
-        teardown()
-        broken = true
-        updateMode()
+    // MARK: Lifecycle actions
+
+    private func send(_ event: TapLifecycle.Event) {
+        perform(lifecycle.handle(event))
+    }
+
+    /// Performs the lifecycle's actions in order; results go back to it
+    /// as events (their own actions run before the next one here).
+    private func perform(_ actions: [TapLifecycle.Action]) {
+        for action in actions {
+            // A mode change (a revoked permission, a fallback) ends the
+            // lifecycle that asked; only releasing still makes sense.
+            guard mode == .app || action == .teardown else { return }
+            switch action {
+            case .build:
+                switch build() {
+                case .built: send(.built)
+                case .noTarget: send(.noTarget)
+                case let .failed(failure): send(.failed(failure))
+                case .aborted: return
+                }
+            case .start:
+                if let failure = start() { send(.failed(failure)) } else { send(.started) }
+            case .stop:
+                stop()
+            case .teardown:
+                teardown()
+            case let .scheduleRetry(delay):
+                scheduleRetry(after: delay)
+            case let .fallBack(reason):
+                fallBack(reason)
+            }
+        }
+    }
+
+    private func scheduleRetry(after delay: Double) {
+        retryGeneration += 1
+        let generation = retryGeneration
+        log("app volume: retrying in \(delay) s")
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            MainActor.assumeIsolated { AppVolume.shared.retryDue(generation) }
+        }
+    }
+
+    private func retryDue(_ generation: Int) {
+        guard generation == retryGeneration, mode == .app else { return }
+        send(.retryDue)
+    }
+
+    /// Gives up on the app volume for this session without a jump in
+    /// loudness: music playing quieter than the system volume is paused
+    /// (while the muted tap still silences it) before the tap goes.
+    private func fallBack(_ reason: String) {
+        log("app volume off (\(reason)); using the system volume for this session")
+        let quieter = PlaybackActivity(status: lastStatus) == .playing && target.pointee < 1
+        fallbackReason = reason
+        guard quieter, let onLoudFallback else { return updateMode() }
+        log("app volume: pausing, so the music does not jump to the louder system volume")
+        onLoudFallback()
+        // Let the pause reach the player before the mute goes.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            MainActor.assumeIsolated { AppVolume.shared.updateMode() }
+        }
     }
 
     // MARK: Tap
@@ -184,22 +245,28 @@ final class AppVolume {
         var outputDevice: AudioObjectID
     }
 
-    /// Builds the tap, aggregate device and IOProc if there are none and
-    /// the RemotePlayerService copy exists (it starts with the first play;
-    /// the process list listener builds once it appears).
-    private func build() {
-        guard tap == nil, mode == .app else { return }
-        guard #available(macOS 14.2, *) else { return }
+    private enum BuildResult {
+        case built, noTarget
+        case failed(TapFailure)
+        /// The mode changed under it (the permission was revoked).
+        case aborted
+    }
+
+    /// Builds the tap, aggregate device and IOProc, replacing any left, for
+    /// the RemotePlayerService copy that serves the helper.
+    private func build() -> BuildResult {
+        teardown()
+        guard #available(macOS 14.2, *) else { return .failed(.permanent("process taps need macOS 14.2")) }
         // A permission revoked since startup must not leave a muted tap.
-        guard CaptureAuthorization.preflight() == .authorized else {
-            permission = .denied
+        let current = CaptureAuthorization.preflight()
+        guard current == .authorized else {
+            permission = current
             updateMode()
-            return
+            return .aborted
         }
-        guard let process = selectProcess() else { return }
+        guard let process = selectProcess() else { return .noTarget }
         guard let output = HAL.defaultOutputDevice(), let outputUID = HAL.string(output, kAudioDevicePropertyDeviceUID) else {
-            log("app volume: no default output device")
-            return
+            return .failed(.transient("no default output device"))
         }
 
         let description = CATapDescription(stereoMixdownOfProcesses: [process.objectID])
@@ -207,15 +274,15 @@ final class AppVolume {
         description.isPrivate = true
         description.muteBehavior = .muted
         var tapID = AudioObjectID(kAudioObjectUnknown)
-        var status = AudioHardwareCreateProcessTap(description, &tapID)
-        guard status == noErr, tapID != kAudioObjectUnknown else {
-            return fail("could not create the process tap, OSStatus \(status)")
+        var result = AudioHardwareCreateProcessTap(description, &tapID)
+        guard result == noErr, tapID != kAudioObjectUnknown else {
+            return .failed(.transient("could not create the process tap, OSStatus \(result)"))
         }
         let tapFormat = HAL.format(tapID, kAudioTapPropertyFormat, kAudioObjectPropertyScopeGlobal)
         let tapUID = HAL.string(tapID, kAudioTapPropertyUID) ?? description.uuid.uuidString
         guard let tapFormat, Self.renderable(tapFormat) else {
             AudioHardwareDestroyProcessTap(tapID)
-            return fail("the tap's format is not 32-bit float")
+            return .failed(.permanent("the tap's format is not 32-bit float"))
         }
 
         let aggregate: [String: Any] = [
@@ -229,16 +296,16 @@ final class AppVolume {
             kAudioAggregateDeviceTapListKey: [[kAudioSubTapDriftCompensationKey: true, kAudioSubTapUIDKey: tapUID]],
         ]
         var aggregateID = AudioObjectID(kAudioObjectUnknown)
-        status = AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID)
-        guard status == noErr, aggregateID != kAudioObjectUnknown else {
+        result = AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID)
+        guard result == noErr, aggregateID != kAudioObjectUnknown else {
             AudioHardwareDestroyProcessTap(tapID)
-            return fail("could not create the aggregate device, OSStatus \(status)")
+            return .failed(.transient("could not create the aggregate device, OSStatus \(result)"))
         }
         let outputFormat = HAL.format(aggregateID, kAudioDevicePropertyStreamFormat, kAudioObjectPropertyScopeOutput)
         guard let outputFormat, Self.renderable(outputFormat) else {
             AudioHardwareDestroyAggregateDevice(aggregateID)
             AudioHardwareDestroyProcessTap(tapID)
-            return fail("the output format is not 32-bit float")
+            return .failed(.permanent("the output format is not 32-bit float"))
         }
 
         render.pointee = RenderState(
@@ -247,25 +314,29 @@ final class AppVolume {
         let target = self.target, render = self.render
         var procID: AudioDeviceIOProcID?
         // No dispatch queue: the block runs on the real-time IO thread.
-        status = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, nil) { _, input, _, output, _ in
+        result = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, nil) { _, input, _, output, _ in
             AppVolume.renderGain(input: input, output: output, target: target, state: render)
         }
-        guard status == noErr, let procID else {
+        guard result == noErr, let procID else {
             AudioHardwareDestroyAggregateDevice(aggregateID)
             AudioHardwareDestroyProcessTap(tapID)
-            return fail("could not create the IOProc, OSStatus \(status)")
+            return .failed(.transient("could not create the IOProc, OSStatus \(result)"))
         }
         tap = Tap(tapID: tapID, aggregateID: aggregateID, procID: procID, processObject: process.objectID,
                   outputDevice: output)
-        log("app volume: tapping RemotePlayerService pid \(process.pid) on \(outputUID) "
-            + "(\(Int(outputFormat.mSampleRate)) Hz, \(tapFormat.mChannelsPerFrame) channels)")
+        log("app volume: tapping RemotePlayerService pid \(process.pid) (responsible: this helper) on \(outputUID) "
+            + "(\(Int(outputFormat.mSampleRate)) Hz, \(tapFormat.mChannelsPerFrame) channels, gain \(target.pointee))")
+        return .built
     }
 
-    private func start() {
-        guard let tap, !running else { return }
-        let status = AudioDeviceStart(tap.aggregateID, tap.procID)
-        guard status == noErr else { return fail("could not start the aggregate device, OSStatus \(status)") }
+    /// Starts the IOProc; the failure, if it does not.
+    private func start() -> TapFailure? {
+        guard let tap else { return .transient("no tap to start") }
+        guard !running else { return nil }
+        let result = AudioDeviceStart(tap.aggregateID, tap.procID)
+        guard result == noErr else { return .transient("could not start the aggregate device, OSStatus \(result)") }
         running = true
+        return nil
     }
 
     private func stop() {
@@ -283,14 +354,6 @@ final class AppVolume {
         self.tap = nil
     }
 
-    /// Rebuilds for a new output device or RemotePlayerService copy.
-    private func rebuild() {
-        teardown()
-        guard mode == .app, playing || expectingPlayback else { return }
-        build()
-        if playing { start() }
-    }
-
     private func selectProcess() -> AudioProcessRecord? {
         let records = HAL.processes().map { record -> AudioProcessRecord in
             var record = record
@@ -299,7 +362,7 @@ final class AppVolume {
             }
             return record
         }
-        return RemotePlayerTarget.select(records, helperPID: getpid(), baseline: baseline)
+        return RemotePlayerTarget.select(records, helperPID: getpid())
     }
 
     private static func renderable(_ format: AudioStreamBasicDescription) -> Bool {
@@ -324,15 +387,19 @@ final class AppVolume {
     private func outputDeviceChanged() {
         guard mode == .app, let tap, HAL.defaultOutputDevice() != tap.outputDevice else { return }
         log("app volume: the default output device changed; rebuilding")
-        rebuild()
+        send(.rebuild)
     }
 
     private func processesChanged() {
-        guard mode == .app, tap != nil || playing || expectingPlayback else { return }
+        guard mode == .app, tap != nil || lifecycle.activity == .playing || lifecycle.expecting else { return }
+        switch lifecycle.phase {
+        case .idle, .building, .running, .paused: break
+        case .retrying, .fallback: return
+        }
         let process = selectProcess()
         if let tap, process?.objectID == tap.processObject { return }
         if tap != nil { log("app volume: the RemotePlayerService process changed; rebuilding") }
-        rebuild()
+        send(.rebuild)
     }
 
     // MARK: Real-time rendering

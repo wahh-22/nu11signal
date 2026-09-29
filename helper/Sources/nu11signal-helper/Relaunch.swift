@@ -13,7 +13,8 @@ import Nu11SignalProtocol
 /// the private `responsibility_spawnattrs_setdisclaim` attribute, the one
 /// LLDB and Chromium use. The symbol is looked up at run time: without it,
 /// or if the exec fails, the helper runs on as it was and the volume falls
-/// back to the system volume. HelperLaunch.relaunchedKey stops a loop.
+/// back to the system volume. HelperLaunch.relaunchAttemptedKey, set before
+/// the attempt, stops a loop.
 enum Relaunch {
     /// dlfcn.h's RTLD_DEFAULT (a macro Swift does not import): every image.
     private static let defaultHandle = UnsafeMutableRawPointer(bitPattern: -2)
@@ -23,7 +24,7 @@ enum Relaunch {
     /// Re-executes the helper disclaimed, once; returns only when it does not.
     static func disclaimIfNeeded() {
         guard HelperLaunch.shouldRelaunch(environment: ProcessInfo.processInfo.environment) else { return }
-        setenv(HelperLaunch.relaunchedKey, "1", 1)
+        setenv(HelperLaunch.relaunchAttemptedKey, "1", 1)
         guard let symbol = dlsym(defaultHandle, "responsibility_spawnattrs_setdisclaim") else {
             log("responsibility_spawnattrs_setdisclaim is unavailable; the volume stays the system volume")
             return
@@ -45,12 +46,11 @@ enum Relaunch {
     }
 
     /// Whether the helper is its own responsible process. Without the
-    /// private lookup, a relaunch that happened is trusted.
+    /// private lookup this cannot be known, and neither can which player
+    /// process serves the helper (see RemotePlayerTarget), so it is false.
     static var isDisclaimed: Bool {
-        if let symbol = dlsym(defaultHandle, "responsibility_get_pid_responsible_for_pid") {
-            return responsiblePID(of: getpid(), symbol) == getpid()
-        }
-        return ProcessInfo.processInfo.environment[HelperLaunch.relaunchedKey] != nil
+        guard let symbol = dlsym(defaultHandle, "responsibility_get_pid_responsible_for_pid") else { return false }
+        return responsiblePID(of: getpid(), symbol) == getpid()
     }
 
     /// The pid macOS holds responsible for pid, when that can be read.
