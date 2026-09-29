@@ -105,9 +105,8 @@ func (m *Model) remember(term string) tea.Cmd {
 func (m Model) openSearch(fresh bool) (tea.Model, tea.Cmd) {
 	var search tea.Cmd
 	if fresh {
-		m.stopSearch()
+		m.resetSearch()
 		m.input.Reset()
-		m.search = searchState{seq: m.search.seq}
 	} else if term := m.inputTerm(); longEnough(term) && term != m.search.term {
 		// Leaving the view stopped the search for this term; resume it.
 		search = m.startSearch(term)
@@ -152,12 +151,12 @@ func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // schedules a new one after the debounce delay. Until it answers, the
 // results of the previous term are hidden (see searchRows).
 func (m *Model) inputChanged() tea.Cmd {
-	m.stopSearch()
 	m.setCursor(-1)
 	if !longEnough(m.inputTerm()) {
-		m.search = searchState{seq: m.search.seq}
+		m.resetSearch()
 		return nil
 	}
+	m.stopSearch()
 	seq := m.search.seq
 	return tea.Tick(searchDebounce, func(time.Time) tea.Msg { return searchDebounceMsg{seq: seq} })
 }
@@ -182,8 +181,7 @@ func (m Model) searchNow() (Model, tea.Cmd) {
 	m.setCursor(-1)
 	term := m.inputTerm()
 	if !longEnough(term) {
-		m.stopSearch()
-		m.search = searchState{seq: m.search.seq}
+		m.resetSearch()
 		return m, nil
 	}
 	cmd := m.startSearch(term)
@@ -215,6 +213,22 @@ func (m *Model) stopSearch() {
 	m.search.seq++
 	m.search.cancel = nil
 	m.search.loading = false
+}
+
+// resetSearch stops the search and forgets its results, as for an input
+// too short to search.
+func (m *Model) resetSearch() {
+	m.stopSearch()
+	m.search = searchState{seq: m.search.seq}
+}
+
+// resultsAnswerInput reports whether the results (or error) answer the
+// term in the input. They do not while the term is too short to search or
+// while the input changed and the new search has not answered yet; stale
+// results are then neither shown nor selectable.
+func (m Model) resultsAnswerInput() bool {
+	term := m.inputTerm()
+	return longEnough(term) && term == m.search.term
 }
 
 // onCatalog shows the answer to the latest search; older answers are
@@ -267,13 +281,6 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 	return m.searchNow()
 }
 
-// openArtist is where the ARTIST view is to be pushed; until it exists the
-// selection is only announced.
-func (m Model) openArtist(a playback.Artist) (Model, tea.Cmd) {
-	m.setStatus("ARTIST PAGE COMING SOON // " + strings.ToUpper(a.Name))
-	return m, nil
-}
-
 // searchRows lists the selectable rows: recent terms while the input is
 // empty, otherwise the results for the typed term as Apple Music orders
 // them (suggestions, artists, songs). Results for another term (the input
@@ -287,7 +294,7 @@ func (m Model) searchRows() []searchRow {
 		}
 		return rows
 	}
-	if !longEnough(term) || term != m.search.term || m.search.err != nil {
+	if !m.resultsAnswerInput() || m.search.err != nil {
 		return nil
 	}
 	res := m.search.results
@@ -309,7 +316,7 @@ func (m Model) searchCode() string {
 	switch {
 	case term == "":
 		return fmt.Sprintf("RECENT %02d", len(m.recents))
-	case m.search.loading || (longEnough(term) && term != m.search.term):
+	case m.search.loading || (longEnough(term) && !m.resultsAnswerInput()):
 		return "SCANNING"
 	case m.search.err != nil:
 		return "ERR"
@@ -323,7 +330,7 @@ func (m Model) searchCode() string {
 func (m Model) inputWidth() int {
 	w := m.width
 	if w >= fullMinWidth && m.height >= fullMinHeight {
-		w = listPanelWidth(w) - 2
+		w = stationPanelWidth(w) - 2
 	}
 	return max(w-3, 1)
 }
@@ -356,7 +363,7 @@ func (m Model) searchBody(w, h int) []string {
 		}
 	case !longEnough(term):
 		notice = stDim.Render(fmt.Sprintf("KEEP TYPING // %d+ CHARACTERS", minSearchRunes))
-	case term != m.search.term:
+	case !m.resultsAnswerInput():
 		notice = stDim.Render("SCANNING CATALOG...")
 	case m.search.err != nil:
 		notice = stYellow.Render("▲ SCAN FAILED")

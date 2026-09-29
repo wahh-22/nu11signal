@@ -59,6 +59,8 @@ const (
 	// viewSearch is the catalog search; its state lives in Model.search so
 	// that it survives being popped and restored with tab.
 	viewSearch
+	// viewArtist is an artist page; its state lives in its frame.
+	viewArtist
 )
 
 // frame is one entry of the navigation stack: a view and its cursor. Browse
@@ -68,6 +70,8 @@ type frame struct {
 	kind viewKind
 	// cursor is the selected row; in the search view -1 selects the input.
 	cursor int
+	// artist is the page of a viewArtist entry.
+	artist artistPage
 }
 
 // Model is the Bubble Tea model of the radio.
@@ -99,6 +103,8 @@ type Model struct {
 	search       searchState
 	recents      []string
 	recentsStore history.Recents
+	// artistSeq numbers artist page loads (see artistPage.seq).
+	artistSeq uint64
 
 	// seekPending holds the target of the latest seek (seekSeq) until the
 	// player answers it, so rapid seeks accumulate instead of restarting
@@ -332,14 +338,32 @@ func (m *Model) setStationCursor(c int) { m.setCursorAt(0, c) }
 
 func (m *Model) push(f frame) { m.stack = append(slices.Clone(m.stack), f) }
 
-// pop removes the top entry; the stations root is never popped.
+// pop removes the top entry, cancelling its load; the stations root is
+// never popped.
 func (m *Model) pop() {
 	if len(m.stack) > 1 {
+		m.top().cancelLoad()
 		m.stack = slices.Clone(m.stack[:len(m.stack)-1])
 	}
 }
 
-func (m *Model) popToRoot() { m.stack = slices.Clone(m.stack[:1]) }
+// popToRoot removes every entry above the stations root, cancelling their
+// loads.
+func (m *Model) popToRoot() {
+	for _, f := range m.stack[1:] {
+		f.cancelLoad()
+	}
+	m.stack = slices.Clone(m.stack[:1])
+}
+
+// setTop replaces the top entry.
+func (m *Model) setTop(f frame) { m.setFrame(len(m.stack)-1, f) }
+
+// setFrame replaces stack entry i.
+func (m *Model) setFrame(i int, f frame) {
+	m.stack = slices.Clone(m.stack)
+	m.stack[i] = f
+}
 
 // setCursor moves the cursor of the top entry.
 func (m *Model) setCursor(c int) { m.setCursorAt(len(m.stack)-1, c) }
