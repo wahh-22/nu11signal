@@ -47,6 +47,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onSearchDebounce(msg)
 	case catalogMsg:
 		return m.onCatalog(msg), nil
+	case artistMsg:
+		return m.onArtist(msg), nil
 	case actionMsg:
 		if msg.err != nil {
 			m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
@@ -122,6 +124,11 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.top().kind == viewSearch {
 		return m.handleSearchKey(msg)
+	}
+	if m.top().kind == viewArtist {
+		if next, cmd, ok := m.handleArtistKey(k); ok {
+			return next, cmd
+		}
 	}
 	if m.auth == authFailed {
 		if k == keyQuit || k == keyEsc {

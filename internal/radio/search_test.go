@@ -261,23 +261,6 @@ func TestSearchEnterOnRecentTermSearchesItNow(t *testing.T) {
 	}
 }
 
-func TestSearchEnterOnArtistRemembersTermAndAnnouncesPage(t *testing.T) {
-	f := playbacktest.New()
-	f.SearchCatalogResult = catalog()
-	r := &fakeRecents{}
-	m := searchFor(t, loadedWithRecents(t, f, r), "daft")
-
-	m, _ = press(t, m, "down", "down", "down")
-	m, cmd := press(t, m, "enter")
-	m = settle(t, m, cmd)
-	if got := r.Added(); !reflect.DeepEqual(got, []string{"daft"}) {
-		t.Fatalf("recents added = %q; want [daft]", got)
-	}
-	if !strings.Contains(plain(m), "ARTIST PAGE") || !strings.Contains(m.status, "DAFT PUNK") {
-		t.Fatalf("status = %q; want the artist page notice", m.status)
-	}
-}
-
 func TestSearchEnterOnInputRemembersAndSearchesNow(t *testing.T) {
 	f := playbacktest.New()
 	r := &fakeRecents{}
@@ -572,8 +555,11 @@ func TestInFlightSearchIsCancelled(t *testing.T) {
 					t.Fatal("the cancelled search never answered")
 				}
 			}
-			if strings.Contains(m.status, "SCAN FAILED") {
-				t.Fatalf("a cancelled search was reported: %q", m.status)
+			if m.search.err != nil {
+				t.Fatalf("a cancelled search set the search error: %v", m.search.err)
+			}
+			if strings.Contains(m.status, "SCAN FAILED") || strings.Contains(plain(m), "SCAN FAILED") {
+				t.Fatalf("a cancelled search was reported: status %q\n%s", m.status, plain(m))
 			}
 		})
 	}

@@ -61,7 +61,7 @@ func (m Model) renderTiny() []string {
 func (m Model) renderFull() []string {
 	w, h := m.width, m.height
 	bodyH := h - 4
-	leftW := listPanelWidth(w)
+	leftW := m.listPanelWidth(w)
 	rightW := w - leftW - 1
 
 	left := m.listPanel(leftW, bodyH)
@@ -74,8 +74,32 @@ func (m Model) renderFull() []string {
 	return append(lines, m.statusLine(w), m.hintLine(w))
 }
 
-// listPanelWidth is the width of the list panel in the full layout.
-func listPanelWidth(w int) int { return max(28, min(w*2/5, 44)) }
+// listPanelWidth is the width of the list panel in the full layout. The
+// artist page takes more of the screen from NOW PLAYING: its rows pair a
+// title with an album, year or curator.
+func (m Model) listPanelWidth(w int) int {
+	if m.top().kind == viewArtist {
+		return artistPanelWidth(w)
+	}
+	return stationPanelWidth(w)
+}
+
+// stationPanelWidth is the list panel width of the stations and search
+// views.
+func stationPanelWidth(w int) int { return max(28, min(w*2/5, 44)) }
+
+// artistPanelWidth is the list panel width of the artist view; NOW PLAYING
+// keeps at least 23 cells at the narrowest full layout.
+func artistPanelWidth(w int) int { return max(28, min(w*3/5, 72)) }
+
+// listBodyWidth is the width listView draws in: the list panel's inside in
+// the full layout, the whole screen in the compact one.
+func (m Model) listBodyWidth() int {
+	if m.width >= fullMinWidth && m.height >= fullMinHeight {
+		return m.listPanelWidth(m.width) - 2
+	}
+	return m.width
+}
 
 func (m Model) renderCompact() []string {
 	w := m.width
@@ -209,6 +233,10 @@ func (m Model) nowPlaying(iw, ih int) []string {
 	}
 	label := stMuted.Render(spaced("NOW PLAYING"))
 	tag := m.statusTag()
+	if ansi.StringWidth(label)+1+ansi.StringWidth(tag) > iw-1 {
+		// The narrower panel beside the artist page keeps the status whole.
+		label = stMuted.Render("NOW PLAYING")
+	}
 	head := label + strings.Repeat(" ", max(iw-1-ansi.StringWidth(label)-ansi.StringWidth(tag), 1)) + tag
 
 	lines := []string{
@@ -265,8 +293,11 @@ func (m Model) listPanel(w, h int) []string {
 // listView is the one dispatch on the view on top of the navigation stack:
 // its panel title and code, and its body rendered in w x h cells.
 func (m Model) listView(w, h int) (title, code string, body []string) {
-	if m.top().kind == viewSearch {
+	switch m.top().kind {
+	case viewSearch:
 		return "SEARCH", m.searchCode(), m.searchBody(w, h)
+	case viewArtist:
+		return "ARTIST", m.artistCode(), m.artistBody(w, h)
 	}
 	return "STATIONS", fmt.Sprintf("BAND FM // %02d CH", len(m.stations)), m.stationRows(w, h)
 }
@@ -331,8 +362,11 @@ func keyCap(k string) string { return stYellow.Render("[" + k + "]") }
 // quit) until they fit.
 func (m Model) hintLine(w int) string {
 	hints := playerHints
-	if m.top().kind == viewSearch {
+	switch m.top().kind {
+	case viewSearch:
 		hints = searchHints
+	case viewArtist:
+		hints = artistHints
 	}
 	render := func(hs []hint) string {
 		parts := make([]string, len(hs))
