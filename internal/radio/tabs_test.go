@@ -63,15 +63,15 @@ func TestUpPastTheTopOfTheStationsFocusesTheTabs(t *testing.T) {
 	}
 	m, _ = press(t, m, "up")
 	if m.focus != areaTabs || m.tab != 0 {
-		t.Fatalf("focus %v tab %d; want the STATIONS tab", m.focus, m.tab)
+		t.Fatalf("focus %v tab %d; want the PLAYLISTS tab", m.focus, m.tab)
 	}
 	if got := textAt(m, zoneOf(t, m, zoneTabStations)); !strings.Contains(got, "▸") {
-		t.Fatalf("focused STATIONS tab shows %q; want the ▸ marker", got)
+		t.Fatalf("focused PLAYLISTS tab shows %q; want the ▸ marker", got)
 	}
 	if got := textAt(m, zoneOf(t, m, zoneTabSearch)); strings.Contains(got, "▸") {
 		t.Fatalf("SEARCH is marked too: %q", got)
 	}
-	// k is up too, and the tabs hold the focus against more ups.
+	// The tabs hold the focus against more ups.
 	m, _ = press(t, m, "up")
 	if m.focus != areaTabs {
 		t.Fatalf("focus %v; want the tabs kept", m.focus)
@@ -80,6 +80,7 @@ func TestUpPastTheTopOfTheStationsFocusesTheTabs(t *testing.T) {
 	if m.focus != areaList || m.stationCursor() != 0 {
 		t.Fatalf("down: focus %v cursor %d; want back on the first station", m.focus, m.stationCursor())
 	}
+	// k is up too.
 	m, _ = press(t, m, "k")
 	if m.focus != areaTabs {
 		t.Fatalf("k at the top: focus %v; want the tabs", m.focus)
@@ -123,11 +124,11 @@ func TestTabsWalkAndActivate(t *testing.T) {
 		t.Fatalf("enter on BACK: stack %v focus %v; want SEARCH with the list focused", stackKinds(m), m.focus)
 	}
 
-	// Enter on STATIONS parks the branch, as its click does.
+	// Enter on PLAYLISTS parks the search branch, as its click does.
 	m = openResults(t, playbacktest.New(), &fakeRecents{})
 	m, _ = press(t, m, "up", "left", "enter")
 	if len(m.stack) != 1 || len(m.parked) == 0 || m.focus != areaList {
-		t.Fatalf("enter on STATIONS: stack %v parked %d focus %v; want the stations", stackKinds(m), len(m.parked), m.focus)
+		t.Fatalf("enter on PLAYLISTS: stack %v parked %d focus %v; want the stations", stackKinds(m), len(m.parked), m.focus)
 	}
 }
 
@@ -182,7 +183,7 @@ func TestUpFromTheProgressBarFocusesTheTabs(t *testing.T) {
 	}
 	m, _ = press(t, m, "up")
 	if m.focus != areaTabs || m.tab != 0 {
-		t.Fatalf("up from the bar: focus %v tab %d; want the STATIONS tab", m.focus, m.tab)
+		t.Fatalf("up from the bar: focus %v tab %d; want the PLAYLISTS tab", m.focus, m.tab)
 	}
 	if strings.Contains(textAt(m, zoneOf(t, m, zoneNext)), "▸") {
 		t.Fatal("NEXT still marked with the tabs focused")
@@ -215,6 +216,39 @@ func TestWheelUpAtTheTopKeepsTheList(t *testing.T) {
 	if m.focus != areaList || m.stationCursor() != 0 {
 		t.Fatalf("focus %v cursor %d; want the list kept", m.focus, m.stationCursor())
 	}
+}
+
+func TestWheelNeverClimbsToTheTabs(t *testing.T) {
+	f := playbacktest.New()
+	f.SearchCatalogResult = catalog()
+	t.Run("page top", func(t *testing.T) {
+		m := openResults(t, playbacktest.New(), &fakeRecents{})
+		m, _ = press(t, m, "down")
+		m = wheel(t, m, tea.MouseWheelUp)
+		if m.focus != areaList || m.cursor() != 0 {
+			t.Fatalf("focus %v cursor %d; want the first row", m.focus, m.cursor())
+		}
+		m = wheel(t, m, tea.MouseWheelUp)
+		if m.focus != areaList || m.cursor() != 0 {
+			t.Fatalf("at the top: focus %v cursor %d; want the list kept", m.focus, m.cursor())
+		}
+	})
+	t.Run("search rows up to the input", func(t *testing.T) {
+		m := searchFor(t, loaded(t, f, newClock()), "daft")
+		m, _ = press(t, m, "down", "down")
+		m = wheel(t, m, tea.MouseWheelUp)
+		if m.cursor() != 0 {
+			t.Fatalf("cursor %d; want the first row", m.cursor())
+		}
+		m = wheel(t, m, tea.MouseWheelUp)
+		if m.focus != areaList || m.cursor() != -1 {
+			t.Fatalf("focus %v cursor %d; want the input", m.focus, m.cursor())
+		}
+		m = wheel(t, m, tea.MouseWheelUp)
+		if m.focus != areaList || m.cursor() != -1 || !m.input.Focused() {
+			t.Fatalf("on the input: focus %v cursor %d input %v; want the input kept", m.focus, m.cursor(), m.input.Focused())
+		}
+	})
 }
 
 func TestRecentSearchesOfferNoClearAll(t *testing.T) {

@@ -24,7 +24,8 @@ public enum PlaylistStart {
 }
 
 /// Durations of library items. On macOS, MusicKit reports a library song's
-/// (and playlist entry's) `duration` in milliseconds, although catalog
+/// (and playlist entry's, and so the player's current entry's) `duration`
+/// in milliseconds, although catalog
 /// items and the documentation use seconds. Rather than trust either unit
 /// blindly (a later macOS may fix it), a value above `millisecondsAbove`
 /// is read as milliseconds: that misreads only songs shorter than

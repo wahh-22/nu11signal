@@ -90,17 +90,19 @@ private struct Snapshot {
         guard let entry = player.queue.currentEntry else { return }
         title = entry.title
         artist = entry.subtitle ?? ""
+        // A library item's duration may arrive in milliseconds (see
+        // LibraryDuration); catalog durations pass through unchanged.
         switch entry.item {
         case let .song(song):
             artist = song.artistName
             album = song.albumTitle ?? ""
             songId = song.id.rawValue
-            duration = song.duration ?? 0
+            duration = LibraryDuration.seconds(song.duration)
         case let .musicVideo(video):
             artist = video.artistName
             album = video.albumTitle ?? ""
             songId = video.id.rawValue
-            duration = video.duration ?? 0
+            duration = LibraryDuration.seconds(video.duration)
         case .none:
             break
         @unknown default:

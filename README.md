@@ -1,8 +1,8 @@
 # Nu11Signal
 
 A lightweight terminal player for Apple Music, styled after a neon cyberpunk
-car radio: your library playlists are "stations" on a pseudo FM dial, with a
-now-playing panel, decorative EQ bars, and Apple Music style catalog browsing
+car radio: your library PLAYLISTS sit on a pseudo FM dial, with a
+now-playing panel, a volume readout, decorative EQ bars, and Apple Music style catalog browsing
 (search, artist pages, albums, songs, and playlists).
 
 It plays through a tiny windowless MusicKit helper (about 31 MB RSS measured
@@ -217,10 +217,16 @@ directories for `dist/` and the tap, and a local bare repository as its origin.
 
 ## Browsing the catalog
 
-Views stack like Apple Music's: stations → SEARCH → RESULTS → ARTIST → ALBUM,
-SONG, or PLAYLIST. `esc` goes back one view, `tab` returns to the stations. Leaving
-with `tab` keeps the search branch as it was: `/` or `tab` from the stations
+Views stack like Apple Music's: PLAYLISTS → SEARCH → RESULTS → ARTIST → ALBUM,
+SONG, or PLAYLIST. `esc` goes back one view, `tab` returns to the playlists. Leaving
+with `tab` keeps the search branch as it was: `/` or `tab` from the playlists
 brings back the same view (an artist or album page included) with its cursor.
+
+`enter` on a library playlist opens its PLAYLIST page over the PLAYLISTS
+root: `▶ PLAY` plays it from the start, and `enter` on a track plays the
+playlist from that track (the dial then shows the playlist on air). `esc` or
+the `PLAYLISTS` tab goes back to the list; `tab` or `/` goes to SEARCH (the
+page is closed).
 
 | View | Shows |
 |------|-------|
@@ -229,7 +235,7 @@ brings back the same view (an artist or album page included) with its cursor.
 | ARTIST | Its non-empty sections in Apple Music order: TOP SONGS, ESSENTIAL ALBUMS, ALBUMS, ARTIST PLAYLISTS, SINGLES & EPS, COMPILATIONS, then ABOUT (editorial notes folded behind MORE, FROM, FORMED, GENRE) |
 | ALBUM | The tracks (by disc when there are several), release date, song count and length, copyright, record label, and notes |
 | SONG | The album holding the song, with the cursor on the song; if the album cannot be loaded, the song alone, still playable |
-| PLAYLIST | The tracks with their artists, song count and length, curator, and notes |
+| PLAYLIST | The tracks with their artists, song count and length, curator, and notes; a library playlist starts with `▶ PLAY` and names its frequency |
 
 Recent searches are the last 10 terms you submitted with `enter` (typed, a
 suggestion, or a recent term) or opened an artist or song from, stored in
@@ -251,21 +257,22 @@ Limitations:
 
 ## Keys
 
-Stations (and anywhere the key is not taken by the view):
+PLAYLISTS (and anywhere the key is not taken by the view):
 
 | Key | Action |
 |-----|--------|
-| `↑`/`↓` or `k`/`j` | Move the cursor; `↑` on the first station moves the focus to the nav tabs (see below) |
-| `enter` | Tune the station |
+| `↑`/`↓` or `k`/`j` | Move the cursor; `↑` on the first playlist moves the focus to the nav tabs (see below) |
+| `enter` | Open the playlist's page |
 | `space` | Play / pause |
 | `n` / `p` | Next / previous track |
 | `shift+←` / `shift+→` or `,` / `.` | Seek -10 s / +10 s |
+| `+` / `=` and `-`, or `shift+↑` / `shift+↓` | Volume up / down by 5% |
 | `→` | Move the focus to the player (see below) |
 | `f` / `ctrl+f` | Expand the player to the full width, or restore it |
 | `/` | Back to the search left with `tab` (same view and cursor); otherwise open SEARCH with an empty input |
 | `tab` | Same as `/` |
 | `esc` | Back one view |
-| `r` | Retry loading stations after a failure |
+| `r` | Retry loading the playlists after a failure |
 | `q` / `ctrl+c` | Quit |
 
 SEARCH (typing goes to the input, so letter shortcuts are off):
@@ -275,10 +282,11 @@ SEARCH (typing goes to the input, so letter shortcuts are off):
 | `↑`/`↓` | Move between the input and the rows; `↑` on the input moves the focus to the nav tabs |
 | `←`/`→` | On the input, move the text cursor; on a row, `→` moves the focus to the player |
 | `shift+←` / `shift+→` | Seek -10 s / +10 s (`,` and `.` are typed) |
+| `shift+↑` / `shift+↓` | Volume up / down (`+`, `=` and `-` are typed) |
 | `ctrl+f` | Expand or restore the player (`f` is typed) |
 | `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, open its SONG view |
 | `ctrl+d` / `delete` | On a recent term, delete it (on the input, they edit the text) |
-| `tab` | Back to the stations (the search is kept for the next `/` or `tab`) |
+| `tab` | Back to the playlists (the search is kept for the next `/` or `tab`) |
 | `esc` | Back one view (closing the search: the next `/` starts empty) |
 | `ctrl+c` | Quit |
 
@@ -289,31 +297,32 @@ RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 | `↑`/`↓` or `k`/`j` | Move the cursor; `↑` on the first row moves the focus to the nav tabs |
 | `enter` | On RESULTS, open the selected artist, album, song (its SONG view), or playlist; elsewhere, play the top songs or tracks from the selected one, open an album or playlist, or fold the notes (MORE/LESS) |
 | `esc` | Back one view |
-| `tab` | Back to the stations (the page and the ones below it are kept for the next `/` or `tab`) |
+| `tab` | Back to the playlists (the page and the ones below it are kept for the next `/` or `tab`); from a library playlist page, over to SEARCH |
 | `/` | Back to the SEARCH input, with the term kept for editing (the pages above it are closed) |
 | `r` | Retry after the page failed to load |
-| `space`, `n` / `p`, seek keys, `→`, `f` / `ctrl+f`, `q` | As on the stations |
+| `space`, `n` / `p`, seek and volume keys, `→`, `f` / `ctrl+f`, `q` | As on the playlists |
 
 Player (after `→` from the list, or a click on its controls; the lit
 panel frame shows which side has the focus):
 
 | Key | Action |
 |-----|--------|
-| `←` / `→` | Walk `PREV`, `PLAY`/`PAUSE`, `NEXT`, `EXPAND`; `←` from `PREV` goes back to the list |
-| `↑` / `↓` | Move to the progress bar (when the song can seek) and back to the buttons; `↑` from the bar (or from the buttons, with nothing to seek) moves the focus to the nav tabs |
+| `←` / `→` | Walk a row of buttons: `PREV`, `PLAY`/`PAUSE`, `NEXT`, `EXPAND`, or `VOL-`, `VOL+` below them; `←` from the first button of a row goes back to the list |
+| `↑` / `↓` | Move between the progress bar (when the song can seek), the transport row, and the volume row (`VOL-` under `PREV`/`PLAY`, `VOL+` under `NEXT`/`EXPAND`); `↑` from the bar (or from the transport row, with nothing to seek) moves the focus to the nav tabs |
 | `←` / `→` on the progress bar | Seek -10 s / +10 s |
 | `enter` | Press the focused button (as a click) |
 | `esc` | Back to the list (restoring an expanded player) |
-| `space`, `n` / `p`, seek keys, `f` / `ctrl+f` | As on the stations |
+| `space`, `n` / `p`, seek and volume keys, `f` / `ctrl+f` | As on the playlists |
 
 Nav tabs (after `↑` past the top of the list, the SEARCH input, or the
 player; the focused tab shows a `▸`):
 
 | Key | Action |
 |-----|--------|
-| `←` / `→` | Walk `STATIONS`, `SEARCH` and, on a page, `◀ BACK` |
+| `←` / `→` | Walk `PLAYLISTS`, `SEARCH` and, on a page, `◀ BACK` |
 | `enter` | Press the focused tab (as a click); the list takes the focus |
 | `↓` / `esc` | Back where the focus came from (the same row, the SEARCH input, or the player's bar or button) |
+| `space`, `n` / `p`, seek and volume keys | Act on the player; the tabs keep the focus (on SEARCH too: nothing is typed) |
 
 On the tabs, any other key goes back where the focus came from and acts
 there. On the player, any other key goes back to the list and acts there (on
@@ -325,7 +334,7 @@ once its button is pressed); restoring always gives the focus back to the
 list, as it was left (on SEARCH, the same row or the input).
 
 The footer names the keys of the side and view in focus; when it does not
-fit, it keeps the essential ones first (on the stations: `enter`, `/`,
+fit, it keeps the essential ones first (on the playlists: `enter`, `/`,
 `space`, `→`) and always quit.
 
 The list panel keeps one width in every view (the browse pages' width),
@@ -337,21 +346,31 @@ The mouse does what the keys do; the keys keep working.
 
 | Click | Action |
 |-------|--------|
-| A row (station, search row, page row, MORE/LESS) | Select it and act as `enter` |
+| A row (playlist, search row, page row, `▶ PLAY`, MORE/LESS) | Select it and act as `enter` |
 | The SEARCH input | Select the input |
 | `✕` at the end of a recent term | Delete that term (as `ctrl+d` / `delete`) |
 | A `[R] RETRY` notice | Retry, as `r` |
-| `STATIONS` / `SEARCH` tabs (header rule) | As `tab` / `/`; the lit tab is the view shown |
+| `PLAYLISTS` / `SEARCH` tabs (header rule) | `PLAYLISTS` as `tab` (from a library playlist page, back to the list); `SEARCH` as `/`; the lit tab is the branch shown |
 | `◀ BACK` (on RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST) | As `esc` |
 | `◀◀ PREV`, `▶ PLAY` / `❚❚ PAUSE`, `NEXT ▶▶` (NOW PLAYING) | As `p`, `space`, `n`; the focus moves to the button |
 | `⤢ EXPAND` / `⤡ RESTORE` (NOW PLAYING) | Expand the player to the full width, or restore it |
+| `-` / `+` around the `VOL` readout (NOW PLAYING) | Volume down / up by 5%, as `-` / `+`; the focus moves to the button |
 | The progress bar | Seek to that point of the song; the focus moves to the bar |
 
 Clicks elsewhere move the focus back to the list. The wheel moves the
-cursor like `↑`/`↓` (nothing while the player is expanded). Narrow layouts
+cursor like `↑`/`↓`, stopping at the top of the list (it never reaches the
+nav tabs; nothing while the player is expanded). Narrow layouts
 shorten the transport buttons to their glyphs (`EXPAND` first) and leave
-out buttons that do not fit; the tiny layout has none. In the compact
-layout, expanding hides the list under the player.
+out buttons that do not fit; the tiny layout has none. The compact layout
+puts the volume row beside the transport buttons when it fits (the buttons
+as glyphs), and leaves it out otherwise. In the compact layout, expanding
+hides the list under the player.
+
+The `VOL` readout shows the system output volume, read at startup (`VOL --`
+until then, or when the output device has no settable volume; a refused
+change is reported on the status line). Changes show at once; rapid presses
+are coalesced, so only the latest level is sent once the previous change
+answers.
 
 ## Helper lookup
 

@@ -87,7 +87,7 @@ func TestExpandKeysToggleTheFullWidthPlayer(t *testing.T) {
 			if !strings.Contains(top, "NOW PLAYING") || !strings.HasSuffix(top, "┐") || ansi.StringWidth(top) != 80 {
 				t.Fatalf("NOW PLAYING does not span the screen: %q", top)
 			}
-			if strings.Contains(view, "NIGHT DRIVE") || !strings.Contains(view, "STATIONS") {
+			if strings.Contains(view, "NIGHT DRIVE") || !strings.Contains(view, "PLAYLISTS") {
 				t.Fatalf("list still shown, or the nav bar is gone:\n%s", view)
 			}
 			if !strings.Contains(textAt(m, zoneOf(t, m, zoneExpand)), "RESTORE") {
@@ -195,7 +195,7 @@ func TestFocusedControlIsMarked(t *testing.T) {
 		t.Fatalf("PLAY is marked too: %q", got)
 	}
 	top := strings.Split(plain(m), "\n")[2]
-	if !strings.Contains(top, "▯ STATIONS") || !strings.Contains(top, "▮ NOW PLAYING") {
+	if !strings.Contains(top, "▯ PLAYLISTS") || !strings.Contains(top, "▮ NOW PLAYING") {
 		t.Fatalf("panel titles do not show the active side: %q", top)
 	}
 	m, _ = press(t, m, "up")
@@ -357,7 +357,7 @@ func TestClicksMoveTheFocus(t *testing.T) {
 	if m.focus != areaList || m.stationCursor() != 1 {
 		t.Fatalf("focus %v cursor %d; want the list on row 1", m.focus, m.stationCursor())
 	}
-	assertCall(t, f, "PlayPlaylist", "pl-2")
+	assertCall(t, f, "LibraryPlaylist", "pl-2")
 }
 
 func TestPlayerKeysKeepWorkingWithThePlayerFocused(t *testing.T) {
@@ -594,7 +594,7 @@ func TestStationsFooterKeepsTheEssentialHintsAt80Columns(t *testing.T) {
 	m := playingModel(t, playbacktest.New())
 	lines := strings.Split(plain(m), "\n")
 	got := strings.TrimRight(lines[len(lines)-1], " ")
-	want := "[ENTER] TUNE  [/] SCAN  [SPACE] PLAY/PAUSE  [→] PLAYER  [,/.] SEEK  [Q] QUIT"
+	want := "[ENTER] OPEN  [/] SCAN  [SPACE] PLAY/PAUSE  [→] PLAYER  [,/.] SEEK  [Q] QUIT"
 	if got != want {
 		t.Fatalf("stations footer\n got %q\nwant %q", got, want)
 	}

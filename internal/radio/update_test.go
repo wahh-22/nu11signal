@@ -48,6 +48,10 @@ func keyMsg(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyLeft, Mod: tea.ModShift}
 	case "shift+right":
 		return tea.KeyPressMsg{Code: tea.KeyRight, Mod: tea.ModShift}
+	case "shift+up":
+		return tea.KeyPressMsg{Code: tea.KeyUp, Mod: tea.ModShift}
+	case "shift+down":
+		return tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModShift}
 	case "ctrl+f":
 		return tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl}
 	case "up":
@@ -203,12 +207,12 @@ func TestStartupUnauthorizedShowsErrorScreen(t *testing.T) {
 	}
 }
 
-func TestEnterOnStationPlaysPlaylist(t *testing.T) {
+func TestEnterOnAPlaylistRowLoadsIt(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
 	m, cmd := press(t, m, "j", "enter")
 	run(t, cmd)
-	assertCall(t, f, "PlayPlaylist", "pl-2")
+	assertCall(t, f, "LibraryPlaylist", "pl-2")
 }
 
 func TestNavigationClampsToList(t *testing.T) {
@@ -455,7 +459,7 @@ func TestStationMarkedOnAirOnlyAfterHelperConfirms(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := playbacktest.New()
 		m := loaded(t, f, newClock())
-		m, cmd := press(t, m, "j", "enter")
+		m, cmd := tune(t, m, 1)
 		if m.playingStation != "" {
 			t.Fatalf("station marked on air before the helper confirmed: %q", m.playingStation)
 		}
@@ -467,10 +471,10 @@ func TestStationMarkedOnAirOnlyAfterHelperConfirms(t *testing.T) {
 	t.Run("failure keeps the previous station", func(t *testing.T) {
 		f := playbacktest.New()
 		m := loaded(t, f, newClock())
-		m, cmd := press(t, m, "enter")
+		m, cmd := tune(t, m, 0)
 		m, _ = step(t, m, run(t, cmd))
 		f.MethodErr = map[string]error{"PlayPlaylist": errors.New("not in library")}
-		m, cmd = press(t, m, "j", "enter")
+		m, cmd = tune(t, m, 1)
 		m, _ = step(t, m, run(t, cmd))
 		if m.playingStation != "pl-1" {
 			t.Fatalf("playingStation = %q after a failed tune; want pl-1", m.playingStation)
@@ -484,7 +488,7 @@ func TestStationMarkedOnAirOnlyAfterHelperConfirms(t *testing.T) {
 		f.SearchCatalogResult = playback.SearchResults{Songs: songs()}
 		f.SongAlbumResult = playback.AlbumDetail{Tracks: []playback.Track{{Song: songs()[0]}, {Song: songs()[1]}}}
 		m := loaded(t, f, newClock())
-		m, cmd := press(t, m, "enter")
+		m, cmd := tune(t, m, 0)
 		m, _ = step(t, m, run(t, cmd))
 		m = searchFor(t, m, "daft")
 		// A song row opens its album; enter there plays.
@@ -508,8 +512,8 @@ func TestStationMarkedOnAirOnlyAfterHelperConfirms(t *testing.T) {
 func TestOnlyTheLatestTuneSetsTheOnAirStation(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
-	m, first := press(t, m, "enter")       // tune pl-1
-	m, second := press(t, m, "j", "enter") // then pl-2 before pl-1 answers
+	m, first := tune(t, m, 0)  // tune pl-1
+	m, second := tune(t, m, 1) // then pl-2 before pl-1 answers
 
 	// The answers arrive out of order: the superseded tune confirms last.
 	m, _ = step(t, m, run(t, second))

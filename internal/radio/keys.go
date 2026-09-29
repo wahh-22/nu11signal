@@ -22,12 +22,20 @@ const (
 	// included; keyExpandAlt wherever typing does not take it.
 	keyExpand    = "ctrl+f"
 	keyExpandAlt = "f"
-	keySearch    = "/"
-	keyTab       = "tab"
-	keyEsc       = "esc"
-	keyQuit      = "q"
-	keyRetry     = "r"
-	keyCtrlC     = "ctrl+c"
+	// keyVolumeUp, keyVolumeUpAlt and keyVolumeDown step the volume
+	// wherever typing does not take them; keyVolumeUpAnywhere and
+	// keyVolumeDownAnywhere anywhere, the SEARCH input included.
+	keyVolumeUp           = "+"
+	keyVolumeUpAlt        = "="
+	keyVolumeDown         = "-"
+	keyVolumeUpAnywhere   = "shift+up"
+	keyVolumeDownAnywhere = "shift+down"
+	keySearch             = "/"
+	keyTab                = "tab"
+	keyEsc                = "esc"
+	keyQuit               = "q"
+	keyRetry              = "r"
+	keyCtrlC              = "ctrl+c"
 	// keyDelete and keyDeleteAlt delete the selected recent search.
 	keyDelete    = "delete"
 	keyDeleteAlt = "ctrl+d"
@@ -39,20 +47,21 @@ type hint struct{ key, label string }
 // playerHints are shown in priority order; the footer drops entries from
 // the end (keeping quit) when the terminal is too narrow.
 var playerHints = []hint{
-	{"ENTER", "TUNE"},
+	{"ENTER", "OPEN"},
 	{"/", "SCAN"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"→", "PLAYER"},
 	{",/.", "SEEK"},
 	{"N/P", "NEXT/PREV"},
+	{"+/-", "VOL"},
 	{"F", "EXPAND"},
 	{"J/K", "MOVE"},
 	{"Q", "QUIT"},
 }
 
 // playerFocusHints replace the view's hints while the player has the
-// focus: ←→ walk the buttons (or seek on the bar), ↑↓ switch between the
-// buttons and the bar. F restores the expanded player; while the list
+// focus: ←→ walk a row of buttons (or seek on the bar), ↑↓ switch between
+// the bar and the rows of buttons. F restores the expanded player; while the list
 // behind is the SEARCH input (typing), q types there, so ctrl+c quits.
 func playerFocusHints(expanded, typing bool) []hint {
 	expand, quit := hint{"F", "EXPAND"}, hint{"Q", "QUIT"}
@@ -65,7 +74,7 @@ func playerFocusHints(expanded, typing bool) []hint {
 	return []hint{
 		{"←→", "SELECT"},
 		{"ENTER", "PRESS"},
-		{"↑↓", "BAR"},
+		{"↑↓", "ROW"},
 		{"ESC", "LIST"},
 		expand,
 		{"SPACE", "PLAY/PAUSE"},
@@ -86,6 +95,7 @@ func tabsFocusHints(typing bool) []hint {
 		{"ENTER", "OPEN"},
 		{"↓", "RETURN"},
 		{"SPACE", "PLAY/PAUSE"},
+		{"+/-", "VOL"},
 		quit,
 	}
 }
@@ -131,7 +141,7 @@ var trackHints = []hint{
 var searchHints = []hint{
 	{"ENTER", "SELECT"},
 	{"↑↓", "MOVE"},
-	{"TAB", "STATIONS"},
+	{"TAB", "PLAYLISTS"},
 	{"ESC", "BACK"},
 	{"CTRL+C", "QUIT"},
 }
@@ -144,7 +154,7 @@ var recentHints = []hint{
 	{"ENTER", "SELECT"},
 	{recentDeleteKeys, "DROP"},
 	{"↑↓", "MOVE"},
-	{"TAB", "STATIONS"},
+	{"TAB", "PLAYLISTS"},
 	{"ESC", "BACK"},
 	{"CTRL+C", "QUIT"},
 }

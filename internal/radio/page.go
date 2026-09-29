@@ -32,7 +32,7 @@ type pageLine struct {
 func (m Model) handlePageKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 	switch k {
 	case keyUp, keyUpAlt:
-		if m.cursor() <= 0 {
+		if m.atListTop() {
 			m.focusTabs()
 			return m, nil, true
 		}
@@ -49,6 +49,12 @@ func (m Model) handlePageKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 			cmd = tea.Batch(m.input.Focus(), m.resumeSearch())
 		}
 	case keyTab:
+		if m.onPlaylistsBranch() {
+			// As tab from the PLAYLISTS root: over to SEARCH.
+			m.popToRoot()
+			next, cmd := m.resumeOrOpenSearch()
+			return next.(Model), cmd, true
+		}
 		// Park the branch, loads included, for / or tab from the stations.
 		m.parkBranch()
 	case keySearch:

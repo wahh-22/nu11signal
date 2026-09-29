@@ -134,6 +134,7 @@ func runFakeHelper(scenario string) int {
 	in := bufio.NewScanner(os.Stdin)
 	var held []map[string]any
 	level := 0.3 // the "volume" scenario's current level
+	outOfRange := []float64{1.4, -0.2}
 	for in.Scan() {
 		var req map[string]any
 		if err := json.Unmarshal(in.Bytes(), &req); err != nil {
@@ -205,6 +206,14 @@ func runFakeHelper(scenario string) int {
 					level = v
 					ok(id, map[string]any{})
 				}
+				continue
+			}
+		case "volumeOutOfRange":
+			// Reports levels a broken device might: above one, then
+			// below zero.
+			if cmd == "volume" {
+				ok(id, map[string]any{"level": outOfRange[0]})
+				outOfRange = outOfRange[1:]
 				continue
 			}
 		case "sparseCatalog":

@@ -54,7 +54,7 @@ func TestViewEnablesMouseCellMotion(t *testing.T) {
 	}
 }
 
-func TestClickOnStationRowTunesIt(t *testing.T) {
+func TestClickOnAPlaylistRowOpensIt(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
 	if got := textAt(m, zoneOf(t, m, rowZone(1))); !strings.Contains(got, "SAMURAI") {
@@ -65,7 +65,7 @@ func TestClickOnStationRowTunesIt(t *testing.T) {
 		t.Fatalf("station cursor = %d; want the clicked row", m.stationCursor())
 	}
 	settle(t, m, cmd)
-	assertCall(t, f, "PlayPlaylist", "pl-2")
+	assertCall(t, f, "LibraryPlaylist", "pl-2")
 }
 
 func TestOnlyLeftPressActs(t *testing.T) {
@@ -135,7 +135,7 @@ func TestNavTabsSwitchBetweenStationsAndTheSearchBranch(t *testing.T) {
 	if got := textAt(m, zoneOf(t, m, zoneTabSearch)); !strings.Contains(got, "SEARCH") {
 		t.Fatalf("search tab covers %q", got)
 	}
-	if got := textAt(m, zoneOf(t, m, zoneTabStations)); !strings.Contains(got, "STATIONS") {
+	if got := textAt(m, zoneOf(t, m, zoneTabStations)); !strings.Contains(got, "PLAYLISTS") {
 		t.Fatalf("stations tab covers %q", got)
 	}
 
