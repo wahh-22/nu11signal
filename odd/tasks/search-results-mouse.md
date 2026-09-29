@@ -49,7 +49,7 @@ User feedback (2026-09-29) after testing the catalog-browse release:
 ## Progress
 
 - Branch `fix/search-resume` created from `main` `ccaadd9`.
-- S1 done (route: delegated writer). RED: 8 new resume tests failed (e.g. `/ restored stack [0 1]; want [0 1 2]`). GREEN: `go test -race ./...` ok (parent spot check), `go vet` clean, `gofmt` empty. Design: `Model.parked []frame`; tab parks the branch, `/` or tab from stations restores it; parked loads keep running and settle into the parked frame; `/` on a detail page returns to SEARCH with the term; `esc` on SEARCH closes the branch (fresh next time). README keys updated.
+- S1 done (route: delegated writer). RED: 8 new resume tests failed (e.g. `/ restored stack [0 1]; want [0 1 2]`). GREEN: `go test -race ./...` ok (parent spot check), `go vet` clean, `gofmt` empty. Design: `Model.parked []frame`; tab parks the branch, `/` or tab from stations restores it; parked loads keep running and settle into the parked frame; `/` on a detail page returns to SEARCH with the term; `esc` on SEARCH closes the branch (fresh next time). README keys updated. Commit `1c8b9df`. RDD: high, 375 lines, consent granted, lineage `review-0cb0f04f926847b7`, 4 lenses, APPROVED, acknowledged (burned); boundary → `1c8b9df`. Advisories (folded into S2): searchAgain fallback undocumented; rename openSearch to reflect restore; parked page failure status shown off-screen; no test for parked album/playlist settle; parkBranch should cancel previously parked frames it replaces.
 
 ## Next step
 
