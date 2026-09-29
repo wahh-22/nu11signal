@@ -194,3 +194,61 @@ func TestCloseClosesChannelsAndRejectsCalls(t *testing.T) {
 		t.Fatalf("Next after Close = %v, want ErrClosed", err)
 	}
 }
+
+func TestArtistReturnsDeterministicPages(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+
+	for _, a := range artists {
+		d, err := p.Artist(ctx, a.ID)
+		if err != nil {
+			t.Fatalf("Artist(%s): %v", a.ID, err)
+		}
+		if !reflect.DeepEqual(d.Artist, a) {
+			t.Errorf("Artist(%s).Artist = %+v; want %+v", a.ID, d.Artist, a)
+		}
+		if len(d.TopSongs) == 0 || len(d.Albums) == 0 || d.About.Notes == "" || d.About.Genre != a.Genres[0] {
+			t.Errorf("Artist(%s) lacks a top song, an album or about: %+v", a.ID, d)
+		}
+		for _, s := range d.TopSongs {
+			if s.Artist != a.Name {
+				t.Errorf("Artist(%s) top song %q is by %q", a.ID, s.Title, s.Artist)
+			}
+			// Top songs must be playable through PlaySongs.
+			if _, ok := songByID(s.ID); !ok {
+				t.Errorf("Artist(%s) top song %q is not in the catalog", a.ID, s.ID)
+			}
+		}
+		again, _ := p.Artist(ctx, a.ID)
+		if !reflect.DeepEqual(d, again) {
+			t.Errorf("Artist(%s) is not deterministic", a.ID)
+		}
+	}
+
+	d, _ := p.Artist(ctx, "demo-artist-chrome-saints")
+	wantAlbums := []playback.Album{{ID: "demo-album-last-call-sessions", Title: "Last Call Sessions", Artist: "Chrome Saints", Year: 2076, TrackCount: 2}}
+	if !reflect.DeepEqual(d.Albums, wantAlbums) {
+		t.Errorf("Albums = %+v; want %+v", d.Albums, wantAlbums)
+	}
+	var ids []string
+	for _, s := range d.TopSongs {
+		ids = append(ids, s.ID)
+	}
+	if !reflect.DeepEqual(ids, []string{"d01", "d03"}) {
+		t.Errorf("top song ids = %v; want catalog order", ids)
+	}
+	if d.About.Origin == "" || d.About.Formed == "" || len(d.Playlists) == 0 || len(d.Singles) == 0 {
+		t.Errorf("Chrome Saints page lacks origin, formed, playlists or singles: %+v", d)
+	}
+}
+
+func TestArtistRejectsUnknownIDAndClosedPlayer(t *testing.T) {
+	p := newPlayer(t)
+	if _, err := p.Artist(context.Background(), "nope"); err == nil {
+		t.Error("unknown artist accepted")
+	}
+	_ = p.Close()
+	if _, err := p.Artist(context.Background(), artists[0].ID); !errors.Is(err, ErrClosed) {
+		t.Errorf("Artist after Close = %v; want ErrClosed", err)
+	}
+}

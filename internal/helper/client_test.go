@@ -107,6 +107,70 @@ func TestSearchCatalogErrorResponse(t *testing.T) {
 	}
 }
 
+func TestArtistRoundTrip(t *testing.T) {
+	c := startFake(t, "standard", Options{})
+
+	got, err := c.Artist(t.Context(), "a1")
+	if err != nil {
+		t.Fatalf("Artist: %v", err)
+	}
+	discovery := playback.Album{ID: "al1", Title: "Discovery", Artist: "Daft Punk", Year: 2001, TrackCount: 14}
+	want := playback.ArtistDetail{
+		Artist: playback.Artist{ID: "a1", Name: "Daft Punk", Genres: []string{"Electronic"}},
+		TopSongs: []playback.Song{
+			{ID: "s1", Title: "One More Time", Artist: "Daft Punk", Album: "Discovery", Duration: 320*time.Second + 500*time.Millisecond},
+		},
+		EssentialAlbums: []playback.Album{discovery},
+		Albums:          []playback.Album{discovery, {ID: "al2", Title: "Homework", Artist: "Daft Punk", Year: 1997, TrackCount: 16}},
+		Singles:         []playback.Album{{ID: "sg1", Title: "Get Lucky", Artist: "Daft Punk", Year: 2013, TrackCount: 1}},
+		Compilations:    []playback.Album{{ID: "c1", Title: "Musique, Vol. 1", Artist: "Daft Punk", Year: 2006, TrackCount: 15}},
+		Playlists:       []playback.CatalogPlaylist{{ID: "pl1", Name: "Daft Punk Essentials", Curator: "Apple Music Electronic"}},
+		About:           playback.ArtistAbout{Notes: "French duo.", Genre: "Electronic", Origin: "Paris, France", Formed: "1993"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Artist = %+v; want %+v", got, want)
+	}
+}
+
+func TestArtistToleratesMissingSections(t *testing.T) {
+	c := startFake(t, "sparseArtist", Options{})
+	ctx := t.Context()
+
+	empty, err := c.Artist(ctx, "empty")
+	if err != nil {
+		t.Fatalf("Artist(empty): %v", err)
+	}
+	if !reflect.DeepEqual(empty, playback.ArtistDetail{}) {
+		t.Fatalf("Artist(empty) = %+v; want a zero page", empty)
+	}
+
+	sparse, err := c.Artist(ctx, "sparse")
+	if err != nil {
+		t.Fatalf("Artist(sparse): %v", err)
+	}
+	want := playback.ArtistDetail{
+		Artist: playback.Artist{ID: "a1", Name: "Daft Punk"},
+		Albums: []playback.Album{{ID: "al1", Title: "Discovery"}},
+		About:  playback.ArtistAbout{Genre: "Electronic"},
+	}
+	if !reflect.DeepEqual(sparse, want) {
+		t.Fatalf("Artist(sparse) = %+v; want %+v", sparse, want)
+	}
+}
+
+func TestArtistErrorResponse(t *testing.T) {
+	c := startFake(t, "sparseArtist", Options{})
+
+	_, err := c.Artist(t.Context(), "gone")
+	var cmdErr *CommandError
+	if !errors.As(err, &cmdErr) {
+		t.Fatalf("Artist error = %v; want *CommandError", err)
+	}
+	if cmdErr.Command != "artist" || cmdErr.Message != "artist not found" {
+		t.Fatalf("CommandError = %+v", cmdErr)
+	}
+}
+
 func TestErrorResponseBecomesCommandError(t *testing.T) {
 	c := startFake(t, "standard", Options{})
 

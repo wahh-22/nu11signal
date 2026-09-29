@@ -186,6 +186,21 @@ func (p *Player) SearchCatalog(ctx context.Context, term string, limit int) (pla
 	return res, err
 }
 
+// Artist returns the demo page of an artist from the search results; an
+// unknown id is an error.
+func (p *Player) Artist(ctx context.Context, artistID string) (playback.ArtistDetail, error) {
+	var d playback.ArtistDetail
+	err := p.do(ctx, false, func() error {
+		var ok bool
+		d, ok = artistPage(artistID)
+		if !ok {
+			return fmt.Errorf("demo: unknown artist %q", artistID)
+		}
+		return nil
+	})
+	return d, err
+}
+
 // Playlists returns the demo stations.
 func (p *Player) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	var out []playback.Playlist

@@ -24,6 +24,7 @@ type Call struct {
 type Fake struct {
 	AuthStatus          playback.AuthStatus
 	SearchCatalogResult playback.SearchResults
+	ArtistResult        playback.ArtistDetail
 	PlaylistsResult     []playback.Playlist
 	// Err, when set, is returned by every method; MethodErr overrides it
 	// per method name (for example "SearchCatalog").
@@ -90,6 +91,13 @@ func (f *Fake) SearchCatalog(_ context.Context, term string, limit int) (playbac
 		return playback.SearchResults{}, err
 	}
 	return f.SearchCatalogResult, nil
+}
+
+func (f *Fake) Artist(_ context.Context, artistID string) (playback.ArtistDetail, error) {
+	if err := f.record("Artist", artistID); err != nil {
+		return playback.ArtistDetail{}, err
+	}
+	return f.ArtistResult, nil
 }
 
 func (f *Fake) Playlists(context.Context) ([]playback.Playlist, error) {

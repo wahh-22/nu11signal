@@ -53,6 +53,7 @@ func startFake(t *testing.T, scenario string, opts Options) *Client {
 var expectedArgs = map[string]map[string]any{
 	"authorize":     {},
 	"searchCatalog": {"term": "daft", "limit": float64(3)},
+	"artist":        {"artistId": "a1"},
 	"playlists":     {},
 	"playSongs":     {"ids": []any{"s1", "s2"}, "startIndex": float64(1)},
 	"playPlaylist":  {"playlistId": "p1"},
@@ -142,6 +143,12 @@ func runFakeHelper(scenario string) int {
 			if cmd == "authorize" {
 				continue // never answered
 			}
+		case "sparseArtist":
+			// Answers artist by id: sections missing, or an error.
+			if cmd == "artist" {
+				answerSparseArtist(id, req["artistId"])
+				continue
+			}
 		case "sparseCatalog":
 			// Answers searchCatalog by term: empty result, fields
 			// missing, or an error response.
@@ -179,6 +186,22 @@ func answer(id, cmd string) {
 				map[string]any{"id": "s1", "title": "One More Time", "artist": "Daft Punk", "album": "Discovery", "duration": 320.5},
 			},
 		})
+	case "artist":
+		album := func(id, title string, year, tracks int) map[string]any {
+			return map[string]any{"id": id, "title": title, "artist": "Daft Punk", "year": year, "trackCount": tracks}
+		}
+		ok(id, map[string]any{
+			"artist": map[string]any{"id": "a1", "name": "Daft Punk", "genres": []any{"Electronic"}},
+			"topSongs": []any{
+				map[string]any{"id": "s1", "title": "One More Time", "artist": "Daft Punk", "album": "Discovery", "duration": 320.5},
+			},
+			"essentialAlbums": []any{album("al1", "Discovery", 2001, 14)},
+			"albums":          []any{album("al1", "Discovery", 2001, 14), album("al2", "Homework", 1997, 16)},
+			"singles":         []any{album("sg1", "Get Lucky", 2013, 1)},
+			"compilations":    []any{album("c1", "Musique, Vol. 1", 2006, 15)},
+			"playlists":       []any{map[string]any{"id": "pl1", "name": "Daft Punk Essentials", "curator": "Apple Music Electronic"}},
+			"about":           map[string]any{"notes": "French duo.", "genre": "Electronic", "origin": "Paris, France", "formed": "1993"},
+		})
 	case "playlists":
 		ok(id, map[string]any{"playlists": []any{
 			map[string]any{"id": "p1", "name": "Night City"},
@@ -213,5 +236,20 @@ func answerSparseCatalog(id string, term any) {
 		})
 	default:
 		fail(id, "catalog unavailable")
+	}
+}
+
+func answerSparseArtist(id string, artistID any) {
+	switch artistID {
+	case "empty":
+		ok(id, map[string]any{})
+	case "sparse":
+		ok(id, map[string]any{
+			"artist": map[string]any{"id": "a1", "name": "Daft Punk"},
+			"albums": []any{map[string]any{"id": "al1", "title": "Discovery"}},
+			"about":  map[string]any{"genre": "Electronic"},
+		})
+	default:
+		fail(id, "artist not found")
 	}
 }
