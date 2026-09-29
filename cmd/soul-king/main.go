@@ -3,7 +3,8 @@
 // By default it starts the signed MusicKit helper, found only through
 // $SOULKING_HELPER (an absolute path) or next to the soul-king binary (see
 // helper.Locate), never in the working directory; with --demo it runs
-// against an in-process simulated player instead.
+// against an in-process simulated player instead. --version prints the
+// release version stamped at link time.
 package main
 
 import (
@@ -11,6 +12,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"time"
@@ -23,21 +25,36 @@ import (
 	"github.com/wahh-22/soul-king/internal/radio"
 )
 
+// version is stamped by release builds with -ldflags "-X main.version=x.y.z".
+var version = "dev"
+
 // startTimeout bounds launching the helper until it reports ready.
 const startTimeout = 10 * time.Second
 
 func main() {
 	if err := run(); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
 		fmt.Fprintln(os.Stderr, "soul-king:", err)
 		os.Exit(1)
 	}
 }
 
 func run() error {
-	demoMode := flag.Bool("demo", false, "run against a simulated player (no Apple Music, no sound)")
-	flag.Parse()
+	opts, err := parseFlags(os.Args[1:], os.Stderr)
+	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return err
+		}
+		os.Exit(2) // the flag package already printed the error and usage
+	}
+	if opts.version {
+		printVersion(os.Stdout)
+		return nil
+	}
 
-	player, err := openPlayer(*demoMode)
+	player, err := openPlayer(opts.demo)
 	if err != nil {
 		return err
 	}
@@ -53,6 +70,30 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// options are the parsed command-line flags.
+type options struct {
+	demo    bool
+	version bool
+}
+
+// parseFlags parses args (without the program name); errors and usage go
+// to output.
+func parseFlags(args []string, output io.Writer) (options, error) {
+	var opts options
+	fs := flag.NewFlagSet("soul-king", flag.ContinueOnError)
+	fs.SetOutput(output)
+	fs.BoolVar(&opts.demo, "demo", false, "run against a simulated player (no Apple Music, no sound)")
+	fs.BoolVar(&opts.version, "version", false, "print the version and exit")
+	if err := fs.Parse(args); err != nil {
+		return options{}, err
+	}
+	return opts, nil
+}
+
+func printVersion(w io.Writer) {
+	fmt.Fprintln(w, version)
 }
 
 func openPlayer(demoMode bool) (playback.Player, error) {

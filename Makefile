@@ -8,7 +8,7 @@ GO     ?= go
 BIN    := bin/soul-king
 PKG    := ./cmd/soul-king
 
-.PHONY: all build helper go demo test vet fmt-check clean
+.PHONY: all build helper go demo test vet fmt-check release release-dry-run check-version clean
 
 all: build
 
@@ -40,6 +40,17 @@ vet:
 fmt-check:
 	@out="$$(gofmt -l .)"; if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 
+## release: signed, notarized universal archive in dist/ (VERSION=x.y.z required)
+release: check-version
+	./scripts/release.sh $(VERSION)
+
+## release-dry-run: build and assemble the release layout ad hoc, without notarizing
+release-dry-run: check-version
+	./scripts/release.sh --dry-run $(VERSION)
+
+check-version:
+	@if [ -z "$(VERSION)" ]; then echo "usage: make $(MAKECMDGOALS) VERSION=x.y.z"; exit 2; fi
+
 ## clean: remove build outputs
 clean:
-	rm -rf bin build
+	rm -rf bin build dist

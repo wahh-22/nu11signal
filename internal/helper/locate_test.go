@@ -165,3 +165,29 @@ func TestLocateFailsWhenExecutableIsUnknown(t *testing.T) {
 		t.Fatalf("locate error = %v; want ErrHelperNotFound", err)
 	}
 }
+
+// A Homebrew cask symlinks bin/soul-king from the unpacked release archive
+// into the prefix; the helper must still be found in the archive's
+// ../libexec, relative to the real file rather than the symlink.
+func TestLocateResolvesHomebrewCaskSymlink(t *testing.T) {
+	root := realRoot(t)
+	release := filepath.Join(root, "Caskroom", "soul-king", "0.1.0", "soul-king-0.1.0")
+	realExe := writeExecutable(t, filepath.Join(release, "bin", "soul-king"))
+	want := writeExecutable(t, filepath.Join(release, "libexec", bundleRelPath))
+	link := filepath.Join(root, "homebrew", "bin", "soul-king")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(realExe, link); err != nil {
+		t.Fatal(err)
+	}
+
+	l := locator{
+		getenv:     func(string) string { return "" },
+		executable: func() (string, error) { return link, nil },
+	}
+	got, err := l.locate()
+	if err != nil || got != want {
+		t.Fatalf("locate = %q, %v; want %q", got, err, want)
+	}
+}
