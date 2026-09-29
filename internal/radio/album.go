@@ -123,19 +123,19 @@ func (m *Model) loadTracks(sel trackPage, kind viewKind) tea.Cmd {
 // highlighted song; answers for a page that was left or reloaded are
 // dropped.
 func (m Model) onAlbum(msg albumMsg) Model {
-	return m.settleTracks(viewAlbum, msg.seq, msg.err, "ALBUM", func(p *trackPage) {
+	return m.settleTracks(viewAlbum, msg.seq, msg.err, func(p *trackPage) {
 		p.albumDetail = cleanAlbumDetail(msg.detail)
 	})
 }
 
 // onPlaylist fills the playlist page the answer belongs to.
 func (m Model) onPlaylist(msg playlistMsg) Model {
-	return m.settleTracks(viewPlaylist, msg.seq, msg.err, "PLAYLIST", func(p *trackPage) {
+	return m.settleTracks(viewPlaylist, msg.seq, msg.err, func(p *trackPage) {
 		p.playlistDetail = cleanPlaylistDetail(msg.detail)
 	})
 }
 
-func (m Model) settleTracks(kind viewKind, seq uint64, err error, feed string, fill func(*trackPage)) Model {
+func (m Model) settleTracks(kind viewKind, seq uint64, err error, fill func(*trackPage)) Model {
 	for i, f := range m.stack {
 		if f.kind != kind || f.tracks.seq != seq || !f.tracks.loading {
 			continue
@@ -145,17 +145,38 @@ func (m Model) settleTracks(kind viewKind, seq uint64, err error, feed string, f
 		f.cursor = max(f.tracks.highlight(), 0)
 		m.setFrame(i, f)
 		if err != nil {
-			m.setStatus(feed + " FEED FAILED // " + err.Error())
+			m.setStatus(f.tracks.title() + " FEED FAILED // " + err.Error())
 		}
 		return m
 	}
 	return m
 }
 
+// title names the page's view: ALBUM, SONG or PLAYLIST. It heads the
+// panel and names the feed in the page's notices.
+func (p trackPage) title() string {
+	switch {
+	case p.kind == viewPlaylist:
+		return "PLAYLIST"
+	case p.song.ID != "":
+		return "SONG"
+	}
+	return "ALBUM"
+}
+
+// loneSong reports whether a SONG view offers only its song: its album
+// failed to load, and the song must stay playable from search.
+func (p trackPage) loneSong() bool {
+	return p.kind == viewAlbum && p.song.ID != "" && p.err != nil && len(p.albumDetail.Tracks) == 0
+}
+
 // tracks lists the songs of the page, in order.
 func (p trackPage) tracks() []playback.Song {
 	if p.kind == viewPlaylist {
 		return p.playlistDetail.Tracks
+	}
+	if p.loneSong() {
+		return []playback.Song{p.song}
 	}
 	out := make([]playback.Song, len(p.albumDetail.Tracks))
 	for i, t := range p.albumDetail.Tracks {
@@ -250,6 +271,11 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 			add("")
 			add(" " + stMuted.Render(tracksSummary(len(d.Tracks), total)))
 		}
+	} else if page.loneSong() {
+		s := page.song
+		item(trackItem{index: 0}, func(sel bool) string {
+			return trackLine(1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, true, sel, w)
+		})
 	} else {
 		d := page.albumDetail
 		discs := 0
@@ -387,16 +413,7 @@ func plural(n int, word string) string {
 }
 
 // trackTitle is the panel title of the track page on top.
-func (m Model) trackTitle() string {
-	f := m.top()
-	switch {
-	case f.kind == viewPlaylist:
-		return "PLAYLIST"
-	case f.tracks.song.ID != "":
-		return "SONG"
-	}
-	return "ALBUM"
-}
+func (m Model) trackTitle() string { return m.top().tracks.title() }
 
 // trackCode is the serial code in the track panel's bottom edge.
 func (m Model) trackCode() string {
@@ -464,11 +481,7 @@ func (m Model) trackHead() []string {
 // exactly w cells wide.
 func (m Model) trackBody(w, h int) []string {
 	f := m.top()
-	feed := "ALBUM"
-	if f.kind == viewPlaylist {
-		feed = "PLAYLIST"
-	}
 	lines, _ := m.trackLayout(w)
-	notice := pageNotice(f.tracks.loading, f.tracks.err, feed, len(lines) == 0)
+	notice := pageNotice(f.tracks.loading, f.tracks.err, f.tracks.title(), len(lines) == 0)
 	return m.pageBody(w, h, m.trackHead(), lines, notice)
 }

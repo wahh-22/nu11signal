@@ -79,7 +79,7 @@ func (m Model) renderFull() []string {
 // title with an album, year, curator or duration.
 func (m Model) listPanelWidth(w int) int {
 	if isPage(m.top().kind) {
-		return artistPanelWidth(w)
+		return pagePanelWidth(w)
 	}
 	return stationPanelWidth(w)
 }
@@ -88,9 +88,9 @@ func (m Model) listPanelWidth(w int) int {
 // views.
 func stationPanelWidth(w int) int { return max(28, min(w*2/5, 44)) }
 
-// artistPanelWidth is the list panel width of the browse pages; NOW
+// pagePanelWidth is the list panel width of the browse pages; NOW
 // PLAYING keeps at least 23 cells at the narrowest full layout.
-func artistPanelWidth(w int) int { return max(28, min(w*3/5, 72)) }
+func pagePanelWidth(w int) int { return max(28, min(w*3/5, 72)) }
 
 // listBodyWidth is the width listView draws in: the list panel's inside in
 // the full layout, the whole screen in the compact one.
