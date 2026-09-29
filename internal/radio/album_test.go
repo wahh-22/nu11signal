@@ -130,10 +130,57 @@ func TestSearchEnterOnSongOpensItsAlbumWithTheSongHighlighted(t *testing.T) {
 	if m.cursor() != 2 {
 		t.Fatalf("cursor = %d; want the highlighted third track", m.cursor())
 	}
-	// The highlight stays on the song when the cursor moves away.
-	m, _ = press(t, m, "up")
-	if view := plain(m); !strings.Contains(view, "▶ 3  DIGITAL LOVE") {
-		t.Fatalf("song not highlighted:\n%s", view)
+	// The searched song only sets the cursor: ▶ marks what plays.
+	if body := trackRows(m); strings.Contains(body, "▶") {
+		t.Fatalf("▶ shown with nothing playing:\n%s", body)
+	}
+}
+
+// trackRows is the list panel body of the track page on top, unstyled.
+func trackRows(m Model) string {
+	return ansi.Strip(strings.Join(linesOf(m.trackBody(m.listBodyWidth(), 30)), "\n"))
+}
+
+func TestTrackMarkerFollowsThePlayingTrack(t *testing.T) {
+	m := openSong(t, playbacktest.New(), 1) // DIGITAL LOVE, the third track
+	states := []struct {
+		name  string
+		state playback.State
+		want  string // the marked row, empty for none
+	}{
+		{"another track of the album", playback.State{Status: playback.StatusPlaying, SongID: "s5", Title: "Harder, Better, Faster, Stronger", Artist: "Daft Punk"}, "▶ 4  HARDER"},
+		{"the next one", playback.State{Status: playback.StatusPlaying, SongID: "s1", Title: "One More Time", Artist: "Daft Punk"}, "▶ 1  ONE MORE TIME"},
+		{"paused keeps it", playback.State{Status: playback.StatusPaused, SongID: "s1", Title: "One More Time", Artist: "Daft Punk"}, "▶ 1  ONE MORE TIME"},
+		{"another id, same title and artist", playback.State{Status: playback.StatusPlaying, SongID: "lib-9", Title: "Aerodynamic", Artist: "Daft Punk"}, "▶ 2  AERODYNAMIC"},
+		{"same title, another artist", playback.State{Status: playback.StatusPlaying, SongID: "x", Title: "Aerodynamic", Artist: "Someone Else"}, ""},
+		{"a song from elsewhere", playing(0, 0), ""},
+	}
+	for _, s := range states {
+		m, _ = step(t, m, stateMsg{state: s.state})
+		body := trackRows(m)
+		if s.want == "" {
+			if strings.Contains(body, "▶") {
+				t.Fatalf("%s: ▶ shown:\n%s", s.name, body)
+			}
+			continue
+		}
+		if !strings.Contains(body, s.want) || strings.Count(body, "▶") != 1 {
+			t.Fatalf("%s: want only %q marked:\n%s", s.name, s.want, body)
+		}
+	}
+	if m.cursor() != 2 {
+		t.Fatalf("cursor = %d; the player moved it off the searched song", m.cursor())
+	}
+}
+
+func TestPlaylistMarkerFollowsThePlayingTrack(t *testing.T) {
+	m := openFromArtist(t, playbacktest.New(), itemPlaylist)
+	if body := trackRows(m); strings.Contains(body, "▶") {
+		t.Fatalf("▶ shown with nothing playing:\n%s", body)
+	}
+	m, _ = step(t, m, stateMsg{state: playback.State{Status: playback.StatusPlaying, SongID: "s3", Title: "Get Lucky"}})
+	if body := trackRows(m); !strings.Contains(body, "▶ 2  GET LUCKY") || strings.Count(body, "▶") != 1 {
+		t.Fatalf("want GET LUCKY marked:\n%s", body)
 	}
 }
 

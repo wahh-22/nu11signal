@@ -178,7 +178,7 @@ func TestNavTabsSwitchBetweenStationsAndTheSearchBranch(t *testing.T) {
 	}
 }
 
-func TestBackButtonShowsAboveTheRootAndPops(t *testing.T) {
+func TestBackButtonPopsAPage(t *testing.T) {
 	f := playbacktest.New()
 	f.SearchCatalogResult = fullCatalog()
 	c := newClock()
@@ -196,11 +196,9 @@ func TestBackButtonShowsAboveTheRootAndPops(t *testing.T) {
 	if want := []viewKind{viewStations, viewSearch}; !reflect.DeepEqual(stackKinds(m), want) {
 		t.Fatalf("back: stack %v; want %v", stackKinds(m), want)
 	}
-	// A separate click, not the second press of a double click.
-	c.advance(doubleClickGuard)
-	m, _ = click(t, m, zoneBack)
-	if want := []viewKind{viewStations}; !reflect.DeepEqual(stackKinds(m), want) {
-		t.Fatalf("back from search: stack %v; want %v", stackKinds(m), want)
+	// The SEARCH base is a root view: tab, not BACK, leaves it.
+	if _, zs := m.layout(); hasZone(zs, zoneBack) {
+		t.Fatal("the SEARCH base offers BACK")
 	}
 }
 
@@ -468,16 +466,26 @@ func TestClickOnRetryRescansStations(t *testing.T) {
 
 func TestCompactLayoutKeepsTheButtonsAndTinyDropsThem(t *testing.T) {
 	f := playbacktest.New()
-	m := loaded(t, f, newClock())
+	f.SearchCatalogResult = fullCatalog()
+	c := newClock()
+	m := loaded(t, f, c)
 	m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 225*time.Second)})
-	m, _ = press(t, m, "/")
+	m = searchFor(t, m, "daft")
+	m, cmd := press(t, m, "down", "enter")
+	m = settle(t, m, cmd)
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 50, Height: 14})
-	for _, id := range []string{zoneTabStations, zoneTabSearch, zoneBack, zonePrev, zonePlay, zoneNext, zoneSeek, zoneInput} {
+	for _, id := range []string{zoneTabStations, zoneTabSearch, zoneBack, zonePrev, zonePlay, zoneNext, zoneSeek, rowZone(0)} {
 		zoneOf(t, m, id)
 	}
 	m, _ = click(t, m, zoneBack)
+	if m.top().kind != viewSearch {
+		t.Fatalf("compact back: top %v; want SEARCH", m.top().kind)
+	}
+	zoneOf(t, m, zoneInput)
+	c.advance(doubleClickGuard)
+	m, _ = click(t, m, zoneTabStations)
 	if m.top().kind != viewStations {
-		t.Fatalf("compact back: top %v; want the stations", m.top().kind)
+		t.Fatalf("compact stations tab: top %v; want the stations", m.top().kind)
 	}
 	if got := textAt(m, zoneOf(t, m, rowZone(2))); !strings.Contains(got, "BODY HEAT") {
 		t.Fatalf("compact row 2 covers %q", got)
@@ -555,35 +563,5 @@ func TestClickOnRecentRowStillOpensIt(t *testing.T) {
 	m, _ = click(t, m, rowZone(1))
 	if m.top().kind != viewResults || len(m.recents) != 3 {
 		t.Fatalf("view %v, recents %q; want RESULTS with every term kept", m.top().kind, m.recents)
-	}
-}
-
-func TestClickOnClearRecentClearsEveryTerm(t *testing.T) {
-	for _, id := range []string{zoneClearRecents, rowZone(3)} {
-		t.Run(id, func(t *testing.T) {
-			r := &fakeRecents{}
-			m := withThreeRecents(t, r)
-			if got := textAt(m, zoneOf(t, m, id)); !strings.Contains(got, "CLEAR RECENT") {
-				t.Fatalf("zone covers %q; want CLEAR RECENT", got)
-			}
-			m, cmd := click(t, m, id)
-			if len(m.recents) != 0 || m.top().kind != viewSearch {
-				t.Fatalf("recents = %q, view %v; want none, still SEARCH", m.recents, m.top().kind)
-			}
-			if !strings.Contains(plain(m), "RECENT CLEARED") {
-				t.Fatalf("status line lacks the notice:\n%s", plain(m))
-			}
-			settle(t, m, cmd)
-			if r.Clears() != 1 {
-				t.Fatalf("store Clear calls = %d; want 1", r.Clears())
-			}
-			header := strings.Split(plain(m), "\n")[5] // under the input and its rule
-			if !strings.Contains(header, "R E C E N T") || strings.Contains(header, "CLEAR RECENT") {
-				t.Fatalf("RECENT header %q; want it without the CLEAR RECENT button", header)
-			}
-			if _, zs := m.layout(); hasZone(zs, zoneClearRecents) {
-				t.Fatal("CLEAR RECENT zone still there with no terms")
-			}
-		})
 	}
 }

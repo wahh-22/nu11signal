@@ -17,7 +17,7 @@ Third round of user feedback (2026-09-29, after testing main `a887d31`).
 
 ## Scope / Tasks
 
-- [ ] T1 — Radio polish (internal/radio only): ▶ follows the now-playing track in track pages (the searched song only sets the initial cursor); BACK only when a page is above SEARCH/PLAYLISTS root; remove CLEAR RECENT (keep per-row ✕ and ctrl+d/delete); nav-tab focus area (↑ from the top of any list, from the SEARCH input and from the player's progress bar; ←/→ across tabs; enter; ↓ back). Branch `fix/radio-polish`. Route: delegated (writer trigger).
+- [x] T1 — Radio polish (internal/radio only): ▶ follows the now-playing track in track pages (the searched song only sets the initial cursor); BACK only when a page is above SEARCH/PLAYLISTS root; remove CLEAR RECENT (keep per-row ✕ and ctrl+d/delete); nav-tab focus area (↑ from the top of any list, from the SEARCH input and from the player's progress bar; ←/→ across tabs; enter; ↓ back). Branch `fix/radio-polish`. Route: delegated (writer trigger).
 - [ ] T2 — Player backend (parallel, isolated worktree): volume get/set (MusicKit player volume if the SDK has one; otherwise system output volume via CoreAudio in the helper), `libraryPlaylist(playlistId)` returning tracks, and playing a library playlist starting at a track; port + adapters + fake + demo + tests. Branch `feat/player-backend`. Route: delegated.
 - [ ] T3 — PLAYLISTS view + volume UI: rename STATIONS→PLAYLISTS, enter opens the library playlist's track view (enter on a track plays the playlist from it), volume keys (`+`/`-` outside the input), VOL−/VOL+ focusable player buttons and a volume readout. Branch `feat/playlists-volume`. Route: delegated.
 
@@ -37,6 +37,7 @@ Third round of user feedback (2026-09-29, after testing main `a887d31`).
 ## Progress
 
 - Branch `fix/radio-polish` from `main` `a887d31`.
+- T1 done (route: delegated writer). RED: 11 failing tests (marker ×3 incl. the old SONG expectation that encoded the bug, BACK visibility, 6 tab-focus, no clear-all). GREEN: `go test -race ./...` 473 passed (parent spot check), `go vet`/`gofmt` clean. Decisions: ▶ from `Model.playingIndex` (id, then title+artist case-insensitive; off when stopped); BACK only with a page on top; CLEAR RECENT removed; `areaTabs` reached by ↑ from the first row, the SEARCH input, the progress bar (or buttons when unseekable); ←/→ across drawn tabs, ↓/esc return exactly, enter acts like a click; wheel never climbs to tabs. `.claude/` (agent worktrees) excluded locally via .git/info/exclude.
 
 ## Next step
 

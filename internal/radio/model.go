@@ -154,16 +154,19 @@ type Model struct {
 	// changed the view (see doubleClickGuard).
 	pressGuardUntil time.Time
 
-	// focus is the side taking the keys; on the player, control is the
+	// focus is the area taking the keys; on the player, control is the
 	// selected button, or onBar the progress bar above them. The expanded
-	// player takes the full width and always has the focus (see focus.go).
-	// inputHadFocus keeps, while the player has the focus, whether the
-	// search input had the keys before.
+	// player takes the full width and keeps the focus, but for the nav
+	// tabs (see focus.go). inputHadFocus keeps, while the list does not
+	// have the focus, whether the search input had the keys before. On the
+	// nav tabs, tab is the selected one and tabsFrom the area ↓ returns to.
 	focus         focusArea
 	control       playerControl
 	onBar         bool
 	expanded      bool
 	inputHadFocus bool
+	tab           int
+	tabsFrom      focusArea
 
 	frame  uint64
 	bars   eq

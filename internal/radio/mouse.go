@@ -41,6 +41,10 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		focus := m.focusList()
 		next, cmd := m.handleKey(arrow)
+		if nm, ok := next.(Model); ok && nm.focus == areaTabs {
+			// The wheel scrolls; it never climbs past the top to the tabs.
+			return m, focus
+		}
 		return next, tea.Batch(focus, cmd)
 	}
 	return m, nil
@@ -112,8 +116,6 @@ func (m Model) clickListZone(z zone) (tea.Model, tea.Cmd) {
 		return m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 	case zoneTabSearch:
 		return m.searchTab()
-	case zoneClearRecents:
-		return m.clearRecents()
 	case zoneBack:
 		return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	}

@@ -32,7 +32,11 @@ type pageLine struct {
 func (m Model) handlePageKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 	switch k {
 	case keyUp, keyUpAlt:
-		m.setCursor(max(m.cursor()-1, 0))
+		if m.cursor() <= 0 {
+			m.focusTabs()
+			return m, nil, true
+		}
+		m.setCursor(m.cursor() - 1)
 	case keyDown, keyDownAlt:
 		m.setCursor(max(min(m.cursor()+1, m.pageItemCount()-1), 0))
 	case keyEnter:

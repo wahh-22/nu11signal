@@ -143,6 +143,7 @@ func TestPlayerGolden80x24(t *testing.T) {
 	}{
 		{"player_expanded", []string{"f"}},
 		{"player_focus", []string{"right", "right"}},
+		{"tabs_focus", []string{"up", "right"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			f := playbacktest.New()

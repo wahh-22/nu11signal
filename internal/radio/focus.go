@@ -4,18 +4,21 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Keyboard focus is on one side of the screen: the list panel (the
-// default) or the NOW PLAYING player. On the player, one control is
-// selected: a transport button, or the progress bar above them. The
-// expanded player hides the list, so it always has the focus; giving the
-// focus back to the list restores it.
+// Keyboard focus is on one area of the screen: the list panel (the
+// default), the NOW PLAYING player, or the nav tabs in the header rule. On
+// the player, one control is selected: a transport button, or the progress
+// bar above them. The expanded player hides the list, so it keeps the
+// focus; giving the focus back to the list restores it. ↑ past the top of
+// the list (the SEARCH input included) or of the player reaches the tabs,
+// and ↓ goes back where it came from.
 
-// focusArea is the side of the screen that takes the keys.
+// focusArea is the area of the screen that takes the keys.
 type focusArea int
 
 const (
 	areaList focusArea = iota
 	areaPlayer
+	areaTabs
 )
 
 // playerControl is a button of the player, in the order ← and → walk them.
@@ -39,17 +42,88 @@ func (m *Model) focusPlayer(control playerControl) {
 	m.focus, m.control, m.onBar = areaPlayer, control, false
 }
 
-// focusList gives the focus back to the list as the player found it,
-// restoring the expanded player: the search input takes the keys again
-// only if it had them and SEARCH is still the view on top.
+// focusList gives the focus back to the list as the player or the tabs
+// found it, restoring the expanded player: the search input takes the keys
+// again only if it had them and SEARCH is still the view on top.
 func (m *Model) focusList() tea.Cmd {
-	wasPlayer := m.focus == areaPlayer
+	away := m.focus != areaList
 	hadInput := m.inputHadFocus
 	m.focus, m.onBar, m.expanded, m.inputHadFocus = areaList, false, false, false
-	if wasPlayer && hadInput && m.top().kind == viewSearch {
+	if away && hadInput && m.top().kind == viewSearch {
 		return m.input.Focus()
 	}
 	return nil
+}
+
+// focusTabs moves the focus to the nav tabs, on the tab of the view shown,
+// keeping the area it leaves for leaveTabs. Coming from the list, the
+// search input stops taking keys meanwhile. A layout without tabs keeps
+// the focus where it is.
+func (m *Model) focusTabs() {
+	n := len(m.tabIDs())
+	if m.focus == areaTabs || n == 0 {
+		return
+	}
+	if m.focus == areaList {
+		m.inputHadFocus = m.input.Focused()
+		m.input.Blur()
+	}
+	m.tabsFrom, m.focus = m.focus, areaTabs
+	m.tab = 0
+	if m.top().kind != viewStations {
+		m.tab = min(1, n-1) // SEARCH is lit on the search branch
+	}
+}
+
+// leaveTabs gives the focus back to the area the tabs took it from, as it
+// was: the player on its button or bar, or the list on its row or input.
+func (m *Model) leaveTabs() tea.Cmd {
+	if m.tabsFrom == areaPlayer {
+		m.focus = areaPlayer
+		return nil
+	}
+	return m.focusList()
+}
+
+// tabIDs are the zone IDs of the nav tabs drawn, left to right: STATIONS,
+// SEARCH and, on a page, BACK, as many as the width holds.
+func (m Model) tabIDs() []string {
+	_, zs := m.layout()
+	var ids []string
+	for _, z := range zs {
+		switch z.id {
+		case zoneTabStations, zoneTabSearch, zoneBack:
+			ids = append(ids, z.id)
+		}
+	}
+	return ids
+}
+
+// handleTabsKey handles a key while the nav tabs have the focus; ok is
+// false for the keys it leaves to the area the focus came from, which then
+// takes it back.
+func (m Model) handleTabsKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) {
+	ids := m.tabIDs()
+	switch k {
+	case keyLeft:
+		m.tab = max(m.tab-1, 0)
+	case keyRight:
+		m.tab = max(min(m.tab+1, len(ids)-1), 0)
+	case keyUp:
+	case keyDown, keyEsc:
+		cmd = m.leaveTabs()
+	case keyEnter:
+		// As a click on the tab: the list takes the focus.
+		if m.tab >= len(ids) {
+			return m, m.leaveTabs(), true
+		}
+		focus := m.focusList()
+		next, cmd = m.clickListZone(zone{id: ids[m.tab]})
+		return next, tea.Batch(focus, cmd), true
+	default:
+		return m, nil, false
+	}
+	return m, cmd, true
 }
 
 // toggleExpand is the one expand toggle, for the keys and the EXPAND
@@ -89,7 +163,13 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 		}
 		m.control = min(m.control+1, ctlExpand)
 	case keyUp:
-		m.onBar = m.onBar || m.seekable()
+		// Up from the buttons reaches the bar, if there is one to seek
+		// in; up from there, the tabs.
+		if !m.onBar && m.seekable() {
+			m.onBar = true
+		} else {
+			m.focusTabs()
+		}
 	case keyDown:
 		m.onBar = false
 	case keyEnter:

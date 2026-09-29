@@ -210,7 +210,7 @@ func (m Model) header(w int) ([]string, zones) {
 }
 
 // navLine is the header rule carrying the nav bar: the STATIONS and
-// SEARCH tabs and, above the stations root, BACK. The serial code stays
+// SEARCH tabs and, on a page, BACK. The serial code stays
 // at the right edge while there is room for it.
 //
 //	▓▒░ ╱ STATIONS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ── RDO-77 // NC-NET ──
@@ -456,6 +456,8 @@ func keyCap(k string) string { return stYellow.Render("[" + k + "]") }
 func (m Model) hintLine(w int) string {
 	hints := playerHints
 	switch kind := m.top().kind; {
+	case m.focus == areaTabs:
+		hints = tabsFocusHints(kind == viewSearch)
 	case m.focus == areaPlayer:
 		hints = playerFocusHints(m.expanded, kind == viewSearch)
 	case kind == viewSearch:
