@@ -33,7 +33,7 @@ Development signing only works on registered Macs. Gatekeeper requires Developer
 ## Tasks
 
 - [x] R1 — Release tooling: `helper/build.sh` release mode, `scripts/release.sh`, Makefile `release` target, `--version`, cask template, README release section. Route: delegated (writer trigger: 2+ non-trivial files). Commits `81a9672` (--version, RED→GREEN), `5b42148` (cask template + Homebrew-symlink Locate test, characterization: passed on first run), `6b6a8f7` (release mode, release script, Makefile, README).
-- [ ] R2 — First signed + notarized build `v0.1.0`, verify with `spctl`/`stapler`/live run on a clean path. Blocked on U1–U3.
+- [x] R2 — First signed + notarized build `v0.1.0`, verify with `spctl`/`stapler`/live run on a clean path. Blocked on U1–U3.
 - [ ] R3 — Publish: tag, GitHub release with artifacts, cask (user decides tap location).
 
 ## Acceptance criteria
@@ -55,8 +55,10 @@ Development signing only works on registered Macs. Gatekeeper requires Developer
 - Follow-ups (minor advisories): `release.sh` deletes the previous archive before the new build succeeds (line 125); `main.go` exit-path split untested (46-51); release.sh literals/help text nits.
 
 - R2 build (2026-09-28, from `91c4522`): `make release VERSION=0.1.0` exit 0; notarization submission `02332dda-4fd0-4815-b88d-a6cc0bfd9f77` accepted; helper stapled (`stapler validate` ok); archive `soul-king-0.1.0-macos-universal.tar.gz` sha256 `0ed8c3cc3d91e95dd8390c3332941eb97b5ef90cb53d996b7fc608499db83ff9`.
-- R2 download simulation (quarantined copy): sha256 OK; helper `spctl` accepted (Notarized Developer ID); CLI runs under quarantine (`--version` → 0.1.0; bare binaries are not `spctl`-assessable); `lipo` x86_64 arm64; notarized helper authorizes and searches the catalog (Developer ID profile works with MusicKit). Pending: user live TUI + audio check from the extracted archive.
+- R2 download simulation (quarantined copy): sha256 OK; helper `spctl` accepted (Notarized Developer ID); CLI runs under quarantine (`--version` → 0.1.0; bare binaries are not `spctl`-assessable); `lipo` x86_64 arm64; notarized helper authorizes and searches the catalog (Developer ID profile works with MusicKit). User confirmed live TUI + audio from the extracted archive.
+
+- R3 (partial): tag `v0.1.0` → `91c4522` (the built commit); GitHub release https://github.com/wahh-22/soul-king/releases/tag/v0.1.0 (not draft) with the archive + .sha256; downloaded asset sha256 matches `0ed8c3cc…3ff9`. Pending: Homebrew tap/cask (user decides location), merge of `feat/release-signing` into main.
 
 ## Next step
 
-R2 once the user finishes U1–U3: `make release VERSION=0.1.0`.
+User decides: Homebrew tap location for the cask; PR/merge of `feat/release-signing`.
