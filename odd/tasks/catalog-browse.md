@@ -74,4 +74,4 @@ Today only library playlists ("stations") and a songs-only search are reachable.
 
 ## Next step
 
-All tasks done. The user decides push/PRs (stacked-to-main chain: catalog-search → catalog-recents → catalog-search-view → catalog-artist-backend → catalog-artist → catalog-song-backend → catalog-song → catalog-docs).
+All tasks done. Pushed (user approved 2026-09-29) and opened stacked PRs #10–#17 to main: #10 catalog-search, #11 catalog-recents, #12 catalog-search-view, #13 catalog-artist-backend, #14 catalog-artist, #15 catalog-song-backend, #16 catalog-song, #17 catalog-docs; merge in order and retarget each next PR to main. Merge is the user's decision (stacked-to-main chain: catalog-search → catalog-recents → catalog-search-view → catalog-artist-backend → catalog-artist → catalog-song-backend → catalog-song → catalog-docs).
