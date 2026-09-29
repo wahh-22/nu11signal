@@ -97,6 +97,16 @@ Route: delegated (one writer, B1–B3); B4 inline, last.
 
 - PR #6 merged (main `a481ba2`). B4: local directory renamed to `~/wahh22/nu11signal`; git/remote/profiles/dist intact; `go build` + `make test` (Swift 33, scripts 23, Go) pass from the new path.
 
+- v0.2.1 released from `9c04b5c` (PR #8 ignores `.atl/`); cask bumped with `make cask VERSION=0.2.1 PUSH=1`; `brew upgrade` verified. Repo cleaned to `main` only.
+
+## Advisory cleanup (branch `chore/release-advisories`, user-requested 2026-09-29)
+
+- [ ] A1 — `bump-cask.sh` unpushed-bump guard (114-129): clear wording for the net-diff checks (including the empty net-diff case) and tests for every guard branch.
+- [ ] A2 — `bump-cask.sh` (102-103): check the upstream relationship before `pull --ff-only`, so a diverged tap is reported clearly instead of failing inside the pull.
+- [ ] A3 — `release.sh --force` (179-180): shrink the backup window and cover it with tests (the backup is restored on failure; a leftover `.replaced-*` backup is reported).
+
+Route: delegated (one writer; writer trigger: script + tests).
+
 ## Next step
 
-Done.
+A1–A3.
