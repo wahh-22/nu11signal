@@ -144,9 +144,11 @@ func (p *Player) Authorize(ctx context.Context) (playback.AuthStatus, error) {
 	return playback.AuthAuthorized, nil
 }
 
-// SearchCatalog matches term case-insensitively: artists by name, songs by
-// title, artist or album, and suggestions from the matching artist names and song
-// titles. Like the helper, it rejects a blank term (ErrEmptyTerm) and
+// SearchCatalog matches term case-insensitively: artists by name, albums
+// and artist playlists by name or artist, songs by title, artist or album,
+// and suggestions from the matching artist names and song titles. The top
+// results are the first match of each kind (artist, album, song,
+// playlist). Like the helper, it rejects a blank term (ErrEmptyTerm) and
 // clamps limit, which caps each list separately, to 1...25.
 func (p *Player) SearchCatalog(ctx context.Context, term string, limit int) (playback.SearchResults, error) {
 	var res playback.SearchResults
@@ -181,6 +183,9 @@ func (p *Player) SearchCatalog(ctx context.Context, term string, limit int) (pla
 				suggest(s.Title)
 			}
 		}
+		res.Albums = searchAlbums(needle, limit)
+		res.Playlists = searchPlaylists(needle, limit)
+		res.Top = topResults(res, limit)
 		return nil
 	})
 	return res, err

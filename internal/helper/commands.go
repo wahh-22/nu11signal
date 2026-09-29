@@ -16,8 +16,9 @@ func (c *Client) Authorize(ctx context.Context) (playback.AuthStatus, error) {
 	return playback.AuthStatus(res.Status), nil
 }
 
-// SearchCatalog runs a mixed catalog search: suggestions, artists and songs.
-// The helper clamps limit to 1...25 per result type.
+// SearchCatalog runs a mixed catalog search: suggestions, top results,
+// artists, albums, songs and playlists. The helper clamps limit to 1...25
+// per result type (suggestions to 10, top results to 6).
 func (c *Client) SearchCatalog(ctx context.Context, term string, limit int) (playback.SearchResults, error) {
 	var res searchCatalogResult
 	if err := c.call(ctx, "searchCatalog", map[string]any{"term": term, "limit": limit}, &res); err != nil {

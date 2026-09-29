@@ -159,6 +159,58 @@ func TestSearchCatalogMatchesArtistsSongsAndSuggestions(t *testing.T) {
 	}
 }
 
+func TestSearchCatalogMatchesAlbumsPlaylistsAndTopResults(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+
+	res, err := p.SearchCatalog(ctx, "chrome", 25)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chromeSaints := playback.Artist{ID: "demo-artist-chrome-saints", Name: "Chrome Saints", Genres: []string{"Synthwave"}}
+	lastCall := playback.Album{ID: "demo-album-last-call-sessions", Title: "Last Call Sessions", Artist: "Chrome Saints", Year: 2076, TrackCount: 2}
+	essentials := playback.CatalogPlaylist{ID: "demo-playlist-chrome-saints-essentials", Name: "Chrome Saints Essentials", Curator: "Nu11Signal"}
+	// Albums match by title or artist, so Spire Tower (holding "Ghost in
+	// the Chrome") is not one.
+	if want := []playback.Album{lastCall}; !reflect.DeepEqual(res.Albums, want) {
+		t.Errorf("Albums = %+v; want %+v", res.Albums, want)
+	}
+	if want := []playback.CatalogPlaylist{essentials}; !reflect.DeepEqual(res.Playlists, want) {
+		t.Errorf("Playlists = %+v; want %+v", res.Playlists, want)
+	}
+	wantTop := []playback.SearchItem{
+		{Kind: playback.ItemArtist, Artist: chromeSaints},
+		{Kind: playback.ItemAlbum, Album: lastCall},
+		{Kind: playback.ItemSong, Song: res.Songs[0]},
+		{Kind: playback.ItemPlaylist, Playlist: essentials},
+	}
+	if !reflect.DeepEqual(res.Top, wantTop) {
+		t.Errorf("Top = %+v; want %+v", res.Top, wantTop)
+	}
+
+	// Every album and playlist result opens in the demo.
+	for _, a := range res.Albums {
+		if _, err := p.Album(ctx, a.ID); err != nil {
+			t.Errorf("Album(%s): %v", a.ID, err)
+		}
+	}
+	for _, pl := range res.Playlists {
+		if _, err := p.CatalogPlaylist(ctx, pl.ID); err != nil {
+			t.Errorf("CatalogPlaylist(%s): %v", pl.ID, err)
+		}
+	}
+
+	limited, err := p.SearchCatalog(ctx, "chrome", 1)
+	if err != nil || len(limited.Albums) != 1 || len(limited.Playlists) != 1 || len(limited.Top) != 1 {
+		t.Errorf("limit 1 = %+v, %v; want one of each", limited, err)
+	}
+	songOnly, err := p.SearchCatalog(ctx, "lullaby", 25)
+	if err != nil || len(songOnly.Albums)+len(songOnly.Playlists) != 0 ||
+		!reflect.DeepEqual(songOnly.Top, []playback.SearchItem{{Kind: playback.ItemSong, Song: songOnly.Songs[0]}}) {
+		t.Errorf("song-only search = %+v, %v; want only the song on top", songOnly, err)
+	}
+}
+
 func TestInvalidRequestsFail(t *testing.T) {
 	p := newPlayer(t)
 	ctx := context.Background()

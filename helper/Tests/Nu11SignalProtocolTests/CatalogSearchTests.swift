@@ -49,6 +49,13 @@ final class CatalogSearchQueryTests: XCTestCase {
         XCTAssertEqual(try query(["term": "q"]).suggestionLimit, CatalogSearchQuery.maxSuggestions)
     }
 
+    func testTopResultsStayWithinTheirCap() throws {
+        XCTAssertEqual(try query(["term": "q", "limit": 3]).topResultLimit, 3)
+        XCTAssertEqual(try query(["term": "q", "limit": 6]).topResultLimit, 6)
+        XCTAssertEqual(try query(["term": "q", "limit": 25]).topResultLimit, 6)
+        XCTAssertEqual(try query(["term": "q"]).topResultLimit, CatalogSearchQuery.maxTopResults)
+    }
+
     func testNonIntegerLimitsAreErrors() {
         for (name, limit) in [("fraction", 2.5 as Any), ("string", "10"), ("bool", true)] {
             XCTAssertThrowsError(try query(["term": "q", "limit": limit]), name) { error in

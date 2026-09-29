@@ -304,6 +304,59 @@ func playlistPage(id string) (playback.PlaylistDetail, bool) {
 	return playback.PlaylistDetail{}, false
 }
 
+// searchAlbums lists the catalog albums whose title or artist contains
+// needle (lower case), in catalog order, at most limit.
+func searchAlbums(needle string, limit int) []playback.Album {
+	var out []playback.Album
+	seen := map[string]bool{}
+	for _, s := range catalog {
+		if len(out) >= limit {
+			break
+		}
+		if seen[s.Album] || !strings.Contains(strings.ToLower(s.Album+" "+s.Artist), needle) {
+			continue
+		}
+		seen[s.Album] = true
+		if d, ok := catalogAlbum(albumID(s.Album)); ok {
+			out = append(out, d.Album)
+		}
+	}
+	return out
+}
+
+// searchPlaylists lists the artist playlists whose name or artist contains
+// needle (lower case), at most limit.
+func searchPlaylists(needle string, limit int) []playback.CatalogPlaylist {
+	var out []playback.CatalogPlaylist
+	for _, a := range artists {
+		for _, name := range extras[a.ID].playlists {
+			if len(out) < limit && strings.Contains(strings.ToLower(name+" "+a.Name), needle) {
+				out = append(out, playback.CatalogPlaylist{ID: playlistID(name), Name: name, Curator: "Nu11Signal"})
+			}
+		}
+	}
+	return out
+}
+
+// topResults stands in for Apple Music's top results: the first match of
+// each kind, at most limit.
+func topResults(res playback.SearchResults, limit int) []playback.SearchItem {
+	var top []playback.SearchItem
+	if len(res.Artists) > 0 {
+		top = append(top, playback.SearchItem{Kind: playback.ItemArtist, Artist: res.Artists[0]})
+	}
+	if len(res.Albums) > 0 {
+		top = append(top, playback.SearchItem{Kind: playback.ItemAlbum, Album: res.Albums[0]})
+	}
+	if len(res.Songs) > 0 {
+		top = append(top, playback.SearchItem{Kind: playback.ItemSong, Song: res.Songs[0]})
+	}
+	if len(res.Playlists) > 0 {
+		top = append(top, playback.SearchItem{Kind: playback.ItemPlaylist, Playlist: res.Playlists[0]})
+	}
+	return top[:min(len(top), limit)]
+}
+
 // slug turns a title into an id fragment: "Route 77" -> "route-77".
 func slug(s string) string {
 	return strings.Join(strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
