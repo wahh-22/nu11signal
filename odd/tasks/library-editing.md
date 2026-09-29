@@ -16,9 +16,9 @@ Fourth round of user feedback (2026-09-29, main `bc4f8b5`).
 
 ## Tasks
 
-- [ ] B1 — Playback start fixes (helper + adapter): honor the start track for library playlists; make `playSongs` robust to Code=6 (root cause first: start item not in the prepared queue / id mismatch / race; fix or retry once, never loop). Branch `fix/playback-start`. Route: delegated (isolated worktree, parallel with U1).
-- [ ] U1 — Volume on j/k and click-to-focus panels (internal/radio). Branch `feat/volume-keys-click`. Route: delegated (parallel with B1).
-- [ ] B2 — Library editing backend: verify MusicKit macOS availability for `MusicLibrary` createPlaylist / edit (rename, add/remove items) and for favorites (love rating via Apple Music API `me/ratings` or a MusicKit API); port + helper + adapters + fake + demo. Branch `feat/library-edit-backend`. Route: delegated.
+- [x] B1 — Playback start fixes (helper + adapter): honor the start track for library playlists; make `playSongs` robust to Code=6 (root cause first: start item not in the prepared queue / id mismatch / race; fix or retry once, never loop). Branch `fix/playback-start`. Route: delegated (isolated worktree, parallel with U1).
+- [x] U1 — Volume on j/k and click-to-focus panels (internal/radio). Branch `feat/volume-keys-click`. Route: delegated (parallel with B1).
+- [ ] B2 — Library editing backend via the Apple Music API (`MusicDataRequest`, user decision 2026-09-29): create playlist (with songs), add songs to a library playlist, favorite (love rating) a song; no rename/remove/delete (not exposed by the API). Port + helper + adapters + fake + demo. Branch `feat/library-edit-backend`. Route: delegated.
 - [ ] U2 — Library editing UI: new playlist, rename, add song to a playlist (picker), remove track, favorite toggle; keyboard + mouse. Branch `feat/library-edit-ui`. Route: delegated.
 
 ## Constraints
@@ -33,7 +33,10 @@ Fourth round of user feedback (2026-09-29, main `bc4f8b5`).
 ## Progress
 
 - Branch `fix/playback-start` from `main` `bc4f8b5`.
+- Finding (parent, SDK `MacOSX.sdk` MusicKit swiftinterface): `MusicLibrary.createPlaylist/edit/add` are `@available(macOS, unavailable)`; no favorites API in MusicKit. User chose the Apple Music web API via `MusicDataRequest` (create, add, favorite; no rename/remove).
+- B1 done (route: delegated writer, isolated worktree, `72e6851` cherry-picked as `f9b6f6d`). Inferred causes (no audio allowed): `Queue(playlist:startingAt:)` with a playlist loaded without entries ignores the start → queue built from the exact `libraryPlaylist` song list; Code=6 → start named as a queue entry (`Queue(entries, startingAt:)`, `SongQueue` pure helper) plus ONE retry on Code=6. RED: `SongQueue` missing; GREEN: `swift test` 72. Needs audio verification by the user.
+- U1 done (route: delegated writer). `k`/`j` volume up/down everywhere outside the SEARCH input; arrows alone move rows; panel-wide click zones registered under rows/controls give focus. RED: key/volume and panel-zone tests; GREEN: `go test -race ./...` 575 passed; commit `453104e` (rebased onto B1).
 
 ## Next step
 
-B1 and U1 in parallel.
+Review B1+U1, then B2.
