@@ -306,7 +306,7 @@ final class TapLifecycleTests: XCTestCase {
         XCTAssertEqual(lifecycle.handle(.noTarget), [])
         XCTAssertEqual(lifecycle.phase, .idle)
         // The process list changed: the copy may be there now.
-        XCTAssertEqual(lifecycle.handle(.rebuild), [.build])
+        XCTAssertEqual(lifecycle.handle(.rebuild(.playerProcess)), [.build])
         XCTAssertEqual(lifecycle.handle(.noTarget), [])
         // The audio plays and still no copy is attributed to the helper.
         XCTAssertEqual(lifecycle.handle(.playback(.playing)), [.build])
@@ -317,16 +317,113 @@ final class TapLifecycleTests: XCTestCase {
 
     func testDeviceOrProcessChangesRebuildOnlyWhatIsNeeded() {
         var (lifecycle, _) = drive([.prepare, .built, .playback(.playing), .started])
-        XCTAssertEqual(lifecycle.handle(.rebuild), [.teardown, .build])
+        XCTAssertEqual(lifecycle.handle(.rebuild(.outputDevice)), [.build], "the old tap stays until the new one starts")
         XCTAssertEqual(lifecycle.handle(.built), [.start])
+        XCTAssertEqual(lifecycle.handle(.started), [.releaseReplaced])
         _ = lifecycle.handle(.playback(.paused))
-        XCTAssertEqual(lifecycle.handle(.rebuild), [.teardown], "a paused tap is rebuilt on resume")
+        XCTAssertEqual(lifecycle.handle(.rebuild(.outputDevice)), [.teardown], "a paused tap is rebuilt on resume")
         XCTAssertEqual(lifecycle.phase, .idle)
-        XCTAssertEqual(lifecycle.handle(.rebuild), [])
+        XCTAssertEqual(lifecycle.handle(.rebuild(.outputDevice)), [])
         XCTAssertEqual(lifecycle.handle(.prepare), [.build])
         // A retry already pending rebuilds by itself.
         (lifecycle, _) = drive([.prepare, .failed(.transient("x"))])
-        XCTAssertEqual(lifecycle.handle(.rebuild), [])
+        XCTAssertEqual(lifecycle.handle(.rebuild(.outputDevice)), [])
+        XCTAssertEqual(lifecycle.handle(.rebuild(.playerProcess)), [])
+    }
+
+    func testAFailedRebuildKeepsTheOldTapMuted() {
+        var (lifecycle, _) = drive([.gain(quieterThanSystem: true), .prepare, .built, .playback(.playing), .started])
+        XCTAssertEqual(lifecycle.handle(.rebuild(.outputDevice)), [.build])
+        let actions = lifecycle.handle(.failed(.transient("device changing")))
+        // The old tap still mutes the player: its audio thread stops, so
+        // the music is silent while it retries, never loud; no pause.
+        XCTAssertEqual(actions, [.stop, .scheduleRetry(after: L.retryDelays[0])])
+        XCTAssertTrue(lifecycle.hasTap)
+        XCTAssertTrue(lifecycle.tapMutesPlayer)
+        XCTAssertEqual(lifecycle.handle(.retryDue), [.build])
+        XCTAssertEqual(lifecycle.handle(.built), [.start])
+        XCTAssertEqual(lifecycle.handle(.started), [.releaseReplaced], "the swap releases the old tap only now")
+        XCTAssertEqual(lifecycle.phase, .running)
+    }
+
+    func testASuccessfulRebuildSwapsWithoutATeardown() {
+        var (lifecycle, _) = drive([.prepare, .built, .playback(.playing), .started])
+        let (after, actions) = drive([.rebuild(.playerProcess), .built, .started], from: lifecycle)
+        XCTAssertEqual(actions, [.build, .start, .releaseReplaced])
+        XCTAssertFalse(actions.contains(.teardown))
+        XCTAssertTrue(after.tapMutesPlayer)
+        lifecycle = after
+        XCTAssertEqual(lifecycle.handle(.started), [], "nothing left to release")
+    }
+
+    func testAnUncoveredPlayerIsPausedDuringRetriesWhenQuieterAndResumedOnSuccess() {
+        var (lifecycle, _) = drive([.gain(quieterThanSystem: true), .prepare, .built, .playback(.playing), .started])
+        // The player moved to a new process the old tap does not mute.
+        XCTAssertEqual(lifecycle.handle(.rebuild(.playerProcess)), [.build])
+        XCTAssertFalse(lifecycle.tapMutesPlayer)
+        XCTAssertEqual(lifecycle.handle(.noTarget),
+                       [.stop, .pausePlayer, .scheduleRetry(after: L.retryDelays[0])])
+        XCTAssertTrue(lifecycle.holdingPlayer)
+        // The pause the lifecycle asked for does not cancel the retry.
+        XCTAssertEqual(lifecycle.handle(.playback(.paused)), [])
+        XCTAssertEqual(lifecycle.handle(.retryDue), [.build])
+        XCTAssertEqual(lifecycle.handle(.built), [.resumePlayer])
+        XCTAssertFalse(lifecycle.holdingPlayer)
+        XCTAssertEqual(lifecycle.handle(.playback(.playing)), [.start])
+        XCTAssertEqual(lifecycle.handle(.started), [.releaseReplaced])
+        XCTAssertEqual(lifecycle.phase, .running)
+    }
+
+    func testAnUncoveredPlayerAtFullGainKeepsPlayingDuringRetries() {
+        var (lifecycle, _) = drive([.gain(quieterThanSystem: false), .prepare, .built, .playback(.playing), .started,
+                                    .rebuild(.playerProcess)])
+        XCTAssertEqual(lifecycle.handle(.noTarget), [.stop, .scheduleRetry(after: L.retryDelays[0])],
+                       "full gain is the system volume: no jump")
+        XCTAssertFalse(lifecycle.holdingPlayer)
+    }
+
+    func testAPlayerProcessChangeDuringARetryPausesWhenQuieter() {
+        var (lifecycle, _) = drive([.gain(quieterThanSystem: true), .prepare, .built, .playback(.playing), .started,
+                                    .rebuild(.outputDevice), .failed(.transient("x"))])
+        XCTAssertTrue(lifecycle.tapMutesPlayer)
+        XCTAssertEqual(lifecycle.handle(.rebuild(.playerProcess)), [.pausePlayer], "the kept tap no longer mutes it")
+        XCTAssertEqual(lifecycle.handle(.rebuild(.playerProcess)), [], "paused once")
+        // A retry that keeps failing ends in the fallback, the player paused.
+        (lifecycle, _) = drive([.retryDue, .failed(.transient("x")), .retryDue, .failed(.transient("x")),
+                                .retryDue], from: lifecycle)
+        let last = lifecycle.handle(.failed(.transient("x")))
+        guard case .fallBack? = last.last else { return XCTFail("\(last)") }
+        XCTAssertFalse(last.contains(.resumePlayer))
+    }
+
+    func testStoppingWhileHoldingThePlayerForgetsTheHold() {
+        var (lifecycle, _) = drive([.gain(quieterThanSystem: true), .prepare, .built, .playback(.playing), .started,
+                                    .rebuild(.playerProcess), .noTarget])
+        XCTAssertTrue(lifecycle.holdingPlayer)
+        XCTAssertEqual(lifecycle.handle(.playback(.stopped)), [.teardown])
+        XCTAssertFalse(lifecycle.holdingPlayer)
+        XCTAssertEqual(lifecycle.handle(.retryDue), [])
+    }
+
+    func testProcessListChangesAreComparedOnlyWhenTheyMatter() {
+        var lifecycle = L()
+        XCTAssertFalse(lifecycle.watchesPlayerProcess, "idle, nothing playing")
+        _ = lifecycle.handle(.prepare)
+        XCTAssertTrue(lifecycle.watchesPlayerProcess, "building for a play")
+        (lifecycle, _) = drive([.prepare, .built, .playback(.playing), .started])
+        XCTAssertTrue(lifecycle.watchesPlayerProcess, "running")
+        _ = lifecycle.handle(.playback(.paused))
+        XCTAssertTrue(lifecycle.watchesPlayerProcess, "paused with a tap")
+        // Retrying with a tap that still mutes the player: a change makes
+        // it stale; retrying without one: the retry builds anyway.
+        (lifecycle, _) = drive([.prepare, .built, .playback(.playing), .started, .failed(.transient("x"))])
+        XCTAssertTrue(lifecycle.watchesPlayerProcess)
+        (lifecycle, _) = drive([.prepare, .playback(.playing), .failed(.transient("x"))])
+        XCTAssertFalse(lifecycle.watchesPlayerProcess)
+        (lifecycle, _) = drive([.prepare, .failed(.permanent("x"))])
+        XCTAssertFalse(lifecycle.watchesPlayerProcess, "the fallback")
+        (lifecycle, _) = drive([.prepare, .built, .playback(.playing), .started, .playback(.stopped)])
+        XCTAssertFalse(lifecycle.watchesPlayerProcess, "stopped")
     }
 
     func testStoppingDuringARetryCancelsIt() {

@@ -59,8 +59,15 @@ func readRequests() {
 
 MainActor.assumeIsolated {
     volume.onModeChange = { emitter.checkForChange() }
-    // A fallback to the louder system volume pauses rather than jumps.
-    volume.onLoudFallback = { ApplicationMusicPlayer.shared.pause() }
+    // Music that would play louder than the app level (a fallback, or a
+    // retry no muted tap covers) is paused rather than jumping; a retry
+    // that succeeds resumes it.
+    volume.pausePlayer = { ApplicationMusicPlayer.shared.pause() }
+    volume.resumePlayer = {
+        Task { @MainActor in
+            do { try await ApplicationMusicPlayer.shared.play() } catch { log("app volume: could not resume: \(error)") }
+        }
+    }
     emitter.start()
 }
 Output.shared.event("ready")

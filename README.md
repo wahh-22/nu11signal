@@ -495,14 +495,20 @@ output latency. The level persists in the helper's preferences.
 - **Resources.** The tap is built when playback starts; its audio thread stops
   while paused and everything is released when playback stops, when a play
   fails, or when the app quits. A new default output device or player
-  process rebuilds it.
+  process rebuilds it: the new tap is built first and the old one is
+  released only once the new one plays.
 - **Failures.** A failed rebuild (common in the middle of an output device
-  change) is retried three times over about five seconds, silently: the
-  music stays muted meanwhile rather than jumping to the system volume. If
-  it keeps failing, the rest of the session uses the system volume and the
-  status line says `APP VOLUME OFF`. The system volume is never changed
-  for you: if the music was playing quieter than the system volume, it is
-  paused instead, and plays at the system volume (`SYS`) when you resume.
+  change) is retried three times over about five seconds. The old muted
+  tap is kept meanwhile, so after an output device change the music is
+  silent rather than jumping to the system volume. When no tap mutes the
+  music (the player moved to a new process, or no tap could be built yet)
+  and the app volume is below full, the music is paused during the retries
+  and resumes when one succeeds; at full app volume it keeps playing, as
+  the system volume is then no louder. If it keeps failing, the rest of the
+  session uses the system volume and the status line says `APP VOLUME OFF`.
+  The system volume is never changed for you: if the music was playing
+  quieter than the system volume, it is paused instead (or stays paused),
+  and plays at the system volume (`SYS`) when you resume.
 - **Opting out.** `NU11SIGNAL_VOLUME_MODE=system` in the environment keeps the
   system volume (no relaunch, no tap, no prompt).
 

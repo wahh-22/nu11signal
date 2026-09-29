@@ -210,17 +210,25 @@ public enum TapFailure: Sendable, Equatable {
 }
 
 /// The app volume tap's lifecycle, free of CoreAudio: AppVolume feeds it
-/// events (playback, build results, device changes, retry timers) and
-/// performs the actions it returns, in order, feeding their results back.
-/// It is only fed in app mode.
+/// events (playback, build results, device and process changes, retry
+/// timers, the gain) and performs the actions it returns, in order,
+/// feeding their results back. It is only fed in app mode.
 ///
-/// A transient failure stops the audio thread but keeps whatever muted
-/// tap exists, so the music is silent (never suddenly at the system
-/// volume) while it retries after a growing delay (`retryDelays`); each
-/// `build` replaces what is left. One more failure after the last retry,
-/// or any permanent failure, falls back to the system volume for the
-/// session (`fallBack`, after which AppVolume releases everything). A tap
-/// that starts forgets earlier failures.
+/// A rebuild builds the new tap before releasing the old one: `build`
+/// never destroys the tap in use, and `releaseReplaced` drops the old one
+/// once the new one has started. So a failed rebuild keeps the old muted
+/// tap, with its audio thread stopped, while it retries after a growing
+/// delay (`retryDelays`): as long as that tap still mutes the player (an
+/// output device change), the music is silent, never suddenly at the
+/// system volume. When no tap mutes the player (none was built, or the
+/// player moved to a process the old tap does not cover) and the app gain
+/// is below the system volume, the player is paused for the retries
+/// (`pausePlayer`) and resumed once a new tap is built (`resumePlayer`);
+/// at full gain it keeps playing, since the system volume is then no
+/// louder. One more failure after the last retry, or any permanent
+/// failure, falls back to the system volume for the session (`fallBack`,
+/// after which AppVolume releases everything), a held player staying
+/// paused. A tap that starts forgets earlier failures.
 public struct TapLifecycle: Sendable, Equatable {
     public enum Phase: Sendable, Equatable {
         /// No tap.
@@ -233,10 +241,20 @@ public struct TapLifecycle: Sendable, Equatable {
         /// The audio thread stopped with the player; the muted tap stays,
         /// so resuming is never briefly loud.
         case paused
-        /// A retry is scheduled; a muted tap may be kept meanwhile.
+        /// A retry is scheduled; the last muted tap, if any, is kept.
         case retrying(attempt: Int)
         /// The system volume, for the rest of the session.
         case fallback(reason: String)
+    }
+
+    /// What a rebuild answers to.
+    public enum Change: Sendable, Equatable {
+        /// A new default output device: the tap still mutes the player,
+        /// only its aggregate device renders to the old output.
+        case outputDevice
+        /// The player's process changed (or went away): the tap, if any,
+        /// no longer mutes the player.
+        case playerProcess
     }
 
     public enum Event: Sendable, Equatable {
@@ -246,25 +264,36 @@ public struct TapLifecycle: Sendable, Equatable {
         case playFailed
         /// The player reported an activity.
         case playback(PlaybackActivity)
-        /// `build` made the tap.
+        /// `build` made a new tap (the one it replaces, if any, stays until
+        /// `releaseReplaced`).
         case built
         /// `build` found no player process attributed to the helper.
         case noTarget
-        /// `build` or `start` failed.
+        /// `build` or `start` failed; the tap in use, if any, is untouched.
         case failed(TapFailure)
         /// `start` started the audio thread.
         case started
         /// The default output device or the player process changed.
-        case rebuild
+        case rebuild(Change)
         /// A scheduled retry is due.
         case retryDue
+        /// The app level is (not) below the system volume, i.e. under 1.
+        case gain(quieterThanSystem: Bool)
     }
 
     public enum Action: Sendable, Equatable {
-        /// Build the muted tap, replacing any left.
+        /// Build a new muted tap, keeping the one in use until it starts.
         case build
-        case start, stop, teardown
+        case start, stop
+        /// Release the tap the last `build` replaced.
+        case releaseReplaced
+        /// Release every tap.
+        case teardown
         case scheduleRetry(after: Double)
+        /// Pause the player: no tap mutes it and it would play louder.
+        case pausePlayer
+        /// Resume the player `pausePlayer` paused: a new tap is built.
+        case resumePlayer
         /// Switch to the system volume for the session, releasing the tap.
         case fallBack(reason: String)
     }
@@ -277,12 +306,34 @@ public struct TapLifecycle: Sendable, Equatable {
     public private(set) var activity: PlaybackActivity = .stopped
     /// A play was asked for and the player has not reported since.
     public private(set) var expecting = false
+    /// A muted tap exists (in use, or kept through a retry).
+    public private(set) var hasTap = false
+    /// That tap mutes the player's current process.
+    public private(set) var tapMutesPlayer = false
+    /// The player is paused by `pausePlayer`, awaiting `resumePlayer`.
+    public private(set) var holdingPlayer = false
+    private var quieterThanSystem = false
+    /// The pending `build` replaces a tap, to release once it starts.
+    private var replacing = false
     private var failures = 0
 
     public init() {}
 
     /// Whether the tap should exist: audio plays or is about to.
     private var wantsTap: Bool { activity == .playing || expecting }
+
+    /// Whether a change of the HAL's process list is worth comparing the
+    /// player's process for (then `rebuild(.playerProcess)` if it moved):
+    /// while a tap exists or is wanted, and during a retry only while the
+    /// kept tap still mutes the player (the retry builds for the new
+    /// process by itself, but the player may need pausing meanwhile).
+    public var watchesPlayerProcess: Bool {
+        switch phase {
+        case .idle, .building, .running, .paused: hasTap || wantsTap
+        case .retrying: hasTap && tapMutesPlayer
+        case .fallback: false
+        }
+    }
 
     public mutating func handle(_ event: Event) -> [Action] {
         if case .fallback = phase { return [] }
@@ -291,17 +342,17 @@ public struct TapLifecycle: Sendable, Equatable {
             expecting = true
             guard phase == .idle else { return [] } // a retry pending, or a tap already
             phase = .building
-            return [.build]
+            return build()
         case .playFailed:
             expecting = false
             guard activity != .playing else { return [] } // the music playing keeps its tap
             switch phase {
             case .building:
                 phase = .idle
-                return [.teardown]
+                return teardown()
             case .retrying:
                 reset()
-                return [.teardown]
+                return teardown()
             default:
                 return []
             }
@@ -310,49 +361,64 @@ public struct TapLifecycle: Sendable, Equatable {
             expecting = false
             return playback(next)
         case .built:
+            hasTap = true
+            tapMutesPlayer = true
+            let held = holdingPlayer
+            holdingPlayer = false
             guard activity == .playing else {
                 phase = .building
-                return []
+                return held ? [.resumePlayer] : []
             }
             phase = .running
             return [.start]
         case .noTarget:
             // Before the audio starts the copy may not exist yet (the
-            // process list change asks again); once it plays, it should.
-            guard activity == .playing else {
+            // process list change asks again); once it plays (or is held
+            // for the retry), it should.
+            guard activity == .playing || holdingPlayer else {
                 phase = .idle
-                return []
+                return hasTap ? teardown() : []
             }
             return fail(.transient("no player process attributed to the helper"))
         case let .failed(failure):
             return fail(failure)
         case .started:
             failures = 0
-            return []
-        case .rebuild:
+            guard replacing else { return [] }
+            replacing = false
+            return [.releaseReplaced]
+        case let .rebuild(change):
+            if change == .playerProcess { tapMutesPlayer = false }
             switch phase {
             case .building, .running, .paused:
                 guard wantsTap else {
                     phase = .idle
-                    return [.teardown]
+                    return teardown()
                 }
                 phase = .building
-                return [.teardown, .build]
+                return build()
             case .idle:
                 guard wantsTap else { return [] }
                 phase = .building
-                return [.build]
-            case .retrying, .fallback:
-                return [] // the pending retry builds for the new state
+                return build()
+            case .retrying:
+                // The pending retry builds for the new state; a player the
+                // kept tap no longer mutes may need pausing until then.
+                return change == .playerProcess ? holdIfExposed() : []
+            case .fallback:
+                return []
             }
         case .retryDue:
             guard case .retrying = phase else { return [] } // cancelled
-            guard wantsTap else {
+            guard wantsTap || holdingPlayer else {
                 phase = .idle
-                return [.teardown]
+                return teardown()
             }
             phase = .building
-            return [.build]
+            return build()
+        case let .gain(quieter):
+            quieterThanSystem = quieter
+            return []
         }
     }
 
@@ -362,10 +428,17 @@ public struct TapLifecycle: Sendable, Equatable {
             switch phase {
             case .idle:
                 phase = .building
-                return [.build]
+                return build()
             case .building, .paused:
                 phase = .running
                 return [.start]
+            case .retrying:
+                // Playing while held is the user resuming: respect it.
+                guard !holdingPlayer else {
+                    holdingPlayer = false
+                    return []
+                }
+                return holdIfExposed()
             default:
                 return []
             }
@@ -379,14 +452,34 @@ public struct TapLifecycle: Sendable, Equatable {
                 return []
             default:
                 reset()
-                return [.teardown]
+                return teardown()
             }
         }
+    }
+
+    private mutating func build() -> [Action] {
+        replacing = hasTap
+        return [.build]
+    }
+
+    private mutating func teardown() -> [Action] {
+        hasTap = false
+        tapMutesPlayer = false
+        replacing = false
+        return [.teardown]
     }
 
     private mutating func reset() {
         phase = .idle
         failures = 0
+        holdingPlayer = false
+    }
+
+    /// Pauses a playing player no tap mutes, when it would play louder.
+    private mutating func holdIfExposed() -> [Action] {
+        guard activity == .playing, !tapMutesPlayer, quieterThanSystem, !holdingPlayer else { return [] }
+        holdingPlayer = true
+        return [.pausePlayer]
     }
 
     private mutating func fail(_ failure: TapFailure) -> [Action] {
@@ -402,7 +495,7 @@ public struct TapLifecycle: Sendable, Equatable {
                 return [.fallBack(reason: final)]
             }
             phase = .retrying(attempt: failures)
-            return [.stop, .scheduleRetry(after: Self.retryDelays[failures - 1])]
+            return [.stop] + holdIfExposed() + [.scheduleRetry(after: Self.retryDelays[failures - 1])]
         }
     }
 }

@@ -26,13 +26,17 @@ import Nu11SignalProtocol
 /// its actions on the HAL. The tap is built right before a play (so the
 /// audio never starts loud), its IOProc stops when playback pauses (the
 /// muted tap stays, so resuming is never briefly loud) and everything is
-/// destroyed when playback stops, on exit, and before a rebuild (a new
-/// default output device, or a new RemotePlayerService copy). A transient
-/// failure is retried a few times over about five seconds, silent
-/// meanwhile; if it keeps failing, or cannot work, the rest of the session
-/// uses the system volume. That fallback never changes the system volume:
-/// if the music was playing quieter than the system volume, the player is
-/// paused first (`onLoudFallback`), so it is never suddenly louder; it
+/// destroyed when playback stops and on exit. A rebuild (a new default
+/// output device, or a new RemotePlayerService copy) builds the new tap
+/// first and destroys the old one once the new one starts, so a failed
+/// rebuild keeps the old muted tap, its IOProc stopped, while a transient
+/// failure is retried a few times over about five seconds. When no kept
+/// tap mutes the player and the app level is below the system volume, the
+/// player is paused for the retries (`pausePlayer`) and resumed once a new
+/// tap is built (`resumePlayer`). If it keeps failing, or cannot work, the
+/// rest of the session uses the system volume. That fallback never changes
+/// the system volume: if the music was playing quieter than the system
+/// volume, the player is paused first, so it is never suddenly louder; it
 /// resumes at the system volume when the user plays again.
 @MainActor
 final class AppVolume {
@@ -40,9 +44,13 @@ final class AppVolume {
 
     /// Called whenever `mode` changes (the state emitter reports it).
     var onModeChange: (() -> Void)?
-    /// Called when the app volume falls back while the music plays quieter
-    /// than the system volume would: the owner pauses the player.
-    var onLoudFallback: (() -> Void)?
+    /// Called when the music would otherwise play louder than the app
+    /// level (a fallback, or a retry no muted tap covers): the owner
+    /// pauses the player.
+    var pausePlayer: (() -> Void)?
+    /// Called when a new tap is built for a player `pausePlayer` paused
+    /// during a retry: the owner resumes it.
+    var resumePlayer: (() -> Void)?
 
     private(set) var mode: VolumeMode = .system
     private let policy: VolumeModePolicy
@@ -56,10 +64,12 @@ final class AppVolume {
     private var level: Double
     /// The amplitude the IOProc ramps to; written here, read on the IO thread.
     private let target = UnsafeMutablePointer<Float>.allocate(capacity: 1)
-    /// IO-thread-only render state; set before each IOProc start.
-    private let render = UnsafeMutablePointer<RenderState>.allocate(capacity: 1)
-
+    /// The tap in use.
     private var tap: Tap?
+    /// The tap a rebuild replaced, kept (muted, its IOProc stopped) until
+    /// the new one starts.
+    private var replaced: Tap?
+    /// The IOProc of `tap` runs.
     private var running = false
     private var lifecycle = TapLifecycle()
     /// The last player status seen; the lifecycle hears only changes.
@@ -77,7 +87,6 @@ final class AppVolume {
         permission = policy.mode(.authorized) == .app ? CaptureAuthorization.preflight() : .unavailable
         level = AppGain.stored(UserDefaults.standard.object(forKey: AppGain.defaultsKey))
         target.initialize(to: AppGain.amplitude(level: level))
-        render.initialize(to: RenderState())
         updateMode()
         log("volume mode \(mode.rawValue) (responsible for itself: \(policy.disclaimed), capture permission: \(permission))")
     }
@@ -99,6 +108,7 @@ final class AppVolume {
             level = VolumeLevel.reported(requested)
             UserDefaults.standard.set(level, forKey: AppGain.defaultsKey)
             target.pointee = AppGain.amplitude(level: level)
+            _ = lifecycle.handle(.gain(quieterThanSystem: level < 1))
         case .system:
             try SystemVolume.setLevel(requested)
         }
@@ -161,6 +171,7 @@ final class AppVolume {
         teardown()
         if mode == .app {
             target.pointee = AppGain.amplitude(level: level)
+            _ = lifecycle.handle(.gain(quieterThanSystem: level < 1))
             listen()
             let activity = PlaybackActivity(status: lastStatus)
             if activity != .stopped { send(.playback(activity)) }
@@ -193,10 +204,19 @@ final class AppVolume {
                 if let failure = start() { send(.failed(failure)) } else { send(.started) }
             case .stop:
                 stop()
+            case .releaseReplaced:
+                if let replaced { destroy(replaced) }
+                replaced = nil
             case .teardown:
                 teardown()
             case let .scheduleRetry(delay):
                 scheduleRetry(after: delay)
+            case .pausePlayer:
+                log("app volume: pausing while no muted tap covers the player, so it does not play louder")
+                pausePlayer?()
+            case .resumePlayer:
+                log("app volume: resuming the player")
+                resumePlayer?()
             case let .fallBack(reason):
                 fallBack(reason)
             }
@@ -224,9 +244,9 @@ final class AppVolume {
         log("app volume off (\(reason)); using the system volume for this session")
         let quieter = PlaybackActivity(status: lastStatus) == .playing && target.pointee < 1
         fallbackReason = reason
-        guard quieter, let onLoudFallback else { return updateMode() }
+        guard quieter, let pausePlayer else { return updateMode() }
         log("app volume: pausing, so the music does not jump to the louder system volume")
-        onLoudFallback()
+        pausePlayer()
         // Let the pause reach the player before the mute goes.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             MainActor.assumeIsolated { AppVolume.shared.updateMode() }
@@ -243,6 +263,9 @@ final class AppVolume {
         var processObject: AudioObjectID
         /// The output device the aggregate renders to.
         var outputDevice: AudioObjectID
+        /// This IOProc's own render state (only its IO thread touches it
+        /// once started), so an old and a new tap never share one.
+        var render: UnsafeMutablePointer<RenderState>
     }
 
     private enum BuildResult {
@@ -252,10 +275,12 @@ final class AppVolume {
         case aborted
     }
 
-    /// Builds the tap, aggregate device and IOProc, replacing any left, for
-    /// the RemotePlayerService copy that serves the helper.
+    /// Builds a tap, aggregate device and IOProc for the RemotePlayerService
+    /// copy that serves the helper. On success it becomes the tap in use and
+    /// the previous one is kept, stopped, until the new one starts
+    /// (`releaseReplaced`); on failure only the new, partial resources are
+    /// destroyed and the tap in use stays as it is.
     private func build() -> BuildResult {
-        teardown()
         guard #available(macOS 14.2, *) else { return .failed(.permanent("process taps need macOS 14.2")) }
         // A permission revoked since startup must not leave a muted tap.
         let current = CaptureAuthorization.preflight()
@@ -308,10 +333,11 @@ final class AppVolume {
             return .failed(.permanent("the output format is not 32-bit float"))
         }
 
-        render.pointee = RenderState(
+        let render = UnsafeMutablePointer<RenderState>.allocate(capacity: 1)
+        render.initialize(to: RenderState(
             current: target.pointee, increment: GainRamp.increment(sampleRate: outputFormat.mSampleRate),
-            tapChannels: Int(max(tapFormat.mChannelsPerFrame, 1)))
-        let target = self.target, render = self.render
+            tapChannels: Int(max(tapFormat.mChannelsPerFrame, 1))))
+        let target = self.target
         var procID: AudioDeviceIOProcID?
         // No dispatch queue: the block runs on the real-time IO thread.
         result = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, nil) { _, input, _, output, _ in
@@ -320,10 +346,16 @@ final class AppVolume {
         guard result == noErr, let procID else {
             AudioHardwareDestroyAggregateDevice(aggregateID)
             AudioHardwareDestroyProcessTap(tapID)
+            render.deallocate()
             return .failed(.transient("could not create the IOProc, OSStatus \(result)"))
         }
+        // Swap: the old IOProc stops (its tap still mutes) before the new
+        // one can start; an older kept tap is no longer needed.
+        stop()
+        if let replaced { destroy(replaced) }
+        replaced = tap
         tap = Tap(tapID: tapID, aggregateID: aggregateID, procID: procID, processObject: process.objectID,
-                  outputDevice: output)
+                  outputDevice: output, render: render)
         log("app volume: tapping RemotePlayerService pid \(process.pid) (responsible: this helper) on \(outputUID) "
             + "(\(Int(outputFormat.mSampleRate)) Hz, \(tapFormat.mChannelsPerFrame) channels, gain \(target.pointee))")
         return .built
@@ -345,13 +377,23 @@ final class AppVolume {
         running = false
     }
 
+    /// Releases every tap: the one in use and one a rebuild replaced.
     private func teardown() {
         stop()
-        guard let tap else { return }
+        if let tap { destroy(tap) }
+        if let replaced { destroy(replaced) }
+        tap = nil
+        replaced = nil
+    }
+
+    /// Destroys a tap whose IOProc is stopped (or never started); its render
+    /// state goes only once the IOProc is gone.
+    private func destroy(_ tap: Tap) {
         AudioDeviceDestroyIOProcID(tap.aggregateID, tap.procID)
         AudioHardwareDestroyAggregateDevice(tap.aggregateID)
         if #available(macOS 14.2, *) { AudioHardwareDestroyProcessTap(tap.tapID) }
-        self.tap = nil
+        tap.render.deinitialize(count: 1)
+        tap.render.deallocate()
     }
 
     private func selectProcess() -> AudioProcessRecord? {
@@ -387,19 +429,17 @@ final class AppVolume {
     private func outputDeviceChanged() {
         guard mode == .app, let tap, HAL.defaultOutputDevice() != tap.outputDevice else { return }
         log("app volume: the default output device changed; rebuilding")
-        send(.rebuild)
+        send(.rebuild(.outputDevice))
     }
 
+    /// When the change matters is the lifecycle's rule; this compares the
+    /// player's process with the tapped one.
     private func processesChanged() {
-        guard mode == .app, tap != nil || lifecycle.activity == .playing || lifecycle.expecting else { return }
-        switch lifecycle.phase {
-        case .idle, .building, .running, .paused: break
-        case .retrying, .fallback: return
-        }
+        guard mode == .app, lifecycle.watchesPlayerProcess else { return }
         let process = selectProcess()
         if let tap, process?.objectID == tap.processObject { return }
         if tap != nil { log("app volume: the RemotePlayerService process changed; rebuilding") }
-        send(.rebuild)
+        send(.rebuild(.playerProcess))
     }
 
     // MARK: Real-time rendering
