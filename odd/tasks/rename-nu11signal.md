@@ -101,12 +101,17 @@ Route: delegated (one writer, B1–B3); B4 inline, last.
 
 ## Advisory cleanup (branch `chore/release-advisories`, user-requested 2026-09-29)
 
-- [ ] A1 — `bump-cask.sh` unpushed-bump guard (114-129): clear wording for the net-diff checks (including the empty net-diff case) and tests for every guard branch.
-- [ ] A2 — `bump-cask.sh` (102-103): check the upstream relationship before `pull --ff-only`, so a diverged tap is reported clearly instead of failing inside the pull.
-- [ ] A3 — `release.sh --force` (179-180): shrink the backup window and cover it with tests (the backup is restored on failure; a leftover `.replaced-*` backup is reported).
+- [x] A1 — `bump-cask.sh` unpushed-bump guard: clear wording for each net-diff check (non-bump commits, files other than the cask, empty net diff, mismatch with the render), each naming the drop command; tests for every guard branch. Commit `31a72ad`.
+- [x] A2 — `bump-cask.sh`: fetch and compare with the upstream before touching the checkout (behind: fast-forward; ahead: checked by the guard; diverged: refused with the local commits and how to drop or rebase them; up to date: reported; no upstream: refused before any pull). Commit `8ef5125`.
+- [x] A3 — `release.sh --force`: backup name prepared and `BACKUP` set before the first rename, the two renames adjacent (fixes a gap: an interruption right after the first rename did not restore); a lone `dist/vX.replaced-*` (killed run) refuses the release with the restore command; backups next to an existing `dist/vX` are listed as a warning. Commit `fc3e9cc`.
 
 Route: delegated (one writer; writer trigger: script + tests).
 
+Evidence:
+- RED before the fixes: A1 3 of 4 new tests failed (missing wording; the empty net diff printed "touch more than" with an empty list); A2 4 of 4 failed (no status lines; diverged and no-upstream both failed inside the pull as "could not fast-forward ... (diverged?)"); A3 3 of 3 failed (interruption after the first rename left `dist/v0.2.1` missing; no leftover-backup report; a lone backup was built over).
+- GREEN: `make test-scripts` 34 passed, 0 failed; `make test` exit 0 (Go ok, Swift 33 tests 0 failures, scripts 34 passed); `make vet` and `make fmt-check` exit 0; `bash -n` on every script and stub ok; shellcheck not installed.
+- `dist/` content hash identical before and after (`64c2f12e…ccd9e`); `brew tap` output identical.
+
 ## Next step
 
-A1–A3.
+Review, PR, merge.
