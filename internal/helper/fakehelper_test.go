@@ -51,17 +51,18 @@ func startFake(t *testing.T, scenario string, opts Options) *Client {
 // expectedArgs is what the standard scenario requires for each command;
 // any mismatch is answered with an error response.
 var expectedArgs = map[string]map[string]any{
-	"authorize":    {},
-	"search":       {"term": "daft punk", "limit": float64(2)},
-	"playlists":    {},
-	"playSongs":    {"ids": []any{"s1", "s2"}, "startIndex": float64(1)},
-	"playPlaylist": {"playlistId": "p1"},
-	"pause":        {},
-	"resume":       {},
-	"next":         {},
-	"previous":     {},
-	"stop":         {},
-	"seek":         {"seconds": 90.5},
+	"authorize":     {},
+	"search":        {"term": "daft punk", "limit": float64(2)},
+	"searchCatalog": {"term": "daft", "limit": float64(3)},
+	"playlists":     {},
+	"playSongs":     {"ids": []any{"s1", "s2"}, "startIndex": float64(1)},
+	"playPlaylist":  {"playlistId": "p1"},
+	"pause":         {},
+	"resume":        {},
+	"next":          {},
+	"previous":      {},
+	"stop":          {},
+	"seek":          {"seconds": 90.5},
 }
 
 var stdout = bufio.NewWriter(os.Stdout)
@@ -142,6 +143,13 @@ func runFakeHelper(scenario string) int {
 			if cmd == "authorize" {
 				continue // never answered
 			}
+		case "sparseCatalog":
+			// Answers searchCatalog by term: empty result, fields
+			// missing, or an error response.
+			if cmd == "searchCatalog" {
+				answerSparseCatalog(id, req["term"])
+				continue
+			}
 		}
 
 		if want, known := expectedArgs[cmd]; !known {
@@ -167,6 +175,16 @@ func answer(id, cmd string) {
 			map[string]any{"id": "s1", "title": "One More Time", "artist": "Daft Punk", "album": "Discovery", "duration": 320.5},
 			map[string]any{"id": "s2", "title": "Digital Love", "artist": "Daft Punk", "album": "Discovery", "duration": 301},
 		}})
+	case "searchCatalog":
+		ok(id, map[string]any{
+			"suggestions": []any{"daft punk", "daft punk discovery"},
+			"artists": []any{
+				map[string]any{"id": "a1", "name": "Daft Punk", "genres": []any{"Electronic", "Dance"}},
+			},
+			"songs": []any{
+				map[string]any{"id": "s1", "title": "One More Time", "artist": "Daft Punk", "album": "Discovery", "duration": 320.5},
+			},
+		})
 	case "playlists":
 		ok(id, map[string]any{"playlists": []any{
 			map[string]any{"id": "p1", "name": "Night City"},
@@ -187,5 +205,19 @@ func answer(id, cmd string) {
 		fail(id, "queue is empty")
 	default:
 		ok(id, map[string]any{})
+	}
+}
+
+func answerSparseCatalog(id string, term any) {
+	switch term {
+	case "empty":
+		ok(id, map[string]any{})
+	case "sparse":
+		ok(id, map[string]any{
+			"artists": []any{map[string]any{"id": "a1", "name": "Daft Punk"}},
+			"songs":   []any{map[string]any{"id": "s1", "title": "One More Time"}},
+		})
+	default:
+		fail(id, "catalog unavailable")
 	}
 }

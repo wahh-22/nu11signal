@@ -15,6 +15,13 @@ final class CodecTests: XCTestCase {
         XCTAssertNil(request.args["cmd"])
     }
 
+    func testReadOnlyCommandsDoNotMutatePlayback() {
+        for cmd in ["authorize", "search", "searchCatalog", "playlists"] {
+            XCTAssertFalse(Request(id: "1", cmd: cmd).mutatesPlayback, cmd)
+        }
+        XCTAssertTrue(Request(id: "1", cmd: "playSongs").mutatesPlayback)
+    }
+
     func testBooleansAreNotNumbers() throws {
         let request = try Codec.decode(#"{"id":"1","cmd":"search","limit":true}"#).get()
         XCTAssertNil(request.int("limit"))

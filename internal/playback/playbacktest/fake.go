@@ -22,9 +22,10 @@ type Call struct {
 // Fake is an in-memory playback.Player. Configure its exported fields before
 // handing it to the code under test; methods are safe for concurrent use.
 type Fake struct {
-	AuthStatus      playback.AuthStatus
-	SearchResult    []playback.Song
-	PlaylistsResult []playback.Playlist
+	AuthStatus          playback.AuthStatus
+	SearchResult        []playback.Song
+	SearchCatalogResult playback.SearchResults
+	PlaylistsResult     []playback.Playlist
 	// Err, when set, is returned by every method; MethodErr overrides it
 	// per method name (for example "Search").
 	Err       error
@@ -90,6 +91,13 @@ func (f *Fake) Search(_ context.Context, term string, limit int) ([]playback.Son
 		return nil, err
 	}
 	return f.SearchResult, nil
+}
+
+func (f *Fake) SearchCatalog(_ context.Context, term string, limit int) (playback.SearchResults, error) {
+	if err := f.record("SearchCatalog", term, limit); err != nil {
+		return playback.SearchResults{}, err
+	}
+	return f.SearchCatalogResult, nil
 }
 
 func (f *Fake) Playlists(context.Context) ([]playback.Playlist, error) {

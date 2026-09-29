@@ -29,6 +29,16 @@ func (c *Client) Search(ctx context.Context, term string, limit int) ([]playback
 	return songs, nil
 }
 
+// SearchCatalog runs a mixed catalog search: suggestions, artists and songs.
+// The helper clamps limit to 1...25 per result type.
+func (c *Client) SearchCatalog(ctx context.Context, term string, limit int) (playback.SearchResults, error) {
+	var res searchCatalogResult
+	if err := c.call(ctx, "searchCatalog", map[string]any{"term": term, "limit": limit}, &res); err != nil {
+		return playback.SearchResults{}, err
+	}
+	return res.toDomain(), nil
+}
+
 // Playlists lists the user's library playlists, sorted by name.
 func (c *Client) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	var res playlistsResult

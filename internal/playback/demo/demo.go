@@ -156,6 +156,42 @@ func (p *Player) Search(ctx context.Context, term string, limit int) ([]playback
 	return out, err
 }
 
+// SearchCatalog matches term case-insensitively: artists by name, songs as
+// Search does, and suggestions from the matching artist names and song
+// titles. limit caps each list separately.
+func (p *Player) SearchCatalog(ctx context.Context, term string, limit int) (playback.SearchResults, error) {
+	var res playback.SearchResults
+	err := p.do(ctx, false, func() error {
+		needle := strings.ToLower(term)
+		seen := map[string]bool{}
+		suggest := func(s string) {
+			s = strings.ToLower(s)
+			if len(res.Suggestions) < limit && strings.Contains(s, needle) && !seen[s] {
+				seen[s] = true
+				res.Suggestions = append(res.Suggestions, s)
+			}
+		}
+		for _, a := range artists {
+			if len(res.Artists) < limit && strings.Contains(strings.ToLower(a.Name), needle) {
+				res.Artists = append(res.Artists, a)
+				suggest(a.Name)
+			}
+		}
+		for _, s := range catalog {
+			if len(res.Songs) >= limit {
+				break
+			}
+			hay := strings.ToLower(s.Title + " " + s.Artist + " " + s.Album)
+			if strings.Contains(hay, needle) {
+				res.Songs = append(res.Songs, s)
+				suggest(s.Title)
+			}
+		}
+		return nil
+	})
+	return res, err
+}
+
 // Playlists returns the demo stations.
 func (p *Player) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	var out []playback.Playlist

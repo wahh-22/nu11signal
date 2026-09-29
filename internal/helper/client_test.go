@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -53,6 +54,65 @@ func TestRoundTrip(t *testing.T) {
 				t.Fatalf("%s: %v", tt.name, err)
 			}
 		})
+	}
+}
+
+func TestSearchCatalogRoundTrip(t *testing.T) {
+	c := startFake(t, "standard", Options{})
+
+	got, err := c.SearchCatalog(t.Context(), "daft", 3)
+	if err != nil {
+		t.Fatalf("SearchCatalog: %v", err)
+	}
+	want := playback.SearchResults{
+		Suggestions: []string{"daft punk", "daft punk discovery"},
+		Artists:     []playback.Artist{{ID: "a1", Name: "Daft Punk", Genres: []string{"Electronic", "Dance"}}},
+		Songs: []playback.Song{
+			{ID: "s1", Title: "One More Time", Artist: "Daft Punk", Album: "Discovery", Duration: 320*time.Second + 500*time.Millisecond},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("SearchCatalog = %+v; want %+v", got, want)
+	}
+}
+
+func TestSearchCatalogToleratesMissingFields(t *testing.T) {
+	c := startFake(t, "sparseCatalog", Options{})
+	ctx := t.Context()
+
+	empty, err := c.SearchCatalog(ctx, "empty", 5)
+	if err != nil {
+		t.Fatalf("SearchCatalog(empty): %v", err)
+	}
+	if len(empty.Suggestions) != 0 || len(empty.Artists) != 0 || len(empty.Songs) != 0 {
+		t.Fatalf("SearchCatalog(empty) = %+v; want no results", empty)
+	}
+
+	sparse, err := c.SearchCatalog(ctx, "sparse", 5)
+	if err != nil {
+		t.Fatalf("SearchCatalog(sparse): %v", err)
+	}
+	if len(sparse.Suggestions) != 0 {
+		t.Errorf("Suggestions = %v; want none", sparse.Suggestions)
+	}
+	if len(sparse.Artists) != 1 || sparse.Artists[0].ID != "a1" || sparse.Artists[0].Name != "Daft Punk" || len(sparse.Artists[0].Genres) != 0 {
+		t.Errorf("Artists = %+v", sparse.Artists)
+	}
+	if len(sparse.Songs) != 1 || sparse.Songs[0] != (playback.Song{ID: "s1", Title: "One More Time"}) {
+		t.Errorf("Songs = %+v", sparse.Songs)
+	}
+}
+
+func TestSearchCatalogErrorResponse(t *testing.T) {
+	c := startFake(t, "sparseCatalog", Options{})
+
+	_, err := c.SearchCatalog(t.Context(), "down", 5)
+	var cmdErr *CommandError
+	if !errors.As(err, &cmdErr) {
+		t.Fatalf("SearchCatalog error = %v; want *CommandError", err)
+	}
+	if cmdErr.Command != "searchCatalog" || cmdErr.Message != "catalog unavailable" {
+		t.Fatalf("CommandError = %+v", cmdErr)
 	}
 }
 

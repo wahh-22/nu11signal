@@ -16,6 +16,21 @@ type Song struct {
 	Duration time.Duration
 }
 
+// Artist is a catalog artist.
+type Artist struct {
+	ID     string
+	Name   string
+	Genres []string
+}
+
+// SearchResults is a mixed catalog search: term suggestions to refine the
+// query, then matching artists and songs, each in relevance order.
+type SearchResults struct {
+	Suggestions []string
+	Artists     []Artist
+	Songs       []Song
+}
+
 // Playlist is a library playlist; the UI presents it as a radio station.
 type Playlist struct {
 	ID   string
@@ -64,6 +79,7 @@ const (
 type Player interface {
 	Authorize(ctx context.Context) (AuthStatus, error)
 	Search(ctx context.Context, term string, limit int) ([]Song, error)
+	SearchCatalog(ctx context.Context, term string, limit int) (SearchResults, error)
 	Playlists(ctx context.Context) ([]Playlist, error)
 	PlaySongs(ctx context.Context, ids []string, start int) error
 	PlayPlaylist(ctx context.Context, id string) error
