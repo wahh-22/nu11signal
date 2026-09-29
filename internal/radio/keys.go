@@ -48,6 +48,18 @@ var artistHints = []hint{
 	{"Q", "QUIT"},
 }
 
+// trackHints replace playerHints on an album, song or playlist page: enter
+// plays from the selected track or expands the notes (MORE).
+var trackHints = []hint{
+	{"ENTER", "PLAY/MORE"},
+	{"J/K", "MOVE"},
+	{"SPACE", "PLAY/PAUSE"},
+	{"ESC", "BACK"},
+	{"N/P", "NEXT/PREV"},
+	{"/", "SCAN"},
+	{"Q", "QUIT"},
+}
+
 // searchHints replace playerHints while the search view is open: typing
 // goes to the input, so only non-text keys act.
 var searchHints = []hint{

@@ -75,10 +75,10 @@ func (m Model) renderFull() []string {
 }
 
 // listPanelWidth is the width of the list panel in the full layout. The
-// artist page takes more of the screen from NOW PLAYING: its rows pair a
-// title with an album, year or curator.
+// browse pages take more of the screen from NOW PLAYING: their rows pair a
+// title with an album, year, curator or duration.
 func (m Model) listPanelWidth(w int) int {
-	if m.top().kind == viewArtist {
+	if isPage(m.top().kind) {
 		return artistPanelWidth(w)
 	}
 	return stationPanelWidth(w)
@@ -88,8 +88,8 @@ func (m Model) listPanelWidth(w int) int {
 // views.
 func stationPanelWidth(w int) int { return max(28, min(w*2/5, 44)) }
 
-// artistPanelWidth is the list panel width of the artist view; NOW PLAYING
-// keeps at least 23 cells at the narrowest full layout.
+// artistPanelWidth is the list panel width of the browse pages; NOW
+// PLAYING keeps at least 23 cells at the narrowest full layout.
 func artistPanelWidth(w int) int { return max(28, min(w*3/5, 72)) }
 
 // listBodyWidth is the width listView draws in: the list panel's inside in
@@ -298,6 +298,8 @@ func (m Model) listView(w, h int) (title, code string, body []string) {
 		return "SEARCH", m.searchCode(), m.searchBody(w, h)
 	case viewArtist:
 		return "ARTIST", m.artistCode(), m.artistBody(w, h)
+	case viewAlbum, viewPlaylist:
+		return m.trackTitle(), m.trackCode(), m.trackBody(w, h)
 	}
 	return "STATIONS", fmt.Sprintf("BAND FM // %02d CH", len(m.stations)), m.stationRows(w, h)
 }
@@ -367,6 +369,8 @@ func (m Model) hintLine(w int) string {
 		hints = searchHints
 	case viewArtist:
 		hints = artistHints
+	case viewAlbum, viewPlaylist:
+		hints = trackHints
 	}
 	render := func(hs []hint) string {
 		parts := make([]string, len(hs))

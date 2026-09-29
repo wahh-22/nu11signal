@@ -8,19 +8,16 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // artistCallTimeout bounds loading an artist page. It is longer than the
 // per-call default because the helper looks the artist up first and then
-// loads its sections (bounded at 8s each) and origin/formed concurrently.
+// loads its sections and origin/formed concurrently. The helper's budget
+// for that (CatalogBudget in helper/Sources/Nu11SignalProtocol/Catalog.swift)
+// stays below it; TestCatalogBudgetMatchesTheHelper pins both sides.
 const artistCallTimeout = 15 * time.Second
-
-// aboutLines is how many lines of editorial notes ABOUT shows until MORE
-// expands them.
-const aboutLines = 3
 
 // artistPage is the state of one ARTIST view entry on the navigation
 // stack. It lives in its frame, so popping the page drops it.
@@ -62,16 +59,8 @@ type artistItem struct {
 	kind artistItemKind
 	// index is the song's position in TopSongs.
 	index    int
-	song     playback.Song
 	album    playback.Album
 	playlist playback.CatalogPlaylist
-}
-
-// artistLine is one line of the artist page body below its header; item
-// is the selectable row it shows, or -1.
-type artistLine struct {
-	text string
-	item int
 }
 
 // openArtist pushes the ARTIST view for a and starts loading its page. The
@@ -106,7 +95,7 @@ func (m Model) onArtist(msg artistMsg) Model {
 			continue
 		}
 		f.artist.loading, f.artist.cancel = false, nil
-		f.artist.detail, f.artist.err = msg.detail, msg.err
+		f.artist.detail, f.artist.err = cleanArtistDetail(msg.detail), msg.err
 		f.cursor = 0
 		m.setFrame(i, f)
 		if msg.err != nil {
@@ -115,47 +104,6 @@ func (m Model) onArtist(msg artistMsg) Model {
 		return m
 	}
 	return m
-}
-
-// cancelLoad cancels the load of an artist frame, if one is in flight.
-func (f frame) cancelLoad() {
-	if f.kind == viewArtist && f.artist.cancel != nil {
-		f.artist.cancel()
-	}
-}
-
-// handleArtistKey handles the keys the artist page owns; ok is false for
-// the others (player keys, quit), which keep their usual meaning.
-func (m Model) handleArtistKey(k string) (next Model, cmd tea.Cmd, ok bool) {
-	page := m.top().artist
-	switch k {
-	case keyUp, keyUpAlt:
-		m.setCursor(max(m.cursor()-1, 0))
-	case keyDown, keyDownAlt:
-		m.setCursor(max(min(m.cursor()+1, len(m.artistItems())-1), 0))
-	case keyEnter:
-		next, cmd = m.artistEnter()
-		return next, cmd, true
-	case keyEsc:
-		m.pop()
-		if m.top().kind == viewSearch {
-			cmd = m.input.Focus()
-		}
-	case keyTab:
-		m.popToRoot()
-	case keySearch:
-		m.popToRoot()
-		next, cmd := m.openSearch(true)
-		return next.(Model), cmd, true
-	case keyRetry:
-		if page.err == nil {
-			return m, nil, false
-		}
-		cmd = m.loadArtist(page.artist)
-	default:
-		return m, nil, false
-	}
-	return m, cmd, true
 }
 
 // artistEnter acts on the selected row: a top song plays the top songs
@@ -186,21 +134,9 @@ func (m Model) artistEnter() (Model, tea.Cmd) {
 		return m, nil
 	case itemAlbum:
 		return m.openAlbum(it.album)
+	case itemPlaylist:
+		return m.openPlaylist(it.playlist)
 	}
-	return m.openPlaylist(it.playlist)
-}
-
-// openAlbum is where the ALBUM view is to be pushed; until it exists the
-// selection is only announced.
-func (m Model) openAlbum(a playback.Album) (Model, tea.Cmd) {
-	m.setStatus("ALBUM VIEW COMING // " + strings.ToUpper(a.Title))
-	return m, nil
-}
-
-// openPlaylist is where a catalog PLAYLIST view is to be pushed; until it
-// exists the selection is only announced.
-func (m Model) openPlaylist(p playback.CatalogPlaylist) (Model, tea.Cmd) {
-	m.setStatus("PLAYLIST VIEW COMING // " + strings.ToUpper(p.Name))
 	return m, nil
 }
 
@@ -214,14 +150,14 @@ func (m Model) artistItems() []artistItem {
 
 // artistLayout lays out the loaded page on top in w cells: its sections in
 // Apple Music order, empty ones left out, and the selectable rows.
-func (m Model) artistLayout(w int) ([]artistLine, []artistItem) {
+func (m Model) artistLayout(w int) ([]pageLine, []artistItem) {
 	page := m.top().artist
 	d := page.detail
 	cur := m.cursor()
-	var lines []artistLine
+	var lines []pageLine
 	var items []artistItem
 
-	add := func(text string) { lines = append(lines, artistLine{text: text, item: -1}) }
+	add := func(text string) { lines = append(lines, pageLine{text: text, item: -1}) }
 	section := func(name string) {
 		if len(lines) > 0 {
 			add("")
@@ -231,7 +167,7 @@ func (m Model) artistLayout(w int) ([]artistLine, []artistItem) {
 	item := func(it artistItem, render func(selected bool) string) {
 		n := len(items)
 		items = append(items, it)
-		lines = append(lines, artistLine{text: render(n == cur), item: n})
+		lines = append(lines, pageLine{text: render(n == cur), item: n})
 	}
 	albumSection := func(name string, albums []playback.Album) {
 		if len(albums) == 0 {
@@ -248,7 +184,7 @@ func (m Model) artistLayout(w int) ([]artistLine, []artistItem) {
 	if len(d.TopSongs) > 0 {
 		section("TOP SONGS")
 		for i, s := range d.TopSongs {
-			item(artistItem{kind: itemSong, index: i, song: s}, func(sel bool) string {
+			item(artistItem{kind: itemSong, index: i}, func(sel bool) string {
 				return detailLine("♪", stCyan, strings.ToUpper(s.Title), strings.ToUpper(s.Album), sel, w)
 			})
 		}
@@ -272,25 +208,12 @@ func (m Model) artistLayout(w int) ([]artistLine, []artistItem) {
 	}
 	section("ABOUT")
 	if about.Notes != "" {
-		notes := strings.Split(ansi.Wrap(about.Notes, max(w-2, 1), ""), "\n")
-		shown := notes
-		if !page.aboutOpen && len(notes) > aboutLines {
-			shown = notes[:aboutLines]
-		}
-		for _, l := range shown {
+		notes, more := wrapNotes(about.Notes, page.aboutOpen, w)
+		for _, l := range notes {
 			add(" " + stRed.Render(l))
 		}
-		if len(notes) > aboutLines {
-			label := "▸ MORE"
-			if page.aboutOpen {
-				label = "▴ LESS"
-			}
-			item(artistItem{kind: itemMore}, func(sel bool) string {
-				if sel {
-					return stSelected.Render(fit("▌"+label, w))
-				}
-				return " " + stYellow.Render(label)
-			})
+		if more {
+			item(artistItem{kind: itemMore}, func(sel bool) string { return moreLine(page.aboutOpen, sel, w) })
 		}
 	}
 	for _, fact := range []struct{ label, value string }{
@@ -365,47 +288,12 @@ func (m Model) artistCode() string {
 // the sections, scrolled to keep the cursor near the middle. Every line is
 // exactly w cells wide.
 func (m Model) artistBody(w, h int) []string {
-	if h <= 0 || w <= 0 {
-		return nil
-	}
 	page := m.top().artist
 	head := stYellowB.Render(strings.ToUpper(page.artistTitle()))
 	if g := page.artistGenre(); g != "" {
 		head += stMuted.Render("  " + strings.ToUpper(g))
 	}
-	out := []string{fit(" "+head, w)}
-	if h == 1 {
-		return out
-	}
-	out = append(out, stFrameDim.Render(strings.Repeat("─", w)))
-	room := h - 2
-
-	lines, items := m.artistLayout(w)
-	var notice string
-	switch {
-	case page.loading:
-		notice = stDim.Render("DECRYPTING ARTIST FEED...")
-	case page.err != nil:
-		notice = stYellow.Render("▲ [R] RETRY // " + strings.ToUpper(page.err.Error()))
-	case len(lines) == 0:
-		notice = stDim.Render("NO DATA ON FILE")
-	}
-	if notice != "" {
-		if room > 0 {
-			out = append(out, fit(" "+notice, w))
-		}
-		return out
-	}
-
-	at := 0
-	for i, l := range lines {
-		if len(items) > 0 && l.item == m.cursor() {
-			at = i
-		}
-	}
-	offset := max(0, min(at-(room-1)/2, len(lines)-room))
-	for i := offset; i < len(lines) && i-offset < room; i++ {
-		out = append(out, fit(lines[i].text, w))
-	}
-	return out
+	lines, _ := m.artistLayout(w)
+	notice := pageNotice(page.loading, page.err, "ARTIST", len(lines) == 0)
+	return m.pageBody(w, h, []string{" " + head}, lines, notice)
 }

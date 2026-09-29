@@ -33,7 +33,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.stationsFailed = false
-		m.stations = msg.playlists
+		m.stations = cleanEach(msg.playlists, func(p playback.Playlist) playback.Playlist {
+			p.Name = cleanLine(p.Name)
+			return p
+		})
 		m.setStationCursor(min(m.stationCursor(), max(len(m.stations)-1, 0)))
 		return m, nil
 	case recentsMsg:
@@ -49,6 +52,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onCatalog(msg), nil
 	case artistMsg:
 		return m.onArtist(msg), nil
+	case albumMsg:
+		return m.onAlbum(msg), nil
+	case playlistMsg:
+		return m.onPlaylist(msg), nil
 	case actionMsg:
 		if msg.err != nil {
 			m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
@@ -101,7 +108,7 @@ func (m Model) onState(s playback.State) Model {
 		m.glitch = glitchFrames
 		m.seekPending = false // the pending target belonged to another song
 	}
-	m.state, m.hasState, m.stateAt = s, true, m.now()
+	m.state, m.hasState, m.stateAt = cleanState(s), true, m.now()
 	return m
 }
 
@@ -125,8 +132,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.top().kind == viewSearch {
 		return m.handleSearchKey(msg)
 	}
-	if m.top().kind == viewArtist {
-		if next, cmd, ok := m.handleArtistKey(k); ok {
+	if isPage(m.top().kind) {
+		if next, cmd, ok := m.handlePageKey(k); ok {
 			return next, cmd
 		}
 	}
@@ -165,8 +172,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// tab returns to the last search; inside it, tab comes back here.
 		return m.openSearch(false)
 	case keyEsc:
-		// Back navigation for the browse views pushed over the stations
-		// (artist, album); on the stations root there is nothing to pop.
+		// Back navigation for views pushed over the stations; on the
+		// stations root there is nothing to pop.
 		m.pop()
 	case keyRetry:
 		if m.stationsFailed {

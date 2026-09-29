@@ -196,32 +196,6 @@ func TestSearchResultsFollowAppleMusicOrder(t *testing.T) {
 	}
 }
 
-func TestSearchEnterOnSongPlaysItAndRemembersTerm(t *testing.T) {
-	f := playbacktest.New()
-	f.SearchCatalogResult = catalog()
-	r := &fakeRecents{}
-	m := searchFor(t, loadedWithRecents(t, f, r), "daft")
-
-	m, _ = press(t, m, "down", "down", "down", "down") // second suggestion, artist, first song
-	m, cmd := press(t, m, "enter")
-	m = settle(t, m, cmd)
-	var played bool
-	for _, c := range f.Calls() {
-		if c.Method == "PlaySongs" && reflect.DeepEqual(c.Args, []any{[]string{"s1"}, 0}) {
-			played = true
-		}
-	}
-	if !played {
-		t.Fatalf("calls = %v; want PlaySongs([s1], 0)", f.Calls())
-	}
-	if got := r.Added(); !reflect.DeepEqual(got, []string{"daft"}) {
-		t.Fatalf("recents added = %q; want [daft]", got)
-	}
-	if m.recents[0] != "daft" {
-		t.Fatalf("recents = %q; want daft first", m.recents)
-	}
-}
-
 func TestSearchEnterOnSuggestionSearchesItNow(t *testing.T) {
 	f := playbacktest.New()
 	f.SearchCatalogResult = catalog()

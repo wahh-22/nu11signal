@@ -226,40 +226,6 @@ func TestArtistCursorSkipsHeadersAndPlaysTopSongsFromSelection(t *testing.T) {
 	}
 }
 
-func TestArtistEnterOnAlbumOrPlaylistAnnouncesTheirView(t *testing.T) {
-	tests := []struct {
-		name   string
-		kind   artistItemKind
-		status string
-	}{
-		{"album", itemAlbum, "ALBUM VIEW COMING // DISCOVERY"},
-		{"playlist", itemPlaylist, "PLAYLIST VIEW COMING // DAFT PUNK ESSENTIALS"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := playbacktest.New()
-			m := openDaftPunk(t, f)
-			for m.artistItems()[m.cursor()].kind != tt.kind {
-				m, _ = press(t, m, "down")
-			}
-			before := len(f.Calls())
-			m, cmd := press(t, m, "enter")
-			if cmd != nil {
-				m = settle(t, m, cmd)
-			}
-			if m.status != tt.status {
-				t.Fatalf("status = %q; want %q", m.status, tt.status)
-			}
-			if len(f.Calls()) != before {
-				t.Fatalf("enter called the player: %v", f.Calls()[before:])
-			}
-			if m.top().kind != viewArtist {
-				t.Fatal("enter left the artist view")
-			}
-		})
-	}
-}
-
 func TestArtistAboutMoreTogglesFullNotes(t *testing.T) {
 	f := playbacktest.New()
 	m := openDaftPunk(t, f)
