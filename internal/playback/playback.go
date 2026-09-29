@@ -179,7 +179,21 @@ type State struct {
 	Position time.Duration
 	// Repeat is the player's repeat mode; RepeatOff when it reports none.
 	Repeat RepeatMode
+	// VolumeMode is which volume Volume and SetVolume drive; empty when
+	// the player does not say.
+	VolumeMode VolumeMode
 }
+
+// VolumeMode is which volume the player's Volume and SetVolume drive.
+type VolumeMode string
+
+// Volume modes: VolumeApp is the player's own volume, independent of the
+// system's; VolumeSystem is the system output volume (the fallback when
+// the app volume is unavailable).
+const (
+	VolumeApp    VolumeMode = "app"
+	VolumeSystem VolumeMode = "system"
+)
 
 // AuthStatus is the outcome of a music library authorization request.
 type AuthStatus string
@@ -234,7 +248,8 @@ type Player interface {
 	Seek(ctx context.Context, position time.Duration) error
 	// SetRepeat sets the repeat mode; States reports it as State.Repeat.
 	SetRepeat(ctx context.Context, mode RepeatMode) error
-	// Volume reports the output volume, from 0 (silent) to 1 (full).
+	// Volume reports the output volume, from 0 (silent) to 1 (full): the
+	// one State.VolumeMode names.
 	Volume(ctx context.Context) (float64, error)
 	// SetVolume sets the output volume; level is clamped with ClampVolume.
 	SetVolume(ctx context.Context, level float64) error

@@ -14,6 +14,10 @@ struct CommandError: Error, CustomStringConvertible {
 final class CommandHandler {
     private let player = ApplicationMusicPlayer.shared
     private let emitter: StateEmitter
+    private let volume = AppVolume.shared
+    /// When the playback command running now times out (see `respond`);
+    /// playback commands run one at a time, so one is enough.
+    private var playbackDeadline = Date.distantFuture
 
     init(emitter: StateEmitter) {
         self.emitter = emitter
@@ -38,6 +42,7 @@ final class CommandHandler {
         do {
             let result: JSONObject
             if let timeout {
+                playbackDeadline = Date().addingTimeInterval(timeout)
                 result = try await Deadline.run(seconds: timeout) { try await self.handle(request) }
             } else {
                 result = try await handle(request)
@@ -69,19 +74,38 @@ final class CommandHandler {
         case "favorite": return try await favorite(request)
         case "favorites": return try await favorites(request)
         case "setFavorite": try await setFavorite(request); return [:]
-        case "volume": return ["level": try SystemVolume.level()]
-        case "setVolume": try SystemVolume.setLevel(VolumeLevel.requested(request)); return [:]
+        case "volume": return try volumeJSON()
+        case "setVolume": try volume.set(VolumeLevel.requested(request)); return try volumeJSON()
         case "playSongs": return try await playSongs(request)
         case "playPlaylist": return try await playPlaylist(request)
         case "pause": player.pause(); return [:]
-        case "resume": try await player.play(); return [:]
+        case "resume": try await startPlayback(); return [:]
         case "next": try await player.skipToNextEntry(); return [:]
         case "previous": try await player.skipToPreviousEntry(); return [:]
-        case "stop": player.stop(); return [:]
+        case "stop": player.stop(); emitter.catalogIDs = [:]; return [:]
         case "seek": return try seek(request)
         case "setRepeat": player.state.repeatMode = Self.repeatMode(try RepeatSetting.requested(request)); return [:]
         default: throw CommandError("unknown command: \(request.cmd)")
         }
+    }
+
+    /// Plays, with the app volume's muted tap ready first; a play that
+    /// throws has that tap released (see AppVolume.playbackFailed).
+    private func startPlayback() async throws {
+        volume.prepareForPlayback()
+        do {
+            try await player.play()
+        } catch {
+            volume.playbackFailed()
+            throw error
+        }
+    }
+
+    /// `{"level": 0...1, "mode": "app"|"system"}`: the app volume's level,
+    /// or the system volume's (see AppVolume).
+    private func volumeJSON() throws -> JSONObject {
+        let current = try volume.current()
+        return ["level": current.level, "mode": current.mode.rawValue]
     }
 
     private func authorize() async throws -> JSONObject {
@@ -343,9 +367,16 @@ final class CommandHandler {
                 + "(\(prepared.skipped.joined(separator: ", "))): a catalog start cannot queue them")
         }
         // Set before the queue changes: the player announces the new entry
-        // as soon as it is handed the queue.
+        // as soon as it is handed the queue. A failed start leaves no queue
+        // to name (the player is stopped), so the mapping goes with it.
         emitter.catalogIDs = prepared.catalogIDs
-        let startedAlone = try await play(prepared.items, from: prepared.start, context: context)
+        let startedAlone: Bool
+        do {
+            startedAlone = try await play(prepared.items, from: prepared.start, context: context)
+        } catch {
+            emitter.catalogIDs = [:]
+            throw error
+        }
         var result: JSONObject = [:]
         if !queue.missing.isEmpty { result["missing"] = queue.missing }
         if !prepared.skipped.isEmpty { result["skipped"] = prepared.skipped }
@@ -400,7 +431,8 @@ final class CommandHandler {
     /// list still plays on. Any other error, or a failure of that fallback,
     /// is reported naming the song; a failed append is only logged, the
     /// start song playing on alone. Every step shares the command's
-    /// `playbackTimeout`.
+    /// `playbackTimeout`: the append gets what is left of it, so it cannot
+    /// change the queue after the command was answered.
     ///
     /// The fallback is logged to stderr with context (the command) and the
     /// player's reason, so a Code=6 that keeps happening shows in the
@@ -409,7 +441,7 @@ final class CommandHandler {
         func startQueue(_ songs: [Song], at start: Int) async throws {
             let entries = songs.map { MusicPlayer.Queue.Entry($0) }
             player.queue = ApplicationMusicPlayer.Queue(entries, startingAt: entries[start])
-            try await player.play()
+            try await startPlayback()
         }
         let song = songs[start]
         let startedAlone: Bool
@@ -427,9 +459,14 @@ final class CommandHandler {
             throw QueueStart.failure(error, song: song.title)
         }
         let followers = QueueStart.followers(of: songs, after: start)
-        if startedAlone, !followers.isEmpty {
+        let remaining = playbackDeadline.timeIntervalSinceNow
+        if startedAlone, !followers.isEmpty, remaining <= 0 {
+            log("\(context): no time left to append the \(followers.count) songs after \"\(song.title)\"; it plays alone")
+        } else if startedAlone, !followers.isEmpty {
+            let entries = followers.map { MusicPlayer.Queue.Entry($0) }
+            let queue = player.queue
             do {
-                try await player.queue.insert(followers.map { MusicPlayer.Queue.Entry($0) }, position: .tail)
+                try await Deadline.run(seconds: remaining) { try await queue.insert(entries, position: .tail) }
             } catch {
                 log("\(context): could not append the \(followers.count) songs after \"\(song.title)\" "
                     + "(\(QueueStart.failure(error, song: song.title))); it plays alone")

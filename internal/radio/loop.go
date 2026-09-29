@@ -2,6 +2,7 @@ package radio
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -13,7 +14,13 @@ import (
 // starts over), ONE (the song starts over). The change is optimistic: the
 // button shows the mode asked for at once, and keeps showing it until a
 // state reports it (states sent before the change still carry the old
-// one) or the player refuses it; then the player's reports rule again.
+// one), the player refuses it or loopHold passes; then the player's
+// reports rule again.
+
+// loopHold is how long the mode asked for is shown without a state
+// reporting it: then the player's reports rule again, so a change the
+// player accepted but did not take cannot stick on the button.
+const loopHold = 3 * time.Second
 
 // loopMsg reports SetRepeat number seq, for mode.
 type loopMsg struct {
@@ -34,9 +41,9 @@ func nextLoop(mode playback.RepeatMode) playback.RepeatMode {
 }
 
 // loopMode is the repeat mode shown: the one asked for until the player
-// confirms or refuses it, else the player's.
+// confirms or refuses it or loopHold passes, else the player's.
 func (m Model) loopMode() playback.RepeatMode {
-	if m.loopPending {
+	if m.loopPending && m.now().Before(m.loopUntil) {
 		return m.loopWant
 	}
 	if m.state.Repeat == "" {
@@ -50,7 +57,7 @@ func (m Model) loopMode() playback.RepeatMode {
 func (m Model) cycleLoop() (Model, tea.Cmd) {
 	mode := nextLoop(m.loopMode())
 	m.loopSeq++
-	m.loopWant, m.loopPending = mode, true
+	m.loopWant, m.loopPending, m.loopUntil = mode, true, m.now().Add(loopHold)
 	seq, player := m.loopSeq, m.player
 	return m, func() tea.Msg {
 		ctx, cancel := m.ctx()
@@ -73,9 +80,10 @@ func (m Model) onLoop(msg loopMsg) Model {
 	return m
 }
 
-// confirmLoop ends the optimistic mode once the player reports it.
+// confirmLoop ends the optimistic mode once the player reports it, or
+// once it expired.
 func (m *Model) confirmLoop() {
-	if m.loopPending && m.state.Repeat == m.loopWant {
+	if m.loopPending && (m.state.Repeat == m.loopWant || !m.now().Before(m.loopUntil)) {
 		m.loopPending = false
 	}
 }

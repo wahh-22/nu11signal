@@ -12,7 +12,9 @@ enum Lifecycle {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var shuttingDown = false
 
-    /// Stops playback on the main actor and exits. Only the first call acts.
+    /// Stops playback on the main actor, releases the app volume's tap and
+    /// exits. Only the first call acts (the HAL also drops the private tap
+    /// and aggregate device of a process that exits without doing so).
     /// If the main thread does not get there within `stopGrace`, the process
     /// exits anyway, so shutdown can never hang.
     static func shutdown(code: Int32) {
@@ -27,7 +29,10 @@ enum Lifecycle {
             _exit(code)
         }
         DispatchQueue.main.async {
-            MainActor.assumeIsolated { ApplicationMusicPlayer.shared.stop() }
+            MainActor.assumeIsolated {
+                ApplicationMusicPlayer.shared.stop()
+                AppVolume.shared.shutdown()
+            }
             exit(code)
         }
     }

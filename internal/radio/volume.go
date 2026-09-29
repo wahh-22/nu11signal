@@ -19,6 +19,15 @@ import (
 // output device without a settable volume) is reported on the status line
 // and leaves the level unknown (VOL --) until the next press reads it
 // again.
+//
+// The player says, in its states, which volume it drives: its own (app)
+// or, as a fallback, the system's; the readout's label says which (VOL or
+// SYS). When the mode changes (the app volume granted mid-session, or
+// failed), the level is another one: it is unknown until read again, and
+// the presses that moved the old one are dropped. A call in flight across
+// the change answers for the old mode (each call carries the mode epoch it
+// was made in), so its answer is discarded and the level read again.
+// Losing the app volume is reported on the status line.
 
 // volumeStep is how much one press moves the volume.
 const volumeStep = 0.05
@@ -31,22 +40,59 @@ type (
 		level float64
 		step  float64
 		err   error
+		epoch int
 	}
 	// setVolumeMsg reports a SetVolume call for level.
 	setVolumeMsg struct {
 		level float64
 		err   error
+		epoch int
 	}
 )
 
 // readVolumeCmd reads the volume; step is applied once it answers.
 func (m Model) readVolumeCmd(step float64) tea.Cmd {
+	epoch := m.volumeEpoch
 	return func() tea.Msg {
 		ctx, cancel := m.ctx()
 		defer cancel()
 		level, err := m.player.Volume(ctx)
-		return volumeMsg{level: level, step: step, err: err}
+		return volumeMsg{level: level, step: step, err: err, epoch: epoch}
 	}
+}
+
+// followVolumeMode records the volume mode a state reports. When it
+// changed from a mode already known, the level shown is the old mode's:
+// it becomes unknown (dropping presses not yet sent) and is read again,
+// now or, with a call in flight, once that call's stale answer arrives.
+func (m Model) followVolumeMode(mode playback.VolumeMode) (Model, tea.Cmd) {
+	if mode == "" || mode == m.volumeMode {
+		return m, nil
+	}
+	previous := m.volumeMode
+	m.volumeMode = mode
+	if previous == "" {
+		return m, nil // the first mode names the level already read
+	}
+	if previous == playback.VolumeApp && mode == playback.VolumeSystem {
+		m.setStatus("APP VOLUME OFF // NOW THE SYSTEM VOLUME")
+	}
+	m.volumeEpoch++
+	m.volumeKnown, m.volumePending = false, 0
+	if m.volumeBusy {
+		return m, nil
+	}
+	m.volumeBusy = true
+	return m, m.readVolumeCmd(0)
+}
+
+// staleVolume settles a call made before the volume mode changed: its
+// answer is the old mode's, so the new level is read, keeping only the
+// steps pressed since the change.
+func (m Model) staleVolume() (Model, tea.Cmd) {
+	m.volumeKnown = false
+	m.volumeBusy = true
+	return m, m.readVolumeCmd(0)
 }
 
 // roundVolume clamps level and rounds it to whole percents, so that steps
@@ -79,17 +125,20 @@ func (m Model) stepVolume(delta float64) (Model, tea.Cmd) {
 // sendVolume asks the player for the level shown.
 func (m Model) sendVolume() (Model, tea.Cmd) {
 	m.volumeBusy = true
-	level := m.volume
+	level, epoch := m.volume, m.volumeEpoch
 	return m, func() tea.Msg {
 		ctx, cancel := m.ctx()
 		defer cancel()
-		return setVolumeMsg{level: level, err: m.player.SetVolume(ctx, level)}
+		return setVolumeMsg{level: level, err: m.player.SetVolume(ctx, level), epoch: epoch}
 	}
 }
 
 // onVolume settles a read. The startup read fails quietly (the readout
 // says VOL --); a read a press asked for reports its failure.
 func (m Model) onVolume(msg volumeMsg) (Model, tea.Cmd) {
+	if msg.epoch != m.volumeEpoch {
+		return m.staleVolume()
+	}
 	step := msg.step + m.volumePending
 	m.volumeBusy, m.volumePending = false, 0
 	if msg.err != nil {
@@ -109,6 +158,9 @@ func (m Model) onVolume(msg volumeMsg) (Model, tea.Cmd) {
 // onSetVolume settles a change, sending the latest level if presses moved
 // it meanwhile.
 func (m Model) onSetVolume(msg setVolumeMsg) (Model, tea.Cmd) {
+	if msg.epoch != m.volumeEpoch {
+		return m.staleVolume()
+	}
 	m.volumeBusy = false
 	if msg.err != nil {
 		m.volumeKnown = false
@@ -124,7 +176,8 @@ func (m Model) onSetVolume(msg setVolumeMsg) (Model, tea.Cmd) {
 // volumeMeterMax is the widest meter of the volume readout.
 const volumeMeterMax = 10
 
-// volumeTextWidth is the room the readout takes besides its meter.
+// volumeTextWidth is the room the readout takes besides its meter; the
+// SYS label is as wide as VOL, so the layout does not move.
 var volumeTextWidth = ansi.StringWidth("VOL  100%")
 
 // volumeBar lays out VOL- and VOL+ around the volume readout in at most w
@@ -148,9 +201,12 @@ func (m Model) volumeBar(w int) (string, zones) {
 
 // volumeReadout renders "VOL ▮▮▮▯▯  60%" in exactly w cells, the meter as
 // wide as fits (up to volumeMeterMax), or "VOL --" while the level is
-// unknown.
+// unknown; SYS instead of VOL when the level is the system volume.
 func (m Model) volumeReadout(w int) string {
 	label := stMuted.Render("VOL ")
+	if m.volumeMode == playback.VolumeSystem {
+		label = stMuted.Render("SYS ")
+	}
 	if !m.volumeKnown {
 		return fit(label+stDim.Render("--"), w)
 	}

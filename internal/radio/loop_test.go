@@ -219,3 +219,23 @@ func TestWithNothingPlayingTheFocusSkipsTheHeart(t *testing.T) {
 		t.Fatalf("up from PLAY with no song: focus %v control %v; want the tabs", m.focus, m.control)
 	}
 }
+
+func TestAnUnconfirmedLoopChangeGivesWayToThePlayer(t *testing.T) {
+	f := playbacktest.New()
+	c := newClock()
+	m := loaded(t, f, c)
+	s := playing(time.Minute, 3*time.Minute)
+	m, _ = step(t, m, stateMsg{state: s})
+	// Accepted, but the player keeps reporting OFF (it did not take it).
+	m, cmd := press(t, m, keyLoop)
+	m = settle(t, m, cmd)
+	m, _ = step(t, m, stateMsg{state: s})
+	if got := loopLabel(t, m); got != "↻ LOOP ALL" {
+		t.Fatalf("LOOP reads %q right after the change; want ALL", got)
+	}
+	c.advance(loopHold)
+	m, _ = step(t, m, stateMsg{state: s})
+	if got := loopLabel(t, m); got != "↻ LOOP OFF" {
+		t.Fatalf("LOOP reads %q %v after the change; want the player's OFF", got, loopHold)
+	}
+}

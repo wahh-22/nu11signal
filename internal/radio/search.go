@@ -371,8 +371,8 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 		next, open := m.openArtist(row.artist)
 		return next, tea.Batch(open, save)
 	case rowSong:
-		// The song plays with the songs listed after it queued, the
-		// search staying on screen.
+		// The song rows listed are queued in order and play from this
+		// one, the search staying on screen.
 		save := m.remember(m.search.term)
 		var songs []playback.Song
 		start := 0

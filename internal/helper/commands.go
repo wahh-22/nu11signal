@@ -141,7 +141,9 @@ func (c *Client) SetRepeat(ctx context.Context, mode playback.RepeatMode) error 
 	return c.call(ctx, "setRepeat", map[string]any{"mode": string(mode)}, nil)
 }
 
-// Volume reports the system output volume, 0...1.
+// Volume reports the volume the helper drives, 0...1: its own app volume
+// or the system output volume, as states report in VolumeMode. The
+// result's "mode" says the same and is not needed here.
 func (c *Client) Volume(ctx context.Context) (float64, error) {
 	var res volumeResult
 	if err := c.call(ctx, "volume", nil, &res); err != nil {
@@ -150,7 +152,8 @@ func (c *Client) Volume(ctx context.Context) (float64, error) {
 	return playback.ClampVolume(res.Level), nil
 }
 
-// SetVolume sets the system output volume. The level is clamped here, as
+// SetVolume sets the volume the helper drives (see Volume); in app mode
+// the system volume is left alone. The level is clamped here, as
 // JSON cannot carry NaN, and again by the helper.
 func (c *Client) SetVolume(ctx context.Context, level float64) error {
 	return c.call(ctx, "setVolume", map[string]any{"level": playback.ClampVolume(level)}, nil)

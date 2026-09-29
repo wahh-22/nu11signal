@@ -837,3 +837,20 @@ func TestFavoritesReadsEverySong(t *testing.T) {
 		t.Error("Favorites accepted an unknown song")
 	}
 }
+
+func TestStatesReportTheAppVolume(t *testing.T) {
+	// The demo's volume is its own, never the system's.
+	p := newPlayer(t)
+	ctx := context.Background()
+	res, err := p.SearchCatalog(ctx, "e", 25)
+	if err != nil || len(res.Songs) == 0 {
+		t.Fatalf("SearchCatalog = %d songs, %v", len(res.Songs), err)
+	}
+	if err := p.PlaySongs(ctx, []string{res.Songs[0].ID}, 0); err != nil {
+		t.Fatal(err)
+	}
+	s := waitState(t, p, func(s playback.State) bool { return s.Status == playback.StatusPlaying })
+	if s.VolumeMode != playback.VolumeApp {
+		t.Fatalf("VolumeMode = %q; want %q", s.VolumeMode, playback.VolumeApp)
+	}
+}

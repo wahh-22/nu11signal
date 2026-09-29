@@ -3,9 +3,10 @@ import Foundation
 import MusicKit
 import Nu11SignalProtocol
 
-/// Publishes `state` events: every 500 ms while playing, and immediately
-/// whenever the playback status, the current queue entry or the repeat
-/// mode changes.
+/// Publishes `state` events: every 500 ms while playing (or seeking), and immediately
+/// whenever the playback status, the current queue entry, the repeat mode
+/// or the volume mode changes. It also hands each status to AppVolume,
+/// which starts and stops its tap with playback.
 @MainActor
 final class StateEmitter {
     private let player = ApplicationMusicPlayer.shared
@@ -19,7 +20,8 @@ final class StateEmitter {
     /// The catalog id of each library copy in the queue, keyed by the
     /// copy's id (see `PreparedQueue.catalogIDs`): a state names the
     /// catalog song the UI asked for, not the copy the player holds.
-    /// `playSongs` replaces it with each queue it hands the player.
+    /// `playSongs` replaces it with each queue it hands the player, and
+    /// clears it when that fails or playback stops.
     var catalogIDs: [String: String] = [:]
 
     func start() {
@@ -34,11 +36,11 @@ final class StateEmitter {
         }
     }
 
-    /// Emits a state event only if status, current entry or repeat mode
-    /// changed.
+    /// Emits a state event only if status, current entry, repeat mode or
+    /// volume mode changed.
     func checkForChange() {
         observeQueue()
-        let snapshot = Snapshot(player: player, catalogIDs: catalogIDs)
+        let snapshot = self.snapshot()
         if snapshot.signature != lastSignature {
             emit(snapshot)
         }
@@ -48,12 +50,20 @@ final class StateEmitter {
     /// position the status/entry signature does not capture).
     func emitNow() {
         observeQueue()
-        emit(Snapshot(player: player, catalogIDs: catalogIDs))
+        emit(snapshot())
+    }
+
+    /// The player's state now. AppVolume follows its status first: that
+    /// may change the volume mode, which is read after it.
+    private func snapshot() -> Snapshot {
+        let status = Snapshot.name(of: player.state.playbackStatus)
+        AppVolume.shared.playbackStatus(status)
+        return Snapshot(player: player, status: status, catalogIDs: catalogIDs, volumeMode: AppVolume.shared.mode)
     }
 
     private func tick() {
-        let snapshot = Snapshot(player: player, catalogIDs: catalogIDs)
-        if snapshot.status == "playing" || snapshot.signature != lastSignature {
+        let snapshot = self.snapshot()
+        if PlaybackActivity.isPlaying(snapshot.status) || snapshot.signature != lastSignature {
             emit(snapshot)
         }
         observeQueue()
@@ -93,10 +103,13 @@ private struct Snapshot {
     /// "off", "all" or "one" (see RepeatSetting); a player without a mode
     /// reports "off".
     var repeatMode: String
+    /// "app" or "system": which volume `volume` and `setVolume` drive.
+    var volumeMode: String
 
     @MainActor
-    init(player: ApplicationMusicPlayer, catalogIDs: [String: String]) {
-        status = Snapshot.name(of: player.state.playbackStatus)
+    init(player: ApplicationMusicPlayer, status: String, catalogIDs: [String: String], volumeMode: VolumeMode) {
+        self.volumeMode = volumeMode.rawValue
+        self.status = status
         position = max(0, player.playbackTime)
         repeatMode = Snapshot.name(of: player.state.repeatMode)
         guard let entry = player.queue.currentEntry else { return }
@@ -122,12 +135,13 @@ private struct Snapshot {
         }
     }
 
-    var signature: String { "\(status)|\(songId)|\(title)|\(repeatMode)" }
+    var signature: String { "\(status)|\(songId)|\(title)|\(repeatMode)|\(volumeMode)" }
 
     var json: JSONObject {
         [
             "status": status, "title": title, "artist": artist, "album": album,
             "songId": songId, "duration": duration, "position": position, "repeat": repeatMode,
+            "volumeMode": volumeMode,
         ]
     }
 

@@ -4,9 +4,15 @@ import Foundation
 import MusicKit
 import Nu11SignalProtocol
 
+// First, before any thread exists: become the responsible process, so
+// macOS asks the user (not the terminal) for audio capture (see Relaunch).
+Relaunch.disclaimIfNeeded()
+
 // A vanished reader must surface as a write error, not kill the process.
 signal(SIGPIPE, SIG_IGN)
 
+// The volume reads its permission and stored level before any playback.
+let volume = MainActor.assumeIsolated { AppVolume.shared }
 let emitter = MainActor.assumeIsolated { StateEmitter() }
 let handler = MainActor.assumeIsolated { CommandHandler(emitter: emitter) }
 let inFlight = DispatchGroup()
@@ -51,7 +57,19 @@ func readRequests() {
     Lifecycle.shutdown(code: 0)
 }
 
-MainActor.assumeIsolated { emitter.start() }
+MainActor.assumeIsolated {
+    volume.onModeChange = { emitter.checkForChange() }
+    // Music that would play louder than the app level (a fallback, or a
+    // retry no muted tap covers) is paused rather than jumping; a retry
+    // that succeeds resumes it.
+    volume.pausePlayer = { ApplicationMusicPlayer.shared.pause() }
+    volume.resumePlayer = {
+        Task { @MainActor in
+            do { try await ApplicationMusicPlayer.shared.play() } catch { log("app volume: could not resume: \(error)") }
+        }
+    }
+    emitter.start()
+}
 Output.shared.event("ready")
 Thread.detachNewThread(readRequests)
 RunLoop.main.run()

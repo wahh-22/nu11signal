@@ -61,16 +61,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.prefetchFavorites(msg.results.Songs)
-	// A page that loaded reads the favorite states of its songs.
+	// A page that loaded reads the favorite states of its songs; an
+	// answer for a page left or reloaded (not fresh) reads none.
 	case artistMsg:
-		m = m.onArtist(msg)
-		if msg.err != nil {
+		var fresh bool
+		m, fresh = m.onArtist(msg)
+		if !fresh || msg.err != nil {
 			return m, nil
 		}
 		return m.prefetchFavorites(msg.detail.TopSongs)
 	case albumMsg:
-		m = m.onAlbum(msg)
-		if msg.err != nil {
+		var fresh bool
+		m, fresh = m.onAlbum(msg)
+		if !fresh || msg.err != nil {
 			return m, nil
 		}
 		songs := make([]playback.Song, len(msg.detail.Tracks))
@@ -79,14 +82,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.prefetchFavorites(songs)
 	case playlistMsg:
-		m = m.onPlaylist(msg)
-		if msg.err != nil {
+		var fresh bool
+		m, fresh = m.onPlaylist(msg)
+		if !fresh || msg.err != nil {
 			return m, nil
 		}
 		return m.prefetchFavorites(msg.detail.Tracks)
 	case resultsMsg:
-		m = m.onResults(msg)
-		if msg.err != nil {
+		var fresh bool
+		m, fresh = m.onResults(msg)
+		if !fresh || msg.err != nil {
 			return m, nil
 		}
 		var songs []playback.Song
@@ -123,10 +128,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onSetVolume(msg)
 	case stateMsg:
 		m = m.onState(msg.state)
+		var reread tea.Cmd
+		m, reread = m.followVolumeMode(msg.state.VolumeMode)
 		if m.animating() && !m.tickFast {
-			return m, tea.Batch(m.waitStates(), m.scheduleTick())
+			return m, tea.Batch(m.waitStates(), m.scheduleTick(), reread)
 		}
-		return m, m.waitStates()
+		return m, tea.Batch(m.waitStates(), reread)
 	case statesClosedMsg:
 		m.lostState = true
 		return m, nil

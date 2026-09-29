@@ -144,22 +144,23 @@ func (m *Model) loadTracks(sel trackPage, kind viewKind) tea.Cmd {
 
 // onAlbum fills the album page the answer belongs to, selecting the
 // searched song; answers for a page that was left or reloaded are
-// dropped.
-func (m Model) onAlbum(msg albumMsg) Model {
+// dropped (fresh is false).
+func (m Model) onAlbum(msg albumMsg) (_ Model, fresh bool) {
 	return m.settleTracks(viewAlbum, msg.seq, msg.err, func(p *trackPage) {
 		p.albumDetail = cleanAlbumDetail(msg.detail)
 	})
 }
 
 // onPlaylist fills the playlist page the answer belongs to.
-func (m Model) onPlaylist(msg playlistMsg) Model {
+// Like onAlbum, fresh is false for a dropped answer.
+func (m Model) onPlaylist(msg playlistMsg) (_ Model, fresh bool) {
 	return m.settleTracks(viewPlaylist, msg.seq, msg.err, func(p *trackPage) {
 		p.playlistDetail = cleanPlaylistDetail(msg.detail)
 	})
 }
 
-func (m Model) settleTracks(kind viewKind, seq uint64, err error, fill func(*trackPage)) Model {
-	m.settleFrame(func(f frame) bool {
+func (m Model) settleTracks(kind viewKind, seq uint64, err error, fill func(*trackPage)) (Model, bool) {
+	fresh := m.settleFrame(func(f frame) bool {
 		return f.kind == kind && f.tracks.seq == seq && f.tracks.loading
 	}, func(f frame) frame {
 		f.tracks.loading, f.tracks.cancel, f.tracks.err = false, nil, err
@@ -167,7 +168,7 @@ func (m Model) settleTracks(kind viewKind, seq uint64, err error, fill func(*tra
 		f.cursor = max(f.tracks.highlight(), 0)
 		return f
 	})
-	return m
+	return m, fresh
 }
 
 // title names the page's view: ALBUM, SONG or PLAYLIST. It heads the

@@ -88,9 +88,10 @@ func (m *Model) loadArtist(a playback.Artist) tea.Cmd {
 }
 
 // onArtist fills the page the answer belongs to, even while parked;
-// answers for a page that was left or reloaded are dropped.
-func (m Model) onArtist(msg artistMsg) Model {
-	m.settleFrame(func(f frame) bool {
+// answers for a page that was left or reloaded are dropped (fresh is
+// false).
+func (m Model) onArtist(msg artistMsg) (_ Model, fresh bool) {
+	fresh = m.settleFrame(func(f frame) bool {
 		return f.kind == viewArtist && f.artist.seq == msg.seq && f.artist.loading
 	}, func(f frame) frame {
 		f.artist.loading, f.artist.cancel = false, nil
@@ -98,7 +99,7 @@ func (m Model) onArtist(msg artistMsg) Model {
 		f.cursor = 0
 		return f
 	})
-	return m
+	return m, fresh
 }
 
 // artistEnter acts on the selected row: a top song plays the top songs

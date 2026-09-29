@@ -20,5 +20,7 @@
 	<true/>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>Nu11Signal needs access to Apple Music to search and play your music.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Nu11Signal adjusts its own playback volume independently of the system volume.</string>
 </dict>
 </plist>

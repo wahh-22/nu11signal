@@ -38,6 +38,8 @@ type wireState struct {
 	Duration float64 `json:"duration"`
 	Position float64 `json:"position"`
 	Repeat   string  `json:"repeat"`
+	// VolumeMode is "app" or "system" (see playback.VolumeMode).
+	VolumeMode string `json:"volumeMode"`
 }
 
 type wireSong struct {
@@ -187,15 +189,26 @@ func seconds(s float64) time.Duration {
 
 func (s wireState) toDomain() playback.State {
 	return playback.State{
-		Status:   playback.Status(s.Status),
-		Title:    s.Title,
-		Artist:   s.Artist,
-		Album:    s.Album,
-		SongID:   s.SongID,
-		Duration: seconds(s.Duration),
-		Position: seconds(s.Position),
-		Repeat:   repeatMode(s.Repeat),
+		Status:     playback.Status(s.Status),
+		Title:      s.Title,
+		Artist:     s.Artist,
+		Album:      s.Album,
+		SongID:     s.SongID,
+		Duration:   seconds(s.Duration),
+		Position:   seconds(s.Position),
+		Repeat:     repeatMode(s.Repeat),
+		VolumeMode: volumeMode(s.VolumeMode),
 	}
+}
+
+// volumeMode reads the state's "volumeMode"; a helper that sends none (an
+// older one), or a mode this build does not know, reports none.
+func volumeMode(s string) playback.VolumeMode {
+	switch mode := playback.VolumeMode(s); mode {
+	case playback.VolumeApp, playback.VolumeSystem:
+		return mode
+	}
+	return ""
 }
 
 // repeatMode reads the state's "repeat"; a helper that sends none (an
