@@ -27,6 +27,11 @@ final class CommandHandler {
     /// in internal/radio) so the helper reports the timeout first.
     static let playbackTimeout: TimeInterval = 6
 
+    /// Upper bound for the local library lookup `playSongs` makes before
+    /// queueing (see `libraryCopies`); it reads this Mac's library only,
+    /// so it stays a small part of `playbackTimeout`.
+    static let libraryCopiesTimeout: TimeInterval = 1.5
+
     /// Runs one request and sends exactly one response. With a timeout, a
     /// command that has not finished in time is answered with an error.
     func respond(to request: Request, timeout: TimeInterval? = nil) async {
@@ -62,6 +67,7 @@ final class CommandHandler {
         case "createPlaylist": return try await createPlaylist(request)
         case "addToPlaylist": _ = try await Self.edit(LibraryEdit.addToPlaylist(request), for: request.cmd); return [:]
         case "favorite": return try await favorite(request)
+        case "favorites": return try await favorites(request)
         case "setFavorite": try await setFavorite(request); return [:]
         case "volume": return ["level": try SystemVolume.level()]
         case "setVolume": try SystemVolume.setLevel(VolumeLevel.requested(request)); return [:]
@@ -73,6 +79,7 @@ final class CommandHandler {
         case "previous": try await player.skipToPreviousEntry(); return [:]
         case "stop": player.stop(); return [:]
         case "seek": return try seek(request)
+        case "setRepeat": player.state.repeatMode = Self.repeatMode(try RepeatSetting.requested(request)); return [:]
         default: throw CommandError("unknown command: \(request.cmd)")
         }
     }
@@ -319,15 +326,48 @@ final class CommandHandler {
     }
 
     /// Looks up the catalog songs and plays them from `ids[startIndex]`
-    /// (see `playSongs`); the result lists the ids the catalog did not
-    /// return as `"missing"`.
+    /// (see `playSongs`). The result lists the ids the catalog did not
+    /// return as `"missing"`, the songs left out because the player cannot
+    /// queue them (see `PreparedQueue`) as `"skipped"`, and `"startedAlone":
+    /// true` when only the start song could be queued (see `play`).
     private func playCatalogSongs(_ ids: [String], from startIndex: Int, context: String) async throws -> JSONObject {
         let found = try await Self.catalogSongs(ids)
         // The catalog may return songs in any order; SongQueue restores the
         // requested one and turns startIndex into a position in the queue.
         let queue = try SongQueue(ids: ids, found: found, id: \.id.rawValue, startIndex: startIndex)
-        try await play(queue.items, from: queue.start, context: context)
-        return queue.missing.isEmpty ? [:] : ["missing": queue.missing]
+        let prepared = PreparedQueue(
+            items: queue.items, start: queue.start, id: \.id.rawValue,
+            libraryCopies: await Self.libraryCopies(of: queue.items))
+        if !prepared.skipped.isEmpty {
+            log("\(context): left out \(prepared.skipped.count) songs of the local library "
+                + "(\(prepared.skipped.joined(separator: ", "))): a catalog start cannot queue them")
+        }
+        let startedAlone = try await play(prepared.items, from: prepared.start, context: context)
+        var result: JSONObject = [:]
+        if !queue.missing.isEmpty { result["missing"] = queue.missing }
+        if !prepared.skipped.isEmpty { result["skipped"] = prepared.skipped }
+        if startedAlone { result["startedAlone"] = true }
+        return result
+    }
+
+    /// The local library's copies of songs, keyed by catalog id: one
+    /// library request, on this Mac only. A failed lookup finds none, and
+    /// the queue is handed over as catalog songs.
+    private nonisolated static func libraryCopies(of songs: [Song]) async -> [String: Song] {
+        var request = MusicLibraryRequest<Song>()
+        request.filter(matching: \.id, memberOf: Array(Set(songs.map(\.id))))
+        guard let items = try? await Deadline.run(seconds: libraryCopiesTimeout, { try await request.response().items }) else {
+            return [:]
+        }
+        var copies: [String: Song] = [:]
+        for song in items {
+            guard let parameters = song.playParameters,
+                  let json = try? JSONEncoder().encode(parameters),
+                  let catalogID = PreparedQueue<Song>.catalogID(playParameters: json)
+            else { continue }
+            copies[catalogID] = copies[catalogID] ?? song
+        }
+        return copies
     }
 
     /// The catalog songs with the given ids, in any order, looked up in
@@ -344,31 +384,40 @@ final class CommandHandler {
         }
     }
 
-    /// Replaces the queue with songs and plays from `songs[start]`.
+    /// Replaces the queue with songs and plays from `songs[start]`;
+    /// returns whether only the start song could be queued.
     ///
     /// Each song gets its own queue entry and the start is named as that
     /// entry, so the player never has to find the start by matching a song
     /// (`Queue(for:startingAt:)` does, and a song listed twice matches its
-    /// first copy). If the player still refuses with "unexpected start
-    /// item" (see QueueStart), a transient failure seen right after the
-    /// queue is replaced, playback is stopped and a freshly built queue is
-    /// tried exactly once more; any other error, or a second failure, is
-    /// reported. Both attempts share the command's `playbackTimeout`.
+    /// first copy). If the player cannot prepare the queue (Code=6, see
+    /// QueueStart), playback is stopped and the start song is queued on its
+    /// own, which prepares where the whole queue does not; any other error,
+    /// or a failure of that fallback, is reported naming the song. Both
+    /// attempts share the command's `playbackTimeout`.
     ///
-    /// Each retry is logged to stderr with context (the command) and the
-    /// queue, so a Code=6 that keeps happening shows in the helper log.
-    /// The caller guarantees `songs.indices.contains(start)`.
-    private func play(_ songs: [Song], from start: Int, context: String) async throws {
-        func startQueue() async throws {
+    /// The fallback is logged to stderr with context (the command) and the
+    /// player's reason, so a Code=6 that keeps happening shows in the
+    /// helper log. The caller guarantees `songs.indices.contains(start)`.
+    private func play(_ songs: [Song], from start: Int, context: String) async throws -> Bool {
+        func startQueue(_ songs: [Song], at start: Int) async throws {
             let entries = songs.map { MusicPlayer.Queue.Entry($0) }
             player.queue = ApplicationMusicPlayer.Queue(entries, startingAt: entries[start])
             try await player.play()
         }
-        try await QueueStart.startRetryingOnce(startQueue) { error in
-            let error = error as NSError
-            log("\(context): \(error.domain) code \(error.code) starting \(songs.count) songs at "
-                + "\(start) (song \(songs[start].id.rawValue)); retrying once")
-            player.stop()
+        let song = songs[start]
+        do {
+            return try await QueueStart.startWithFallback({
+                try await startQueue(songs, at: start)
+            }, fallback: {
+                try await startQueue([song], at: 0)
+            }, beforeFallback: { error in
+                log("\(context): \(QueueStart.failure(error, song: song.title)) starting \(songs.count) songs at "
+                    + "\(start) (song \(song.id.rawValue)); queueing that song alone")
+                player.stop()
+            })
+        } catch {
+            throw QueueStart.failure(error, song: song.title)
         }
     }
 
@@ -438,6 +487,24 @@ final class CommandHandler {
         return ["favorite": try LibraryEdit.favoriteAnswer(await Self.result { try await Self.edit(call, for: request.cmd) })]
     }
 
+    /// Whether each of `songIds` is a favorite (loved), as
+    /// `{"favorites": {"<id>": true|false}}`: one ratings read per kind of
+    /// id and batch of `LibraryEdit.maxRatingIDs`, concurrently, within
+    /// `CatalogBudget.libraryRead`. Any failed read fails the command.
+    private func favorites(_ request: Request) async throws -> JSONObject {
+        let ids = try LibraryEdit.favoriteIDs(request)
+        let calls = try LibraryEdit.favoritesCalls(ids)
+        let loved = try await Deadline.run(seconds: CatalogBudget.libraryRead) {
+            try await withThrowingTaskGroup(of: Set<String>.self) { group in
+                for call in calls {
+                    group.addTask { try LibraryEdit.lovedIDs(await Self.result { try await Self.data(for: call, command: request.cmd) }) }
+                }
+                return try await group.reduce(into: Set<String>()) { $0.formUnion($1) }
+            }
+        }
+        return LibraryEdit.favoritesAnswer(ids, loved: loved)
+    }
+
     /// Loves a song or clears its rating; clearing a song without a rating
     /// succeeds (see `LibraryEdit.setFavoriteAnswer`).
     private func setFavorite(_ request: Request) async throws {
@@ -485,6 +552,15 @@ final class CommandHandler {
             return try await MusicDataRequest(urlRequest: urlRequest).response().data
         } catch let error as MusicDataRequest.Error {
             throw MusicAPIFailure(command: command, status: error.status, title: error.title, detail: error.detailText)
+        }
+    }
+
+    /// The player's repeat mode for a wire name (see RepeatSetting).
+    private static func repeatMode(_ mode: String) -> MusicPlayer.RepeatMode {
+        switch mode {
+        case "all": return .all
+        case "one": return .one
+        default: return .none
         }
     }
 

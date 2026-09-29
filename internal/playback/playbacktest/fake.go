@@ -37,15 +37,16 @@ type Fake struct {
 	VolumeResult float64
 	// CreatePlaylistResult answers CreatePlaylist.
 	CreatePlaylistResult playback.Playlist
-	// Favorites answers Favorite (absent means false); a successful
-	// SetFavorite stores its value there.
-	Favorites map[string]bool
+	// Loved answers Favorite and Favorites (absent means false); a
+	// successful SetFavorite stores its value there.
+	Loved map[string]bool
 	// Err, when set, is returned by every method; MethodErr overrides it
 	// per method name (for example "SearchCatalog").
 	Err       error
 	MethodErr map[string]error
 
 	mu     sync.Mutex
+	repeat playback.RepeatMode
 	calls  []Call
 	closed bool
 	states chan playback.State
@@ -171,6 +172,29 @@ func (f *Fake) Seek(_ context.Context, position time.Duration) error {
 	return f.record("Seek", position)
 }
 
+// SetRepeat records the call and, when it succeeds, stores the mode that
+// RepeatMode reports.
+func (f *Fake) SetRepeat(_ context.Context, mode playback.RepeatMode) error {
+	if err := f.record("SetRepeat", mode); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.repeat = mode
+	return nil
+}
+
+// RepeatMode reports the mode the last successful SetRepeat set;
+// RepeatOff before any.
+func (f *Fake) RepeatMode() playback.RepeatMode {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.repeat == "" {
+		return playback.RepeatOff
+	}
+	return f.repeat
+}
+
 func (f *Fake) Volume(context.Context) (float64, error) {
 	if err := f.record("Volume"); err != nil {
 		return 0, err
@@ -207,7 +231,21 @@ func (f *Fake) Favorite(_ context.Context, songID string) (bool, error) {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.Favorites[songID], nil
+	return f.Loved[songID], nil
+}
+
+// Favorites answers every id from Loved.
+func (f *Fake) Favorites(_ context.Context, songIDs []string) (map[string]bool, error) {
+	if err := f.record("Favorites", append([]string(nil), songIDs...)); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	loved := make(map[string]bool, len(songIDs))
+	for _, id := range songIDs {
+		loved[id] = f.Loved[id]
+	}
+	return loved, nil
 }
 
 func (f *Fake) SetFavorite(_ context.Context, songID string, on bool) error {
@@ -216,10 +254,10 @@ func (f *Fake) SetFavorite(_ context.Context, songID string, on bool) error {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.Favorites == nil {
-		f.Favorites = map[string]bool{}
+	if f.Loved == nil {
+		f.Loved = map[string]bool{}
 	}
-	f.Favorites[songID] = on
+	f.Loved[songID] = on
 	return nil
 }
 

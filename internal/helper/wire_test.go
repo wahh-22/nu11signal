@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 func TestEncodeRequestRejectsReservedArgs(t *testing.T) {
@@ -34,6 +36,22 @@ func TestSecondsToDuration(t *testing.T) {
 	for _, tt := range tests {
 		if got := seconds(tt.in); got != tt.want {
 			t.Errorf("seconds(%v) = %v; want %v", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestStateRepeatModeDefaultsToOff(t *testing.T) {
+	for _, tt := range []struct {
+		wire string
+		want playback.RepeatMode
+	}{
+		{"", playback.RepeatOff},
+		{"off", playback.RepeatOff},
+		{"all", playback.RepeatAll},
+		{"one", playback.RepeatOne},
+	} {
+		if got := (wireState{Repeat: tt.wire}).toDomain().Repeat; got != tt.want {
+			t.Errorf("repeat %q = %q; want %q", tt.wire, got, tt.want)
 		}
 	}
 }

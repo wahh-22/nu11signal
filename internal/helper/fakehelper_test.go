@@ -73,6 +73,8 @@ var expectedArgs = map[string]map[string]any{
 	"addToPlaylist":   {"playlistId": "p.new", "songIds": []any{"s1"}},
 	"favorite":        {"songId": "s1"},
 	"setFavorite":     {"songId": "s1", "on": true},
+	"setRepeat":       {"mode": "all"},
+	"favorites":       {"songIds": []any{"s1", "i.s2", "s3"}},
 }
 
 // playPlaylistFromArgs is what the standard scenario requires for a
@@ -328,10 +330,14 @@ func answer(id, cmd string) {
 		ok(id, map[string]any{"id": "p.new", "name": "Night Drive"})
 	case "favorite":
 		ok(id, map[string]any{"favorite": true})
+	case "favorites":
+		// s3 is left out: every requested id must still be answered.
+		ok(id, map[string]any{"favorites": map[string]any{"s1": true, "i.s2": false}})
 	case "resume":
 		emit(map[string]any{"event": "state", "state": map[string]any{
 			"status": "playing", "title": "One More Time", "artist": "Daft Punk",
 			"album": "Discovery", "songId": "s1", "duration": 320.5, "position": 12.25,
+			"repeat": "one",
 		}})
 		ok(id, map[string]any{})
 	case "previous":

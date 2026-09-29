@@ -37,6 +37,7 @@ type wireState struct {
 	SongID   string  `json:"songId"`
 	Duration float64 `json:"duration"`
 	Position float64 `json:"position"`
+	Repeat   string  `json:"repeat"`
 }
 
 type wireSong struct {
@@ -143,6 +144,11 @@ type favoriteResult struct {
 	Favorite bool `json:"favorite"`
 }
 
+// favoritesResult answers favorites: loved or not, by song id.
+type favoritesResult struct {
+	Favorites map[string]bool `json:"favorites"`
+}
+
 type volumeResult struct {
 	Level float64 `json:"level"`
 }
@@ -188,7 +194,17 @@ func (s wireState) toDomain() playback.State {
 		SongID:   s.SongID,
 		Duration: seconds(s.Duration),
 		Position: seconds(s.Position),
+		Repeat:   repeatMode(s.Repeat),
 	}
+}
+
+// repeatMode reads the state's "repeat"; a helper that sends none (an
+// older one) reports RepeatOff.
+func repeatMode(s string) playback.RepeatMode {
+	if s == "" {
+		return playback.RepeatOff
+	}
+	return playback.RepeatMode(s)
 }
 
 func (s wireSong) toDomain() playback.Song {

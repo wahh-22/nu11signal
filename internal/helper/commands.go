@@ -135,6 +135,12 @@ func (c *Client) Seek(ctx context.Context, position time.Duration) error {
 	return c.call(ctx, "seek", map[string]any{"seconds": position.Seconds()}, nil)
 }
 
+// SetRepeat sets the player's repeat mode; it travels as "mode" ("off",
+// "all" or "one") and waits its turn with the other playback commands.
+func (c *Client) SetRepeat(ctx context.Context, mode playback.RepeatMode) error {
+	return c.call(ctx, "setRepeat", map[string]any{"mode": string(mode)}, nil)
+}
+
 // Volume reports the system output volume, 0...1.
 func (c *Client) Volume(ctx context.Context) (float64, error) {
 	var res volumeResult
@@ -183,6 +189,24 @@ func (c *Client) Favorite(ctx context.Context, songID string) (bool, error) {
 		return false, err
 	}
 	return res.Favorite, nil
+}
+
+// Favorites reports which songs are favorites (loved) in one command; the
+// ids travel as "songIds". The helper reads the ratings in batches; an id
+// its answer leaves out is not a favorite. No ids send nothing.
+func (c *Client) Favorites(ctx context.Context, songIDs []string) (map[string]bool, error) {
+	loved := make(map[string]bool, len(songIDs))
+	if len(songIDs) == 0 {
+		return loved, nil
+	}
+	var res favoritesResult
+	if err := c.call(ctx, "favorites", map[string]any{"songIds": songIDs}, &res); err != nil {
+		return nil, err
+	}
+	for _, id := range songIDs {
+		loved[id] = res.Favorites[id]
+	}
+	return loved, nil
 }
 
 // SetFavorite loves a song (on) or clears its rating; the arguments

@@ -243,6 +243,7 @@ func TestStateEventsAreDecoded(t *testing.T) {
 		Album: "Discovery", SongID: "s1",
 		Duration: 320*time.Second + 500*time.Millisecond,
 		Position: 12*time.Second + 250*time.Millisecond,
+		Repeat:   playback.RepeatOne,
 	}
 	if got != want {
 		t.Fatalf("state = %+v; want %+v", got, want)
@@ -704,6 +705,26 @@ func TestLibraryEditsRoundTrip(t *testing.T) {
 	}
 	if err := c.SetFavorite(ctx, "s1", true); err != nil {
 		t.Fatalf("SetFavorite: %v", err)
+	}
+}
+
+func TestRepeatAndFavoritesRoundTrip(t *testing.T) {
+	// The standard scenario answers only the exact arguments in
+	// expectedArgs, so a wrong argument name fails the call.
+	c := startFake(t, "standard", Options{})
+	ctx := t.Context()
+
+	if err := c.SetRepeat(ctx, playback.RepeatAll); err != nil {
+		t.Fatalf("SetRepeat: %v", err)
+	}
+	got, err := c.Favorites(ctx, []string{"s1", "i.s2", "s3"})
+	want := map[string]bool{"s1": true, "i.s2": false, "s3": false}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("Favorites = %v, %v; want %v", got, err, want)
+	}
+	// No songs need no request: an empty "songIds" would not match.
+	if got, err := c.Favorites(ctx, nil); err != nil || len(got) != 0 || got == nil {
+		t.Fatalf("Favorites(nil) = %#v, %v; want an empty map", got, err)
 	}
 }
 

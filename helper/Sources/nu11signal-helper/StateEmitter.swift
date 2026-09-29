@@ -4,7 +4,8 @@ import MusicKit
 import Nu11SignalProtocol
 
 /// Publishes `state` events: every 500 ms while playing, and immediately
-/// whenever the playback status or the current queue entry changes.
+/// whenever the playback status, the current queue entry or the repeat
+/// mode changes.
 @MainActor
 final class StateEmitter {
     private let player = ApplicationMusicPlayer.shared
@@ -27,7 +28,8 @@ final class StateEmitter {
         }
     }
 
-    /// Emits a state event only if status or current entry changed.
+    /// Emits a state event only if status, current entry or repeat mode
+    /// changed.
     func checkForChange() {
         observeQueue()
         let snapshot = Snapshot(player: player)
@@ -82,11 +84,15 @@ private struct Snapshot {
     var songId = ""
     var duration: Double = 0
     var position: Double
+    /// "off", "all" or "one" (see RepeatSetting); a player without a mode
+    /// reports "off".
+    var repeatMode: String
 
     @MainActor
     init(player: ApplicationMusicPlayer) {
         status = Snapshot.name(of: player.state.playbackStatus)
         position = max(0, player.playbackTime)
+        repeatMode = Snapshot.name(of: player.state.repeatMode)
         guard let entry = player.queue.currentEntry else { return }
         title = entry.title
         artist = entry.subtitle ?? ""
@@ -110,13 +116,22 @@ private struct Snapshot {
         }
     }
 
-    var signature: String { "\(status)|\(songId)|\(title)" }
+    var signature: String { "\(status)|\(songId)|\(title)|\(repeatMode)" }
 
     var json: JSONObject {
         [
             "status": status, "title": title, "artist": artist, "album": album,
-            "songId": songId, "duration": duration, "position": position,
+            "songId": songId, "duration": duration, "position": position, "repeat": repeatMode,
         ]
+    }
+
+    static func name(of mode: MusicPlayer.RepeatMode?) -> String {
+        switch mode {
+        case .all: return "all"
+        case .one: return "one"
+        case .some(.none), nil: return "off"
+        @unknown default: return "off"
+        }
     }
 
     static func name(of status: MusicPlayer.PlaybackStatus) -> String {

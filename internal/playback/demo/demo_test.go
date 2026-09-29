@@ -715,3 +715,104 @@ func TestLibraryOnlySongsAreListedButNotPlayed(t *testing.T) {
 		}
 	}
 }
+
+// playNearEnd plays the songs from start and seeks to the end of that
+// song, so the next tick finishes it.
+func playNearEnd(t *testing.T, p *Player, ids []string, start int) {
+	t.Helper()
+	ctx := context.Background()
+	if err := p.PlaySongs(ctx, ids, start); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Seek(ctx, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRepeatModeDecidesWhatFollowsASong(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	res, err := p.SearchCatalog(ctx, "e", 25)
+	if err != nil || len(res.Songs) < 2 {
+		t.Fatalf("SearchCatalog = %d songs, %v; want at least 2", len(res.Songs), err)
+	}
+	a, b := res.Songs[0].ID, res.Songs[1].ID
+
+	// Off (the default): the queue ends after its last song.
+	playNearEnd(t, p, []string{a, b}, 1)
+	waitState(t, p, func(s playback.State) bool {
+		return s.Status == playback.StatusStopped && s.SongID == b && s.Position == 0 && s.Repeat == playback.RepeatOff
+	})
+	playNearEnd(t, p, []string{a, b}, 0)
+	waitState(t, p, func(s playback.State) bool { return s.SongID == b && s.Status == playback.StatusPlaying })
+
+	// All: the queue starts over.
+	if err := p.SetRepeat(ctx, playback.RepeatAll); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, p, func(s playback.State) bool { return s.Repeat == playback.RepeatAll })
+	playNearEnd(t, p, []string{a, b}, 1)
+	waitState(t, p, func(s playback.State) bool { return s.SongID == a && s.Status == playback.StatusPlaying })
+
+	// One: the song starts over.
+	if err := p.SetRepeat(ctx, playback.RepeatOne); err != nil {
+		t.Fatal(err)
+	}
+	playNearEnd(t, p, []string{a, b}, 0)
+	waitState(t, p, func(s playback.State) bool { return s.SongID == a && s.Position == s.Duration })
+	waitState(t, p, func(s playback.State) bool {
+		return s.SongID == a && s.Status == playback.StatusPlaying && s.Position < time.Second && s.Repeat == playback.RepeatOne
+	})
+
+	if err := p.SetRepeat(ctx, "twice"); err == nil {
+		t.Error("SetRepeat accepted an unknown mode")
+	}
+}
+
+func TestNextAtTheLastSongFollowsTheRepeatMode(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	res, _ := p.SearchCatalog(ctx, "e", 25)
+	a, b := res.Songs[0].ID, res.Songs[1].ID
+
+	if err := p.PlaySongs(ctx, []string{a, b}, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Next(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, p, func(s playback.State) bool { return s.SongID == b && s.Status == playback.StatusStopped })
+
+	for _, mode := range []playback.RepeatMode{playback.RepeatAll, playback.RepeatOne} {
+		if err := p.SetRepeat(ctx, mode); err != nil {
+			t.Fatal(err)
+		}
+		if err := p.PlaySongs(ctx, []string{a, b}, 1); err != nil {
+			t.Fatal(err)
+		}
+		if err := p.Next(ctx); err != nil {
+			t.Fatal(err)
+		}
+		waitState(t, p, func(s playback.State) bool { return s.SongID == a && s.Status == playback.StatusPlaying })
+	}
+}
+
+func TestFavoritesReadsEverySong(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	res, _ := p.SearchCatalog(ctx, "e", 25)
+	a, b := res.Songs[0].ID, res.Songs[1].ID
+	if err := p.SetFavorite(ctx, a, true); err != nil {
+		t.Fatal(err)
+	}
+	got, err := p.Favorites(ctx, []string{a, b})
+	if want := map[string]bool{a: true, b: false}; err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("Favorites = %v, %v; want %v", got, err, want)
+	}
+	if got, err := p.Favorites(ctx, nil); err != nil || got == nil || len(got) != 0 {
+		t.Fatalf("Favorites(nil) = %#v, %v; want an empty map", got, err)
+	}
+	if _, err := p.Favorites(ctx, []string{a, "nope"}); err == nil {
+		t.Error("Favorites accepted an unknown song")
+	}
+}

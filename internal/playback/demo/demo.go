@@ -48,6 +48,7 @@ type Player struct {
 	status playback.Status
 	pos    time.Duration
 	volume float64
+	repeat playback.RepeatMode
 
 	// library is this player's copy of the stations, plus the playlists
 	// CreatePlaylist made (in creation order); edits never reach other
@@ -73,6 +74,7 @@ func New(opts Options) *Player {
 		errs:   make(chan error, 1),
 		status: playback.StatusStopped,
 		volume: DefaultVolume,
+		repeat: playback.RepeatOff,
 		notes:  map[string]string{},
 
 		favorites: map[string]bool{},
@@ -99,7 +101,8 @@ func (p *Player) run() {
 	}
 }
 
-// advance moves the playhead by one tick, rolling over to the next track.
+// advance moves the playhead by one tick; at the end of a track, what
+// follows depends on the repeat mode (see skipLocked).
 func (p *Player) advance() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -108,17 +111,32 @@ func (p *Player) advance() {
 	}
 	p.pos += p.tick
 	if p.pos >= p.queue[p.index].Duration {
-		p.index = (p.index + 1) % len(p.queue)
-		p.pos = 0
+		if p.repeat == playback.RepeatOne {
+			p.pos = 0
+		} else {
+			p.skipLocked()
+		}
 	}
 	p.emitLocked()
+}
+
+// skipLocked moves to the next track from the start. After the last one,
+// RepeatOff ends the queue (stopped at the last track, rewound) and the
+// other modes start it over.
+func (p *Player) skipLocked() {
+	p.pos = 0
+	if p.index == len(p.queue)-1 && p.repeat == playback.RepeatOff {
+		p.status = playback.StatusStopped
+		return
+	}
+	p.index = (p.index + 1) % len(p.queue)
 }
 
 // emitLocked publishes the current state, dropping the oldest unread state
 // when the buffer is full so the newest one always gets through. All sends
 // happen under mu, so the drain-then-send cannot block.
 func (p *Player) emitLocked() {
-	s := playback.State{Status: p.status, Position: p.pos}
+	s := playback.State{Status: p.status, Position: p.pos, Repeat: p.repeat}
 	if len(p.queue) > 0 {
 		song := p.queue[p.index]
 		s.Title, s.Artist, s.Album, s.SongID, s.Duration = song.Title, song.Artist, song.Album, song.ID, song.Duration
@@ -435,6 +453,25 @@ func (p *Player) Favorite(ctx context.Context, songID string) (bool, error) {
 	return on, err
 }
 
+// Favorites reports, for each catalog song, whether it is one of this
+// player's favorites; an unknown song is an error.
+func (p *Player) Favorites(ctx context.Context, songIDs []string) (map[string]bool, error) {
+	loved := make(map[string]bool, len(songIDs))
+	err := p.do(ctx, false, func() error {
+		if err := checkSongs(songIDs); err != nil {
+			return err
+		}
+		for _, id := range songIDs {
+			loved[id] = p.favorites[id]
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return loved, nil
+}
+
 // SetFavorite marks or unmarks a catalog song as a favorite.
 func (p *Player) SetFavorite(ctx context.Context, songID string, on bool) error {
 	return p.do(ctx, false, func() error {
@@ -485,13 +522,15 @@ func (p *Player) Resume(ctx context.Context) error {
 	})
 }
 
-// Next skips to the next track, wrapping around the queue.
+// Next skips to the next track. At the last one it ends the queue with
+// RepeatOff and wraps around otherwise (RepeatOne included: skipping
+// leaves the song).
 func (p *Player) Next(ctx context.Context) error {
 	return p.do(ctx, true, func() error {
 		if len(p.queue) == 0 {
 			return errors.New("demo: nothing queued")
 		}
-		p.index, p.pos = (p.index+1)%len(p.queue), 0
+		p.skipLocked()
 		return nil
 	})
 }
@@ -526,6 +565,20 @@ func (p *Player) Seek(ctx context.Context, position time.Duration) error {
 		}
 		p.pos = max(0, min(position, p.queue[p.index].Duration))
 		return nil
+	})
+}
+
+// SetRepeat sets the repeat mode, which the next state reports; a mode
+// other than RepeatOff, RepeatAll or RepeatOne is an error, as the helper
+// rejects one.
+func (p *Player) SetRepeat(ctx context.Context, mode playback.RepeatMode) error {
+	return p.do(ctx, true, func() error {
+		switch mode {
+		case playback.RepeatOff, playback.RepeatAll, playback.RepeatOne:
+			p.repeat = mode
+			return nil
+		}
+		return fmt.Errorf("demo: unknown repeat mode %q", mode)
 	})
 }
 

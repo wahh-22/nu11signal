@@ -297,3 +297,36 @@ func TestFakeLibraryEdits(t *testing.T) {
 		t.Error("a failed SetFavorite changed the favorite")
 	}
 }
+
+func TestFakeRepeatAndFavorites(t *testing.T) {
+	f := New()
+	f.Loved = map[string]bool{"s1": true, "s2": false}
+	ctx := t.Context()
+
+	if f.RepeatMode() != playback.RepeatOff {
+		t.Fatalf("RepeatMode before any set = %q; want off", f.RepeatMode())
+	}
+	if err := f.SetRepeat(ctx, playback.RepeatOne); err != nil || f.RepeatMode() != playback.RepeatOne {
+		t.Fatalf("SetRepeat = %v, mode %q; want one", err, f.RepeatMode())
+	}
+	got, err := f.Favorites(ctx, []string{"s1", "s3"})
+	if want := map[string]bool{"s1": true, "s3": false}; err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("Favorites = %v, %v; want %v", got, err, want)
+	}
+	want := []Call{
+		{Method: "SetRepeat", Args: []any{playback.RepeatOne}},
+		{Method: "Favorites", Args: []any{[]string{"s1", "s3"}}},
+	}
+	if !reflect.DeepEqual(f.Calls(), want) {
+		t.Fatalf("Calls = %#v; want %#v", f.Calls(), want)
+	}
+
+	boom := errors.New("boom")
+	f.MethodErr = map[string]error{"SetRepeat": boom, "Favorites": boom}
+	if err := f.SetRepeat(ctx, playback.RepeatAll); !errors.Is(err, boom) || f.RepeatMode() != playback.RepeatOne {
+		t.Errorf("SetRepeat on error = %v, mode %q; want boom, one", err, f.RepeatMode())
+	}
+	if got, err := f.Favorites(ctx, []string{"s1"}); !errors.Is(err, boom) || got != nil {
+		t.Errorf("Favorites on error = %v, %v; want nil, boom", got, err)
+	}
+}
