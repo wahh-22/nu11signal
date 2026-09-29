@@ -116,17 +116,26 @@ UPSTREAM="$(git -C "$TAP_DIR" rev-parse --abbrev-ref --symbolic-full-name '@{ups
 UNPUSHED="$(git -C "$TAP_DIR" log --format='%h %s' "$UPSTREAM..HEAD")"
 if [[ -n "$UNPUSHED" ]]; then
   BUMP_SUBJECT="chore: bump nu11signal to $VERSION"
+  DROP_HINT="git -C $TAP_DIR reset --hard $UPSTREAM"
   others=""
   while IFS= read -r commit; do
-    [[ "${commit#* }" == "$BUMP_SUBJECT" ]] || others+="$commit"$'\n'
+    [[ "${commit#* }" == "$BUMP_SUBJECT" ]] || others+="      $commit"$'\n'
   done <<<"$UNPUSHED"
   [[ -z "$others" ]] ||
-    die "$TAP_DIR has unpushed commits other than \"$BUMP_SUBJECT\"; push or drop them first:
-$others"
+    die "$TAP_DIR has unpushed commits on $UPSTREAM that are not bump commits for $VERSION (\"$BUMP_SUBJECT\"):
+$others       Push them yourself, or drop them ($DROP_HINT), then rerun."
+  # Net change of all unpushed commits against the upstream: it must be
+  # exactly the cask.
   touched="$(git -C "$TAP_DIR" diff --name-only "$UPSTREAM" HEAD)"
-  [[ "$touched" == "$CASK_REL" ]] ||
-    die "the unpushed bump commits in $TAP_DIR touch more than $CASK_REL:
-$touched"
+  if [[ -z "$touched" ]]; then
+    die "the unpushed bump commits for $VERSION in $TAP_DIR make no net change against $UPSTREAM
+       (they cancel each other out); drop them ($DROP_HINT) and rerun"
+  fi
+  extra="$(grep -vxF "$CASK_REL" <<<"$touched" || true)"
+  [[ -z "$extra" ]] ||
+    die "the unpushed bump commits for $VERSION in $TAP_DIR change files other than $CASK_REL:
+$(sed 's/^/      /' <<<"$extra")
+       A bump commit may change only the cask; drop them ($DROP_HINT), or fix them by hand, then rerun."
   echo "    unpushed bump commit(s) on $UPSTREAM:"
   printf '%s\n' "$UNPUSHED" | sed 's/^/      /'
 fi
@@ -190,7 +199,7 @@ git -C "$TAP_DIR" --no-pager diff HEAD -- "$CASK_REL"
 
 if [[ -n "$UNPUSHED" ]]; then
   msg="the unpushed bump commit for $VERSION in $TAP_DIR does not match the render (diff above);
-       inspect it, then drop it (git -C $TAP_DIR reset --hard $UPSTREAM) and rerun"
+       inspect it, then drop it ($DROP_HINT) and rerun"
   [[ "$PUSH" == 1 ]] && die "$msg"
   echo "warning: $msg" >&2
 fi

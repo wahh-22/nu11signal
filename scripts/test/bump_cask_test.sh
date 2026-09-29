@@ -162,3 +162,55 @@ test_bump_refuses_unrelated_unpushed_commits() {
   assert_output_contains "docs: local change"
   [[ "$(origin_commits)" == 1 ]] || fail "unrelated commits were pushed"
 }
+
+test_bump_warns_about_an_unpushed_bump_that_differs_from_the_render_without_push() {
+  setup_tap
+  write_checksum 0.2.1 "$SHA_A"
+  leave_unpushed_bump 0.2.1
+  write_checksum 0.2.1 "$SHA_B"
+  bump 0.2.1
+  assert_status 0
+  assert_output_contains "does not match the render"
+  assert_output_contains "reset --hard origin/main"
+  [[ "$(origin_commits)" == 1 ]] || fail "pushed without --push"
+}
+
+test_bump_refuses_an_unpushed_bump_for_another_version() {
+  setup_tap
+  write_checksum 0.2.1 "$SHA_B"
+  leave_unpushed_bump 0.2.1
+  write_checksum 0.2.2 "$SHA_B"
+  bump 0.2.2 --push
+  assert_failed
+  assert_output_contains "chore: bump nu11signal to 0.2.1"
+  assert_output_contains "not bump commits for 0.2.2"
+  [[ "$(origin_commits)" == 1 ]] || fail "unrelated commits were pushed"
+}
+
+test_bump_refuses_an_unpushed_bump_that_touches_other_files() {
+  setup_tap
+  write_checksum 0.2.1 "$SHA_B"
+  bump 0.2.1
+  assert_status 0
+  printf 'local\n' >>"$TAP/README.md"
+  git -C "$TAP" commit --quiet -am "chore: bump nu11signal to 0.2.1"
+  bump 0.2.1 --push
+  assert_failed
+  assert_output_contains "change files other than Casks/nu11signal.rb"
+  assert_output_contains "README.md"
+  assert_output_lacks "      Casks/nu11signal.rb"
+  [[ "$(origin_commits)" == 1 ]] || fail "a bump touching other files was pushed"
+}
+
+test_bump_explains_unpushed_bumps_with_no_net_change() {
+  setup_tap
+  write_checksum 0.2.1 "$SHA_B"
+  leave_unpushed_bump 0.2.1
+  render_cask 0.2.0 "$SHA_A" >"$TAP/Casks/nu11signal.rb"
+  git -C "$TAP" commit --quiet -am "chore: bump nu11signal to 0.2.1"
+  bump 0.2.1 --push
+  assert_failed
+  assert_output_contains "no net change"
+  assert_output_contains "reset --hard origin/main"
+  [[ "$(origin_commits)" == 1 ]] || fail "empty bump commits were pushed"
+}
