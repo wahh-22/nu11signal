@@ -210,18 +210,28 @@ func (m Model) header(w int) ([]string, zones) {
 // navLine is the header rule carrying the nav bar: the STATIONS and
 // SEARCH tabs and, above the stations root, BACK. The serial code stays
 // at the right edge while there is room for it.
+//
+//	▓▒░ ╱ STATIONS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ── RDO-77 // NC-NET ──
 func (m Model) navLine(w int) (string, zones) {
-	const lead = 4 // "▓▒░ "
-	bar, bz := buttonBar(m.navButtons(), w-lead-1)
+	const (
+		mark    = "▓▒░"
+		gap     = " "
+		code    = " RDO-77 // NC-NET "
+		codeEnd = "──"
+		// minRule is the rule kept between the bar and the code.
+		minRule = 1
+	)
+	lead := ansi.StringWidth(mark + gap)
+	gapW := ansi.StringWidth(gap)
+	bar, bz := buttonBar(m.navButtons(), w-lead-gapW)
 	var zs zones
 	zs.addAt(lead, 0, bz)
-	rest := max(w-lead-ansi.StringWidth(bar)-1, 0)
-	code := " RDO-77 // NC-NET "
+	rest := max(w-lead-ansi.StringWidth(bar)-gapW, 0)
 	tail := stFrameDim.Render(strings.Repeat("─", rest))
-	if rest >= len(code)+3 {
-		tail = stFrameDim.Render(strings.Repeat("─", rest-len(code)-2)) + stMuted.Render(code) + stFrameDim.Render("──")
+	if codeW := ansi.StringWidth(code + codeEnd); rest >= codeW+minRule {
+		tail = stFrameDim.Render(strings.Repeat("─", rest-codeW)) + stMuted.Render(code) + stFrameDim.Render(codeEnd)
 	}
-	return stYellow.Render("▓▒░") + " " + bar + " " + tail, zs
+	return stYellow.Render(mark) + gap + bar + gap + tail, zs
 }
 
 func (m Model) statusTag() string {

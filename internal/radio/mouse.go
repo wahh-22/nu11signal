@@ -11,6 +11,11 @@ import (
 // button (releases and other buttons are ignored); the zone under the
 // pointer is found by laying out the frame on screen again.
 
+// doubleClickGuard is how long left presses are ignored after one that
+// changed the view, so the second press of a double click does not act on
+// whatever sits under the pointer in the view the first one opened.
+const doubleClickGuard = 400 * time.Millisecond
+
 // handleMouse handles one mouse message.
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -31,8 +36,25 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// click acts on the zone at cell (x, y), if any.
+// click acts on the zone at cell (x, y), if any. A press that changes
+// the view (a push, pop or restore of the stack) holds off further presses
+// for doubleClickGuard.
 func (m Model) click(x, y int) (tea.Model, tea.Cmd) {
+	if m.now().Before(m.pressGuardUntil) {
+		return m, nil
+	}
+	depth, kind := len(m.stack), m.top().kind
+	next, cmd := m.clickZone(x, y)
+	nm, ok := next.(Model)
+	if ok && (len(nm.stack) != depth || nm.top().kind != kind) {
+		nm.pressGuardUntil = nm.now().Add(doubleClickGuard)
+		return nm, cmd
+	}
+	return next, cmd
+}
+
+// clickZone acts on the zone at cell (x, y), if any.
+func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 	_, zs := m.layout()
 	z, ok := zs.at(x, y)
 	if !ok {

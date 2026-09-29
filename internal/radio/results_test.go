@@ -475,3 +475,27 @@ func TestResultsTextNeverReachesTheTerminalRaw(t *testing.T) {
 		t.Fatalf("results page not cleaned:\n%q", plain(m))
 	}
 }
+
+// Going back from RESULTS onto SEARCH keeps the live rows when they
+// already answer the input.
+
+func TestEscOntoSearchKeepsResultsThatAnswerTheInput(t *testing.T) {
+	f := playbacktest.New()
+	f.SearchCatalogResult = fullCatalog()
+	m := searchFor(t, loaded(t, f, newClock()), "daft")
+	// Enter on the input opens RESULTS for the very term the live rows
+	// answer.
+	m, cmd := press(t, m, "enter")
+	m = settle(t, m, cmd)
+	before := len(catalogCalls(f))
+	m, cmd = press(t, m, "esc")
+	if cmd != nil {
+		m = settle(t, m, cmd)
+	}
+	if calls := catalogCalls(f); len(calls) != before {
+		t.Fatalf("esc searched again: %v", calls[before:])
+	}
+	if !strings.Contains(plain(m), "ONE MORE TIME") {
+		t.Fatalf("live rows not shown:\n%s", plain(m))
+	}
+}

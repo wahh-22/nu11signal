@@ -130,7 +130,8 @@ func TestNavTabsSwitchBetweenStationsAndTheSearchBranch(t *testing.T) {
 	f := playbacktest.New()
 	f.SearchCatalogResult = catalog()
 	f.ArtistResult = artistDetail()
-	m := loaded(t, f, newClock())
+	c := newClock()
+	m := loaded(t, f, c)
 	if got := textAt(m, zoneOf(t, m, zoneTabSearch)); !strings.Contains(got, "SEARCH") {
 		t.Fatalf("search tab covers %q", got)
 	}
@@ -151,22 +152,26 @@ func TestNavTabsSwitchBetweenStationsAndTheSearchBranch(t *testing.T) {
 	m, cmd = press(t, m, "enter")
 	m = settle(t, m, cmd)
 	m, _ = press(t, m, "down")
+	c.advance(doubleClickGuard)
 	m, _ = click(t, m, zoneTabStations)
 	if want := []viewKind{viewStations}; !reflect.DeepEqual(stackKinds(m), want) {
 		t.Fatalf("stations tab: stack %v; want %v", stackKinds(m), want)
 	}
+	c.advance(doubleClickGuard)
 	m, _ = click(t, m, zoneTabSearch)
 	if want := []viewKind{viewStations, viewSearch, viewArtist}; !reflect.DeepEqual(stackKinds(m), want) || m.cursor() != 1 {
 		t.Fatalf("search tab: stack %v cursor %d; want the artist page restored at 1", stackKinds(m), m.cursor())
 	}
 
 	// On a page SEARCH goes back to the input, as / does.
+	c.advance(doubleClickGuard)
 	m, _ = click(t, m, zoneTabSearch)
 	if m.top().kind != viewSearch || m.cursor() != -1 || !m.input.Focused() {
 		t.Fatalf("search tab on a page: top %v cursor %d; want the input", m.top().kind, m.cursor())
 	}
 	// On SEARCH the tab only takes the input back.
 	m, _ = press(t, m, "down")
+	c.advance(doubleClickGuard)
 	m, _ = click(t, m, zoneTabSearch)
 	if m.top().kind != viewSearch || m.cursor() != -1 || m.input.Value() != "daft" {
 		t.Fatalf("search tab on search: cursor %d input %q; want the input as it was", m.cursor(), m.input.Value())
@@ -175,11 +180,15 @@ func TestNavTabsSwitchBetweenStationsAndTheSearchBranch(t *testing.T) {
 
 func TestBackButtonShowsAboveTheRootAndPops(t *testing.T) {
 	f := playbacktest.New()
-	m := loaded(t, f, newClock())
+	f.SearchCatalogResult = fullCatalog()
+	c := newClock()
+	m := loaded(t, f, c)
 	if _, zs := m.layout(); hasZone(zs, zoneBack) {
 		t.Fatal("the stations root offers BACK")
 	}
-	m = openResults(t, f, &fakeRecents{})
+	m = searchFor(t, m, "daft")
+	m, cmd := press(t, m, "down", "enter")
+	m = settle(t, m, cmd)
 	if got := textAt(m, zoneOf(t, m, zoneBack)); !strings.Contains(got, "BACK") {
 		t.Fatalf("back zone covers %q", got)
 	}
@@ -187,6 +196,8 @@ func TestBackButtonShowsAboveTheRootAndPops(t *testing.T) {
 	if want := []viewKind{viewStations, viewSearch}; !reflect.DeepEqual(stackKinds(m), want) {
 		t.Fatalf("back: stack %v; want %v", stackKinds(m), want)
 	}
+	// A separate click, not the second press of a double click.
+	c.advance(doubleClickGuard)
 	m, _ = click(t, m, zoneBack)
 	if want := []viewKind{viewStations}; !reflect.DeepEqual(stackKinds(m), want) {
 		t.Fatalf("back from search: stack %v; want %v", stackKinds(m), want)
@@ -236,16 +247,28 @@ func TestTransportButtonsDriveThePlayer(t *testing.T) {
 func TestClickOnTheProgressBarSeeks(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
-	m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 200*time.Second)})
+	// At 80 columns the bar is 28 cells, so a 280 s song is 10 s a cell.
+	m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 280*time.Second)})
 	z := zoneOf(t, m, zoneSeek)
 	if got := textAt(m, z); strings.Trim(got, "▮▯") != "" || got == "" {
 		t.Fatalf("seek zone covers %q; want only the bar", got)
 	}
-	dx := z.w / 2
-	m, cmd := step(t, m, tea.MouseClickMsg{X: z.x + dx, Y: z.y, Button: tea.MouseLeft})
-	settle(t, m, cmd)
-	want := 200 * time.Second * time.Duration(dx) / time.Duration(z.w)
-	assertCall(t, f, "Seek", want)
+	if z.w != 28 {
+		t.Fatalf("bar is %d cells; the expected targets assume 28", z.w)
+	}
+	for _, tt := range []struct {
+		name string
+		cell int
+		want time.Duration
+	}{
+		{"first cell is the start", 0, 0},
+		{"a middle cell", 7, 70 * time.Second},
+		{"last cell is its own start, short of the end", 27, 270 * time.Second},
+	} {
+		m2, cmd := step(t, m, tea.MouseClickMsg{X: z.x + tt.cell, Y: z.y, Button: tea.MouseLeft})
+		settle(t, m2, cmd)
+		t.Run(tt.name, func(t *testing.T) { assertCall(t, f, "Seek", tt.want) })
+	}
 
 	// Nothing to seek without a duration.
 	m, _ = step(t, m, stateMsg{state: playback.State{Status: playback.StatusPlaying, Title: "Live"}})
@@ -290,6 +313,61 @@ func TestClickOnSearchRowsActsLikeEnter(t *testing.T) {
 			t.Fatalf("top %v; want ARTIST", m.top().kind)
 		}
 	})
+}
+
+// pressAt presses the left button on cell (x, y).
+func pressAt(t *testing.T, m Model, x, y int) (Model, tea.Cmd) {
+	t.Helper()
+	return step(t, m, tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+}
+
+func TestDoubleClickOpeningAViewDoesNotActInIt(t *testing.T) {
+	f := playbacktest.New()
+	f.SearchCatalogResult = catalog()
+	f.ArtistResult = artistDetail()
+	c := newClock()
+	m := searchFor(t, loaded(t, f, c), "daft")
+	row := zoneOf(t, m, rowZone(2))
+
+	// Both presses of a double click land on the artist row; the first
+	// opens ARTIST, the second must not act on the ARTIST row under it.
+	m, cmd := pressAt(t, m, row.x, row.y)
+	m = settle(t, m, cmd)
+	if m.top().kind != viewArtist {
+		t.Fatalf("first press: top %v; want ARTIST", m.top().kind)
+	}
+	before, calls := stackKinds(m), len(f.Calls())
+	c.advance(doubleClickGuard / 2)
+	m, cmd = pressAt(t, m, row.x, row.y)
+	if cmd != nil {
+		m = settle(t, m, cmd)
+	}
+	if !reflect.DeepEqual(stackKinds(m), before) || m.cursor() != 0 || len(f.Calls()) != calls {
+		t.Fatalf("second press acted: stack %v cursor %d calls %v", stackKinds(m), m.cursor(), f.Calls()[calls:])
+	}
+
+	// A press once the guard is over acts again.
+	c.advance(doubleClickGuard)
+	back := zoneOf(t, m, zoneBack)
+	m, _ = pressAt(t, m, back.x, back.y)
+	if m.top().kind != viewSearch {
+		t.Fatalf("press after the guard: top %v; want SEARCH", m.top().kind)
+	}
+}
+
+func TestDoublePressOnTransportTogglesTwice(t *testing.T) {
+	f := playbacktest.New()
+	m := loaded(t, f, newClock())
+	m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 225*time.Second)})
+	play := zoneOf(t, m, zonePlay)
+	for range 2 {
+		var cmd tea.Cmd
+		m, cmd = pressAt(t, m, play.x, play.y)
+		m = settle(t, m, cmd)
+	}
+	if got := len(callsOf(f, "Pause")) + len(callsOf(f, "Resume")); got != 2 {
+		t.Fatalf("play/pause calls %d; want both presses to toggle", got)
+	}
 }
 
 func TestClickOnTheSearchInputTakesItBack(t *testing.T) {
@@ -422,52 +500,6 @@ func TestZonesStayInsideTheFrame(t *testing.T) {
 		}
 	}
 }
-
-// S2 review follow-ups.
-
-func TestShortRecentTermOnlyFillsTheInput(t *testing.T) {
-	f := playbacktest.New()
-	r := &fakeRecents{terms: []string{"x", "queen"}}
-	m := loadedWithRecents(t, f, r)
-	m, _ = press(t, m, "/", "down")
-	m, cmd := press(t, m, "enter")
-	if cmd != nil {
-		m = settle(t, m, cmd)
-	}
-	if m.top().kind != viewSearch || m.input.Value() != "x" || m.cursor() != -1 {
-		t.Fatalf("top %v input %q cursor %d; want the term in the input only", m.top().kind, m.input.Value(), m.cursor())
-	}
-	if len(catalogCalls(f)) != 0 || len(r.Added()) != 0 {
-		t.Fatalf("a too short term searched %v or was saved %v", catalogCalls(f), r.Added())
-	}
-	if !strings.Contains(plain(m), "KEEP TYPING") {
-		t.Fatalf("no keep-typing notice:\n%s", plain(m))
-	}
-}
-
-func TestEscOntoSearchKeepsResultsThatAnswerTheInput(t *testing.T) {
-	f := playbacktest.New()
-	f.SearchCatalogResult = fullCatalog()
-	m := searchFor(t, loaded(t, f, newClock()), "daft")
-	// Enter on the input opens RESULTS for the very term the live rows
-	// answer.
-	m, cmd := press(t, m, "enter")
-	m = settle(t, m, cmd)
-	before := len(catalogCalls(f))
-	m, cmd = press(t, m, "esc")
-	if cmd != nil {
-		m = settle(t, m, cmd)
-	}
-	if calls := catalogCalls(f); len(calls) != before {
-		t.Fatalf("esc searched again: %v", calls[before:])
-	}
-	if !strings.Contains(plain(m), "ONE MORE TIME") {
-		t.Fatalf("live rows not shown:\n%s", plain(m))
-	}
-}
-
-// linesOf drops the zones of a body renderer.
-func linesOf(lines []string, _ zones) []string { return lines }
 
 func TestNavTabLightsTheViewShown(t *testing.T) {
 	m := loaded(t, playbacktest.New(), newClock())

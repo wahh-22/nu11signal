@@ -147,6 +147,10 @@ type Model struct {
 	status      string
 	statusUntil time.Time
 
+	// pressGuardUntil ignores left presses until then, after one that
+	// changed the view (see doubleClickGuard).
+	pressGuardUntil time.Time
+
 	frame  uint64
 	bars   eq
 	glitch int
