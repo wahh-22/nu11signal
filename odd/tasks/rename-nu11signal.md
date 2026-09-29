@@ -80,7 +80,7 @@ Route: delegated (one writer; writer trigger: 2+ non-trivial files).
 - [x] B1 — `bump-cask.sh --push`: detect and push a bump commit left unpushed after an earlier failed push (tap ahead of origin); narrow the dirty-check exclusion to exactly `Casks/nu11signal.rb`. Route: delegated (writer trigger). Commit `c781f18`.
 - [x] B2 — `release.sh`: promote into `dist/` as a single atomic step (one directory rename per version instead of several separate moves), so an interruption never leaves a half-promoted release. Route: delegated (writer trigger). Commit `1fb0c6c`.
 - [x] B3 — Script tests: a hermetic test harness for `bump-cask.sh` and `release.sh` (stubbed `brew`/`git`/`xcrun`/`codesign` on PATH, temp dirs), runnable from `make test`. Route: delegated (writer trigger). Harness and release tests in `1fb0c6c`, bump-cask tests in `c781f18`.
-- [ ] B4 — Rename the local working directory `~/wahh22/soul-king` → `~/wahh22/nu11signal` (last step; the session must be restarted in the new path).
+- [x] B4 — Rename the local working directory `~/wahh22/soul-king` → `~/wahh22/nu11signal` (last step; the session must be restarted in the new path).
 
 Route: delegated (one writer, B1–B3); B4 inline, last.
 
@@ -95,6 +95,8 @@ Route: delegated (one writer, B1–B3); B4 inline, last.
 - Local `dist/` migrated to `dist/v0.1.0/` and `dist/v0.2.0/` (content hash unchanged); `make cask VERSION=0.2.0` reads the new path.
 - B1–B3 native review (range `c2b6003..HEAD`): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-d70bd4536c0dc4d0`). Remaining minor advisories (not scheduled): `bump-cask.sh` net-diff guard wording and its tests for the unpushed-bump guards (114-129); upstream check ordering after pull (102-103); the `--force` backup window (release.sh:179-180).
 
+- PR #6 merged (main `a481ba2`). B4: local directory renamed to `~/wahh22/nu11signal`; git/remote/profiles/dist intact; `go build` + `make test` (Swift 33, scripts 23, Go) pass from the new path.
+
 ## Next step
 
-PR + merge, then B4 (rename the local directory).
+Done.
