@@ -194,14 +194,23 @@ func answer(id, cmd string) {
 	case "authorize":
 		ok(id, map[string]any{"status": "authorized"})
 	case "searchCatalog":
+		artist := map[string]any{"id": "a1", "name": "Daft Punk", "genres": []any{"Electronic", "Dance"}}
+		album := map[string]any{"id": "al1", "title": "Discovery", "artist": "Daft Punk", "year": 2001, "trackCount": 14}
+		song := map[string]any{"id": "s1", "title": "One More Time", "artist": "Daft Punk", "album": "Discovery", "duration": 320.5}
+		playlist := map[string]any{"id": "pl1", "name": "Daft Punk Essentials", "curator": "Apple Music Electronic"}
 		ok(id, map[string]any{
 			"suggestions": []any{"daft punk", "daft punk discovery"},
-			"artists": []any{
-				map[string]any{"id": "a1", "name": "Daft Punk", "genres": []any{"Electronic", "Dance"}},
+			"top": []any{
+				map[string]any{"kind": "artist", "artist": artist},
+				map[string]any{"kind": "station", "station": map[string]any{"id": "st1"}},
+				map[string]any{"kind": "song", "song": song},
+				map[string]any{"kind": "album", "album": album},
+				map[string]any{"kind": "playlist", "playlist": playlist},
 			},
-			"songs": []any{
-				map[string]any{"id": "s1", "title": "One More Time", "artist": "Daft Punk", "album": "Discovery", "duration": 320.5},
-			},
+			"artists":   []any{artist},
+			"albums":    []any{album},
+			"songs":     []any{song},
+			"playlists": []any{playlist},
 		})
 	case "artist":
 		album := func(id, title string, year, tracks int) map[string]any {
@@ -269,8 +278,16 @@ func answerSparseCatalog(id string, term any) {
 		ok(id, map[string]any{})
 	case "sparse":
 		ok(id, map[string]any{
-			"artists": []any{map[string]any{"id": "a1", "name": "Daft Punk"}},
-			"songs":   []any{map[string]any{"id": "s1", "title": "One More Time"}},
+			"top": []any{
+				map[string]any{"artist": map[string]any{"id": "a1"}},
+				map[string]any{"kind": "album"},
+				map[string]any{"kind": "curator", "curator": map[string]any{"id": "c1"}},
+				map[string]any{"kind": "song", "song": map[string]any{"id": "s1", "title": "One More Time"}},
+			},
+			"artists":   []any{map[string]any{"id": "a1", "name": "Daft Punk"}},
+			"albums":    []any{map[string]any{"id": "al1", "title": "Discovery"}},
+			"songs":     []any{map[string]any{"id": "s1", "title": "One More Time"}},
+			"playlists": []any{map[string]any{"id": "pl1", "name": "Mix"}},
 		})
 	default:
 		fail(id, "catalog unavailable")

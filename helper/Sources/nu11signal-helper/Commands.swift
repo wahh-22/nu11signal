@@ -82,21 +82,40 @@ final class CommandHandler {
         return ["status": status]
     }
 
-    /// Mixed catalog search, as Apple Music shows it: term suggestions, then
-    /// artists and songs. `limit` applies to each result type. Suggestions
-    /// are best effort: when that request fails the command still succeeds
-    /// with an empty list.
+    /// Mixed catalog search, as Apple Music shows it: term suggestions, the
+    /// top results across kinds, then artists, albums, songs and playlists.
+    /// `limit` applies to each result type; top results stop at
+    /// `topResultLimit`. Suggestions are best effort: when that request
+    /// fails the command still succeeds with an empty list.
     private func searchCatalog(_ request: Request) async throws -> JSONObject {
         let query = try CatalogSearchQuery(request)
-        var search = MusicCatalogSearchRequest(term: query.term, types: [Artist.self, Song.self])
+        var search = MusicCatalogSearchRequest(
+            term: query.term, types: [Artist.self, Album.self, Song.self, Playlist.self])
         search.limit = query.limit
+        search.includeTopResults = true
         async let suggestions = suggestionTerms(for: query.term, limit: query.suggestionLimit)
         let response = try await search.response()
         return [
             "suggestions": await suggestions,
+            "top": Array(response.topResults.compactMap(topResultJSON).prefix(query.topResultLimit)),
             "artists": response.artists.map(artistJSON),
+            "albums": response.albums.map(albumJSON),
             "songs": response.songs.map(songJSON),
+            "playlists": response.playlists.map(catalogPlaylistJSON),
         ]
+    }
+
+    /// A top result as {"kind": ..., "<kind>": {...}}; nil for the kinds the
+    /// UI cannot open (stations, music videos, curators, radio shows,
+    /// record labels, and any added later).
+    private func topResultJSON(_ result: MusicCatalogSearchResponse.TopResult) -> JSONObject? {
+        switch result {
+        case .artist(let artist): return ["kind": "artist", "artist": artistJSON(artist)]
+        case .album(let album): return ["kind": "album", "album": albumJSON(album)]
+        case .song(let song): return ["kind": "song", "song": songJSON(song)]
+        case .playlist(let playlist): return ["kind": "playlist", "playlist": catalogPlaylistJSON(playlist)]
+        default: return nil
+        }
     }
 
     private func suggestionTerms(for term: String, limit: Int) async -> [String] {

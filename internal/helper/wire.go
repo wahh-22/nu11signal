@@ -58,9 +58,22 @@ type wireArtist struct {
 }
 
 type searchCatalogResult struct {
-	Suggestions []string     `json:"suggestions"`
-	Artists     []wireArtist `json:"artists"`
-	Songs       []wireSong   `json:"songs"`
+	Suggestions []string              `json:"suggestions"`
+	Top         []wireSearchItem      `json:"top"`
+	Artists     []wireArtist          `json:"artists"`
+	Albums      []wireAlbum           `json:"albums"`
+	Songs       []wireSong            `json:"songs"`
+	Playlists   []wireCatalogPlaylist `json:"playlists"`
+}
+
+// wireSearchItem is a top search result: {"kind":"artist","artist":{...}},
+// and likewise for album, song and playlist.
+type wireSearchItem struct {
+	Kind     string               `json:"kind"`
+	Artist   *wireArtist          `json:"artist"`
+	Album    *wireAlbum           `json:"album"`
+	Song     *wireSong            `json:"song"`
+	Playlist *wireCatalogPlaylist `json:"playlist"`
 }
 
 type wireAlbum struct {
@@ -175,14 +188,41 @@ func (a wireArtist) toDomain() playback.Artist {
 
 // toDomain keeps lists the helper omitted nil.
 func (r searchCatalogResult) toDomain() playback.SearchResults {
-	res := playback.SearchResults{Suggestions: r.Suggestions}
+	res := playback.SearchResults{Suggestions: r.Suggestions, Albums: albums(r.Albums)}
+	for _, it := range r.Top {
+		if item, ok := it.toDomain(); ok {
+			res.Top = append(res.Top, item)
+		}
+	}
 	for _, a := range r.Artists {
 		res.Artists = append(res.Artists, a.toDomain())
 	}
 	for _, s := range r.Songs {
 		res.Songs = append(res.Songs, s.toDomain())
 	}
+	for _, p := range r.Playlists {
+		res.Playlists = append(res.Playlists, p.toDomain())
+	}
 	return res
+}
+
+// toDomain converts a top result; ok is false for a kind the UI cannot
+// open, or one without its payload.
+func (it wireSearchItem) toDomain() (item playback.SearchItem, ok bool) {
+	item.Kind = playback.SearchItemKind(it.Kind)
+	switch {
+	case item.Kind == playback.ItemArtist && it.Artist != nil:
+		item.Artist = it.Artist.toDomain()
+	case item.Kind == playback.ItemAlbum && it.Album != nil:
+		item.Album = it.Album.toDomain()
+	case item.Kind == playback.ItemSong && it.Song != nil:
+		item.Song = it.Song.toDomain()
+	case item.Kind == playback.ItemPlaylist && it.Playlist != nil:
+		item.Playlist = it.Playlist.toDomain()
+	default:
+		return playback.SearchItem{}, false
+	}
+	return item, true
 }
 
 func (a wireAlbum) toDomain() playback.Album {

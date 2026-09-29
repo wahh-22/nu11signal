@@ -55,12 +55,23 @@ func TestSearchCatalogRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchCatalog: %v", err)
 	}
+	daftPunk := playback.Artist{ID: "a1", Name: "Daft Punk", Genres: []string{"Electronic", "Dance"}}
+	discovery := playback.Album{ID: "al1", Title: "Discovery", Artist: "Daft Punk", Year: 2001, TrackCount: 14}
+	oneMoreTime := playback.Song{ID: "s1", Title: "One More Time", Artist: "Daft Punk", Album: "Discovery", Duration: 320*time.Second + 500*time.Millisecond}
+	essentials := playback.CatalogPlaylist{ID: "pl1", Name: "Daft Punk Essentials", Curator: "Apple Music Electronic"}
 	want := playback.SearchResults{
 		Suggestions: []string{"daft punk", "daft punk discovery"},
-		Artists:     []playback.Artist{{ID: "a1", Name: "Daft Punk", Genres: []string{"Electronic", "Dance"}}},
-		Songs: []playback.Song{
-			{ID: "s1", Title: "One More Time", Artist: "Daft Punk", Album: "Discovery", Duration: 320*time.Second + 500*time.Millisecond},
+		// The station top result is a kind the UI cannot open: dropped.
+		Top: []playback.SearchItem{
+			{Kind: playback.ItemArtist, Artist: daftPunk},
+			{Kind: playback.ItemSong, Song: oneMoreTime},
+			{Kind: playback.ItemAlbum, Album: discovery},
+			{Kind: playback.ItemPlaylist, Playlist: essentials},
 		},
+		Artists:   []playback.Artist{daftPunk},
+		Albums:    []playback.Album{discovery},
+		Songs:     []playback.Song{oneMoreTime},
+		Playlists: []playback.CatalogPlaylist{essentials},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("SearchCatalog = %+v; want %+v", got, want)
@@ -75,7 +86,7 @@ func TestSearchCatalogToleratesMissingFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchCatalog(empty): %v", err)
 	}
-	if len(empty.Suggestions) != 0 || len(empty.Artists) != 0 || len(empty.Songs) != 0 {
+	if !reflect.DeepEqual(empty, playback.SearchResults{}) {
 		t.Fatalf("SearchCatalog(empty) = %+v; want no results", empty)
 	}
 
@@ -91,6 +102,18 @@ func TestSearchCatalogToleratesMissingFields(t *testing.T) {
 	}
 	if len(sparse.Songs) != 1 || sparse.Songs[0] != (playback.Song{ID: "s1", Title: "One More Time"}) {
 		t.Errorf("Songs = %+v", sparse.Songs)
+	}
+	if len(sparse.Albums) != 1 || sparse.Albums[0] != (playback.Album{ID: "al1", Title: "Discovery"}) {
+		t.Errorf("Albums = %+v", sparse.Albums)
+	}
+	if len(sparse.Playlists) != 1 || sparse.Playlists[0] != (playback.CatalogPlaylist{ID: "pl1", Name: "Mix"}) {
+		t.Errorf("Playlists = %+v", sparse.Playlists)
+	}
+	// Top results without a kind, of an unknown kind or without their
+	// payload are dropped; the rest keep their order.
+	wantTop := []playback.SearchItem{{Kind: playback.ItemSong, Song: playback.Song{ID: "s1", Title: "One More Time"}}}
+	if !reflect.DeepEqual(sparse.Top, wantTop) {
+		t.Errorf("Top = %+v; want %+v", sparse.Top, wantTop)
 	}
 }
 

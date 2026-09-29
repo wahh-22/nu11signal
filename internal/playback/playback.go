@@ -23,12 +23,37 @@ type Artist struct {
 	Genres []string
 }
 
-// SearchResults is a mixed catalog search: term suggestions to refine the
-// query, then matching artists and songs, each in relevance order.
+// SearchResults is a mixed catalog search, as Apple Music shows it: term
+// suggestions to refine the query, the top results across every kind, then
+// matching artists, albums, songs and playlists, each in relevance order.
 type SearchResults struct {
 	Suggestions []string
+	Top         []SearchItem
 	Artists     []Artist
+	Albums      []Album
 	Songs       []Song
+	Playlists   []CatalogPlaylist
+}
+
+// SearchItemKind names what a SearchItem is.
+type SearchItemKind string
+
+// Kinds of top search results.
+const (
+	ItemArtist   SearchItemKind = "artist"
+	ItemAlbum    SearchItemKind = "album"
+	ItemSong     SearchItemKind = "song"
+	ItemPlaylist SearchItemKind = "playlist"
+)
+
+// SearchItem is one top search result: Kind says which of the other fields
+// holds it; the rest stay zero.
+type SearchItem struct {
+	Kind     SearchItemKind
+	Artist   Artist
+	Album    Album
+	Song     Song
+	Playlist CatalogPlaylist
 }
 
 // Album is a catalog album, single or compilation.
