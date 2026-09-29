@@ -321,6 +321,12 @@ func (m Model) top() frame { return m.stack[len(m.stack)-1] }
 
 func (m Model) cursor() int { return m.top().cursor }
 
+// stationCursor is the selected station: the cursor of the stations root,
+// whatever view is on top.
+func (m Model) stationCursor() int { return m.stack[0].cursor }
+
+func (m *Model) setStationCursor(c int) { m.setCursorAt(0, c) }
+
 // The stack helpers copy the stack before changing it: Models are values,
 // and an older copy must never see a newer one's navigation.
 

@@ -133,6 +133,11 @@ func TestRunHelperStartFailureExitsOne(t *testing.T) {
 }
 
 func TestRunPlaysThroughHelperAndClosesIt(t *testing.T) {
+	// The recent-searches file lives in the user's config directory; point
+	// it at a temporary home so the test never depends on the host's.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", home)
 	e := newTestEnv(t)
 	player := &fakePlayer{}
 	e.d.locateHelper = func() (string, error) { return "/opt/helper", nil }

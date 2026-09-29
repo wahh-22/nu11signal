@@ -20,11 +20,14 @@ type searchState struct {
 	// seq numbers input edits and immediate searches; debounce ticks and
 	// answers carrying an older number are dropped.
 	seq uint64
-	// term is the term the shown results (or err) answer; empty when none.
+	// term is the term the results (or err) answer; empty when none. They
+	// are shown only while the input still reads term.
 	term    string
 	results playback.SearchResults
 	err     error
 	loading bool
+	// cancel cancels the search in flight; nil when none.
+	cancel context.CancelFunc
 }
 
 // Messages of the search view.
@@ -100,12 +103,17 @@ func (m *Model) remember(term string) tea.Cmd {
 // an empty query (showing recent terms); otherwise the last query and its
 // results come back.
 func (m Model) openSearch(fresh bool) (tea.Model, tea.Cmd) {
+	var search tea.Cmd
 	if fresh {
+		m.stopSearch()
 		m.input.Reset()
-		m.search = searchState{seq: m.search.seq + 1}
+		m.search = searchState{seq: m.search.seq}
+	} else if term := m.inputTerm(); longEnough(term) && term != m.search.term {
+		// Leaving the view stopped the search for this term; resume it.
+		search = m.startSearch(term)
 	}
 	m.push(frame{kind: viewSearch, cursor: -1})
-	return m, m.input.Focus()
+	return m, tea.Batch(m.input.Focus(), search)
 }
 
 // handleSearchKey handles keys while the search view is on top. Text keys
@@ -113,10 +121,12 @@ func (m Model) openSearch(fresh bool) (tea.Model, tea.Cmd) {
 func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keyEsc:
+		m.stopSearch()
 		m.pop()
 		m.input.Blur()
 		return m, nil
 	case keyTab:
+		m.stopSearch()
 		m.popToRoot()
 		m.input.Blur()
 		return m, nil
@@ -138,12 +148,13 @@ func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmd, m.inputChanged())
 }
 
-// inputChanged invalidates pending searches and, for a long enough term,
-// schedules a new one after the debounce delay.
+// inputChanged stops the pending search and, for a long enough term,
+// schedules a new one after the debounce delay. Until it answers, the
+// results of the previous term are hidden (see searchRows).
 func (m *Model) inputChanged() tea.Cmd {
-	m.search.seq++
+	m.stopSearch()
 	m.setCursor(-1)
-	if utf8.RuneCountInString(m.inputTerm()) < minSearchRunes {
+	if !longEnough(m.inputTerm()) {
 		m.search = searchState{seq: m.search.seq}
 		return nil
 	}
@@ -153,32 +164,57 @@ func (m *Model) inputChanged() tea.Cmd {
 
 func (m Model) inputTerm() string { return strings.TrimSpace(m.input.Value()) }
 
+// longEnough reports whether term is long enough to search.
+func longEnough(term string) bool { return utf8.RuneCountInString(term) >= minSearchRunes }
+
 func (m Model) onSearchDebounce(msg searchDebounceMsg) (tea.Model, tea.Cmd) {
 	term := m.inputTerm()
-	if msg.seq != m.search.seq || utf8.RuneCountInString(term) < minSearchRunes {
+	if msg.seq != m.search.seq || !longEnough(term) {
 		return m, nil
 	}
 	cmd := m.startSearch(term)
 	return m, cmd
 }
 
-// searchNow searches term without waiting for the debounce delay.
-func (m Model) searchNow(term string) (Model, tea.Cmd) {
-	m.search.seq++
+// searchNow searches the typed term without waiting for the debounce
+// delay; a term too short to search only keeps the keep-typing notice.
+func (m Model) searchNow() (Model, tea.Cmd) {
 	m.setCursor(-1)
+	term := m.inputTerm()
+	if !longEnough(term) {
+		m.stopSearch()
+		m.search = searchState{seq: m.search.seq}
+		return m, nil
+	}
 	cmd := m.startSearch(term)
 	return m, cmd
 }
 
+// startSearch stops the pending search and starts one for term.
 func (m *Model) startSearch(term string) tea.Cmd {
+	m.stopSearch()
+	ctx, cancel := m.ctx()
+	m.search.cancel = cancel
 	m.search.loading = true
 	seq := m.search.seq
+	player := m.player
 	return func() tea.Msg {
-		ctx, cancel := m.ctx()
 		defer cancel()
-		res, err := m.player.SearchCatalog(ctx, term, searchLimit)
+		res, err := player.SearchCatalog(ctx, term, searchLimit)
 		return catalogMsg{seq: seq, term: term, results: res, err: err}
 	}
+}
+
+// stopSearch cancels the search in flight and drops the answers and
+// debounce ticks still on their way. The last results stay, for the term
+// they answer.
+func (m *Model) stopSearch() {
+	if m.search.cancel != nil {
+		m.search.cancel()
+	}
+	m.search.seq++
+	m.search.cancel = nil
+	m.search.loading = false
 }
 
 // onCatalog shows the answer to the latest search; older answers are
@@ -204,20 +240,19 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 	rows := m.searchRows()
 	cur := m.cursor()
 	if cur < 0 || cur >= len(rows) {
-		term := m.inputTerm()
-		if term == "" {
+		if !longEnough(m.inputTerm()) {
 			return m, nil
 		}
-		save := m.remember(term)
-		m, search := m.searchNow(term)
-		return m, tea.Batch(search, save)
+		save := m.remember(m.inputTerm())
+		next, search := m.searchNow()
+		return next, tea.Batch(search, save)
 	}
 	row := rows[cur]
 	switch row.kind {
 	case rowArtist:
 		save := m.remember(m.search.term)
-		m, open := m.openArtist(row.artist)
-		return m, tea.Batch(open, save)
+		next, open := m.openArtist(row.artist)
+		return next, tea.Batch(open, save)
 	case rowSong:
 		save := m.remember(m.search.term)
 		id := row.song.ID
@@ -229,7 +264,7 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 	}
 	m.input.SetValue(row.term)
 	m.input.CursorEnd()
-	return m.searchNow(row.term)
+	return m.searchNow()
 }
 
 // openArtist is where the ARTIST view is to be pushed; until it exists the
@@ -240,17 +275,19 @@ func (m Model) openArtist(a playback.Artist) (Model, tea.Cmd) {
 }
 
 // searchRows lists the selectable rows: recent terms while the input is
-// empty, otherwise the latest results as Apple Music orders them
-// (suggestions, artists, songs).
+// empty, otherwise the results for the typed term as Apple Music orders
+// them (suggestions, artists, songs). Results for another term (the input
+// changed and the new search has not answered yet) are not rows.
 func (m Model) searchRows() []searchRow {
 	var rows []searchRow
-	if m.inputTerm() == "" {
+	term := m.inputTerm()
+	if term == "" {
 		for _, t := range m.recents {
 			rows = append(rows, searchRow{kind: rowRecent, term: t})
 		}
 		return rows
 	}
-	if m.search.term == "" || m.search.err != nil {
+	if !longEnough(term) || term != m.search.term || m.search.err != nil {
 		return nil
 	}
 	res := m.search.results
@@ -268,11 +305,12 @@ func (m Model) searchRows() []searchRow {
 
 // searchCode is the serial code in the search panel's bottom edge.
 func (m Model) searchCode() string {
+	term := m.inputTerm()
 	switch {
-	case m.search.loading:
-		return "SCANNING"
-	case m.inputTerm() == "":
+	case term == "":
 		return fmt.Sprintf("RECENT %02d", len(m.recents))
+	case m.search.loading || (longEnough(term) && term != m.search.term):
+		return "SCANNING"
 	case m.search.err != nil:
 		return "ERR"
 	}
@@ -316,12 +354,12 @@ func (m Model) searchBody(w, h int) []string {
 		if len(rows) == 0 {
 			notice = stDim.Render("NO RECENT SEARCHES")
 		}
-	case utf8.RuneCountInString(term) < minSearchRunes:
-		notice = stDim.Render("KEEP TYPING // 2+ CHARACTERS")
+	case !longEnough(term):
+		notice = stDim.Render(fmt.Sprintf("KEEP TYPING // %d+ CHARACTERS", minSearchRunes))
+	case term != m.search.term:
+		notice = stDim.Render("SCANNING CATALOG...")
 	case m.search.err != nil:
 		notice = stYellow.Render("▲ SCAN FAILED")
-	case m.search.term == "":
-		notice = stDim.Render("SCANNING CATALOG...")
 	case len(rows) == 0:
 		notice = stDim.Render(fmt.Sprintf("NO SIGNAL FOR %q", strings.ToUpper(m.search.term)))
 	}

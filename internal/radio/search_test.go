@@ -1,11 +1,13 @@
 package radio
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -412,5 +414,209 @@ func TestWithoutRecentsStoreSearchStillRemembersInMemory(t *testing.T) {
 	m, _ = press(t, m, "esc", "/")
 	if !strings.Contains(plain(m), "QUEEN") {
 		t.Fatalf("recent term not shown:\n%s", plain(m))
+	}
+}
+
+func TestSearchEnterBelowMinimumOnlyAsksToKeepTyping(t *testing.T) {
+	f := playbacktest.New()
+	r := &fakeRecents{}
+	m := loadedWithRecents(t, f, r)
+	m, _ = press(t, m, "/")
+	m = typeText(t, m, "q")
+	m, cmd := press(t, m, "enter")
+	if cmd != nil {
+		m = settle(t, m, cmd)
+	}
+	if calls := catalogCalls(f); len(calls) != 0 {
+		t.Fatalf("SearchCatalog calls = %v; want none below %d characters", calls, minSearchRunes)
+	}
+	if got := r.Added(); len(got) != 0 {
+		t.Fatalf("recents added = %q; want none", got)
+	}
+	if !strings.Contains(plain(m), "KEEP TYPING") {
+		t.Fatalf("view lacks the keep-typing notice:\n%s", plain(m))
+	}
+}
+
+func TestSearchRowsHiddenBelowMinimumAreNotSelectable(t *testing.T) {
+	f := playbacktest.New()
+	f.SearchCatalogResult = catalog()
+	r := &fakeRecents{terms: []string{"a"}} // stored before the minimum existed
+	m := loadedWithRecents(t, f, r)
+	m, _ = press(t, m, "/", "down")
+	m, cmd := press(t, m, "enter")
+	if cmd != nil {
+		m = settle(t, m, cmd)
+	}
+	if got := m.input.Value(); got != "a" {
+		t.Fatalf("input = %q; want the recent term", got)
+	}
+	if calls := catalogCalls(f); len(calls) != 0 {
+		t.Fatalf("SearchCatalog calls = %v; want none for a one-character term", calls)
+	}
+	// Results for a short term never become rows, even if they are there.
+	m.search = searchState{term: "a", results: catalog()}
+	if rows := m.searchRows(); len(rows) != 0 {
+		t.Fatalf("search rows = %d below the minimum; want none", len(rows))
+	}
+	m, _ = press(t, m, "down")
+	if m.top().cursor != -1 {
+		t.Fatalf("cursor = %d; want the input (-1): no rows are shown", m.top().cursor)
+	}
+}
+
+func TestSearchResultsForAnOlderTermAreNotSelectable(t *testing.T) {
+	f := playbacktest.New()
+	f.SearchCatalogResult = catalog()
+	m := searchFor(t, loaded(t, f, newClock()), "daft")
+
+	// Typing more: the "daft" results no longer answer the input, and the
+	// debounced search has not run yet.
+	m = typeText(t, m, "x")
+	if rows := m.searchRows(); len(rows) != 0 {
+		t.Fatalf("search rows = %d for an older term; want none", len(rows))
+	}
+	view := plain(m)
+	if strings.Contains(view, "ONE MORE TIME") || !strings.Contains(view, "SCANNING") {
+		t.Fatalf("view shows old results instead of scanning:\n%s", view)
+	}
+	m, _ = press(t, m, "down")
+	if m.top().cursor != -1 {
+		t.Fatalf("cursor = %d; want the input (-1)", m.top().cursor)
+	}
+	before := len(f.Calls())
+	m, cmd := press(t, m, "enter")
+	m = settle(t, m, cmd)
+	for _, c := range f.Calls()[before:] {
+		if c.Method == "PlaySongs" {
+			t.Fatal("enter played a result of the older term")
+		}
+	}
+	if calls := catalogCalls(f); calls[len(calls)-1].Args[0] != "daftx" {
+		t.Fatalf("searched %v; want the typed term", calls[len(calls)-1].Args)
+	}
+}
+
+// blockingPlayer hands every SearchCatalog context to the test and blocks
+// until that context is done.
+type blockingPlayer struct {
+	*playbacktest.Fake
+	ctxs chan context.Context
+}
+
+func (p *blockingPlayer) SearchCatalog(ctx context.Context, _ string, _ int) (playback.SearchResults, error) {
+	p.ctxs <- ctx
+	<-ctx.Done()
+	return playback.SearchResults{}, ctx.Err()
+}
+
+func TestInFlightSearchIsCancelled(t *testing.T) {
+	tests := []struct {
+		name string
+		act  func(t *testing.T, m Model) Model
+	}{
+		{"by a newer search", func(t *testing.T, m Model) Model {
+			m = typeText(t, m, "x")
+			m, _ = press(t, m, "enter")
+			return m
+		}},
+		{"by typing on", func(t *testing.T, m Model) Model { return typeText(t, m, "x") }},
+		{"when the term drops below the minimum", func(t *testing.T, m Model) Model {
+			m, _ = press(t, m, "backspace", "backspace", "backspace")
+			return m
+		}},
+		{"by esc", func(t *testing.T, m Model) Model {
+			m, _ = press(t, m, "esc")
+			return m
+		}},
+		{"by tab to the stations", func(t *testing.T, m Model) Model {
+			m, _ = press(t, m, "tab")
+			return m
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := playbacktest.New()
+			f.PlaylistsResult = stations()
+			p := &blockingPlayer{Fake: f, ctxs: make(chan context.Context, 4)}
+			m := New(p, Options{Now: newClock().now, Seed: 2077})
+			m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+			m, _ = press(t, m, "/")
+			m = typeText(t, m, "daft")
+			m, cmd := press(t, m, "enter")
+			done := make(chan tea.Msg, 4)
+			launch(cmd, done)
+			var ctx context.Context
+			select {
+			case ctx = <-p.ctxs:
+			case <-time.After(2 * time.Second):
+				t.Fatal("the search never reached the player")
+			}
+
+			m = tt.act(t, m)
+			select {
+			case <-ctx.Done():
+			case <-time.After(2 * time.Second):
+				t.Fatal("the superseded search was not cancelled")
+			}
+			if !errors.Is(ctx.Err(), context.Canceled) {
+				t.Fatalf("ctx err = %v; want cancelled", ctx.Err())
+			}
+			// The cancelled answer is dropped, not reported as a failure.
+			for answered := false; !answered; {
+				select {
+				case msg := <-done:
+					_, answered = msg.(catalogMsg)
+					m, _ = step(t, m, msg)
+				case <-time.After(2 * time.Second):
+					t.Fatal("the cancelled search never answered")
+				}
+			}
+			if strings.Contains(m.status, "SCAN FAILED") {
+				t.Fatalf("a cancelled search was reported: %q", m.status)
+			}
+		})
+	}
+}
+
+// launch runs cmd, and every command of a batch, in the background and
+// sends their messages to out, so that a blocking command does not stall
+// the test.
+func launch(cmd tea.Cmd, out chan<- tea.Msg) {
+	if cmd == nil {
+		return
+	}
+	go func() {
+		msg := cmd()
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				launch(c, out)
+			}
+			return
+		}
+		out <- msg
+	}()
+}
+
+func TestReturningToAStoppedSearchResumesIt(t *testing.T) {
+	f := playbacktest.New()
+	f.SearchCatalogResult = catalog()
+	m := loaded(t, f, newClock())
+	m, _ = press(t, m, "/")
+	m = typeText(t, m, "daft")
+	// Leave before the debounced search runs: tab stops it.
+	pending := searchDebounceMsg{seq: m.search.seq}
+	m, _ = press(t, m, "tab")
+	m, cmd := step(t, m, pending)
+	if cmd != nil {
+		t.Fatal("a debounce from before leaving started a search")
+	}
+	m, cmd = press(t, m, "tab")
+	m = settle(t, m, cmd)
+	if calls := catalogCalls(f); len(calls) != 1 || calls[0].Args[0] != "daft" {
+		t.Fatalf("SearchCatalog calls = %v; want the stopped search resumed", calls)
+	}
+	if !strings.Contains(plain(m), "ONE MORE TIME") {
+		t.Fatalf("resumed search not shown:\n%s", plain(m))
 	}
 }

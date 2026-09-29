@@ -85,7 +85,8 @@ func (m Model) renderCompact() []string {
 	lines = append(lines, stFrameDim.Render(strings.Repeat("─", w)))
 	listH := m.height - len(lines) - 2
 	if listH > 0 {
-		lines = append(lines, m.listRows(w, listH)...)
+		_, _, body := m.listView(w, listH)
+		lines = append(lines, body...)
 		for len(lines) < m.height-2 {
 			lines = append(lines, "")
 		}
@@ -255,20 +256,19 @@ func (m Model) feedLine() string {
 	return stDim.Render("▞ ---.- MHZ // NO FEED")
 }
 
+// listPanel frames the view on top of the navigation stack.
 func (m Model) listPanel(w, h int) []string {
-	if m.top().kind == viewSearch {
-		return panel("SEARCH", m.searchCode(), m.searchBody(w-2, h-2), w, h, true)
-	}
-	code := fmt.Sprintf("BAND FM // %02d CH", len(m.stations))
-	return panel("STATIONS", code, m.stationRows(w-2, h-2), w, h, true)
+	title, code, body := m.listView(w-2, h-2)
+	return panel(title, code, body, w, h, true)
 }
 
-// listRows renders the body of the view on top of the navigation stack.
-func (m Model) listRows(w, h int) []string {
+// listView is the one dispatch on the view on top of the navigation stack:
+// its panel title and code, and its body rendered in w x h cells.
+func (m Model) listView(w, h int) (title, code string, body []string) {
 	if m.top().kind == viewSearch {
-		return m.searchBody(w, h)
+		return "SEARCH", m.searchCode(), m.searchBody(w, h)
 	}
-	return m.stationRows(w, h)
+	return "STATIONS", fmt.Sprintf("BAND FM // %02d CH", len(m.stations)), m.stationRows(w, h)
 }
 
 // stationRows renders the visible window of the station list, scrolled so
@@ -287,7 +287,7 @@ func (m Model) stationRows(w, h int) []string {
 		}
 		return []string{" " + stDim.Render(msg)}
 	}
-	cur := m.stack[0].cursor
+	cur := m.stationCursor()
 	offset := max(0, cur-h+1)
 	rows := make([]string, 0, h)
 	for i := offset; i < n && len(rows) < h; i++ {

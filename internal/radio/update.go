@@ -34,7 +34,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.stationsFailed = false
 		m.stations = msg.playlists
-		m.setCursorAt(0, min(m.stack[0].cursor, max(len(m.stations)-1, 0)))
+		m.setStationCursor(min(m.stationCursor(), max(len(m.stations)-1, 0)))
 		return m, nil
 	case recentsMsg:
 		return m.onRecents(msg), nil
@@ -158,6 +158,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// tab returns to the last search; inside it, tab comes back here.
 		return m.openSearch(false)
 	case keyEsc:
+		// Back navigation for the browse views pushed over the stations
+		// (artist, album); on the stations root there is nothing to pop.
 		m.pop()
 	case keyRetry:
 		if m.stationsFailed {
@@ -171,7 +173,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // moveCursor moves the stations cursor, the only list handleKey drives.
 func (m *Model) moveCursor(delta int) {
-	m.setCursor(max(0, min(m.cursor()+delta, len(m.stations)-1)))
+	m.setStationCursor(max(0, min(m.stationCursor()+delta, len(m.stations)-1)))
 }
 
 // playSelection tunes the selected station.
@@ -179,7 +181,7 @@ func (m Model) playSelection() (tea.Model, tea.Cmd) {
 	if len(m.stations) == 0 {
 		return m, nil
 	}
-	id := m.stations[m.cursor()].ID
+	id := m.stations[m.stationCursor()].ID
 	m.playSeq++
 	return m, m.playCmd(m.playSeq, "TUNE", id, func(ctx context.Context) error {
 		return m.player.PlayPlaylist(ctx, id)
