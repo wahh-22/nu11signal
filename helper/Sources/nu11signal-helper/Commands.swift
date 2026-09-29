@@ -311,17 +311,35 @@ final class CommandHandler {
             matching: \.id, memberOf: ids.map { MusicItemID($0) }
         )
         let found = try await lookup.response().items
-        // The catalog may return songs in any order; keep the requested order.
-        let byID = Dictionary(found.map { ($0.id.rawValue, $0) }, uniquingKeysWith: { first, _ in first })
-        let songs = ids.compactMap { byID[$0] }
-        let missing = ids.filter { byID[$0] == nil }
-        guard !songs.isEmpty else {
-            throw CommandError("none of the requested songs were found in the catalog: \(missing.joined(separator: ", "))")
+        // The catalog may return songs in any order; SongQueue restores the
+        // requested one and turns startIndex into a position in the queue.
+        let queue = try SongQueue(ids: ids, found: Array(found), id: \.id.rawValue, startIndex: startIndex)
+        try await play(queue.items, from: queue.start)
+        return queue.missing.isEmpty ? [:] : ["missing": queue.missing]
+    }
+
+    /// Replaces the queue with songs and plays from `songs[start]`.
+    ///
+    /// Each song gets its own queue entry and the start is named as that
+    /// entry, so the player never has to find the start by matching a song
+    /// (`Queue(for:startingAt:)` does, and a song listed twice matches its
+    /// first copy). If the player still refuses with "unexpected start
+    /// item" (see QueueStart), a transient failure seen right after the
+    /// queue is replaced, playback is stopped and a freshly built queue is
+    /// tried exactly once more; any other error, or a second failure, is
+    /// reported. Both attempts share the command's `playbackTimeout`.
+    private func play(_ songs: [Song], from start: Int) async throws {
+        func startQueue() async throws {
+            let entries = songs.map { MusicPlayer.Queue.Entry($0) }
+            player.queue = ApplicationMusicPlayer.Queue(entries, startingAt: entries[start])
+            try await player.play()
         }
-        let start = ids[startIndex...].lazy.compactMap { byID[$0] }.first ?? songs[0]
-        player.queue = ApplicationMusicPlayer.Queue(for: songs, startingAt: start)
-        try await player.play()
-        return missing.isEmpty ? [:] : ["missing": missing]
+        do {
+            try await startQueue()
+        } catch where QueueStart.isUnexpectedStartItem(error) {
+            player.stop()
+            try await startQueue()
+        }
     }
 
     /// A library playlist page: its songs in order, with library ids (music
@@ -346,18 +364,26 @@ final class CommandHandler {
 
     /// Plays a library playlist from its first entry or, with `startIndex`,
     /// from that song of the list `libraryPlaylist` returns.
+    ///
+    /// With a start, the queue is built from exactly that song list (see
+    /// `play`) instead of `Queue(playlist:startingAt:)`. That initializer was
+    /// observed to start at the first entry whatever entry it was given (the
+    /// playlist comes from `MusicLibraryRequest` without its entries, which
+    /// the player then resolves on its own). A queue of the listed songs
+    /// makes the index mean the same song by construction; the queue is a
+    /// list of the playlist's songs rather than the playlist itself.
     private func playPlaylist(_ request: Request) async throws -> JSONObject {
         let id = try request.requiredID("playlistId")
         let start = try PlaylistStart.index(request)
         let playlist = try await Self.libraryPlaylist(id: id)
-        if let start {
-            let songs = try await Self.songEntries(of: playlist)
-            let entry = try PlaylistStart.item(in: songs, at: start).entry
-            player.queue = ApplicationMusicPlayer.Queue(playlist: playlist, startingAt: entry)
-        } else {
+        guard let start else {
             player.queue = [playlist]
+            try await player.play()
+            return [:]
         }
-        try await player.play()
+        let songs = try await Self.songEntries(of: playlist).map(\.song)
+        _ = try PlaylistStart.item(in: songs, at: start)
+        try await play(songs, from: start)
         return [:]
     }
 

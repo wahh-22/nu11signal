@@ -102,6 +102,26 @@ func TestSearchAndPlaySongs(t *testing.T) {
 	waitState(t, p, func(s playback.State) bool { return s.SongID == songs[0].ID && s.Status == playback.StatusPlaying })
 }
 
+// TestPlaySongsStartsAtThePosition pins the helper contract that start is a
+// position in ids, not a song: a song listed twice starts at the chosen copy.
+func TestPlaySongsStartsAtThePosition(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	res, err := p.SearchCatalog(ctx, "e", 25)
+	if err != nil || len(res.Songs) < 3 {
+		t.Fatalf("SearchCatalog = %d songs, %v; want at least 3", len(res.Songs), err)
+	}
+	a, b, c := res.Songs[0].ID, res.Songs[1].ID, res.Songs[2].ID
+	if err := p.PlaySongs(ctx, []string{a, b, a, c}, 2); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, p, func(s playback.State) bool { return s.SongID == a && s.Status == playback.StatusPlaying })
+	if err := p.Next(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, p, func(s playback.State) bool { return s.SongID == c })
+}
+
 // TestSearchCatalogFollowsHelperContract pins the edges the helper enforces:
 // a blank term is an error and limit is clamped to 1...25.
 func TestSearchCatalogFollowsHelperContract(t *testing.T) {
