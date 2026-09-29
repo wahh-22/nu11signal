@@ -197,8 +197,13 @@ the version and the sha256 from `dist/v0.2.0/nu11signal-0.2.0-macos-universal.ta
 and writes `Casks/nu11signal.rb` in a checkout of
 [wahh-22/homebrew-tap](https://github.com/wahh-22/homebrew-tap):
 `NU11SIGNAL_TAP_DIR` (default `../homebrew-tap`), cloned when missing and
-fast-forwarded when present. It refuses a checkout with other uncommitted
-changes. Without `PUSH=1` nothing is committed.
+fast-forwarded when present. It refuses a checkout with uncommitted changes or
+untracked files anywhere except `Casks/nu11signal.rb`. Without `PUSH=1` nothing
+is committed, and an unchanged render never creates a commit. If an earlier
+`PUSH=1` committed but the push failed, a rerun reports the unpushed
+`chore: bump nu11signal to 0.2.0` commit, and `PUSH=1` pushes it (after
+checking it matches the render) instead of committing again; any other local
+commit is refused.
 
 `make test-scripts` (part of `make test`) runs hermetic tests for both scripts
 (`scripts/test/`): stubbed `brew`, `xcrun`, `codesign`, `go`, and friends, temp

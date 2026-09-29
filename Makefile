@@ -53,7 +53,7 @@ release: check-version
 release-dry-run: check-version
 	./scripts/release.sh --dry-run $(VERSION)
 
-## cask: render the Homebrew cask for VERSION (sha256 from dist/vVERSION/) into the tap checkout and audit it (PUSH=1 commits and pushes)
+## cask: render the Homebrew cask for VERSION (sha256 from dist/vVERSION/) into the tap checkout and audit it (PUSH=1 commits and pushes, or pushes an earlier unpushed bump)
 cask: check-version
 	./scripts/bump-cask.sh $(VERSION) $(if $(filter 1,$(PUSH)),--push)
 
