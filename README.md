@@ -119,6 +119,7 @@ The first run asks for Apple Music access.
 | `make vet` / `make fmt-check` | `go vet`; fails if `gofmt -l .` lists files |
 | `make release VERSION=x.y.z` | Signed, notarized `dist/nu11signal-x.y.z-macos-universal.tar.gz` (see Releasing) |
 | `make release-dry-run VERSION=x.y.z` | Same layout in `build/release-dry-run/`, ad-hoc signed, not notarized; lists missing release setup |
+| `make cask VERSION=x.y.z` | Renders the Homebrew cask into a tap checkout and audits it; `PUSH=1` commits and pushes (see Releasing) |
 | `make clean` | Removes `bin/` and `build/`; release archives in `dist/` are kept |
 | `make clean-dist` | Removes `dist/` (release archives) |
 
@@ -170,8 +171,21 @@ notarization is rejected it prints the `xcrun notarytool log` command.
 Overrides: `NU11SIGNAL_SIGN_IDENTITY`, `NU11SIGNAL_PROFILE`,
 `NU11SIGNAL_NOTARY_PROFILE`, `NU11SIGNAL_TEAM_ID`.
 
-Publishing stays manual: tag `v0.2.0`, attach the archive and checksum to a
-GitHub release, and fill `version` and `sha256` in the cask template.
+Publishing: tag `v0.2.0` and attach the archive and checksum to a GitHub
+release. Then update the Homebrew cask:
+
+```sh
+make cask VERSION=0.2.0          # render, ruby -c, brew audit --cask --strict, show the diff
+make cask VERSION=0.2.0 PUSH=1   # same, then commit "chore: bump nu11signal to 0.2.0" and push
+```
+
+`scripts/bump-cask.sh` fills `packaging/homebrew/nu11signal.rb.template` with
+the version and the sha256 from `dist/nu11signal-0.2.0-macos-universal.tar.gz.sha256`
+and writes `Casks/nu11signal.rb` in a checkout of
+[wahh-22/homebrew-tap](https://github.com/wahh-22/homebrew-tap):
+`NU11SIGNAL_TAP_DIR` (default `../homebrew-tap`), cloned when missing and
+fast-forwarded when present. It refuses a checkout with other uncommitted
+changes. Without `PUSH=1` nothing is committed.
 
 ## Keys
 

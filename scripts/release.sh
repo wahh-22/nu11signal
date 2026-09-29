@@ -233,4 +233,4 @@ promote "$NAME" "$ARCHIVE_NAME" "$ARCHIVE_NAME.sha256"
 
 step "Release ready"
 cat "$OUT_DIR/$ARCHIVE_NAME.sha256"
-echo "Next: upload $ARCHIVE_NAME to the v$VERSION GitHub release and put the sha256 in the cask."
+echo "Next: upload $ARCHIVE_NAME to the v$VERSION GitHub release, then run: make cask VERSION=$VERSION"
