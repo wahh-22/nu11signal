@@ -16,20 +16,18 @@ import (
 	"github.com/wahh-22/nu11signal/internal/playback/playbacktest"
 )
 
-// fakeRecents is an in-memory history.Recents that records Add, Remove
-// and Clear calls and can be made to fail.
+// fakeRecents is an in-memory history.Recents that records its writes and
+// can be made to fail. The radio never clears it: Clear is only logged.
 type fakeRecents struct {
 	mu      sync.Mutex
 	terms   []string
 	added   []string
 	removed []string
-	clears  int
 	// ops logs every write in the order the store received it.
 	ops       []string
 	loadErr   error
 	addErr    error
 	removeErr error
-	clearErr  error
 }
 
 func (r *fakeRecents) Load() ([]string, error) {
@@ -57,21 +55,14 @@ func (r *fakeRecents) Remove(term string) error {
 func (r *fakeRecents) Clear() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.clears++
 	r.ops = append(r.ops, "clear")
-	return r.clearErr
+	return nil
 }
 
 func (r *fakeRecents) Removed() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]string(nil), r.removed...)
-}
-
-func (r *fakeRecents) Clears() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.clears
 }
 
 func (r *fakeRecents) Ops() []string {
@@ -651,31 +642,8 @@ func TestDeleteKeysOnTheInputLeaveRecentsAlone(t *testing.T) {
 	}
 }
 
-func TestClearRecentRowClearsEveryTerm(t *testing.T) {
-	r := &fakeRecents{}
-	m := withThreeRecents(t, r)
-	if rows := m.searchRows(); len(rows) != 4 || rows[3].kind != rowClearRecents {
-		t.Fatalf("rows = %+v; want the three terms and CLEAR RECENT last", rows)
-	}
-	m, _ = press(t, m, "down", "down", "down", "down")
-	m, cmd := press(t, m, "enter")
-	if len(m.recents) != 0 || m.cursor() != -1 || m.top().kind != viewSearch {
-		t.Fatalf("recents = %q, cursor = %d, view %v; want none, on the input, still SEARCH", m.recents, m.cursor(), m.top().kind)
-	}
-	if !strings.Contains(plain(m), "RECENT CLEARED") {
-		t.Fatalf("status line lacks the notice:\n%s", plain(m))
-	}
-	m = settle(t, m, cmd)
-	if r.Clears() != 1 {
-		t.Fatalf("store Clear calls = %d; want 1", r.Clears())
-	}
-	if !strings.Contains(plain(m), "NO RECENT SEARCHES") {
-		t.Fatalf("view lacks the empty RECENT state:\n%s", plain(m))
-	}
-}
-
 func TestRecentEditFailuresOnlyShowStatus(t *testing.T) {
-	r := &fakeRecents{removeErr: errors.New("disk full"), clearErr: errors.New("read-only")}
+	r := &fakeRecents{removeErr: errors.New("disk full")}
 	m := withThreeRecents(t, r)
 	m, _ = press(t, m, "down")
 	m, cmd := press(t, m, "delete")
@@ -685,15 +653,6 @@ func TestRecentEditFailuresOnlyShowStatus(t *testing.T) {
 	}
 	if want := []string{"daft punk", "samurai"}; !reflect.DeepEqual(m.recents, want) {
 		t.Fatalf("recents = %q; want %q despite the failure", m.recents, want)
-	}
-	m, _ = press(t, m, "down", "down", "down")
-	m, cmd = press(t, m, "enter")
-	m = settle(t, m, cmd)
-	if !strings.Contains(plain(m), "RECENT CHANGE NOT SAVED // READ-ONLY") {
-		t.Fatalf("status line lacks the clear failure:\n%s", plain(m))
-	}
-	if len(m.recents) != 0 {
-		t.Fatalf("recents = %q; want none despite the failure", m.recents)
 	}
 }
 
@@ -705,9 +664,5 @@ func TestRecentHintsMentionTheDeleteKeyOnARecentRow(t *testing.T) {
 	m, _ = press(t, m, "down")
 	if !strings.Contains(plain(m), "DEL] DROP") {
 		t.Fatalf("footer lacks the delete key on a recent row:\n%s", plain(m))
-	}
-	m, _ = press(t, m, "down", "down", "down") // CLEAR RECENT
-	if strings.Contains(plain(m), "DROP") {
-		t.Fatalf("footer offers DROP on CLEAR RECENT:\n%s", plain(m))
 	}
 }

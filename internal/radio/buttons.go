@@ -57,15 +57,19 @@ func buttonBar(bs []button, w int) (string, zones) {
 }
 
 // navButtons are the STATIONS and SEARCH tabs, the one showing lit, and
-// BACK (esc) above the stations root.
+// BACK (esc) while a page is on top of a root view (the stations or the
+// SEARCH base). The tab the keyboard is on is marked.
 func (m Model) navButtons() []button {
 	onStations := m.top().kind == viewStations
 	bs := []button{
 		{id: zoneTabStations, label: "STATIONS", tone: stRed, active: onStations},
 		{id: zoneTabSearch, label: "SEARCH", tone: stRed, active: !onStations},
 	}
-	if len(m.stack) > 1 {
+	if isPage(m.top().kind) {
 		bs = append(bs, button{id: zoneBack, label: "◀ BACK", tone: stYellow})
+	}
+	if m.focus == areaTabs && m.tab < len(bs) {
+		bs[m.tab].focused = true
 	}
 	return bs
 }

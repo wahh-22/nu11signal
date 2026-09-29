@@ -73,6 +73,23 @@ func playerFocusHints(expanded, typing bool) []hint {
 	}
 }
 
+// tabsFocusHints replace the view's hints while the nav tabs have the
+// focus: ←→ walk the tabs, enter opens one, ↓ or esc go back down. While
+// the view is SEARCH (typing), q types there, so ctrl+c quits.
+func tabsFocusHints(typing bool) []hint {
+	quit := hint{"Q", "QUIT"}
+	if typing {
+		quit.key = "CTRL+C"
+	}
+	return []hint{
+		{"←→", "SELECT"},
+		{"ENTER", "OPEN"},
+		{"↓", "RETURN"},
+		{"SPACE", "PLAY/PAUSE"},
+		quit,
+	}
+}
+
 // artistHints replace playerHints on an artist page: enter plays a top
 // song, opens an album or playlist, or expands the ABOUT notes (MORE).
 var artistHints = []hint{

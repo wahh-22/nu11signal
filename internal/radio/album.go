@@ -21,7 +21,7 @@ const detailCallTimeout = 12 * time.Second
 
 // trackPage is the state of one ALBUM, SONG or PLAYLIST view entry on the
 // navigation stack. A SONG view is the ALBUM view of the album holding a
-// song, with that song highlighted.
+// song, opened with the cursor on that song.
 type trackPage struct {
 	// kind is the page's view: viewAlbum or viewPlaylist.
 	kind viewKind
@@ -71,7 +71,7 @@ func (m Model) openAlbum(a playback.Album) (Model, tea.Cmd) {
 }
 
 // openSong pushes the SONG view for s: the album holding it, with the song
-// highlighted and selected. The search view below keeps its state for esc.
+// selected. The search view below keeps its state for esc.
 func (m Model) openSong(s playback.Song) (Model, tea.Cmd) {
 	m.input.Blur()
 	m.push(frame{kind: viewAlbum})
@@ -120,7 +120,7 @@ func (m *Model) loadTracks(sel trackPage, kind viewKind) tea.Cmd {
 }
 
 // onAlbum fills the album page the answer belongs to, selecting the
-// highlighted song; answers for a page that was left or reloaded are
+// searched song; answers for a page that was left or reloaded are
 // dropped.
 func (m Model) onAlbum(msg albumMsg) Model {
 	return m.settleTracks(viewAlbum, msg.seq, msg.err, func(p *trackPage) {
@@ -181,8 +181,9 @@ func (p trackPage) tracks() []playback.Song {
 }
 
 // highlight is the index of the track the page was opened for (a SONG
-// view), or -1. The catalog id decides; a song from another storefront may
-// carry another id, so an equal title is the fallback.
+// view), or -1; it only places the cursor when the page loads. The catalog
+// id decides; a song from another storefront may carry another id, so an
+// equal title is the fallback.
 func (p trackPage) highlight() int {
 	if p.song.ID == "" {
 		return -1
@@ -195,6 +196,35 @@ func (p trackPage) highlight() int {
 	}
 	for i, s := range songs {
 		if p.song.Title != "" && strings.EqualFold(s.Title, cleanLine(p.song.Title)) {
+			return i
+		}
+	}
+	return -1
+}
+
+// playingIndex is the index of the page's track the player is on (playing
+// or paused), or -1. The catalog id decides; the player may report another
+// id for the same song (a library copy, another storefront), so an equal
+// title and artist is the fallback. A track without an artist of its own
+// (an album track) takes the album's.
+func (m Model) playingIndex(p trackPage) int {
+	if !m.hasState || m.signalLost() || m.state.Title == "" || m.state.Status == playback.StatusStopped {
+		return -1
+	}
+	songs := p.tracks()
+	if id := m.state.SongID; id != "" {
+		for i, s := range songs {
+			if s.ID == id {
+				return i
+			}
+		}
+	}
+	for i, s := range songs {
+		artist := s.Artist
+		if artist == "" {
+			artist = p.albumDetail.Album.Artist
+		}
+		if strings.EqualFold(s.Title, m.state.Title) && strings.EqualFold(artist, m.state.Artist) {
 			return i
 		}
 	}
@@ -250,7 +280,8 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 		lines = append(lines, pageLine{text: render(n == cur), item: n})
 	}
 
-	hi := page.highlight()
+	// ▶ marks the track playing, never the one searched for.
+	on := m.playingIndex(page)
 	var total time.Duration
 	var notes string
 	if f.kind == viewPlaylist {
@@ -258,7 +289,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 		for i, s := range d.Tracks {
 			total += s.Duration
 			item(trackItem{index: i}, func(sel bool) string {
-				return trackLine(i+1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, false, sel, w)
+				return trackLine(i+1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, i == on, sel, w)
 			})
 		}
 		notes = d.Notes
@@ -269,7 +300,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 	} else if page.loneSong() {
 		s := page.song
 		item(trackItem{index: 0}, func(sel bool) string {
-			return trackLine(1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, true, sel, w)
+			return trackLine(1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, on == 0, sel, w)
 		})
 	} else {
 		d := page.albumDetail
@@ -292,7 +323,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 				n = i + 1
 			}
 			item(trackItem{index: i}, func(sel bool) string {
-				return trackLine(n, strings.ToUpper(t.Title), "", t.Duration, i == hi, sel, w)
+				return trackLine(n, strings.ToUpper(t.Title), "", t.Duration, i == on, sel, w)
 			})
 		}
 		notes = d.Notes
@@ -327,11 +358,11 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 }
 
 // trackLine lays out one track row in exactly w cells: the selection mark,
-// a ▶ on the highlighted song, the number, the title with a muted detail
+// a ▶ on the song playing, the number, the title with a muted detail
 // (a playlist track's artist) and the duration at the right edge.
-func trackLine(num int, title, detail string, d time.Duration, highlighted, selected bool, w int) string {
+func trackLine(num int, title, detail string, d time.Duration, playing, selected bool, w int) string {
 	mark := " "
-	if highlighted {
+	if playing {
 		mark = "▶"
 	}
 	number := fmt.Sprintf("%2d", num)
@@ -352,7 +383,7 @@ func trackLine(num int, title, detail string, d time.Duration, highlighted, sele
 		return stSelected.Render(fit("▌"+mark+number+"  "+title+detail+pad+right, w))
 	}
 	titleStyle := stRed
-	if highlighted {
+	if playing {
 		titleStyle = stYellowB
 	}
 	line := " " + stYellow.Render(mark) + stMuted.Render(number) + "  " + titleStyle.Render(title) +

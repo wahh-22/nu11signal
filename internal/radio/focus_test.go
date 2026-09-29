@@ -403,17 +403,16 @@ func TestRecentWritesPersistInIssueOrder(t *testing.T) {
 	r := &fakeRecents{}
 	m := withThreeRecents(t, r)
 	m, _ = press(t, m, "down")
-	m, remove := press(t, m, "delete") // QUEEN
-	m, _ = press(t, m, "down", "down", "down")
-	m, clear := press(t, m, "enter") // CLEAR RECENT
-	if len(m.recents) != 0 {
-		t.Fatalf("recents %q; want cleared", m.recents)
+	m, first := press(t, m, "delete")  // QUEEN
+	m, second := press(t, m, "delete") // DAFT PUNK
+	if want := []string{"samurai"}; !reflect.DeepEqual(m.recents, want) {
+		t.Fatalf("recents %q; want %q", m.recents, want)
 	}
-	// The commands run in the opposite order; the store still sees the
-	// remove before the clear.
-	m = settle(t, m, clear)
-	m = settle(t, m, remove)
-	if want := []string{"remove:queen", "clear"}; !reflect.DeepEqual(r.Ops(), want) {
+	// The commands run in the opposite order; the store still sees them
+	// in the order they were issued.
+	m = settle(t, m, second)
+	m = settle(t, m, first)
+	if want := []string{"remove:queen", "remove:daft punk"}; !reflect.DeepEqual(r.Ops(), want) {
 		t.Fatalf("store ops %q; want %q", r.Ops(), want)
 	}
 	if strings.Contains(plain(m), "NOT SAVED") {

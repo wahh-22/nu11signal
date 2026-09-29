@@ -142,6 +142,16 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.quitCmd()
 	}
 	if m.auth != authFailed {
+		if m.focus == areaTabs {
+			if next, cmd, ok := m.handleTabsKey(k); ok {
+				return next, cmd
+			}
+			// Any other key belongs to the area the tabs took the focus
+			// from, which takes it back.
+			back := m.leaveTabs()
+			next, cmd := m.handleKey(msg)
+			return next, tea.Batch(back, cmd)
+		}
 		if m.focus == areaPlayer {
 			if next, cmd, ok := m.handlePlayerKey(k); ok {
 				return next, cmd
@@ -180,6 +190,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyQuit:
 		return m, m.quitCmd()
 	case keyUp, keyUpAlt:
+		if m.stationCursor() == 0 {
+			m.focusTabs()
+			return m, nil
+		}
 		m.moveCursor(-1)
 	case keyDown, keyDownAlt:
 		m.moveCursor(1)

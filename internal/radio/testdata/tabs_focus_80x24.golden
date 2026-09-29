@@ -1,12 +1,12 @@
 ◢◤ NU11SIGNAL // NIGHT CITY RADIO              AUTH OK  ▮  SIG ▂▄▆█  ▮  23:41:07
-▓▒░ ╱ STATIONS ╱ ╱ SEARCH ╱ ──────────────────────────────── RDO-77 // NC-NET ──
-╱─▮ SEARCH ────────────────────────────────────┐ ╱─▯ NOW PLAYING ──────────────┐
-│⌕ ARTISTS, SONGS                              │ │ NOW PLAYING        ▮ PLAYING│
-│──────────────────────────────────────────────│ │                             │
-│ R E C E N T                                  │ │ CHIPPIN' IN                 │
-│ ⌕ QUEEN                                     ✕│ │ SAMURAI                     │
-│ ⌕ DAFT PUNK                                 ✕│ │ NEVER FADE AWAY             │
-│ ⌕ SAMURAI                                   ✕│ │                             │
+▓▒░ ╱ STATIONS ╱ ╱▸SEARCH ╱ ──────────────────────────────── RDO-77 // NC-NET ──
+╱─▯ STATIONS ──────────────────────────────────┐ ╱─▯ NOW PLAYING ──────────────┐
+│▌▶ 088.1  NIGHT DRIVE                         │ │ NOW PLAYING        ▮ PLAYING│
+│   089.7  SAMURAI                             │ │                             │
+│   091.3  BODY HEAT                           │ │ CHIPPIN' IN                 │
+│                                              │ │ SAMURAI                     │
+│                                              │ │ NEVER FADE AWAY             │
+│                                              │ │                             │
 │                                              │ │ ▮▮▮▮▯▯▯▯▯▯▯▯  01:23 / 03:45 │
 │                                              │ │ ▞ CATALOG FEED // DIRECT    │
 │                                              │ │                             │
@@ -19,6 +19,6 @@
 │                                              │ │ █ █ █ █ █ ▂ █ █ █ █ ▄ █ █ █ │
 │                                              │ │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │
 │                                              │ │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │
-└────────────────────────────────── RECENT 03 ─╱ └───────────── NC-NET 0x2077 ─╱
+└─────────────────────────── BAND FM // 03 CH ─╱ └───────────── NC-NET 0x2077 ─╱
 ░▒▓ SYS NOMINAL // BUF 0x5EF6                                                   
-[ENTER] SELECT  [↑↓] MOVE  [TAB] STATIONS  [ESC] BACK  [CTRL+C] QUIT
+[←→] SELECT  [ENTER] OPEN  [↓] RETURN  [SPACE] PLAY/PAUSE  [Q] QUIT

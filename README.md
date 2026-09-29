@@ -228,15 +228,18 @@ brings back the same view (an artist or album page included) with its cursor.
 | RESULTS | The full search for a submitted term, non-empty sections only: TOP RESULTS (tagged ARTIST, ALBUM, SONG, or PLAYLIST), ARTISTS, ALBUMS (with artist and year), SONGS (with artist), PLAYLISTS (with curator) |
 | ARTIST | Its non-empty sections in Apple Music order: TOP SONGS, ESSENTIAL ALBUMS, ALBUMS, ARTIST PLAYLISTS, SINGLES & EPS, COMPILATIONS, then ABOUT (editorial notes folded behind MORE, FROM, FORMED, GENRE) |
 | ALBUM | The tracks (by disc when there are several), release date, song count and length, copyright, record label, and notes |
-| SONG | The album holding the song, with the song highlighted (`▶`) and selected; if the album cannot be loaded, the song alone, still playable |
+| SONG | The album holding the song, with the cursor on the song; if the album cannot be loaded, the song alone, still playable |
 | PLAYLIST | The tracks with their artists, song count and length, curator, and notes |
 
 Recent searches are the last 10 terms you submitted with `enter` (typed, a
 suggestion, or a recent term) or opened an artist or song from, stored in
 `nu11signal/recent.json` under `os.UserConfigDir()`
 (`~/Library/Application Support/nu11signal/recent.json` on macOS). Demo mode
-keeps them in memory only. Delete one with `ctrl+d` / `delete` or its `✕`;
-`CLEAR RECENT` deletes them all at once (no confirmation, no undo).
+keeps them in memory only. Delete one with `ctrl+d` / `delete` or its `✕`.
+
+On ALBUM, SONG, and PLAYLIST pages, `▶` marks the track the player is on
+(playing or paused), and moves with it; no track is marked when the player
+is on a song from elsewhere.
 
 Limitations:
 
@@ -252,7 +255,7 @@ Stations (and anywhere the key is not taken by the view):
 
 | Key | Action |
 |-----|--------|
-| `↑`/`↓` or `k`/`j` | Move the cursor |
+| `↑`/`↓` or `k`/`j` | Move the cursor; `↑` on the first station moves the focus to the nav tabs (see below) |
 | `enter` | Tune the station |
 | `space` | Play / pause |
 | `n` / `p` | Next / previous track |
@@ -269,11 +272,11 @@ SEARCH (typing goes to the input, so letter shortcuts are off):
 
 | Key | Action |
 |-----|--------|
-| `↑`/`↓` | Move between the input and the rows |
+| `↑`/`↓` | Move between the input and the rows; `↑` on the input moves the focus to the nav tabs |
 | `←`/`→` | On the input, move the text cursor; on a row, `→` moves the focus to the player |
 | `shift+←` / `shift+→` | Seek -10 s / +10 s (`,` and `.` are typed) |
 | `ctrl+f` | Expand or restore the player (`f` is typed) |
-| `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, open its SONG view; on `✕ CLEAR RECENT` (the last RECENT row), delete every recent term |
+| `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, open its SONG view |
 | `ctrl+d` / `delete` | On a recent term, delete it (on the input, they edit the text) |
 | `tab` | Back to the stations (the search is kept for the next `/` or `tab`) |
 | `esc` | Back one view (closing the search: the next `/` starts empty) |
@@ -283,7 +286,7 @@ RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 
 | Key | Action |
 |-----|--------|
-| `↑`/`↓` or `k`/`j` | Move the cursor |
+| `↑`/`↓` or `k`/`j` | Move the cursor; `↑` on the first row moves the focus to the nav tabs |
 | `enter` | On RESULTS, open the selected artist, album, song (its SONG view), or playlist; elsewhere, play the top songs or tracks from the selected one, open an album or playlist, or fold the notes (MORE/LESS) |
 | `esc` | Back one view |
 | `tab` | Back to the stations (the page and the ones below it are kept for the next `/` or `tab`) |
@@ -297,14 +300,24 @@ panel frame shows which side has the focus):
 | Key | Action |
 |-----|--------|
 | `←` / `→` | Walk `PREV`, `PLAY`/`PAUSE`, `NEXT`, `EXPAND`; `←` from `PREV` goes back to the list |
-| `↑` / `↓` | Move to the progress bar (when the song can seek) and back to the buttons |
+| `↑` / `↓` | Move to the progress bar (when the song can seek) and back to the buttons; `↑` from the bar (or from the buttons, with nothing to seek) moves the focus to the nav tabs |
 | `←` / `→` on the progress bar | Seek -10 s / +10 s |
 | `enter` | Press the focused button (as a click) |
 | `esc` | Back to the list (restoring an expanded player) |
 | `space`, `n` / `p`, seek keys, `f` / `ctrl+f` | As on the stations |
 
-Any other key goes back to the list and acts there (on SEARCH, a letter is
-typed). The expanded player hides the list, so it holds the focus: `←` from
+Nav tabs (after `↑` past the top of the list, the SEARCH input, or the
+player; the focused tab shows a `▸`):
+
+| Key | Action |
+|-----|--------|
+| `←` / `→` | Walk `STATIONS`, `SEARCH` and, on a page, `◀ BACK` |
+| `enter` | Press the focused tab (as a click); the list takes the focus |
+| `↓` / `esc` | Back where the focus came from (the same row, the SEARCH input, or the player's bar or button) |
+
+On the tabs, any other key goes back where the focus came from and acts
+there. On the player, any other key goes back to the list and acts there (on
+SEARCH, a letter is typed). The expanded player hides the list, so it holds the focus: `←` from
 `PREV` stays put, and going back to the list (`esc`, another key, `f`,
 `ctrl+f`, or `RESTORE`) restores it. Expanding, by key or button, focuses
 the player on the control it already had (`PLAY` from the list, `EXPAND`
@@ -327,10 +340,9 @@ The mouse does what the keys do; the keys keep working.
 | A row (station, search row, page row, MORE/LESS) | Select it and act as `enter` |
 | The SEARCH input | Select the input |
 | `✕` at the end of a recent term | Delete that term (as `ctrl+d` / `delete`) |
-| `CLEAR RECENT` (RECENT header) | Delete every recent term |
 | A `[R] RETRY` notice | Retry, as `r` |
 | `STATIONS` / `SEARCH` tabs (header rule) | As `tab` / `/`; the lit tab is the view shown |
-| `◀ BACK` (above the stations) | As `esc` |
+| `◀ BACK` (on RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST) | As `esc` |
 | `◀◀ PREV`, `▶ PLAY` / `❚❚ PAUSE`, `NEXT ▶▶` (NOW PLAYING) | As `p`, `space`, `n`; the focus moves to the button |
 | `⤢ EXPAND` / `⤡ RESTORE` (NOW PLAYING) | Expand the player to the full width, or restore it |
 | The progress bar | Seek to that point of the song; the focus moves to the bar |
