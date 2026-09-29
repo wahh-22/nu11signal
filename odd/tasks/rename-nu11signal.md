@@ -92,6 +92,9 @@ Route: delegated (one writer, B1–B3); B4 inline, last.
 - `make release-dry-run VERSION=0.2.1` → exit 0, `build/release-dry-run/v0.2.1/nu11signal-0.2.1/{bin,libexec,LICENSE,README.md}`, `lipo -archs` `x86_64 arm64`, `--version` 0.2.1, no staging left. `dist/` content hash (`find dist -type f -exec shasum {} + | sort | shasum`) `de9cc992…` identical before and after the session. `brew tap` output identical before and after; no `nu11signal-bump-*` tap left. Nothing pushed.
 - Pending for the parent: migrate the local `dist/` to the new layout (`dist/v0.2.0/…`, and `dist/v0.1.0/` for the `soul-king-0.1.0*` files if wanted); until then `make cask VERSION=0.2.0` reports the checksum missing at `dist/v0.2.0/…`.
 
+- Local `dist/` migrated to `dist/v0.1.0/` and `dist/v0.2.0/` (content hash unchanged); `make cask VERSION=0.2.0` reads the new path.
+- B1–B3 native review (range `c2b6003..HEAD`): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-d70bd4536c0dc4d0`). Remaining minor advisories (not scheduled): `bump-cask.sh` net-diff guard wording and its tests for the unpushed-bump guards (114-129); upstream check ordering after pull (102-103); the `--force` backup window (release.sh:179-180).
+
 ## Next step
 
-Parent: migrate local `dist/` to `dist/v<ver>/`, native review of `9da1953..c781f18`, then B4.
+PR + merge, then B4 (rename the local directory).
