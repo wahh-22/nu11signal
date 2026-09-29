@@ -17,8 +17,8 @@ Rename the project from soul-king to **Nu11Signal** (display name) / **nu11signa
 
 - [x] N0 — GitHub repo renamed `wahh-22/soul-king` → `wahh-22/nu11signal` (old URLs redirect); origin updated. Route: inline.
 - [x] N1 — Code rename: Go module `github.com/wahh-22/nu11signal`, `cmd/nu11signal`, binary `nu11signal`, helper `Nu11SignalHelper.app` / `nu11signal-helper`, Swift package/targets (`Nu11SignalProtocol`, `Nu11SignalProtocolTests`), env vars `NU11SIGNAL_*`, UI wordmark `NU11SIGNAL`, Makefile, scripts, cask template `packaging/homebrew/nu11signal.rb.template`, README (with a "formerly soul-king" note), release archive `nu11signal-<ver>-macos-universal.tar.gz`. Profile defaults `signing/Nu11Signal_Dev.provisionprofile` / `signing/Nu11Signal_DeveloperID.provisionprofile`, falling back to the pre-rename names (and `spike/`) when missing. Route: delegated (writer trigger: many non-trivial files). Commit `3758765`.
-- [ ] N2 — Release `v0.2.0` (signed, notarized), verified as a quarantined download plus a live user check; GitHub release.
-- [ ] N3 — Homebrew tap `wahh-22/homebrew-tap` with `Casks/nu11signal.rb`; `brew audit` passes; `brew install --cask wahh-22/tap/nu11signal` works end to end.
+- [x] N2 — Release `v0.2.0` (signed, notarized), verified as a quarantined download plus a live user check; GitHub release.
+- [x] N3 — Homebrew tap `wahh-22/homebrew-tap` with `Casks/nu11signal.rb`; `brew audit` passes; `brew install --cask wahh-22/tap/nu11signal` works end to end.
 
 ## Acceptance criteria
 
@@ -40,8 +40,11 @@ Rename the project from soul-king to **Nu11Signal** (display name) / **nu11signa
 - Local profiles renamed to the new defaults (`signing/Nu11Signal_Dev.provisionprofile`, `signing/Nu11Signal_DeveloperID.provisionprofile`); `make build` signs with them; tests green (Go 136, Swift 33).
 - N1 native review (range `a0c6081..e9661a7`): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-f45cf61dc4ffd80d`). Advisories (follow-ups): legacy `SOULKING_*` env vars are silently ignored (build.sh:34-37, locate.go:12) — documented as breaking in the v0.2.0 notes; duplicated legacy profile fallback (release.sh:52-55); profile fallback untested; CLI signing identifier change undocumented.
 
-- PR #3 merged (main `326871f`). N2 build from `326871f`: notarization `b471d916-74f1-4b29-8eb0-cc19c8ca1ff7` accepted, helper stapled; archive sha256 `0bf3eb78773c73221fa0704bdfa4162e5803c735f540c0e7b868f8213bb0fedc`. Quarantined download check: sha256 OK, helper `spctl` accepted (Notarized Developer ID), `--version` 0.2.0, universal, helper authorizes + searches. Pending: user live audio check.
+- PR #3 merged (main `326871f`). N2 build from `326871f`: notarization `b471d916-74f1-4b29-8eb0-cc19c8ca1ff7` accepted, helper stapled; archive sha256 `0bf3eb78773c73221fa0704bdfa4162e5803c735f540c0e7b868f8213bb0fedc`. Quarantined download check: sha256 OK, helper `spctl` accepted (Notarized Developer ID), `--version` 0.2.0, universal, helper authorizes + searches. User confirmed live audio.
+
+- N2 published: tag `v0.2.0` → `326871f`; release https://github.com/wahh-22/nu11signal/releases/tag/v0.2.0 (latest) with archive + .sha256; the downloaded asset's sha256 matches.
+- N3: public tap https://github.com/wahh-22/homebrew-tap with `Casks/nu11signal.rb` (0.2.0); `brew audit --cask --online --strict` exit 0; `brew install --cask wahh-22/tap/nu11signal` links `/opt/homebrew/bin/nu11signal` → Caskroom; `nu11signal --version` from /tmp → 0.2.0; installed helper `spctl` accepted (Notarized Developer ID). README install section updated.
 
 ## Next step
 
-User audio check, then tag + GitHub release v0.2.0, then N3 tap.
+Done. Follow-ups: legacy env var warning, deduplicate the profile fallback, release.sh keeps the previous archive until the new build succeeds, main.go exit-path tests; automate cask bumps on release.
