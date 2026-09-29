@@ -87,21 +87,19 @@ func (m *Model) loadArtist(a playback.Artist) tea.Cmd {
 	}
 }
 
-// onArtist fills the page the answer belongs to; answers for a page that
-// was left or reloaded are dropped.
+// onArtist fills the page the answer belongs to, even while parked;
+// answers for a page that was left or reloaded are dropped.
 func (m Model) onArtist(msg artistMsg) Model {
-	for i, f := range m.stack {
-		if f.kind != viewArtist || f.artist.seq != msg.seq || !f.artist.loading {
-			continue
-		}
+	_, ok := m.settleFrame(func(f frame) bool {
+		return f.kind == viewArtist && f.artist.seq == msg.seq && f.artist.loading
+	}, func(f frame) frame {
 		f.artist.loading, f.artist.cancel = false, nil
 		f.artist.detail, f.artist.err = cleanArtistDetail(msg.detail), msg.err
 		f.cursor = 0
-		m.setFrame(i, f)
-		if msg.err != nil {
-			m.setStatus("ARTIST FEED FAILED // " + msg.err.Error())
-		}
-		return m
+		return f
+	})
+	if ok && msg.err != nil {
+		m.setStatus("ARTIST FEED FAILED // " + msg.err.Error())
 	}
 	return m
 }

@@ -136,18 +136,16 @@ func (m Model) onPlaylist(msg playlistMsg) Model {
 }
 
 func (m Model) settleTracks(kind viewKind, seq uint64, err error, fill func(*trackPage)) Model {
-	for i, f := range m.stack {
-		if f.kind != kind || f.tracks.seq != seq || !f.tracks.loading {
-			continue
-		}
+	f, ok := m.settleFrame(func(f frame) bool {
+		return f.kind == kind && f.tracks.seq == seq && f.tracks.loading
+	}, func(f frame) frame {
 		f.tracks.loading, f.tracks.cancel, f.tracks.err = false, nil, err
 		fill(&f.tracks)
 		f.cursor = max(f.tracks.highlight(), 0)
-		m.setFrame(i, f)
-		if err != nil {
-			m.setStatus(f.tracks.title() + " FEED FAILED // " + err.Error())
-		}
-		return m
+		return f
+	})
+	if ok && err != nil {
+		m.setStatus(f.tracks.title() + " FEED FAILED // " + err.Error())
 	}
 	return m
 }

@@ -31,7 +31,6 @@ var playerHints = []hint{
 	{"←→", "SEEK"},
 	{"/", "SCAN"},
 	{"ENTER", "TUNE"},
-	{"TAB", "LIST"},
 	{"J/K", "MOVE"},
 	{"Q", "QUIT"},
 }

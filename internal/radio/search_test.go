@@ -319,8 +319,12 @@ func TestTabSwitchesBetweenStationsAndSearch(t *testing.T) {
 	if m.top().kind != viewSearch || m.input.Value() != "daft" || !strings.Contains(plain(m), "ONE MORE TIME") {
 		t.Fatalf("tab did not restore the last search:\n%s", plain(m))
 	}
-	// / starts a fresh search instead.
+	// / does the same as tab; after esc closed the search, it is fresh.
 	m, _ = press(t, m, "tab", "/")
+	if m.top().kind != viewSearch || m.input.Value() != "daft" {
+		t.Fatalf("/ did not restore the last search:\n%s", plain(m))
+	}
+	m, _ = press(t, m, "esc", "/")
 	if m.input.Value() != "" || !strings.Contains(plain(m), "RECENT") {
 		t.Fatalf("/ did not start a fresh search:\n%s", plain(m))
 	}

@@ -302,8 +302,8 @@ func TestArtistTabAndSlashLeaveThePage(t *testing.T) {
 		t.Fatalf("tab left stack %v; want the stations root", next.stack)
 	}
 	next, _ = press(t, m, "/")
-	if len(next.stack) != 2 || next.top().kind != viewSearch || next.input.Value() != "" {
-		t.Fatalf("/ left stack %v, input %q; want a fresh search over the stations", next.stack, next.input.Value())
+	if len(next.stack) != 2 || next.top().kind != viewSearch || next.input.Value() != "daft" {
+		t.Fatalf("/ left stack %v, input %q; want the search input with the term kept", next.stack, next.input.Value())
 	}
 	// Player keys still work on the artist page.
 	if _, cmd := press(t, m, "n"); cmd == nil {
@@ -325,7 +325,8 @@ func (p *blockingArtistPlayer) Artist(ctx context.Context, _ string) (playback.A
 }
 
 func TestLeavingALoadingArtistPageCancelsIt(t *testing.T) {
-	for _, k := range []string{"esc", "tab", "/"} {
+	// tab parks the page with its load instead (see resume_test.go).
+	for _, k := range []string{"esc", "/"} {
 		t.Run(k, func(t *testing.T) {
 			f := playbacktest.New()
 			f.PlaylistsResult = stations()

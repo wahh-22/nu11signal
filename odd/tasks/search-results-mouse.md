@@ -31,7 +31,7 @@ User feedback (2026-09-29) after testing the catalog-browse release:
 
 ## Tasks
 
-- [ ] S1 — Search branch resume. Branch `fix/search-resume`. Route: delegated (writer trigger: 2+ non-trivial files).
+- [x] S1 — Search branch resume. Branch `fix/search-resume`. Route: delegated (writer trigger: 2+ non-trivial files).
 - [ ] S2 — Search results page with top results, artists, albums, songs, playlists. Branch `feat/search-results`. Route: delegated.
 - [ ] S3 — Mouse support and cyberpunk buttons. Branch `feat/mouse-controls`. Route: delegated.
 
@@ -49,7 +49,8 @@ User feedback (2026-09-29) after testing the catalog-browse release:
 ## Progress
 
 - Branch `fix/search-resume` created from `main` `ccaadd9`.
+- S1 done (route: delegated writer). RED: 8 new resume tests failed (e.g. `/ restored stack [0 1]; want [0 1 2]`). GREEN: `go test -race ./...` ok (parent spot check), `go vet` clean, `gofmt` empty. Design: `Model.parked []frame`; tab parks the branch, `/` or tab from stations restores it; parked loads keep running and settle into the parked frame; `/` on a detail page returns to SEARCH with the term; `esc` on SEARCH closes the branch (fresh next time). README keys updated.
 
 ## Next step
 
-S1.
+S2 on `feat/search-results`.

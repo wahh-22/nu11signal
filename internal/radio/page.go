@@ -44,11 +44,11 @@ func (m Model) handlePageKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 			cmd = m.input.Focus()
 		}
 	case keyTab:
-		m.popToRoot()
+		// Park the branch, loads included, for / or tab from the stations.
+		m.parkBranch()
 	case keySearch:
-		m.popToRoot()
-		search, searchCmd := m.openSearch(true)
-		return search.(Model), searchCmd, true
+		next, cmd = m.searchAgain()
+		return next, cmd, true
 	case keyRetry:
 		if !m.pageFailed() {
 			return m, nil, false
