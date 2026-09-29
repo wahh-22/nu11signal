@@ -25,13 +25,23 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 	case tea.MouseWheelMsg:
 		// The wheel moves the selection like the arrow keys, which scrolls
-		// the list or page with it.
+		// the list or page with it; the list takes the focus. The expanded
+		// player hides the list, so there the wheel does nothing.
+		if m.expanded {
+			return m, nil
+		}
+		var arrow tea.KeyPressMsg
 		switch msg.Button {
 		case tea.MouseWheelUp:
-			return m.handleKey(tea.KeyPressMsg{Code: tea.KeyUp})
+			arrow = tea.KeyPressMsg{Code: tea.KeyUp}
 		case tea.MouseWheelDown:
-			return m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
+			arrow = tea.KeyPressMsg{Code: tea.KeyDown}
+		default:
+			return m, nil
 		}
+		focus := m.focusList()
+		next, cmd := m.handleKey(arrow)
+		return next, tea.Batch(focus, cmd)
 	}
 	return m, nil
 }
@@ -60,6 +70,26 @@ func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	// A click on the player moves the focus there; anywhere else, to the
+	// list.
+	if c, ok := controlOf(z.id); ok {
+		return m.pressControl(c)
+	}
+	if z.id == zoneSeek {
+		m.focusPlayer(m.control)
+		m.onBar = true
+		// The bar spans the whole song: its first cell is the start.
+		target := m.state.Duration * time.Duration(x-z.x) / time.Duration(z.w)
+		return m.seekTo(target)
+	}
+	focus := m.focusList()
+	next, cmd := m.clickListZone(z)
+	return next, tea.Batch(focus, cmd)
+}
+
+// clickListZone acts on a zone outside the player, the list having the
+// focus.
+func (m Model) clickListZone(z zone) (tea.Model, tea.Cmd) {
 	if row, ok := rowOf(z.id); ok {
 		// Select the row, then act on it as enter does.
 		m.setCursor(row)
@@ -86,16 +116,6 @@ func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 		return m.clearRecents()
 	case zoneBack:
 		return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	case zonePrev:
-		return m, m.action("PREV", m.player.Previous)
-	case zonePlay:
-		return m, m.togglePlay()
-	case zoneNext:
-		return m, m.action("NEXT", m.player.Next)
-	case zoneSeek:
-		// The bar spans the whole song: its first cell is the start.
-		target := m.state.Duration * time.Duration(x-z.x) / time.Duration(z.w)
-		return m.seekTo(target)
 	}
 	return m, nil
 }

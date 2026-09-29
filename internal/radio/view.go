@@ -2,6 +2,7 @@ package radio
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -72,15 +73,22 @@ func (m Model) renderTiny() []string {
 func (m Model) renderFull() ([]string, zones) {
 	w, h := m.width, m.height
 	bodyH := h - 4
-	leftW := m.listPanelWidth(w)
+	lines, zs := m.header(w)
+	top := len(lines)
+	if m.expanded {
+		// NOW PLAYING takes the list panel's place too.
+		playing, playingZones := m.nowPlaying(w-2, bodyH-2)
+		zs.addAt(1, top+1, playingZones.clip(w-2, bodyH-2))
+		lines = append(lines, panel("NOW PLAYING", "NC-NET 0x2077", playing, w, bodyH, true)...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
+	leftW := listPanelWidthFor(w)
 	rightW := w - leftW - 1
 
 	left, leftZones := m.listPanel(leftW, bodyH)
 	playing, playingZones := m.nowPlaying(rightW-2, bodyH-2)
-	right := panel("NOW PLAYING", "NC-NET 0x2077", playing, rightW, bodyH, true)
+	right := panel("NOW PLAYING", "NC-NET 0x2077", playing, rightW, bodyH, m.focus == areaPlayer)
 
-	lines, zs := m.header(w)
-	top := len(lines)
 	zs.addAt(0, top, leftZones)
 	// Inside the NOW PLAYING frame, right of the list panel and the gap.
 	zs.addAt(leftW+2, top+1, playingZones.clip(rightW-2, bodyH-2))
@@ -90,35 +98,29 @@ func (m Model) renderFull() ([]string, zones) {
 	return append(lines, m.statusLine(w), m.hintLine(w)), zs
 }
 
-// listPanelWidth is the width of the list panel in the full layout. The
-// browse pages take more of the screen from NOW PLAYING: their rows pair a
-// title with an album, year, curator or duration.
-func (m Model) listPanelWidth(w int) int {
-	if isPage(m.top().kind) {
-		return pagePanelWidth(w)
-	}
-	return stationPanelWidth(w)
-}
+// playerMinWidth is the narrowest NOW PLAYING panel beside the list: room
+// for the four transport buttons as glyphs.
+const playerMinWidth = 30
 
-// stationPanelWidth is the list panel width of the stations and search
-// views.
-func stationPanelWidth(w int) int { return max(28, min(w*2/5, 44)) }
-
-// pagePanelWidth is the list panel width of the browse pages; NOW
-// PLAYING keeps at least 23 cells at the narrowest full layout.
-func pagePanelWidth(w int) int { return max(28, min(w*3/5, 72)) }
+// listPanelWidthFor is the width of the list panel in the full layout, the
+// same in every view: the browse pages' width, whose rows pair a title
+// with an album, year, curator or duration, so that the panel never
+// resizes when a page opens. NOW PLAYING keeps at least playerMinWidth
+// cells beside it.
+func listPanelWidthFor(w int) int { return max(28, min(w*3/5, 72, w-1-playerMinWidth)) }
 
 // listBodyWidth is the width listView draws in: the list panel's inside in
 // the full layout, the whole screen in the compact one.
 func (m Model) listBodyWidth() int {
 	if m.width >= fullMinWidth && m.height >= fullMinHeight {
-		return m.listPanelWidth(m.width) - 2
+		return listPanelWidthFor(m.width) - 2
 	}
 	return m.width
 }
 
 // renderCompact stacks the screen in one column: the nav bar takes the
-// header rule and the transport buttons the rule over the list.
+// header rule and the transport buttons the rule over the list, which the
+// expanded player leaves out.
 func (m Model) renderCompact() ([]string, zones) {
 	w := m.width
 	nav, zs := m.navLine(w)
@@ -126,16 +128,16 @@ func (m Model) renderCompact() ([]string, zones) {
 	lines := []string{m.headerLeft(false) + "  " + m.statusTag(), nav}
 	title, artist := m.titleLines()
 	lines = append(lines, title, artist)
-	progress, barW := m.progressLine(w)
+	progress, barW := m.progressLine(w - 1)
 	if m.seekable() {
-		zs.add(zoneSeek, 0, len(lines), barW)
+		zs.add(zoneSeek, 1, len(lines), barW)
 	}
-	lines = append(lines, progress)
+	lines = append(lines, m.barMark()+progress)
 	transport, tz := m.transportBar(w - 1)
 	zs.addAt(1, len(lines), tz)
 	lines = append(lines, " "+transport+" "+stFrameDim.Render(strings.Repeat("─", max(w-2-ansi.StringWidth(transport), 0))))
 	listH := m.height - len(lines) - 2
-	if listH > 0 {
+	if listH > 0 && !m.expanded {
 		_, _, body, bz := m.listView(w, listH)
 		zs.addAt(0, len(lines), bz.clip(w, listH))
 		lines = append(lines, body...)
@@ -312,7 +314,7 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	if m.seekable() {
 		zs.add(zoneSeek, 1, len(lines), barW)
 	}
-	lines = append(lines, " "+progress, " "+m.feedLine(), "")
+	lines = append(lines, m.barMark()+progress, " "+m.feedLine(), "")
 	transport, tz := m.transportBar(iw - 2)
 	zs.addAt(1, len(lines), tz)
 	lines = append(lines, " "+transport)
@@ -337,6 +339,15 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	return lines, zs
 }
 
+// barMark is the cell before the progress bar: a marker while the bar has
+// the focus.
+func (m Model) barMark() string {
+	if m.barFocused() && m.seekable() {
+		return stYellowB.Render("▸")
+	}
+	return " "
+}
+
 // feedLine names where the music comes from: a station's frequency or the
 // catalog.
 func (m Model) feedLine() string {
@@ -355,7 +366,7 @@ func (m Model) feedLine() string {
 // in the panel's coordinates.
 func (m Model) listPanel(w, h int) ([]string, zones) {
 	title, code, body, zs := m.listView(w-2, h-2)
-	return panel(title, code, body, w, h, true), zs.clip(w-2, h-2).shifted(1, 1)
+	return panel(title, code, body, w, h, m.focus == areaList), zs.clip(w-2, h-2).shifted(1, 1)
 }
 
 // listView is the one dispatch on the view on top of the navigation stack:
@@ -444,17 +455,19 @@ func keyCap(k string) string { return stYellow.Render("[" + k + "]") }
 // quit) until they fit.
 func (m Model) hintLine(w int) string {
 	hints := playerHints
-	switch m.top().kind {
-	case viewSearch:
+	switch kind := m.top().kind; {
+	case m.focus == areaPlayer:
+		hints = playerFocusHints(m.expanded, kind == viewSearch)
+	case kind == viewSearch:
 		hints = searchHints
-		if m.inputTerm() == "" && len(m.recents) > 0 {
+		if m.recentSelected() {
 			hints = recentHints
 		}
-	case viewResults:
+	case kind == viewResults:
 		hints = resultsHints
-	case viewArtist:
+	case kind == viewArtist:
 		hints = artistHints
-	case viewAlbum, viewPlaylist:
+	case kind == viewAlbum, kind == viewPlaylist:
 		hints = trackHints
 	}
 	render := func(hs []hint) string {
@@ -464,9 +477,23 @@ func (m Model) hintLine(w int) string {
 		}
 		return strings.Join(parts, "  ")
 	}
+	if ansi.StringWidth(render(hints)) > w {
+		hints = shortHints(hints)
+	}
 	shown := append([]hint(nil), hints...)
 	for len(shown) > 1 && ansi.StringWidth(render(shown)) > w {
 		shown = append(shown[:len(shown)-2], shown[len(shown)-1])
 	}
 	return render(shown)
+}
+
+// shortHints names only DEL of the recent delete keys.
+func shortHints(hs []hint) []hint {
+	out := slices.Clone(hs)
+	for i, h := range out {
+		if h.key == recentDeleteKeys {
+			out[i].key = "DEL"
+		}
+	}
+	return out
 }
