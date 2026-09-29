@@ -28,7 +28,7 @@ Development signing only works on registered Macs. Gatekeeper requires Developer
 
 - [x] U1 Developer ID Application certificate in the login keychain (verified: `Developer ID Application: Wilmer Henao (W6GZP998GQ)`, SHA-1 F9597ECD…).
 - [x] U2 Developer ID provisioning profile (verified: team W6GZP998GQ, app id `W6GZP998GQ.dev.wahh.soulking.player`, cert matches U1, all devices, expires 2044-09-23) for `dev.wahh.soulking.player` → `signing/SoulKing_Player_DeveloperID.provisionprofile`.
-- [ ] U3 `xcrun notarytool store-credentials soulking-notary` (app-specific password).
+- [x] U3 `xcrun notarytool store-credentials soulking-notary` (verified: `notarytool history` authenticates).
 
 ## Tasks
 
@@ -53,6 +53,9 @@ Development signing only works on registered Macs. Gatekeeper requires Developer
 
 - R1 native review (range `1073c9e..a0c6081`, includes timeouts, license, module path): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-d07d29418cc29290`). Fixed the flaky non-finite Deadline test it flagged (NaN/negative now assert an immediate timeout; 3 stable runs).
 - Follow-ups (minor advisories): `release.sh` deletes the previous archive before the new build succeeds (line 125); `main.go` exit-path split untested (46-51); release.sh literals/help text nits.
+
+- R2 build (2026-09-28, from `91c4522`): `make release VERSION=0.1.0` exit 0; notarization submission `02332dda-4fd0-4815-b88d-a6cc0bfd9f77` accepted; helper stapled (`stapler validate` ok); archive `soul-king-0.1.0-macos-universal.tar.gz` sha256 `0ed8c3cc3d91e95dd8390c3332941eb97b5ef90cb53d996b7fc608499db83ff9`.
+- R2 download simulation (quarantined copy): sha256 OK; helper `spctl` accepted (Notarized Developer ID); CLI runs under quarantine (`--version` → 0.1.0; bare binaries are not `spctl`-assessable); `lipo` x86_64 arm64; notarized helper authorizes and searches the catalog (Developer ID profile works with MusicKit). Pending: user live TUI + audio check from the extracted archive.
 
 ## Next step
 
