@@ -400,7 +400,8 @@ func (p *blockingDetailPlayer) SongAlbum(ctx context.Context, _ string) (playbac
 }
 
 func TestLeavingALoadingTrackPageCancelsIt(t *testing.T) {
-	for _, k := range []string{"esc", "tab", "/"} {
+	// tab parks the page with its load instead (see resume_test.go).
+	for _, k := range []string{"esc", "/"} {
 		t.Run(k, func(t *testing.T) {
 			f := playbacktest.New()
 			f.PlaylistsResult = stations()

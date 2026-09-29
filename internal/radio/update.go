@@ -166,11 +166,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.seek(-seekStep)
 	case keyForward:
 		return m.seek(seekStep)
-	case keySearch:
-		return m.openSearch(true)
-	case keyTab:
-		// tab returns to the last search; inside it, tab comes back here.
-		return m.openSearch(false)
+	case keySearch, keyTab:
+		// Both bring back the search branch tab left, else a fresh search.
+		return m.openSearch()
 	case keyEsc:
 		// Back navigation for views pushed over the stations; on the
 		// stations root there is nothing to pop.

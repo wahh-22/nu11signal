@@ -57,7 +57,7 @@ const (
 	// viewStations is the root of the navigation stack.
 	viewStations viewKind = iota
 	// viewSearch is the catalog search; its state lives in Model.search so
-	// that it survives being popped and restored with tab.
+	// that it survives being parked by tab and restored.
 	viewSearch
 	// viewArtist is an artist page; its state lives in its frame.
 	viewArtist
@@ -99,6 +99,10 @@ type Model struct {
 	// stack is the navigation stack; stack[0] is the stations list and the
 	// list panel shows the top entry.
 	stack []frame
+	// parked is the search branch (the SEARCH entry and the pages opened
+	// from it) that tab left for the stations; / or tab brings it back as
+	// it was. Its pages keep loading and settle here while parked.
+	parked []frame
 	// playingStation is the station the player confirmed tuning to.
 	playingStation string
 	// playSeq numbers play requests; only the answer to the latest one
@@ -364,6 +368,45 @@ func (m *Model) popToRoot() {
 		f.cancelLoad()
 	}
 	m.stack = slices.Clone(m.stack[:1])
+}
+
+// parkBranch leaves for the stations root keeping the entries above it,
+// with their cursors, pages and loads, for restoreBranch.
+func (m *Model) parkBranch() {
+	m.parked = slices.Clone(m.stack[1:])
+	m.stack = slices.Clone(m.stack[:1])
+}
+
+// restoreBranch puts the parked branch back over the stations root; ok is
+// false when nothing is parked.
+func (m *Model) restoreBranch() (ok bool) {
+	if len(m.parked) == 0 {
+		return false
+	}
+	m.stack = append(slices.Clone(m.stack[:1]), m.parked...)
+	m.parked = nil
+	return true
+}
+
+// settleFrame replaces the first entry, on the stack or parked, that match
+// accepts with settle's result; ok is false when none does.
+func (m *Model) settleFrame(match func(frame) bool, settle func(frame) frame) (settled frame, ok bool) {
+	for i, f := range m.stack {
+		if match(f) {
+			settled = settle(f)
+			m.setFrame(i, settled)
+			return settled, true
+		}
+	}
+	for i, f := range m.parked {
+		if match(f) {
+			settled = settle(f)
+			m.parked = slices.Clone(m.parked)
+			m.parked[i] = settled
+			return settled, true
+		}
+	}
+	return frame{}, false
 }
 
 // setTop replaces the top entry.

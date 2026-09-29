@@ -3,6 +3,7 @@ package radio
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -99,20 +100,48 @@ func (m *Model) remember(term string) tea.Cmd {
 	return func() tea.Msg { return recentSavedMsg{err: store.Add(term)} }
 }
 
-// openSearch pushes the search view with the input focused. fresh starts
-// an empty query (showing recent terms); otherwise the last query and its
-// results come back.
-func (m Model) openSearch(fresh bool) (tea.Model, tea.Cmd) {
-	var search tea.Cmd
-	if fresh {
+// openSearch brings back the parked search branch exactly as it was left
+// (top page and cursors); with nothing parked, it pushes a fresh search
+// view with an empty input (showing recent terms). / and tab from the
+// stations both call it.
+func (m Model) openSearch() (tea.Model, tea.Cmd) {
+	if !m.restoreBranch() {
 		m.resetSearch()
 		m.input.Reset()
-	} else if term := m.inputTerm(); longEnough(term) && term != m.search.term {
-		// Leaving the view stopped the search for this term; resume it.
-		search = m.startSearch(term)
+		m.push(frame{kind: viewSearch, cursor: -1})
+		return m, m.input.Focus()
 	}
-	m.push(frame{kind: viewSearch, cursor: -1})
+	search := m.resumeSearch()
+	if m.top().kind != viewSearch {
+		return m, search
+	}
 	return m, tea.Batch(m.input.Focus(), search)
+}
+
+// searchAgain is / on a page of the search branch: the pages above its
+// search view are dropped (cancelling their loads) and the input takes the
+// keys again, with the term kept for editing, as starting a new search.
+func (m Model) searchAgain() (Model, tea.Cmd) {
+	if !slices.ContainsFunc(m.stack, func(f frame) bool { return f.kind == viewSearch }) {
+		m.popToRoot()
+		next, cmd := m.openSearch()
+		return next.(Model), cmd
+	}
+	for m.top().kind != viewSearch {
+		m.pop()
+	}
+	m.setCursor(-1)
+	m.input.CursorEnd()
+	return m, tea.Batch(m.input.Focus(), m.resumeSearch())
+}
+
+// resumeSearch runs the search for the typed term again when leaving the
+// view stopped it before it answered.
+func (m *Model) resumeSearch() tea.Cmd {
+	if term := m.inputTerm(); longEnough(term) && term != m.search.term && !m.search.loading {
+		return m.startSearch(term)
+	}
+	return nil
 }
 
 // handleSearchKey handles keys while the search view is on top. Text keys
@@ -125,8 +154,10 @@ func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.input.Blur()
 		return m, nil
 	case keyTab:
+		// The branch is parked for / or tab from the stations; esc above
+		// closes it instead.
 		m.stopSearch()
-		m.popToRoot()
+		m.parkBranch()
 		m.input.Blur()
 		return m, nil
 	case keyUp:

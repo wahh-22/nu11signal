@@ -218,7 +218,9 @@ directories for `dist/` and the tap, and a local bare repository as its origin.
 ## Browsing the catalog
 
 Views stack like Apple Music's: stations → SEARCH → ARTIST → ALBUM, SONG, or
-PLAYLIST. `esc` goes back one view, `tab` returns to the stations.
+PLAYLIST. `esc` goes back one view, `tab` returns to the stations. Leaving
+with `tab` keeps the search branch as it was: `/` or `tab` from the stations
+brings back the same view (an artist or album page included) with its cursor.
 
 | View | Shows |
 |------|-------|
@@ -253,8 +255,8 @@ Stations (and anywhere the key is not taken by the view):
 | `space` | Play / pause |
 | `n` / `p` | Next / previous track |
 | `←` / `→` | Seek -10 s / +10 s |
-| `/` | Open SEARCH with an empty input |
-| `tab` | Back to the last search |
+| `/` | Back to the search left with `tab` (same view and cursor); otherwise open SEARCH with an empty input |
+| `tab` | Same as `/` |
 | `esc` | Back one view |
 | `r` | Retry loading stations after a failure |
 | `q` / `ctrl+c` | Quit |
@@ -265,8 +267,8 @@ SEARCH (typing goes to the input, so letter shortcuts are off):
 |-----|--------|
 | `↑`/`↓` | Move between the input and the rows |
 | `enter` | On the input, search now; on a recent term or suggestion, search it; on an artist, open its page; on a song, open its SONG view |
-| `tab` | Back to the stations (the search is kept for the next `tab`) |
-| `esc` | Back one view |
+| `tab` | Back to the stations (the search is kept for the next `/` or `tab`) |
+| `esc` | Back one view (closing the search: the next `/` starts empty) |
 | `ctrl+c` | Quit |
 
 ARTIST, ALBUM, SONG, and PLAYLIST:
@@ -276,8 +278,8 @@ ARTIST, ALBUM, SONG, and PLAYLIST:
 | `↑`/`↓` or `k`/`j` | Move the cursor |
 | `enter` | Play the top songs or tracks from the selected one; open an album or playlist; MORE/LESS folds the notes |
 | `esc` | Back one view |
-| `tab` | Back to the stations |
-| `/` | Open a new SEARCH |
+| `tab` | Back to the stations (the page and the ones below it are kept for the next `/` or `tab`) |
+| `/` | Back to the SEARCH input, with the term kept for editing (the pages above it are closed) |
 | `r` | Retry after the page failed to load |
 | `space`, `n` / `p`, `←` / `→`, `q` | As on the stations |
 
