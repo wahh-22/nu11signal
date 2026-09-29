@@ -57,7 +57,8 @@ Today only library playlists ("stations") and a songs-only search are reachable.
 
 - Exploration done (architecture map + MusicKit research). Branch `feat/catalog-browse` created (renamed `feat/catalog-search` for slice 1).
 - C1 done (route: delegated writer; trigger: writer, 2+ non-trivial files). RED: compile failure on missing `SearchCatalog`, then assertion failures with stub returns (6 tests); GREEN: `go test -race ./...` 151 passed, `go vet` clean, `gofmt -l .` empty, `swift build` OK, `swift test` 34 passed. Parent spot check: `go test -race ./...` 151 passed. MusicKit: `MusicCatalogSearchSuggestionsRequest(term:)` + `suggestions.map(\.searchTerm)`, limit capped at 10; suggestions failure degrades to empty. Open (verify in C5 smoke): suggestion cap, artist `genreNames` presence.
+  - Commit `5a2e7df` `feat(search): add catalog search for artists, songs and suggestions`. RDD assess (base `112b5ee`, committed-only): risk medium, 394 lines, `review_due=false` (`under_budget`) → pending in slice; reviewed boundary stays `112b5ee`.
 
 ## Next step
 
-Start C1.
+C2 on `feat/catalog-search-view` (stacked on `feat/catalog-search`).
