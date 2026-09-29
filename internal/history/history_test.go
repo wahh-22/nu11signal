@@ -155,3 +155,113 @@ func TestDefaultPath(t *testing.T) {
 		t.Fatalf("DefaultPath = %q; want .../nu11signal/recent.json", path)
 	}
 }
+
+func TestWithout(t *testing.T) {
+	tests := []struct {
+		name string
+		list []string
+		term string
+		want []string
+	}{
+		{"removes the term", []string{"a", "b", "c"}, "b", []string{"a", "c"}},
+		{"ignores case and spaces", []string{"Daft Punk", "queen"}, "  DAFT PUNK ", []string{"queen"}},
+		{"absent term keeps the list", []string{"a", "b"}, "z", []string{"a", "b"}},
+		{"last term leaves it empty", []string{"a"}, "a", []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := append([]string(nil), tt.list...)
+			if got := Without(tt.list, tt.term); !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("Without(%q, %q) = %q; want %q", tt.list, tt.term, got, tt.want)
+			}
+			if !reflect.DeepEqual(tt.list, before) {
+				t.Fatalf("Without modified its input: %q", tt.list)
+			}
+		})
+	}
+}
+
+func TestMemoryRemoveAndClear(t *testing.T) {
+	m := NewMemory()
+	for _, term := range []string{"a", "b", "c"} {
+		_ = m.Add(term)
+	}
+	if err := m.Remove("B"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if got, _ := m.Load(); !reflect.DeepEqual(got, []string{"c", "a"}) {
+		t.Fatalf("Load after Remove = %q; want [c a]", got)
+	}
+	if err := m.Clear(); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+	if got, _ := m.Load(); len(got) != 0 {
+		t.Fatalf("Load after Clear = %q; want empty", got)
+	}
+}
+
+func TestFileRemovePersistsAcrossInstances(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "recent.json")
+	f := NewFile(path)
+	for _, term := range []string{"queen", "daft punk", "samurai"} {
+		if err := f.Add(term); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := f.Remove("DAFT PUNK"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if err := f.Remove("never searched"); err != nil {
+		t.Fatalf("Remove of an absent term: %v", err)
+	}
+	got, err := NewFile(path).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"samurai", "queen"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Load = %q; want %q", got, want)
+	}
+}
+
+func TestFileClearPersistsAcrossInstances(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "recent.json")
+	f := NewFile(path)
+	if err := f.Add("queen"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Clear(); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+	got, err := NewFile(path).Load()
+	if err != nil || len(got) != 0 {
+		t.Fatalf("Load after Clear = %q, %v; want empty, nil", got, err)
+	}
+	// Clear keeps the file, holding an empty list.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("recent.json after Clear: %v", err)
+	}
+	if string(data) != `{"terms":[]}` {
+		t.Fatalf("recent.json = %s; want an empty list", data)
+	}
+	if err := f.Add("samurai"); err != nil {
+		t.Fatalf("Add after Clear: %v", err)
+	}
+	if got, _ := NewFile(path).Load(); !reflect.DeepEqual(got, []string{"samurai"}) {
+		t.Fatalf("Load after Add = %q; want [samurai]", got)
+	}
+}
+
+func TestFileRemoveAndClearWriteFailuresAreReported(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	if err := os.WriteFile(blocker, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := NewFile(filepath.Join(blocker, "recent.json"))
+	if err := f.Remove("queen"); err == nil {
+		t.Error("Remove succeeded where the directory cannot exist")
+	}
+	if err := f.Clear(); err == nil {
+		t.Error("Clear succeeded where the directory cannot exist")
+	}
+}

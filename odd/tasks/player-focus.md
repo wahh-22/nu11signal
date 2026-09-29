@@ -26,7 +26,7 @@ Second round of user feedback (2026-09-29): delete recent searches; keep the lef
 
 ## Tasks
 
-- [ ] P1 — Delete recent searches. Branch `feat/recent-delete`. Route: delegated (writer trigger: 2+ non-trivial files).
+- [x] P1 — Delete recent searches. Branch `feat/recent-delete`. Route: delegated (writer trigger: 2+ non-trivial files).
 - [ ] P2 — Max-width list, expandable player, keyboard focus across panels. Branch `feat/player-focus`. Route: delegated.
 
 ## Acceptance criteria
@@ -44,7 +44,8 @@ Second round of user feedback (2026-09-29): delete recent searches; keep the lef
 ## Progress
 
 - Branch `feat/recent-delete` from `main` `73573e1`. Key decision (user): arrows move focus; seek moves to `shift+←/→` and `,`/`.`.
+- P1 done (route: delegated writer). RED: history build failure then 7 radio behaviour failures (✕ click, clear button/row, delete keys, cursor after delete, failure path, hints). GREEN: `go test -race ./...` ok (parent spot check), `go vet`/`gofmt` clean. Clear writes `{"terms":[]}`; per-row ✕ zone overrides the row click; `[DEL] DROP` hint. Open: no undo for CLEAR RECENT (suggest `u` undo later); store command ordering and late initial load are pre-existing races.
 
 ## Next step
 
-P1.
+P2 on `feat/player-focus`.

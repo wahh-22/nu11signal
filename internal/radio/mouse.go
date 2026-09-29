@@ -65,6 +65,9 @@ func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 		m.setCursor(row)
 		return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	}
+	if row, ok := recentDeleteOf(z.id); ok {
+		return m.deleteRecentAt(row)
+	}
 	switch z.id {
 	case zoneInput:
 		m.setCursor(-1)
@@ -79,6 +82,8 @@ func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 		return m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 	case zoneTabSearch:
 		return m.searchTab()
+	case zoneClearRecents:
+		return m.clearRecents()
 	case zoneBack:
 		return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	case zonePrev:

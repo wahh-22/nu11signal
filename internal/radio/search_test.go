@@ -16,14 +16,18 @@ import (
 	"github.com/wahh-22/nu11signal/internal/playback/playbacktest"
 )
 
-// fakeRecents is an in-memory history.Recents that records Add calls and
-// can be made to fail.
+// fakeRecents is an in-memory history.Recents that records Add, Remove
+// and Clear calls and can be made to fail.
 type fakeRecents struct {
-	mu      sync.Mutex
-	terms   []string
-	added   []string
-	loadErr error
-	addErr  error
+	mu        sync.Mutex
+	terms     []string
+	added     []string
+	removed   []string
+	clears    int
+	loadErr   error
+	addErr    error
+	removeErr error
+	clearErr  error
 }
 
 func (r *fakeRecents) Load() ([]string, error) {
@@ -37,6 +41,32 @@ func (r *fakeRecents) Add(term string) error {
 	defer r.mu.Unlock()
 	r.added = append(r.added, term)
 	return r.addErr
+}
+
+func (r *fakeRecents) Remove(term string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.removed = append(r.removed, term)
+	return r.removeErr
+}
+
+func (r *fakeRecents) Clear() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.clears++
+	return r.clearErr
+}
+
+func (r *fakeRecents) Removed() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.removed...)
+}
+
+func (r *fakeRecents) Clears() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.clears
 }
 
 func (r *fakeRecents) Added() []string {
@@ -545,5 +575,120 @@ func TestShortRecentTermOnlyFillsTheInput(t *testing.T) {
 	}
 	if !strings.Contains(plain(m), "KEEP TYPING") {
 		t.Fatalf("no keep-typing notice:\n%s", plain(m))
+	}
+}
+
+// withThreeRecents is the search view open on three recent terms.
+func withThreeRecents(t *testing.T, r *fakeRecents) Model {
+	t.Helper()
+	r.terms = []string{"queen", "daft punk", "samurai"}
+	m := loadedWithRecents(t, playbacktest.New(), r)
+	m, _ = press(t, m, "/")
+	return m
+}
+
+func TestDeleteKeysRemoveTheSelectedRecentTerm(t *testing.T) {
+	for _, k := range []string{"ctrl+d", "delete"} {
+		t.Run(k, func(t *testing.T) {
+			r := &fakeRecents{}
+			m := withThreeRecents(t, r)
+			m, _ = press(t, m, "down", "down") // DAFT PUNK
+			m, cmd := press(t, m, k)
+			if want := []string{"queen", "samurai"}; !reflect.DeepEqual(m.recents, want) {
+				t.Fatalf("recents = %q; want %q", m.recents, want)
+			}
+			if m.cursor() != 1 {
+				t.Fatalf("cursor = %d; want 1, the row that took the deleted one's place", m.cursor())
+			}
+			if m.input.Value() != "" {
+				t.Fatalf("%s reached the input: %q", k, m.input.Value())
+			}
+			m = settle(t, m, cmd)
+			if got := r.Removed(); !reflect.DeepEqual(got, []string{"daft punk"}) {
+				t.Fatalf("store Remove calls = %q; want [daft punk]", got)
+			}
+			if strings.Contains(plain(m), "DAFT PUNK") {
+				t.Fatalf("deleted term still shown:\n%s", plain(m))
+			}
+		})
+	}
+}
+
+func TestDeletingTheLastRecentRowsMovesTheCursorUp(t *testing.T) {
+	r := &fakeRecents{}
+	m := withThreeRecents(t, r)
+	m, _ = press(t, m, "down", "down", "down") // SAMURAI, the last term
+	m, _ = press(t, m, "delete")
+	if m.cursor() != 1 {
+		t.Fatalf("cursor = %d; want 1, the new last term", m.cursor())
+	}
+	m, _ = press(t, m, "delete", "delete")
+	if len(m.recents) != 0 || m.cursor() != -1 {
+		t.Fatalf("recents = %q, cursor = %d; want none, cursor on the input", m.recents, m.cursor())
+	}
+	if view := plain(m); !strings.Contains(view, "NO RECENT SEARCHES") || strings.Contains(view, "CLEAR RECENT") {
+		t.Fatalf("view lacks the empty RECENT state:\n%s", view)
+	}
+}
+
+func TestDeleteKeysOnTheInputLeaveRecentsAlone(t *testing.T) {
+	r := &fakeRecents{}
+	m := withThreeRecents(t, r)
+	m, _ = press(t, m, "ctrl+d", "delete")
+	if len(m.recents) != 3 || len(r.Removed()) != 0 {
+		t.Fatalf("recents = %q, removed %q; want all three kept", m.recents, r.Removed())
+	}
+}
+
+func TestClearRecentRowClearsEveryTerm(t *testing.T) {
+	r := &fakeRecents{}
+	m := withThreeRecents(t, r)
+	if rows := m.searchRows(); len(rows) != 4 || rows[3].kind != rowClearRecents {
+		t.Fatalf("rows = %+v; want the three terms and CLEAR RECENT last", rows)
+	}
+	m, _ = press(t, m, "down", "down", "down", "down")
+	m, cmd := press(t, m, "enter")
+	if len(m.recents) != 0 || m.cursor() != -1 || m.top().kind != viewSearch {
+		t.Fatalf("recents = %q, cursor = %d, view %v; want none, on the input, still SEARCH", m.recents, m.cursor(), m.top().kind)
+	}
+	if !strings.Contains(plain(m), "RECENT CLEARED") {
+		t.Fatalf("status line lacks the notice:\n%s", plain(m))
+	}
+	m = settle(t, m, cmd)
+	if r.Clears() != 1 {
+		t.Fatalf("store Clear calls = %d; want 1", r.Clears())
+	}
+	if !strings.Contains(plain(m), "NO RECENT SEARCHES") {
+		t.Fatalf("view lacks the empty RECENT state:\n%s", plain(m))
+	}
+}
+
+func TestRecentEditFailuresOnlyShowStatus(t *testing.T) {
+	r := &fakeRecents{removeErr: errors.New("disk full"), clearErr: errors.New("read-only")}
+	m := withThreeRecents(t, r)
+	m, _ = press(t, m, "down")
+	m, cmd := press(t, m, "delete")
+	m = settle(t, m, cmd)
+	if !strings.Contains(plain(m), "RECENT CHANGE NOT SAVED // DISK FULL") {
+		t.Fatalf("status line lacks the remove failure:\n%s", plain(m))
+	}
+	if want := []string{"daft punk", "samurai"}; !reflect.DeepEqual(m.recents, want) {
+		t.Fatalf("recents = %q; want %q despite the failure", m.recents, want)
+	}
+	m, _ = press(t, m, "down", "down", "down")
+	m, cmd = press(t, m, "enter")
+	m = settle(t, m, cmd)
+	if !strings.Contains(plain(m), "RECENT CHANGE NOT SAVED // READ-ONLY") {
+		t.Fatalf("status line lacks the clear failure:\n%s", plain(m))
+	}
+	if len(m.recents) != 0 {
+		t.Fatalf("recents = %q; want none despite the failure", m.recents)
+	}
+}
+
+func TestRecentHintsMentionTheDeleteKey(t *testing.T) {
+	m := withThreeRecents(t, &fakeRecents{})
+	if !strings.Contains(plain(m), "[DEL]") {
+		t.Fatalf("footer lacks the delete key:\n%s", plain(m))
 	}
 }

@@ -18,6 +18,9 @@ const (
 	keyQuit    = "q"
 	keyRetry   = "r"
 	keyCtrlC   = "ctrl+c"
+	// keyDelete and keyDeleteAlt delete the selected recent search.
+	keyDelete    = "delete"
+	keyDeleteAlt = "ctrl+d"
 )
 
 // hint is one footer key legend entry.
@@ -78,5 +81,16 @@ var searchHints = []hint{
 	{"↑↓", "MOVE"},
 	{"TAB", "STATIONS"},
 	{"ESC", "BACK"},
+	{"CTRL+C", "QUIT"},
+}
+
+// recentHints replace searchHints while the search view lists recent
+// terms: the delete key is the last to go when the footer is too narrow.
+var recentHints = []hint{
+	{"ENTER", "SELECT"},
+	{"↑↓", "MOVE"},
+	{"TAB", "STATIONS"},
+	{"ESC", "BACK"},
+	{"DEL", "DROP"},
 	{"CTRL+C", "QUIT"},
 }

@@ -11,11 +11,14 @@ import (
 const Max = 10
 
 // Recents is the port through which the UI keeps recent search terms.
-// Load returns them most recent first; Add records one as the most recent.
-// Implementations are safe for concurrent use.
+// Load returns them most recent first; Add records one as the most recent;
+// Remove forgets one (matched as Push dedupes: trimmed, ignoring case) and
+// Clear forgets them all. Implementations are safe for concurrent use.
 type Recents interface {
 	Load() ([]string, error)
 	Add(term string) error
+	Remove(term string) error
+	Clear() error
 }
 
 // Push returns list with term moved to the front: trimmed, deduplicated
@@ -32,6 +35,19 @@ func Push(list []string, term string) []string {
 		if len(out) == Max {
 			break
 		}
+		if !strings.EqualFold(t, term) {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// Without returns list without term, matched as Push dedupes: trimmed and
+// ignoring case. list itself is never modified.
+func Without(list []string, term string) []string {
+	term = strings.TrimSpace(term)
+	out := make([]string, 0, len(list))
+	for _, t := range list {
 		if !strings.EqualFold(t, term) {
 			out = append(out, t)
 		}
@@ -69,5 +85,21 @@ func (m *Memory) Add(term string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.terms = Push(m.terms, term)
+	return nil
+}
+
+// Remove forgets term.
+func (m *Memory) Remove(term string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.terms = Without(m.terms, term)
+	return nil
+}
+
+// Clear forgets every term.
+func (m *Memory) Clear() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.terms = nil
 	return nil
 }

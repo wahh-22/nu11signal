@@ -53,6 +53,25 @@ func (f *File) Add(term string) error {
 	return f.write(Push(terms, term))
 }
 
+// Remove forgets term; an absent term still rewrites the list as stored.
+func (f *File) Remove(term string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	terms, err := f.load()
+	if err != nil {
+		return err
+	}
+	return f.write(Without(terms, term))
+}
+
+// Clear forgets every term. The file is kept, holding an empty list, so
+// clearing goes through the same atomic write as every other change.
+func (f *File) Clear() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.write([]string{})
+}
+
 func (f *File) load() ([]string, error) {
 	data, err := os.ReadFile(f.path)
 	if errors.Is(err, fs.ErrNotExist) {

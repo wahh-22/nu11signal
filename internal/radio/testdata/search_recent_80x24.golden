@@ -3,11 +3,11 @@
 ╱─▮ SEARCH ────────────────────┐ ╱─▮ NOW PLAYING ──────────────────────────────┐
 │⌕ ARTISTS, SONGS              │ │ N O W   P L A Y I N G              ▮ PLAYING│
 │──────────────────────────────│ │                                             │
-│ R E C E N T                  │ │ CHIPPIN' IN                                 │
-│ ⌕ QUEEN                      │ │ SAMURAI                                     │
-│ ⌕ DAFT PUNK                  │ │ NEVER FADE AWAY                             │
-│ ⌕ SAMURAI                    │ │                                             │
-│                              │ │ ▮▮▮▮▮▮▮▮▮▮▯▯▯▯▯▯▯▯▯▯▯▯▯▯▯▯▯▯  01:23 / 03:45 │
+│ R E C E N T  ╱ CLEAR RECENT ╱│ │ CHIPPIN' IN                                 │
+│ ⌕ QUEEN                     ✕│ │ SAMURAI                                     │
+│ ⌕ DAFT PUNK                 ✕│ │ NEVER FADE AWAY                             │
+│ ⌕ SAMURAI                   ✕│ │                                             │
+│ ✕ CLEAR RECENT               │ │ ▮▮▮▮▮▮▮▮▮▮▯▯▯▯▯▯▯▯▯▯▯▯▯▯▯▯▯▯  01:23 / 03:45 │
 │                              │ │ ▞ CATALOG FEED // DIRECT                    │
 │                              │ │                                             │
 │                              │ │ ╱ ◀◀ PREV ╱ ╱ ❚❚ PAUSE ╱ ╱ NEXT ▶▶ ╱        │
@@ -21,4 +21,4 @@
 │                              │ │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │
 └────────────────── RECENT 03 ─╱ └───────────────────────────── NC-NET 0x2077 ─╱
 ░▒▓ SYS NOMINAL // BUF 0x5EF6                                                   
-[ENTER] SELECT  [↑↓] MOVE  [TAB] STATIONS  [ESC] BACK  [CTRL+C] QUIT
+[ENTER] SELECT  [↑↓] MOVE  [TAB] STATIONS  [ESC] BACK  [DEL] DROP  [CTRL+C] QUIT
