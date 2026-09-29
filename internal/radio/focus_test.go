@@ -374,9 +374,9 @@ func TestPlayerKeysKeepWorkingWithThePlayerFocused(t *testing.T) {
 		t.Fatalf("focus %v; player keys moved it", m.focus)
 	}
 	// A list key goes back to the list.
-	m, _ = press(t, m, "j")
-	if m.focus != areaList || m.stationCursor() != 1 {
-		t.Fatalf("focus %v cursor %d; want the list, moved", m.focus, m.stationCursor())
+	m, _ = press(t, m, "/")
+	if m.focus != areaList || m.top().kind != viewSearch {
+		t.Fatalf("focus %v view %v; want the list, on SEARCH", m.focus, m.top().kind)
 	}
 }
 
@@ -388,6 +388,10 @@ func TestHintsFollowTheFocus(t *testing.T) {
 	}
 	if got := footer(m); !strings.Contains(got, "[,/.] SEEK") || strings.Contains(got, "[←→] SEEK") {
 		t.Fatalf("stations footer %q; want the new seek keys", got)
+	}
+	wide, _ := step(t, m, tea.WindowSizeMsg{Width: 160, Height: 40})
+	if got := footer(wide); !strings.Contains(got, "[J/K] VOL") || !strings.Contains(got, "[↑↓] MOVE") || strings.Contains(got, "J/K] MOVE") {
+		t.Fatalf("wide stations footer %q; want J/K for the volume, the arrows to move", got)
 	}
 	m, _ = press(t, m, "right")
 	if got := footer(m); !strings.Contains(got, "[ENTER] PRESS") || !strings.Contains(got, "[ESC] LIST") {

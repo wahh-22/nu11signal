@@ -177,10 +177,10 @@ func (m Model) playerKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 	case keySeekForward, keySeekForwardAlt:
 		next, cmd = m.seek(seekStep)
 		return next, cmd, true
-	case keyVolumeUp, keyVolumeUpAlt, keyVolumeUpAnywhere:
+	case keyVolumeUp, keyVolumeUpAlt, keyVolumeUpLetter, keyVolumeUpAnywhere:
 		next, cmd = m.stepVolume(volumeStep)
 		return next, cmd, true
-	case keyVolumeDown, keyVolumeDownAnywhere:
+	case keyVolumeDown, keyVolumeDownLetter, keyVolumeDownAnywhere:
 		next, cmd = m.stepVolume(-volumeStep)
 		return next, cmd, true
 	}

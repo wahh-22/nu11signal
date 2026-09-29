@@ -75,9 +75,11 @@ func (m Model) renderFull() ([]string, zones) {
 	bodyH := h - 4
 	lines, zs := m.header(w)
 	top := len(lines)
+	// The panels go under the zones drawn in them, which stay on top.
 	if m.expanded {
 		// NOW PLAYING takes the list panel's place too.
 		playing, playingZones := m.nowPlaying(w-2, bodyH-2)
+		zs.addBox(zonePanelPlayer, 0, top, w, bodyH)
 		zs.addAt(1, top+1, playingZones.clip(w-2, bodyH-2))
 		lines = append(lines, panel("NOW PLAYING", "NC-NET 0x2077", playing, w, bodyH, true)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
@@ -89,6 +91,8 @@ func (m Model) renderFull() ([]string, zones) {
 	playing, playingZones := m.nowPlaying(rightW-2, bodyH-2)
 	right := panel("NOW PLAYING", "NC-NET 0x2077", playing, rightW, bodyH, m.focus == areaPlayer)
 
+	zs.addBox(zonePanelList, 0, top, leftW, bodyH)
+	zs.addBox(zonePanelPlayer, leftW+1, top, rightW, bodyH)
 	zs.addAt(0, top, leftZones)
 	// Inside the NOW PLAYING frame, right of the list panel and the gap.
 	zs.addAt(leftW+2, top+1, playingZones.clip(rightW-2, bodyH-2))
@@ -134,6 +138,10 @@ func (m Model) renderCompact() ([]string, zones) {
 	nav, zs := m.navLine(w)
 	zs = zs.shifted(0, 1)
 	lines := []string{m.headerLeft(false) + "  " + m.statusTag(), nav}
+	// The player lines (title to buttons) and the list below them are the
+	// panels, under the zones drawn in them.
+	var panels zones
+	playerTop := len(lines)
 	title, artist := m.titleLines()
 	lines = append(lines, title, artist)
 	progress, barW := m.progressLine(w - 1)
@@ -156,16 +164,18 @@ func (m Model) renderCompact() ([]string, zones) {
 		controls += volume + " "
 	}
 	lines = append(lines, controls+stFrameDim.Render(strings.Repeat("─", max(w-ansi.StringWidth(controls), 0))))
+	panels.addBox(zonePanelPlayer, 0, playerTop, w, len(lines)-playerTop)
 	listH := m.height - len(lines) - 2
 	if listH > 0 && !m.expanded {
 		_, _, body, bz := m.listView(w, listH)
+		panels.addBox(zonePanelList, 0, len(lines), w, listH)
 		zs.addAt(0, len(lines), bz.clip(w, listH))
 		lines = append(lines, body...)
 		for len(lines) < m.height-2 {
 			lines = append(lines, "")
 		}
 	}
-	return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	return append(lines, m.statusLine(w), m.hintLine(w)), append(panels, zs...)
 }
 
 func (m Model) renderAuthError() []string {

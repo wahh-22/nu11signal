@@ -210,7 +210,7 @@ func TestStartupUnauthorizedShowsErrorScreen(t *testing.T) {
 func TestEnterOnAPlaylistRowLoadsIt(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
-	m, cmd := press(t, m, "j", "enter")
+	m, cmd := press(t, m, "down", "enter")
 	run(t, cmd)
 	assertCall(t, f, "LibraryPlaylist", "pl-2")
 }
@@ -218,11 +218,11 @@ func TestEnterOnAPlaylistRowLoadsIt(t *testing.T) {
 func TestNavigationClampsToList(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
-	m, _ = press(t, m, "k", "up")
+	m, _ = press(t, m, "up", "down", "up")
 	if m.cursor() != 0 {
 		t.Fatalf("cursor = %d after moving up at top, want 0", m.cursor())
 	}
-	m, _ = press(t, m, "down", "j", "j", "j", "j")
+	m, _ = press(t, m, "down", "down", "down", "down", "down")
 	if m.cursor() != 2 {
 		t.Fatalf("cursor = %d after moving past the end, want 2", m.cursor())
 	}

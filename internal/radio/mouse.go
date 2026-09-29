@@ -80,6 +80,14 @@ func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 	if c, ok := controlOf(z.id); ok {
 		return m.pressControl(c)
 	}
+	if z.id == zonePanelPlayer {
+		// Elsewhere on NOW PLAYING: the focus only, on PLAY coming from
+		// elsewhere, else on the control it has.
+		if m.focus != areaPlayer {
+			m.focusPlayer(ctlPlay)
+		}
+		return m, nil
+	}
 	if z.id == zoneSeek {
 		m.focusPlayer(m.control)
 		m.onBar = true
@@ -87,6 +95,8 @@ func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 		target := m.state.Duration * time.Duration(x-z.x) / time.Duration(z.w)
 		return m.seekTo(target)
 	}
+	// On the list panel off its rows, the focus only (clickListZone
+	// ignores the panel).
 	focus := m.focusList()
 	next, cmd := m.clickListZone(z)
 	return next, tea.Batch(focus, cmd)

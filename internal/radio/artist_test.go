@@ -206,7 +206,7 @@ func TestArtistCursorSkipsHeadersAndPlaysTopSongsFromSelection(t *testing.T) {
 	if m.cursor() != 0 {
 		t.Fatalf("cursor = %d; want the first top song", m.cursor())
 	}
-	m, _ = press(t, m, "down", "j")
+	m, _ = press(t, m, "down", "down")
 	m, cmd := press(t, m, "enter")
 	settle(t, m, cmd)
 	assertCall(t, f, "PlaySongs", []string{"s1", "s2", "s3"}, 2)

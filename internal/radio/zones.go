@@ -14,18 +14,22 @@ import (
 
 // Zone IDs. Rows of the list panel use rowZone.
 const (
-	zoneInput        = "input"
-	zoneRetry        = "retry"
-	zoneTabStations  = "tab:stations"
-	zoneTabSearch    = "tab:search"
-	zoneBack         = "back"
-	zonePrev         = "prev"
-	zonePlay         = "play"
-	zoneNext         = "next"
-	zoneSeek         = "seek"
-	zoneExpand       = "expand"
-	zoneVolDown      = "vol:down"
-	zoneVolUp        = "vol:up"
+	zoneInput       = "input"
+	zoneRetry       = "retry"
+	zoneTabStations = "tab:stations"
+	zoneTabSearch   = "tab:search"
+	zoneBack        = "back"
+	zonePrev        = "prev"
+	zonePlay        = "play"
+	zoneNext        = "next"
+	zoneSeek        = "seek"
+	zoneExpand      = "expand"
+	zoneVolDown     = "vol:down"
+	zoneVolUp       = "vol:up"
+	// zonePanelList and zonePanelPlayer cover the whole list and NOW
+	// PLAYING panels, frame included, under the zones drawn in them.
+	zonePanelList    = "panel:list"
+	zonePanelPlayer  = "panel:player"
 	rowZonePrefix    = "row:"
 	deleteZonePrefix = "delete:"
 )
@@ -69,6 +73,13 @@ type zones []zone
 func (zs *zones) add(id string, x, y, w int) {
 	if w > 0 {
 		*zs = append(*zs, zone{id: id, x: x, y: y, w: w})
+	}
+}
+
+// addBox registers a region h lines tall as one zone per line.
+func (zs *zones) addBox(id string, x, y, w, h int) {
+	for i := range h {
+		zs.add(id, x, y+i, w)
 	}
 }
 

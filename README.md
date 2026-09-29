@@ -261,12 +261,12 @@ PLAYLISTS (and anywhere the key is not taken by the view):
 
 | Key | Action |
 |-----|--------|
-| `↑`/`↓` or `k`/`j` | Move the cursor; `↑` on the first playlist moves the focus to the nav tabs (see below) |
+| `↑`/`↓` | Move the cursor; `↑` on the first playlist moves the focus to the nav tabs (see below) |
 | `enter` | Open the playlist's page |
 | `space` | Play / pause |
 | `n` / `p` | Next / previous track |
 | `shift+←` / `shift+→` or `,` / `.` | Seek -10 s / +10 s |
-| `+` / `=` and `-`, or `shift+↑` / `shift+↓` | Volume up / down by 5% |
+| `k` / `j`, `+` / `=` and `-`, or `shift+↑` / `shift+↓` | Volume up / down by 5% |
 | `→` | Move the focus to the player (see below) |
 | `f` / `ctrl+f` | Expand the player to the full width, or restore it |
 | `/` | Back to the search left with `tab` (same view and cursor); otherwise open SEARCH with an empty input |
@@ -282,7 +282,7 @@ SEARCH (typing goes to the input, so letter shortcuts are off):
 | `↑`/`↓` | Move between the input and the rows; `↑` on the input moves the focus to the nav tabs |
 | `←`/`→` | On the input, move the text cursor; on a row, `→` moves the focus to the player |
 | `shift+←` / `shift+→` | Seek -10 s / +10 s (`,` and `.` are typed) |
-| `shift+↑` / `shift+↓` | Volume up / down (`+`, `=` and `-` are typed) |
+| `shift+↑` / `shift+↓` | Volume up / down (`k`, `j`, `+`, `=` and `-` are typed) |
 | `ctrl+f` | Expand or restore the player (`f` is typed) |
 | `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, open its SONG view |
 | `ctrl+d` / `delete` | On a recent term, delete it (on the input, they edit the text) |
@@ -294,7 +294,7 @@ RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 
 | Key | Action |
 |-----|--------|
-| `↑`/`↓` or `k`/`j` | Move the cursor; `↑` on the first row moves the focus to the nav tabs |
+| `↑`/`↓` | Move the cursor; `↑` on the first row moves the focus to the nav tabs |
 | `enter` | On RESULTS, open the selected artist, album, song (its SONG view), or playlist; elsewhere, play the top songs or tracks from the selected one, open an album or playlist, or fold the notes (MORE/LESS) |
 | `esc` | Back one view |
 | `tab` | Back to the playlists (the page and the ones below it are kept for the next `/` or `tab`); from a library playlist page, over to SEARCH |
@@ -302,7 +302,7 @@ RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 | `r` | Retry after the page failed to load |
 | `space`, `n` / `p`, seek and volume keys, `→`, `f` / `ctrl+f`, `q` | As on the playlists |
 
-Player (after `→` from the list, or a click on its controls; the lit
+Player (after `→` from the list, or a click on its panel; the lit
 panel frame shows which side has the focus):
 
 | Key | Action |
@@ -354,10 +354,11 @@ The mouse does what the keys do; the keys keep working.
 | `◀ BACK` (on RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST) | As `esc` |
 | `◀◀ PREV`, `▶ PLAY` / `❚❚ PAUSE`, `NEXT ▶▶` (NOW PLAYING) | As `p`, `space`, `n`; the focus moves to the button |
 | `⤢ EXPAND` / `⤡ RESTORE` (NOW PLAYING) | Expand the player to the full width, or restore it |
-| `-` / `+` around the `VOL` readout (NOW PLAYING) | Volume down / up by 5%, as `-` / `+`; the focus moves to the button |
+| `-` / `+` around the `VOL` readout (NOW PLAYING) | Volume down / up by 5%, as `j` / `k`; the focus moves to the button |
+| Anywhere else in a panel (its frame and empty space included) | The panel takes the focus: the list keeps its cursor (nothing opens); NOW PLAYING focuses `PLAY`, or keeps the button it had |
 | The progress bar | Seek to that point of the song; the focus moves to the bar |
 
-Clicks elsewhere move the focus back to the list. The wheel moves the
+Other clicks on the nav bar or the header do nothing. The wheel moves the
 cursor like `↑`/`↓`, stopping at the top of the list (it never reaches the
 nav tabs; nothing while the player is expanded). Narrow layouts
 shorten the transport buttons to their glyphs (`EXPAND` first) and leave

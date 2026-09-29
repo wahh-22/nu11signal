@@ -197,13 +197,13 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k {
 	case keyQuit:
 		return m, m.quitCmd()
-	case keyUp, keyUpAlt:
+	case keyUp:
 		if m.atListTop() {
 			m.focusTabs()
 			return m, nil
 		}
 		m.moveCursor(-1)
-	case keyDown, keyDownAlt:
+	case keyDown:
 		m.moveCursor(1)
 	case keyEnter:
 		return m.openSelection()

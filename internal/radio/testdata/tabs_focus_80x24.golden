@@ -21,4 +21,4 @@
 │                                              │ │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │
 └─────────────────────────── BAND FM // 03 CH ─╱ └───────────── NC-NET 0x2077 ─╱
 ░▒▓ SYS NOMINAL // BUF 0x5EF6                                                   
-[←→] SELECT  [ENTER] OPEN  [↓] RETURN  [SPACE] PLAY/PAUSE  [+/-] VOL  [Q] QUIT
+[←→] SELECT  [ENTER] OPEN  [↓] RETURN  [SPACE] PLAY/PAUSE  [J/K] VOL  [Q] QUIT

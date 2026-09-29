@@ -2,16 +2,14 @@ package radio
 
 // Key names as reported by tea.KeyPressMsg.String.
 const (
-	keyUp      = "up"
-	keyUpAlt   = "k"
-	keyDown    = "down"
-	keyDownAlt = "j"
-	keyEnter   = "enter"
-	keySpace   = "space"
-	keyNext    = "n"
-	keyPrev    = "p"
-	keyLeft    = "left"
-	keyRight   = "right"
+	keyUp    = "up"
+	keyDown  = "down"
+	keyEnter = "enter"
+	keySpace = "space"
+	keyNext  = "n"
+	keyPrev  = "p"
+	keyLeft  = "left"
+	keyRight = "right"
 	// keySeekBack and keySeekForward seek anywhere; keySeekBackAlt and
 	// keySeekForwardAlt wherever typing does not take them.
 	keySeekBack       = "shift+left"
@@ -22,12 +20,15 @@ const (
 	// included; keyExpandAlt wherever typing does not take it.
 	keyExpand    = "ctrl+f"
 	keyExpandAlt = "f"
-	// keyVolumeUp, keyVolumeUpAlt and keyVolumeDown step the volume
-	// wherever typing does not take them; keyVolumeUpAnywhere and
-	// keyVolumeDownAnywhere anywhere, the SEARCH input included.
+	// keyVolumeUp, keyVolumeUpAlt, keyVolumeUpLetter and their down
+	// counterparts step the volume wherever typing does not take them;
+	// keyVolumeUpAnywhere and keyVolumeDownAnywhere anywhere, the SEARCH
+	// input included.
 	keyVolumeUp           = "+"
 	keyVolumeUpAlt        = "="
+	keyVolumeUpLetter     = "k"
 	keyVolumeDown         = "-"
+	keyVolumeDownLetter   = "j"
 	keyVolumeUpAnywhere   = "shift+up"
 	keyVolumeDownAnywhere = "shift+down"
 	keySearch             = "/"
@@ -53,9 +54,9 @@ var playerHints = []hint{
 	{"→", "PLAYER"},
 	{",/.", "SEEK"},
 	{"N/P", "NEXT/PREV"},
-	{"+/-", "VOL"},
+	{"J/K", "VOL"},
 	{"F", "EXPAND"},
-	{"J/K", "MOVE"},
+	{"↑↓", "MOVE"},
 	{"Q", "QUIT"},
 }
 
@@ -95,7 +96,7 @@ func tabsFocusHints(typing bool) []hint {
 		{"ENTER", "OPEN"},
 		{"↓", "RETURN"},
 		{"SPACE", "PLAY/PAUSE"},
-		{"+/-", "VOL"},
+		{"J/K", "VOL"},
 		quit,
 	}
 }
@@ -104,7 +105,7 @@ func tabsFocusHints(typing bool) []hint {
 // song, opens an album or playlist, or expands the ABOUT notes (MORE).
 var artistHints = []hint{
 	{"ENTER", "SELECT/MORE"},
-	{"J/K", "MOVE"},
+	{"↑↓", "MOVE"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
 	{"N/P", "NEXT/PREV"},
@@ -116,7 +117,7 @@ var artistHints = []hint{
 // selected artist, album, song or playlist.
 var resultsHints = []hint{
 	{"ENTER", "OPEN"},
-	{"J/K", "MOVE"},
+	{"↑↓", "MOVE"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
 	{"N/P", "NEXT/PREV"},
@@ -128,7 +129,7 @@ var resultsHints = []hint{
 // plays from the selected track or expands the notes (MORE).
 var trackHints = []hint{
 	{"ENTER", "PLAY/MORE"},
-	{"J/K", "MOVE"},
+	{"↑↓", "MOVE"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
 	{"N/P", "NEXT/PREV"},
