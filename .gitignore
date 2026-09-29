@@ -11,5 +11,6 @@ dist/
 .env
 
 # Tooling
+.atl/
 .codegraph/
 .DS_Store
