@@ -67,6 +67,14 @@ Route: delegated (one writer; writer trigger: 2+ non-trivial files).
 - F4: `NU11SIGNAL_TAP_DIR=<temp> make cask VERSION=0.2.0` cloned the tap, rendered, `ruby -c` OK, audit passed, empty `git diff`; file identical to the published `Casks/nu11signal.rb`. Rerun on the existing checkout fast-forwarded and passed. With a temporary fake `dist/…0.2.1….sha256` the diff showed only `version`/`sha256` and "Not pushed" (fake removed). `make cask VERSION=0.2` → semver error, exit 2; missing checksum → clear error; stray file in the tap → refused. The audit reads the linked checkout (a render without `homepage` fails it). Nothing was pushed.
 - Note: an early F4 draft set `HOMEBREW_NO_INSTALL_FROM_API=1`, which made Homebrew tap `homebrew/core` (1.4 GB); the option was removed and `homebrew/core` untapped again, restoring the previous tap list.
 
+- Template comment updated to describe `make cask` (inline, 1 file).
+- F1–F4 native review (range `e9661a7..HEAD`): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-6bc032f28c0027b1`).
+
+## Backlog (non-blocking advisories)
+
+- `bump-cask.sh --push`: a commit left unpushed after a failed push is not detected on retry (131-149); the dirty-check exclusion scope (86-88); no script tests.
+- `release.sh` promotion into `dist/` is two renames, not a single atomic step (145-150, 232-233).
+
 ## Next step
 
-Review, PR, merge.
+PR + merge of `chore/release-followups`.
