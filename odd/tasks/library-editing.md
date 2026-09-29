@@ -36,7 +36,8 @@ Fourth round of user feedback (2026-09-29, main `bc4f8b5`).
 - Finding (parent, SDK `MacOSX.sdk` MusicKit swiftinterface): `MusicLibrary.createPlaylist/edit/add` are `@available(macOS, unavailable)`; no favorites API in MusicKit. User chose the Apple Music web API via `MusicDataRequest` (create, add, favorite; no rename/remove).
 - B1 done (route: delegated writer, isolated worktree, `72e6851` cherry-picked as `f9b6f6d`). Inferred causes (no audio allowed): `Queue(playlist:startingAt:)` with a playlist loaded without entries ignores the start → queue built from the exact `libraryPlaylist` song list; Code=6 → start named as a queue entry (`Queue(entries, startingAt:)`, `SongQueue` pure helper) plus ONE retry on Code=6. RED: `SongQueue` missing; GREEN: `swift test` 72. Needs audio verification by the user.
 - U1 done (route: delegated writer). `k`/`j` volume up/down everywhere outside the SEARCH input; arrows alone move rows; panel-wide click zones registered under rows/controls give focus. RED: key/volume and panel-zone tests; GREEN: `go test -race ./...` 575 passed; commit `453104e` (rebased onto B1).
+  - B1+U1 slice review (base `90ee87d`): high, 638 lines, consent granted, lineage `review-40d080d7ed45bdad`, 4 lenses, APPROVED, acknowledged (burned). Advisories → B2: log Code=6 retries to stderr; explicit range check in playPlaylist (no bare `_ =`); named Code=6 constant; test the retry path via a seam if feasible. Not scheduled: panel-zone ordering comment, compact click precedence test.
 
 ## Next step
 
-Review B1+U1, then B2.
+B2 on `feat/library-edit-backend`.
