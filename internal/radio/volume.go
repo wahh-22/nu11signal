@@ -61,6 +61,9 @@ func roundVolume(level float64) float64 {
 func (m Model) stepVolume(delta float64) (Model, tea.Cmd) {
 	if !m.volumeKnown {
 		if m.volumeBusy {
+			// A read is in flight (the startup one included): keep the
+			// step for when it answers.
+			m.volumePending += delta
 			return m, nil
 		}
 		m.volumeBusy = true
@@ -87,17 +90,18 @@ func (m Model) sendVolume() (Model, tea.Cmd) {
 // onVolume settles a read. The startup read fails quietly (the readout
 // says VOL --); a read a press asked for reports its failure.
 func (m Model) onVolume(msg volumeMsg) (Model, tea.Cmd) {
-	m.volumeBusy = false
+	step := msg.step + m.volumePending
+	m.volumeBusy, m.volumePending = false, 0
 	if msg.err != nil {
-		if msg.step != 0 {
+		if step != 0 {
 			m.setStatus("VOLUME FAILED // " + msg.err.Error())
 		}
 		return m, nil
 	}
 	// The player may report a level out of range; the UI shows it clamped.
 	m.volume, m.volumeKnown = playback.ClampVolume(msg.level), true
-	if msg.step != 0 {
-		return m.stepVolume(msg.step)
+	if step != 0 {
+		return m.stepVolume(step)
 	}
 	return m, nil
 }

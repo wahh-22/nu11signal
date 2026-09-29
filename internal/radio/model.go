@@ -171,10 +171,12 @@ type Model struct {
 	// volume is the output level shown, and the latest one asked for;
 	// volumeKnown is false until the player reports it, and again after
 	// it refused a change. volumeBusy means a Volume or SetVolume call is
-	// in flight (see volume.go).
-	volume      float64
-	volumeKnown bool
-	volumeBusy  bool
+	// in flight (see volume.go); it starts true for the read Init sends.
+	// volumePending holds steps pressed while a read was in flight.
+	volume        float64
+	volumeKnown   bool
+	volumeBusy    bool
+	volumePending float64
 
 	frame  uint64
 	bars   eq
@@ -205,12 +207,14 @@ func New(p playback.Player, opts Options) Model {
 	in.CharLimit = 120
 	in.SetStyles(inputStyles())
 	return Model{
-		player:        p,
-		now:           opts.Now,
-		seed:          opts.Seed,
-		timeout:       opts.CallTimeout,
-		closeTimeout:  opts.CloseTimeout,
-		stack:         []frame{{kind: viewStations}},
+		player:       p,
+		now:          opts.Now,
+		seed:         opts.Seed,
+		timeout:      opts.CallTimeout,
+		closeTimeout: opts.CloseTimeout,
+		stack:        []frame{{kind: viewStations}},
+		volumeBusy:   true, // Init reads the volume
+
 		input:         in,
 		recentsStore:  opts.Recents,
 		recentsWrites: newRecentsWriter(opts.Recents),

@@ -318,3 +318,23 @@ func TestPlayerKeysActOnTheTabs(t *testing.T) {
 		}
 	}
 }
+
+func TestVolumePressesBeforeTheStartupReadWaitForIt(t *testing.T) {
+	// Init reads the volume; presses made before that read answers must
+	// not start a second read, and are applied once it answers.
+	f := playbacktest.New()
+	m := loaded(t, f, newClock())
+	m, first := press(t, m, "+")
+	m, second := press(t, m, "+")
+	if first != nil || second != nil {
+		t.Fatalf("commands %v %v; want the presses to wait for the startup read", first != nil, second != nil)
+	}
+	m, cmd := step(t, m, volumeMsg{level: 0.5})
+	m = settle(t, m, cmd)
+	if calls := callsOf(f, "Volume"); len(calls) != 0 {
+		t.Fatalf("Volume read again: %v", calls)
+	}
+	if got := setVolumeCalls(f); !reflect.DeepEqual(got, []any{0.6}) {
+		t.Fatalf("SetVolume calls %v; want both presses applied to the startup level", got)
+	}
+}
