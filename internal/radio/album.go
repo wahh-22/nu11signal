@@ -345,8 +345,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 	song := func(it trackItem, s playback.Song, render func(selected bool, w int) string) {
 		n := len(items)
 		items = append(items, it)
-		text, actions := m.songRow(s, n == cur, w, func(w int) string { return render(n == cur, w) })
-		lines = append(lines, pageLine{text: text, item: n, actions: actions})
+		lines = append(lines, m.songLine(s, n, n == cur, w, render))
 	}
 
 	// ▶ marks the track playing, never the one searched for.

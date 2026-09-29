@@ -36,6 +36,19 @@ func (e *CommandError) Error() string {
 	return fmt.Sprintf("helper %s: %s", e.Command, e.Message)
 }
 
+// unknownOutcomeMark is the phrase the helper puts in the message of a
+// library write (createPlaylist, addToPlaylist) that ran out of time: the
+// Apple Music API may still apply it (LibraryEdit.settled).
+const unknownOutcomeMark = "may or may not have been"
+
+// OutcomeUnknown reports whether the command may still have been applied:
+// a library write that timed out in the helper. Such a write must not be
+// retried blindly, as it could be applied twice. The UI tests for this
+// method, not for the message.
+func (e *CommandError) OutcomeUnknown() bool {
+	return strings.Contains(e.Message, unknownOutcomeMark)
+}
+
 // Options configures Start.
 type Options struct {
 	// Path is the helper executable (see Locate).

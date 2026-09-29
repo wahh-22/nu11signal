@@ -216,13 +216,13 @@ func (m Model) resultsLayout(w int) []pageLine {
 		}
 		lines = append(lines, pageLine{text: " " + stYellow.Render("▞ ") + stMuted.Render(spaced(s.name)), item: -1})
 		for _, it := range s.items {
-			line := pageLine{text: resultLine(it, s.tagged, n == cur, w), item: n}
 			if it.Kind == playback.ItemSong {
-				line.text, line.actions = m.songRow(it.Song, n == cur, w, func(w int) string {
-					return resultLine(it, s.tagged, n == cur, w)
-				})
+				lines = append(lines, m.songLine(it.Song, n, n == cur, w, func(sel bool, w int) string {
+					return resultLine(it, s.tagged, sel, w)
+				}))
+			} else {
+				lines = append(lines, pageLine{text: resultLine(it, s.tagged, n == cur, w), item: n})
 			}
-			lines = append(lines, line)
 			n++
 		}
 	}

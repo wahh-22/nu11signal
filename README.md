@@ -271,18 +271,26 @@ Limitations:
   row, and NOW PLAYING shows a `╱ ♡ ╱` button beside the title. The state is
   read when the selection rests (on the next animation tick), cached per
   song, and a change shows at once: a refused one is reported on the status
-  line and read back.
+  line and read back, and a failed read is tried again 30 seconds later.
+  One change per song is sent at a time; pressing `l` again meanwhile only
+  moves the heart, and the latest state is sent once the first answers.
 - **Add to a playlist**: `a` (or the row's `+`) opens ADD TO PLAYLIST over
   the list: `+ NEW PLAYLIST`, then the playlists songs can be added to
   (ones followed from the catalog, such as "Canciones favoritas", are left
-  out). `enter` adds the selected song and closes the picker; a failure keeps
-  it open. `esc` or `◀ BACK` cancels.
+  out). `enter` adds the selected song and closes the picker; a refusal keeps
+  it open. An add that timed out may still be applied, so the picker closes
+  and the status line asks you to check the playlist before trying again.
+  `esc` or `◀ BACK` cancels.
 - **New playlist**: the `+ NEW PLAYLIST` row over the playlists, its button
   in the nav bar, or the picker's row (the new playlist then holds the song).
   Type the name, `enter` (or `CREATE`) creates it, `esc` (or `CANCEL`)
   cancels (back to the picker when it came from there). The new playlist is
   listed and selected at once; the list is read again, and a playlist the
-  API does not list yet is kept.
+  API does not list yet is kept. A create that timed out closes the name
+  input too (check the playlists before trying again); the list is read
+  again and selects the new playlist if it shows up.
+- One add or create is in flight at a time: until it answers, another one
+  shows `WRITING…` and is not sent.
 
 Songs only in your library cannot be loved or added (the ratings and
 playlist endpoints take catalog ids): `l` and `a` show a notice.

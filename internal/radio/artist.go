@@ -181,10 +181,9 @@ func (m Model) artistLayout(w int) ([]pageLine, []artistItem) {
 		for i, s := range d.TopSongs {
 			n := len(items)
 			items = append(items, artistItem{kind: itemSong, index: i})
-			text, actions := m.songRow(s, n == cur, w, func(w int) string {
-				return detailLine("♪", stCyan, strings.ToUpper(s.Title), strings.ToUpper(s.Album), n == cur, w)
-			})
-			lines = append(lines, pageLine{text: text, item: n, actions: actions})
+			lines = append(lines, m.songLine(s, n, n == cur, w, func(sel bool, w int) string {
+				return detailLine("♪", stCyan, strings.ToUpper(s.Title), strings.ToUpper(s.Album), sel, w)
+			}))
 		}
 	}
 	albumSection("ESSENTIAL ALBUMS", d.EssentialAlbums)

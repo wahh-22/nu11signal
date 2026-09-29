@@ -111,13 +111,15 @@ func tabsFocusHints(typing bool) []hint {
 
 // artistHints replace playerHints on an artist page: enter plays a top
 // song, opens an album or playlist, or expands the ABOUT notes (MORE).
+// On the pages under the root, L and A come after ESC BACK, so an
+// 80-column footer drops them first.
 var artistHints = []hint{
 	{"ENTER", "SELECT/MORE"},
 	{"↑↓", "MOVE"},
-	{"L", "LOVE"},
-	{"A", "ADD"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
 	{"Q", "QUIT"},
@@ -128,10 +130,10 @@ var artistHints = []hint{
 var resultsHints = []hint{
 	{"ENTER", "OPEN"},
 	{"↑↓", "MOVE"},
-	{"L", "LOVE"},
-	{"A", "ADD"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
 	{"Q", "QUIT"},
@@ -142,10 +144,10 @@ var resultsHints = []hint{
 var trackHints = []hint{
 	{"ENTER", "PLAY/MORE"},
 	{"↑↓", "MOVE"},
-	{"L", "LOVE"},
-	{"A", "ADD"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
 	{"Q", "QUIT"},
@@ -172,11 +174,11 @@ var nameHints = []hint{
 // l and a act instead of being typed.
 var searchSongHints = []hint{
 	{"ENTER", "SELECT"},
-	{"L", "LOVE"},
-	{"A", "ADD"},
 	{"↑↓", "MOVE"},
 	{"TAB", "PLAYLISTS"},
 	{"ESC", "BACK"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"CTRL+C", "QUIT"},
 }
 

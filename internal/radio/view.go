@@ -316,6 +316,10 @@ func (m Model) progressLine(w int) (line string, barW int) {
 		"  " + stRed.Render(times), barW
 }
 
+// nowPlayingMargin is the room NOW PLAYING leaves on each side of the
+// lines under its head.
+const nowPlayingMargin = 1
+
 // nowPlaying renders the inside of the NOW PLAYING panel, iw x ih cells,
 // with its zones: the progress bar (click to seek), the transport buttons
 // under the feed and the volume row under them.
@@ -333,20 +337,22 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	}
 	head := label + strings.Repeat(" ", max(iw-1-ansi.StringWidth(label)-ansi.StringWidth(tag), 1)) + tag
 
-	title, hz := m.heartTitle(title, iw-2)
+	// The lines under the head sit nowPlayingMargin cells in from each
+	// side, and so do their zones.
+	inner := iw - 2*nowPlayingMargin
+	lines := []string{" " + head, ""}
+	title, hz := m.heartTitle(title, inner)
 	var zs zones
-	zs.addAt(1, 2, hz)
-	lines := []string{
-		" " + head,
+	zs.addAt(nowPlayingMargin, len(lines), hz)
+	lines = append(lines,
+		" "+title,
+		" "+artist,
+		" "+album,
 		"",
-		" " + title,
-		" " + artist,
-		" " + album,
-		"",
-	}
-	progress, barW := m.progressLine(iw - 2)
+	)
+	progress, barW := m.progressLine(inner)
 	if m.seekable() {
-		zs.add(zoneSeek, 1, len(lines), barW)
+		zs.add(zoneSeek, nowPlayingMargin, len(lines), barW)
 	}
 	lines = append(lines, m.barMark()+progress, " "+m.feedLine())
 	if ih > len(lines)+2 {
@@ -354,11 +360,11 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 		// for the volume row.
 		lines = append(lines, "")
 	}
-	transport, tz := m.transportBar(iw - 2)
-	zs.addAt(1, len(lines), tz)
+	transport, tz := m.transportBar(inner)
+	zs.addAt(nowPlayingMargin, len(lines), tz)
 	lines = append(lines, " "+transport)
-	volume, vz := m.volumeBar(iw - 2)
-	zs.addAt(1, len(lines), vz)
+	volume, vz := m.volumeBar(inner)
+	zs.addAt(nowPlayingMargin, len(lines), vz)
 	lines = append(lines, " "+volume)
 
 	eqRows := min(ih-len(lines), eqMaxRows)
@@ -367,7 +373,7 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 		for len(lines)+eqRows < ih {
 			lines = append(lines, "")
 		}
-		for i, row := range m.bars.render(iw-2, eqRows) {
+		for i, row := range m.bars.render(inner, eqRows) {
 			style := stRed
 			switch {
 			case i == 0:

@@ -74,7 +74,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case favoriteMsg:
 		return m.onFavorite(msg), nil
 	case setFavoriteMsg:
-		return m.onSetFavorite(msg), nil
+		return m.onSetFavorite(msg)
 	case addedMsg:
 		return m.onAdded(msg)
 	case createdMsg:
@@ -126,6 +126,8 @@ func (m Model) onAuth(msg authMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.auth = authOK
+	// States that failed to read without access are read again.
+	m.clearFailedFavorites()
 	return m, m.loadPlaylistsCmd()
 }
 

@@ -174,12 +174,16 @@ type Model struct {
 	favSeq uint64
 	// editor is the ADD TO PLAYLIST picker or the NEW PLAYLIST name input
 	// over the list panel; nameInput holds the name. editSeq numbers the
-	// library writes. created are the playlists created here that the API
-	// does not list yet.
-	editor    libraryEditor
-	nameInput textinput.Model
-	editSeq   uint64
-	created   []playback.Playlist
+	// library writes; libraryWriting means one is in flight (see
+	// library.go). created are the playlists created here that the API
+	// does not list yet; createCheck, when set, is a create of unknown
+	// outcome to look for in the next playlists read.
+	editor         libraryEditor
+	nameInput      textinput.Model
+	editSeq        uint64
+	libraryWriting bool
+	created        []playback.Playlist
+	createCheck    *createCheck
 
 	// volume is the output level shown, and the latest one asked for;
 	// volumeKnown is false until the player reports it, and again after

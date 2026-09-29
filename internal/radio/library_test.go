@@ -1,7 +1,9 @@
 package radio
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -179,7 +181,7 @@ func TestLoveActsOnTheSongPlaying(t *testing.T) {
 		t.Fatalf("NOW PLAYING heart shows %q; want ♥", got)
 	}
 	m, cmd = click(t, m, zoneFavPlaying)
-	settle(t, m, cmd)
+	m = settle(t, m, cmd) // one change in flight at a time: let it answer
 	assertCall(t, f, "SetFavorite", "c1", false)
 
 	// With the player focused, l acts there too.
@@ -450,7 +452,7 @@ func TestNewPlaylistFromThePickerHoldsTheSong(t *testing.T) {
 
 func TestNewPlaylistFailureKeepsTheName(t *testing.T) {
 	f := playbacktest.New()
-	f.MethodErr = map[string]error{"CreatePlaylist": errors.New("the request timed out; the playlist may have been created")}
+	f.MethodErr = map[string]error{"CreatePlaylist": errors.New("name is too long")}
 	m := loaded(t, f, newClock())
 	m, _ = press(t, m, "up", "enter")
 	m = typeText(t, m, "Mix")
@@ -459,13 +461,15 @@ func TestNewPlaylistFailureKeepsTheName(t *testing.T) {
 	if m.editor.mode != editName || m.nameInput.Value() != "Mix" {
 		t.Fatalf("editor %v name %q; want the input kept", m.editor.mode, m.nameInput.Value())
 	}
-	if view := plain(m); !strings.Contains(view, "CREATE FAILED // THE REQUEST TIMED OUT") {
+	if view := plain(m); !strings.Contains(view, "CREATE FAILED // NAME IS TOO LONG") {
 		t.Fatalf("no failure notice:\n%s", view)
 	}
 }
 
 func TestLibraryEditHints(t *testing.T) {
 	m := openSong(t, playbacktest.New(), 1)
+	// L and A are the first to go from a narrow footer.
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 30})
 	if got := hintsOf(m); !strings.Contains(got, "[L] LOVE") || !strings.Contains(got, "[A] ADD") {
 		t.Fatalf("track footer %q; want L and A", got)
 	}
@@ -517,5 +521,261 @@ func TestLibraryEditViewFitsEverySize(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// unknownOutcome is a write failure whose outcome is unknown, as the helper
+// adapter reports a timed-out create or add.
+type unknownOutcome struct{}
+
+func (unknownOutcome) Error() string {
+	return "addToPlaylist timed out: may or may not have been applied"
+}
+func (unknownOutcome) OutcomeUnknown() bool { return true }
+
+func TestAddWithAnUnknownOutcomeClosesThePicker(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		err  error
+	}{
+		{"helper timeout", unknownOutcome{}},
+		{"call deadline", context.DeadlineExceeded},
+		{"wrapped deadline", fmt.Errorf("add: %w", context.DeadlineExceeded)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := playbacktest.New()
+			f.MethodErr = map[string]error{"AddToPlaylist": tt.err}
+			m := withStations(t, openSong(t, f, 1), editableStations())
+			m, _ = press(t, m, "a", "down") // NIGHT DRIVE
+			m, cmd := press(t, m, "enter")
+			m = settle(t, m, cmd)
+			if m.editor.mode != editClosed {
+				t.Fatal("an add of unknown outcome kept the picker armed for a blind retry")
+			}
+			if view := plain(m); !strings.Contains(view, "CHECK NIGHT DRIVE BEFORE TRYING AGAIN") {
+				t.Fatalf("no unknown-outcome notice:\n%s", view)
+			}
+			if m.libraryWriting {
+				t.Fatal("the write is still marked in flight")
+			}
+		})
+	}
+}
+
+func TestCreateWithAnUnknownOutcomeRereadsThePlaylists(t *testing.T) {
+	f := playbacktest.New()
+	f.MethodErr = map[string]error{"CreatePlaylist": unknownOutcome{}}
+	m := loaded(t, f, newClock())
+	m, _ = press(t, m, "up", "enter")
+	m = typeText(t, m, "Mix")
+	m, cmd := press(t, m, "enter")
+	m, reread := step(t, m, run(t, cmd))
+	if m.editor.mode != editClosed || m.nameInput.Focused() {
+		t.Fatal("a create of unknown outcome kept the name input armed")
+	}
+	if view := plain(m); !strings.Contains(view, "CHECK THE PLAYLISTS BEFORE TRYING AGAIN") {
+		t.Fatalf("no unknown-outcome notice:\n%s", view)
+	}
+	// The playlist was created after all: the list read again shows it,
+	// and it is selected.
+	f.PlaylistsResult = append(stations(), playback.Playlist{ID: "p.mix", Name: "Mix", Editable: true})
+	m = settle(t, m, reread)
+	if n := len(callsOf(f, "Playlists")); n != 2 {
+		t.Fatalf("Playlists called %d times; want the list read again", n)
+	}
+	if c := m.stationCursor(); c < 0 || m.stations[c].ID != "p.mix" {
+		t.Fatalf("stations %v cursor %d; want the new Mix selected", m.stations, c)
+	}
+}
+
+func TestCreateWithAnUnknownOutcomeIgnoresAnOlderNamesake(t *testing.T) {
+	f := playbacktest.New()
+	f.MethodErr = map[string]error{"CreatePlaylist": unknownOutcome{}}
+	m := loaded(t, f, newClock())
+	m, _ = press(t, m, "up", "enter")
+	m = typeText(t, m, "Samurai") // the name of a playlist already listed
+	m, cmd := press(t, m, "enter")
+	m, reread := step(t, m, run(t, cmd))
+	m = settle(t, m, reread)
+	if c := m.stationCursor(); c != -1 {
+		t.Fatalf("cursor %d; want the + NEW PLAYLIST row kept, not the older Samurai", c)
+	}
+}
+
+func TestEditorStaysBusyUntilTheWriteAnswers(t *testing.T) {
+	f := playbacktest.New()
+	m := withStations(t, openSong(t, f, 1), editableStations())
+	m, _ = press(t, m, "a", "down")
+	m, add := press(t, m, "enter") // NIGHT DRIVE, in flight
+	// Within the editor: + NEW PLAYLIST opens, but creates nothing.
+	m, _ = press(t, m, "up", "enter")
+	if m.editor.mode != editName {
+		t.Fatalf("editor %v; want the name input", m.editor.mode)
+	}
+	m = typeText(t, m, "Mix")
+	m, cmd := press(t, m, "enter")
+	if cmd != nil {
+		t.Fatal("a create started while an add was in flight")
+	}
+	if view := plain(m); !strings.Contains(view, "WRITING") {
+		t.Fatalf("no WRITING notice:\n%s", view)
+	}
+	// Back in the picker, no second add.
+	m, _ = press(t, m, "esc", "down")
+	if m, cmd = press(t, m, "enter"); cmd != nil {
+		t.Fatal("a second add started while one was in flight")
+	}
+	// Closed and opened again, still none.
+	m, _ = press(t, m, "esc", "a", "down")
+	if m, cmd = press(t, m, "enter"); cmd != nil {
+		t.Fatal("a reopened picker started an add while one was in flight")
+	}
+	m = settle(t, m, add)
+	if n := len(callsOf(f, "AddToPlaylist")) + len(callsOf(f, "CreatePlaylist")); n != 1 {
+		t.Fatalf("%d writes; want the one", n)
+	}
+	// Answered: writes start again.
+	m, _ = press(t, m, "a", "down")
+	if _, cmd = press(t, m, "enter"); cmd == nil {
+		t.Fatal("no add after the write in flight answered")
+	}
+}
+
+func TestRapidLoveTogglesAreSerialized(t *testing.T) {
+	f := playbacktest.New()
+	m := openSong(t, f, 1) // DIGITAL LOVE (s2)
+	m, first := press(t, m, "l")
+	m, second := press(t, m, "l")
+	if second != nil {
+		t.Fatal("a second favorite write started while one was in flight")
+	}
+	if on, _ := m.favoriteOf("s2"); on {
+		t.Fatal("the row does not show the latest intent (unloved)")
+	}
+	m, next := step(t, m, run(t, first))
+	if next == nil {
+		t.Fatal("the queued intent was not sent once the first write answered")
+	}
+	m = settle(t, m, next)
+	calls := callsOf(f, "SetFavorite")
+	if len(calls) != 2 || !reflect.DeepEqual(calls[0].Args, []any{"s2", true}) || !reflect.DeepEqual(calls[1].Args, []any{"s2", false}) {
+		t.Fatalf("SetFavorite calls = %v; want love, then unlove", calls)
+	}
+	if on, known := m.favoriteOf("s2"); on || !known {
+		t.Fatalf("favorite s2 = %v known %v; want unloved", on, known)
+	}
+
+	// Three presses end where the first write goes: nothing more is sent.
+	m, first = press(t, m, "l")
+	m, _ = press(t, m, "l", "l")
+	m, next = step(t, m, run(t, first))
+	if next != nil {
+		t.Fatal("a write was queued for the state already sent")
+	}
+	if on, _ := m.favoriteOf("s2"); !on || len(callsOf(f, "SetFavorite")) != 3 {
+		t.Fatalf("calls %v; want three writes and s2 loved", callsOf(f, "SetFavorite"))
+	}
+}
+
+func TestAFailedWriteStillSendsTheQueuedIntent(t *testing.T) {
+	f := playbacktest.New()
+	f.MethodErr = map[string]error{"SetFavorite": errors.New("ratings unavailable")}
+	m := openSong(t, f, 1)
+	m, first := press(t, m, "l")
+	m, _ = press(t, m, "l")
+	f.MethodErr = nil
+	m, next := step(t, m, run(t, first))
+	if next == nil {
+		t.Fatal("the queued intent was dropped with the failed write")
+	}
+	m = settle(t, m, next)
+	if on, known := m.favoriteOf("s2"); on || !known {
+		t.Fatalf("favorite s2 = %v known %v; want the latest intent, unloved", on, known)
+	}
+}
+
+func TestFailedFavoriteReadsAreRetriedAfterABackoff(t *testing.T) {
+	f := playbacktest.New()
+	f.MethodErr = map[string]error{"Favorite": errors.New("offline")}
+	c := newClock()
+	m := openSong(t, f, 1)
+	m.now = c.now
+	m, cmd := m.readFavorites()
+	m = settle(t, m, cmd)
+	if _, cmd = m.readFavorites(); cmd != nil {
+		t.Fatal("a failed read was retried at once")
+	}
+	c.advance(favoriteRetryAfter - time.Second)
+	if _, cmd = m.readFavorites(); cmd != nil {
+		t.Fatal("a failed read was retried before the backoff")
+	}
+	c.advance(time.Second)
+	f.MethodErr = nil
+	m, cmd = m.readFavorites()
+	if cmd == nil {
+		t.Fatal("a failed read was never retried")
+	}
+	m = settle(t, m, cmd)
+	if _, known := m.favoriteOf("s2"); !known {
+		t.Fatal("the retried read did not settle")
+	}
+}
+
+func TestAuthorizationClearsFailedFavoriteReads(t *testing.T) {
+	f := playbacktest.New()
+	f.MethodErr = map[string]error{"Favorite": errors.New("not authorized")}
+	m := openSong(t, f, 1)
+	m, cmd := m.readFavorites()
+	m = settle(t, m, cmd)
+	m, _ = step(t, m, authMsg{status: playback.AuthAuthorized})
+	if _, cmd = m.readFavorites(); cmd == nil {
+		t.Fatal("a read failed before authorization was not retried after it")
+	}
+}
+
+func TestEscBackStaysInTheFooterAt80Columns(t *testing.T) {
+	playlist := func(t *testing.T, f *playbacktest.Fake) Model {
+		return openStation(t, loaded(t, f, newClock()), 0)
+	}
+	results := func(t *testing.T, f *playbacktest.Fake) Model { return openResults(t, f, &fakeRecents{}) }
+	song := func(t *testing.T, f *playbacktest.Fake) Model { return openSong(t, f, 1) }
+	for _, tt := range []struct {
+		name string
+		open func(*testing.T, *playbacktest.Fake) Model
+	}{
+		{"artist", openDaftPunk},
+		{"playlist", playlist},
+		{"song", song},
+		{"results", results},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.open(t, playbacktest.New())
+			if got := hintsOf(m); !strings.Contains(got, "[ESC] BACK") {
+				t.Fatalf("80-col footer %q lacks [ESC] BACK", got)
+			}
+		})
+	}
+}
+
+func TestReturningFromThePickerGivesTheSearchInputItsKeysBack(t *testing.T) {
+	f := playbacktest.New()
+	f.SearchCatalogResult = catalog()
+	m := searchFor(t, loaded(t, f, newClock()), "daft")
+	m, _ = step(t, m, stateMsg{state: playing(time.Minute, 3*time.Minute)})
+	if !m.input.Focused() {
+		t.Fatal("setup: the SEARCH input lacks the keys")
+	}
+	// From the player, a opens the picker for the song playing.
+	m, _ = click(t, m, zonePlay)
+	if m.focus != areaPlayer || m.input.Focused() {
+		t.Fatalf("setup: focus %v input focused %v; want the player", m.focus, m.input.Focused())
+	}
+	m, _ = press(t, m, "a")
+	if m.editor.mode != editPick || m.input.Focused() {
+		t.Fatalf("editor %v input focused %v; want the picker with the keys", m.editor.mode, m.input.Focused())
+	}
+	m, _ = press(t, m, "esc")
+	if m.editor.mode != editClosed || !m.input.Focused() {
+		t.Fatalf("editor %v input focused %v; want the SEARCH input typing again", m.editor.mode, m.input.Focused())
 	}
 }
