@@ -97,6 +97,21 @@ final class PreparedQueueTests: XCTestCase {
         XCTAssertFalse(q.items.contains { $0.library })
     }
 
+    func testALocalStartMapsEachLibraryCopyBackToItsCatalogID() {
+        // The player reports a library copy by its own id; the state events
+        // must name the catalog song the UI asked for.
+        let copies = ["b": Song(id: "i.b", library: true), "c": Song(id: "i.c", library: true)]
+        let q = PreparedQueue(items: ["a", "b", "c", "b"].map { Song(id: $0) }, start: 1, id: \.id, libraryCopies: copies)
+        XCTAssertEqual(q.items.map(\.id), ["a", "i.b", "i.c", "i.b"])
+        XCTAssertEqual(q.catalogIDs, ["i.b": "b", "i.c": "c"])
+    }
+
+    func testACatalogStartQueuesNoLibraryCopyToMapBack() {
+        let copies = ["b": Song(id: "i.b", library: true)]
+        let q = PreparedQueue(items: ["a", "b"].map { Song(id: $0) }, start: 0, id: \.id, libraryCopies: copies)
+        XCTAssertEqual(q.catalogIDs, [:])
+    }
+
     func testALibraryCopyIsMatchedByTheCatalogIDInItsPlayParameters() {
         // PlayParameters is opaque; its Codable form names the catalog id.
         let json = #"{"isLibrary":true,"kind":"song","id":"i.5PkLbY7FbmX2YNp","catalogId":"1825270816","musicKit_persistentID":"-678"}"#
@@ -115,6 +130,13 @@ final class PreparedQueueTests: XCTestCase {
 }
 
 final class QueueStartTests: XCTestCase {
+    func testTheFollowersOfAStartSongAreTheSongsAfterIt() {
+        XCTAssertEqual(QueueStart.followers(of: ["a", "b", "c", "d"], after: 1), ["c", "d"])
+        XCTAssertEqual(QueueStart.followers(of: ["a", "b"], after: 1), [])
+        XCTAssertEqual(QueueStart.followers(of: ["a"], after: 3), [])
+        XCTAssertEqual(QueueStart.followers(of: [String](), after: 0), [])
+    }
+
     func testOnlyThePlayersPrepareFailureFallsBack() {
         let domain = QueueStart.playerErrorDomain
         let code = QueueStart.prepareFailureCode

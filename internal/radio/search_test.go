@@ -108,16 +108,27 @@ func searchFor(t *testing.T, m Model, term string) Model {
 	m, _ = press(t, m, "/")
 	m = typeText(t, m, term)
 	m, cmd := step(t, m, searchDebounceMsg{seq: m.search.seq})
-	m, _ = step(t, m, run(t, cmd))
+	m, cmd = step(t, m, run(t, cmd))
+	if cmd != nil {
+		m = settle(t, m, cmd) // the favorites of its songs
+	}
 	return m
 }
 
 // settle runs cmd, including every command of a batch, and feeds the
-// resulting messages back into the model.
+// resulting messages back into the model. The favorites read a page
+// starts as it loads is settled too.
 func settle(t *testing.T, m Model, cmd tea.Cmd) Model {
 	t.Helper()
 	for _, msg := range runAll(t, cmd) {
-		m, _ = step(t, m, msg)
+		var next tea.Cmd
+		m, next = step(t, m, msg)
+		switch msg.(type) {
+		case albumMsg, playlistMsg, artistMsg, resultsMsg, catalogMsg:
+			if next != nil {
+				m = settle(t, m, next)
+			}
+		}
 	}
 	return m
 }

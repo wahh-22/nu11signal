@@ -49,6 +49,9 @@ func TestStateRepeatModeDefaultsToOff(t *testing.T) {
 		{"off", playback.RepeatOff},
 		{"all", playback.RepeatAll},
 		{"one", playback.RepeatOne},
+		// A mode this build does not know (a newer helper's) plays as off.
+		{"shuffle", playback.RepeatOff},
+		{"ALL", playback.RepeatOff},
 	} {
 		if got := (wireState{Repeat: tt.wire}).toDomain().Repeat; got != tt.want {
 			t.Errorf("repeat %q = %q; want %q", tt.wire, got, tt.want)

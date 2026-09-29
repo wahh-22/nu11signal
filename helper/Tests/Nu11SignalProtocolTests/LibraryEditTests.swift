@@ -151,15 +151,24 @@ final class LibraryEditTests: XCTestCase {
         }
     }
 
-    func testIsFavoriteOnlyForALoveRating() {
-        XCTAssertTrue(LibraryEdit.isFavorite(Data(#"{"data":[{"id":"1","type":"ratings","attributes":{"value":1}}]}"#.utf8)))
+    func testIsFavoriteOnlyForALoveRating() throws {
+        XCTAssertTrue(try LibraryEdit.isFavorite(Data(#"{"data":[{"id":"1","type":"ratings","attributes":{"value":1}}]}"#.utf8)))
         for json in [
             #"{"data":[{"attributes":{"value":-1}}]}"#,
             #"{"data":[{"attributes":{}}]}"#,
             #"{"data":[]}"#,
-            "",
         ] {
-            XCTAssertFalse(LibraryEdit.isFavorite(Data(json.utf8)), json)
+            XCTAssertFalse(try LibraryEdit.isFavorite(Data(json.utf8)), json)
+        }
+    }
+
+    func testAMalformedRatingsBodyIsAnErrorNotUnloved() {
+        // Reporting every song unloved would show wrong hearts (and a
+        // toggle would then love an already loved song).
+        for json in ["", "[]", "{}", #"{"data":{}}"#, "not json"] {
+            XCTAssertThrowsError(try LibraryEdit.isFavorite(Data(json.utf8)), json)
+            XCTAssertThrowsError(try LibraryEdit.favoriteAnswer(.success(Data(json.utf8))), json)
+            XCTAssertThrowsError(try LibraryEdit.lovedIDs(.success(Data(json.utf8))), json)
         }
     }
 

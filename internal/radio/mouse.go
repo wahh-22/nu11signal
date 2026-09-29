@@ -82,12 +82,6 @@ func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 	if c, ok := controlOf(z.id); ok {
 		return m.pressControl(c)
 	}
-	if z.id == zoneFavPlaying {
-		if m.focus != areaPlayer {
-			m.focusPlayer(ctlPlay)
-		}
-		return m.loveTarget()
-	}
 	if z.id == zonePanelPlayer {
 		// Elsewhere on NOW PLAYING: the focus only, on PLAY coming from
 		// elsewhere, else on the control it has.
@@ -150,8 +144,6 @@ func (m Model) clickListZone(z zone) (tea.Model, tea.Cmd) {
 		return m.addTarget()
 	case zoneNewPlaylist:
 		m.setStationCursor(-1)
-		return m.openName(playback.Song{}, false)
-	case zoneNavNewPlaylist:
 		return m.openName(playback.Song{}, false)
 	}
 	return m, nil

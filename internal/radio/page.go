@@ -73,6 +73,11 @@ func (m Model) handlePageKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 	case keyAdd:
 		next, cmd = m.addTarget()
 		return next, cmd, true
+	case keyAlbum:
+		if m.top().kind != viewResults {
+			return m, nil, false
+		}
+		return m.resultsAlbum()
 	default:
 		return m, nil, false
 	}

@@ -181,20 +181,20 @@ func TestUpFromTheProgressBarFocusesTheTabs(t *testing.T) {
 	if !m.onBar {
 		t.Fatal("up did not reach the progress bar")
 	}
-	m, _ = press(t, m, "up")
+	m, _ = press(t, m, "up", "up") // the ♥ of the song playing, then the tabs
 	if m.focus != areaTabs || m.tab != 0 {
-		t.Fatalf("up from the bar: focus %v tab %d; want the PLAYLISTS tab", m.focus, m.tab)
+		t.Fatalf("up from the bar and the ♥: focus %v tab %d; want the PLAYLISTS tab", m.focus, m.tab)
 	}
 	if strings.Contains(textAt(m, zoneOf(t, m, zoneNext)), "▸") {
 		t.Fatal("NEXT still marked with the tabs focused")
 	}
-	m, _ = press(t, m, "down")
+	m, _ = press(t, m, "down", "down")
 	if m.focus != areaPlayer || !m.onBar || m.control != ctlNext {
 		t.Fatalf("down: focus %v onBar %v control %v; want back on the bar", m.focus, m.onBar, m.control)
 	}
-	m, _ = press(t, m, "up", "esc")
-	if m.focus != areaPlayer || !m.onBar {
-		t.Fatalf("esc: focus %v onBar %v; want back on the bar", m.focus, m.onBar)
+	m, _ = press(t, m, "up", "up", "esc")
+	if !m.focused(ctlFav) {
+		t.Fatalf("esc: focus %v control %v; want back on the ♥", m.focus, m.control)
 	}
 }
 

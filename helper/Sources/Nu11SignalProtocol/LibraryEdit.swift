@@ -192,9 +192,7 @@ public enum LibraryEdit {
     public static func lovedIDs(_ result: Result<Data, Error>) throws -> Set<String> {
         switch result {
         case .success(let data):
-            let object = try? JSONSerialization.jsonObject(with: data) as? JSONObject
-            let items = object?["data"] as? [JSONObject] ?? []
-            return Set(items.compactMap { item in
+            return Set(try ratingItems(data).compactMap { item in
                 let value = (item["attributes"] as? JSONObject)?["value"] as? NSNumber
                 return value?.intValue == 1 ? item["id"] as? String : nil
             })
@@ -232,17 +230,29 @@ public enum LibraryEdit {
     }
 
     /// Whether a rating response loves the song (`value` 1). A dislike
-    /// (-1), or anything unreadable, is not a favorite.
-    public static func isFavorite(_ data: Data) -> Bool {
-        let attributes = firstItem(data)?["attributes"] as? JSONObject
+    /// (-1), or a rating without a value, is not a favorite; a body that
+    /// is not a ratings answer is an error (see `ratingItems`).
+    public static func isFavorite(_ data: Data) throws -> Bool {
+        let attributes = try ratingItems(data).first?["attributes"] as? JSONObject
         return (attributes?["value"] as? NSNumber)?.intValue == 1
+    }
+
+    /// The ratings of a ratings response (its `data` array). A body without
+    /// one is an error: read as no ratings, it would report every song as
+    /// not loved, and a toggle would then love a song already loved.
+    static func ratingItems(_ data: Data) throws -> [JSONObject] {
+        let object = try? JSONSerialization.jsonObject(with: data) as? JSONObject
+        guard let items = object?["data"] as? [JSONObject] else {
+            throw ArgumentError(description: "the Apple Music API sent an unreadable ratings answer")
+        }
+        return items
     }
 
     /// The answer to `favorite`: whether the rating read loves the song.
     /// The API answers 404 for a song without a rating: not a favorite.
     public static func favoriteAnswer(_ result: Result<Data, Error>) throws -> Bool {
         switch result {
-        case .success(let data): return isFavorite(data)
+        case .success(let data): return try isFavorite(data)
         case .failure(let failure as MusicAPIFailure) where failure.status == 404: return false
         case .failure(let error): throw error
         }

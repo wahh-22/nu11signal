@@ -716,53 +716,74 @@ func TestLibraryOnlySongsAreListedButNotPlayed(t *testing.T) {
 	}
 }
 
-// playNearEnd plays the songs from start and seeks to the end of that
-// song, so the next tick finishes it.
-func playNearEnd(t *testing.T, p *Player, ids []string, start int) {
+// manualPlayer is a demo player whose clock never ticks on its own: the
+// test finishes the song playing with finishSong, so what follows it does
+// not depend on timing.
+func manualPlayer(t *testing.T) *Player {
 	t.Helper()
-	ctx := context.Background()
-	if err := p.PlaySongs(ctx, ids, start); err != nil {
-		t.Fatal(err)
-	}
-	if err := p.Seek(ctx, time.Hour); err != nil {
-		t.Fatal(err)
+	p := New(Options{Tick: time.Hour})
+	t.Cleanup(func() { _ = p.Close() })
+	return p
+}
+
+// finishSong moves the playhead one tick (an hour, past any song) and
+// returns the newest state it leaves.
+func finishSong(t *testing.T, p *Player) playback.State {
+	t.Helper()
+	p.advance()
+	var last playback.State
+	for {
+		select {
+		case s := <-p.States():
+			last = s
+		default:
+			return last
+		}
 	}
 }
 
 func TestRepeatModeDecidesWhatFollowsASong(t *testing.T) {
-	p := newPlayer(t)
+	p := manualPlayer(t)
 	ctx := context.Background()
 	res, err := p.SearchCatalog(ctx, "e", 25)
 	if err != nil || len(res.Songs) < 2 {
 		t.Fatalf("SearchCatalog = %d songs, %v; want at least 2", len(res.Songs), err)
 	}
 	a, b := res.Songs[0].ID, res.Songs[1].ID
+	play := func(start int) {
+		t.Helper()
+		if err := p.PlaySongs(ctx, []string{a, b}, start); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	// Off (the default): the queue ends after its last song.
-	playNearEnd(t, p, []string{a, b}, 1)
-	waitState(t, p, func(s playback.State) bool {
-		return s.Status == playback.StatusStopped && s.SongID == b && s.Position == 0 && s.Repeat == playback.RepeatOff
-	})
-	playNearEnd(t, p, []string{a, b}, 0)
-	waitState(t, p, func(s playback.State) bool { return s.SongID == b && s.Status == playback.StatusPlaying })
+	play(1)
+	if s := finishSong(t, p); s.Status != playback.StatusStopped || s.SongID != b || s.Position != 0 || s.Repeat != playback.RepeatOff {
+		t.Errorf("off, after the last song: %+v; want stopped at %s, rewound", s, b)
+	}
+	play(0)
+	if s := finishSong(t, p); s.Status != playback.StatusPlaying || s.SongID != b {
+		t.Errorf("off, after the first song: %+v; want %s playing", s, b)
+	}
 
 	// All: the queue starts over.
 	if err := p.SetRepeat(ctx, playback.RepeatAll); err != nil {
 		t.Fatal(err)
 	}
-	waitState(t, p, func(s playback.State) bool { return s.Repeat == playback.RepeatAll })
-	playNearEnd(t, p, []string{a, b}, 1)
-	waitState(t, p, func(s playback.State) bool { return s.SongID == a && s.Status == playback.StatusPlaying })
+	play(1)
+	if s := finishSong(t, p); s.Status != playback.StatusPlaying || s.SongID != a || s.Repeat != playback.RepeatAll {
+		t.Errorf("all, after the last song: %+v; want %s playing", s, a)
+	}
 
 	// One: the song starts over.
 	if err := p.SetRepeat(ctx, playback.RepeatOne); err != nil {
 		t.Fatal(err)
 	}
-	playNearEnd(t, p, []string{a, b}, 0)
-	waitState(t, p, func(s playback.State) bool { return s.SongID == a && s.Position == s.Duration })
-	waitState(t, p, func(s playback.State) bool {
-		return s.SongID == a && s.Status == playback.StatusPlaying && s.Position < time.Second && s.Repeat == playback.RepeatOne
-	})
+	play(0)
+	if s := finishSong(t, p); s.Status != playback.StatusPlaying || s.SongID != a || s.Position != 0 || s.Repeat != playback.RepeatOne {
+		t.Errorf("one, after the song: %+v; want %s playing from the start", s, a)
+	}
 
 	if err := p.SetRepeat(ctx, "twice"); err == nil {
 		t.Error("SetRepeat accepted an unknown mode")

@@ -185,7 +185,8 @@ func (m *Model) resumeSearch() tea.Cmd {
 // handleSearchKey handles keys while the search view is on top. Text keys
 // go to the input, so the player's letter shortcuts are off here. With a
 // row selected, ctrl+d and delete delete a recent term instead of editing
-// the input, and on a song row l and a love it and add it to a playlist.
+// the input, and on a song row l and a love it and add it to a playlist,
+// and g opens its SONG view.
 func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keyEsc:
@@ -227,12 +228,17 @@ func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if cur := m.cursor(); cur >= 0 {
 			return m.deleteRecentAt(cur)
 		}
-	case keyLove, keyAdd:
-		if _, ok := m.selectedSong(); ok {
-			if msg.String() == keyLove {
+	case keyLove, keyAdd, keyAlbum:
+		if s, ok := m.selectedSong(); ok {
+			switch msg.String() {
+			case keyLove:
 				return m.loveTarget()
+			case keyAdd:
+				return m.addTarget()
 			}
-			return m.addTarget()
+			save := m.remember(m.search.term)
+			next, open := m.openSong(s)
+			return next, tea.Batch(open, save)
 		}
 	}
 	before := m.input.Value()
@@ -347,7 +353,8 @@ func (m Model) onCatalog(msg catalogMsg) Model {
 
 // searchEnter acts on the selected row, or on the typed term when the
 // input is selected: the term, a recent term or a suggestion opens its
-// RESULTS; artists and songs open their pages.
+// RESULTS; an artist opens its page; a song plays, the other songs listed
+// queued around it.
 func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 	rows := m.searchRows()
 	cur := m.cursor()
@@ -364,9 +371,22 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 		next, open := m.openArtist(row.artist)
 		return next, tea.Batch(open, save)
 	case rowSong:
+		// The song plays with the songs listed after it queued, the
+		// search staying on screen.
 		save := m.remember(m.search.term)
-		next, open := m.openSong(row.song)
-		return next, tea.Batch(open, save)
+		var songs []playback.Song
+		start := 0
+		for i, r := range rows {
+			if r.kind != rowSong {
+				continue
+			}
+			if i == cur {
+				start = len(songs)
+			}
+			songs = append(songs, r.song)
+		}
+		next, play := m.playSongs(songIDs(songs), start)
+		return next, tea.Batch(play, save)
 	}
 	m.input.SetValue(row.term)
 	m.input.CursorEnd()

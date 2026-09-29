@@ -232,13 +232,28 @@ catalog) are listed muted and skipped: `enter` on one only shows a notice. `esc`
 the `PLAYLISTS` tab goes back to the list; `tab` or `/` goes to SEARCH (the
 page is closed).
 
+A song picked from a list plays with the rest of that list queued around it,
+so playback goes on into the list:
+
+| Picked from | Queue |
+|-------------|-------|
+| SEARCH song row | The songs listed under the input, from the picked one |
+| RESULTS, SONGS | The SONGS section, from the picked song |
+| RESULTS, TOP RESULTS song | The SONGS section, from the song's copy there; a top song missing from SONGS plays first, the section after it |
+| ARTIST, TOP SONGS | The top songs, from the picked one |
+| ALBUM, SONG | The album, from the picked track (a SONG view whose album failed to load has only the song) |
+| PLAYLIST | The playlist, from the picked track (a library playlist without its library-only songs) |
+
+On SEARCH and RESULTS, `g` on a song row opens its SONG view (the album
+holding it) instead.
+
 | View | Shows |
 |------|-------|
 | SEARCH | RECENT searches while the input is empty; once you type 2+ characters, live suggestions, then matching artists (with their genre) and songs |
 | RESULTS | The full search for a submitted term, non-empty sections only: TOP RESULTS (tagged ARTIST, ALBUM, SONG, or PLAYLIST), ARTISTS, ALBUMS (with artist and year), SONGS (with artist), PLAYLISTS (with curator) |
 | ARTIST | Its non-empty sections in Apple Music order: TOP SONGS, ESSENTIAL ALBUMS, ALBUMS, ARTIST PLAYLISTS, SINGLES & EPS, COMPILATIONS, then ABOUT (editorial notes folded behind MORE, FROM, FORMED, GENRE) |
 | ALBUM | The tracks (by disc when there are several), release date, song count and length, copyright, record label, and notes |
-| SONG | The album holding the song, with the cursor on the song; if the album cannot be loaded, the song alone, still playable |
+| SONG | The album holding the song (`g` on a SEARCH or RESULTS song row), with the cursor on the song; if the album cannot be loaded, the song alone, still playable |
 | PLAYLIST | The tracks with their artists, song count and length, curator, and notes; a library playlist starts with `▶ PLAY` and names its frequency |
 
 Recent searches are the last 10 terms you submitted with `enter` (typed, a
@@ -268,10 +283,15 @@ Limitations:
   top song, a song among the results or the search rows), or with no song
   row selected (the playlists, the player), the song playing. The selected
   song row ends in `♡ +` (`♥` once loved); a loved song keeps its `♥` on any
-  row, and NOW PLAYING shows a `╱ ♡ ╱` button beside the title. The state is
-  read when the selection rests (on the next animation tick), cached per
-  song, and a change shows at once: a refused one is reported on the status
-  line and read back, and a failed read is tried again 30 seconds later.
+  row, and NOW PLAYING shows a `╱ ♡ ╱` button beside the title. A page
+  reads the state of all its songs in one `favorites` call as it loads
+  (album, song, playlist, artist top songs, results, search rows), so its
+  hearts show at once; states are cached per song. The song playing, when
+  it is not on the page, and the selected song, when the page read failed,
+  are read on their own when the selection rests (on the next animation
+  tick). A change shows at once: a refused one is reported on the status
+  line and read back, and a failed single read is tried again 30 seconds
+  later.
   One change per song is sent at a time; pressing `l` again meanwhile only
   moves the heart, and the latest state is sent once the first answers.
 - **Add to a playlist**: `a` (or the row's `+`) opens ADD TO PLAYLIST over
@@ -281,8 +301,9 @@ Limitations:
   it open. An add that timed out may still be applied, so the picker closes
   and the status line asks you to check the playlist before trying again.
   `esc` or `◀ BACK` cancels.
-- **New playlist**: the `+ NEW PLAYLIST` row over the playlists, its button
-  in the nav bar, or the picker's row (the new playlist then holds the song).
+- **New playlist**: the `+ NEW PLAYLIST` row over the playlists (for the keys
+  and the mouse alike), or the picker's row (the new playlist then holds the
+  song).
   Type the name, `enter` (or `CREATE`) creates it, `esc` (or `CANCEL`)
   cancels (back to the picker when it came from there). The new playlist is
   listed and selected at once; the list is read again, and a playlist the
@@ -305,6 +326,7 @@ PLAYLISTS (and anywhere the key is not taken by the view):
 | `enter` | Open the playlist's page; on `+ NEW PLAYLIST`, name a new playlist |
 | `l` | Love the song playing, or unlove it |
 | `a` | Add the song playing to a playlist |
+| `o` | Cycle the loop (repeat) mode: `OFF`, `ALL` (the queue starts over), `ONE` (the song starts over) |
 | `space` | Play / pause |
 | `n` / `p` | Next / previous track |
 | `shift+←` / `shift+→` or `,` / `.` | Seek -10 s / +10 s |
@@ -326,9 +348,9 @@ SEARCH (typing goes to the input, so letter shortcuts are off):
 | `shift+←` / `shift+→` | Seek -10 s / +10 s (`,` and `.` are typed) |
 | `shift+↑` / `shift+↓` | Volume up / down (`k`, `j`, `+`, `=` and `-` are typed) |
 | `ctrl+f` | Expand or restore the player (`f` is typed) |
-| `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, open its SONG view |
+| `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, play it with the other songs listed queued (SEARCH stays open) |
 | `ctrl+d` / `delete` | On a recent term, delete it (on the input, they edit the text) |
-| `l` / `a` | On a song row, love it / add it to a playlist (on the input or another row, they are typed) |
+| `l` / `a` / `g` | On a song row, love it / add it to a playlist / open its SONG view (on the input or another row, they are typed) |
 | `tab` | Back to the playlists (the search is kept for the next `/` or `tab`) |
 | `esc` | Back one view (closing the search: the next `/` starts empty) |
 | `ctrl+c` | Quit |
@@ -338,14 +360,15 @@ RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 | Key | Action |
 |-----|--------|
 | `↑`/`↓` | Move the cursor; `↑` on the first row moves the focus to the nav tabs |
-| `enter` | On RESULTS, open the selected artist, album, song (its SONG view), or playlist; elsewhere, play the top songs or tracks from the selected one, open an album or playlist, or fold the notes (MORE/LESS) |
+| `enter` | On RESULTS, open the selected artist, album, or playlist, or play the selected song with the rest of its list (see above); elsewhere, play the top songs or tracks from the selected one, open an album or playlist, or fold the notes (MORE/LESS) |
+| `g` | On a RESULTS song, open its SONG view |
 | `esc` | Back one view |
 | `tab` | Back to the playlists (the page and the ones below it are kept for the next `/` or `tab`); from a library playlist page, over to SEARCH |
 | `/` | Back to the SEARCH input, with the term kept for editing (the pages above it are closed) |
 | `r` | Retry after the page failed to load |
 | `l` | Love the selected song (a track, a top song, a song result), or unlove it; on another row, the song playing |
 | `a` | Add the selected song to a playlist; on another row, the song playing |
-| `space`, `n` / `p`, seek and volume keys, `→`, `f` / `ctrl+f`, `q` | As on the playlists |
+| `space`, `n` / `p`, seek, volume and loop keys, `→`, `f` / `ctrl+f`, `q` | As on the playlists |
 
 ADD TO PLAYLIST and NEW PLAYLIST (over the list):
 
@@ -361,13 +384,13 @@ panel frame shows which side has the focus):
 
 | Key | Action |
 |-----|--------|
-| `←` / `→` | Walk a row of buttons: `PREV`, `PLAY`/`PAUSE`, `NEXT`, `EXPAND`, or `VOL-`, `VOL+` below them; `←` from the first button of a row goes back to the list |
-| `↑` / `↓` | Move between the progress bar (when the song can seek), the transport row, and the volume row (`VOL-` under `PREV`/`PLAY`, `VOL+` under `NEXT`/`EXPAND`); `↑` from the bar (or from the transport row, with nothing to seek) moves the focus to the nav tabs |
+| `←` / `→` | Walk a row of buttons: `PREV`, `PLAY`/`PAUSE`, `NEXT`, `EXPAND`, or `VOL-`, `VOL+` below them; `LOOP` and the `♡` of the song playing are alone on their rows; `←` from the first button of a row goes back to the list |
+| `↑` / `↓` | Move between the `♡` of the song playing (while there is one), the progress bar (when the song can seek), the transport row, the volume row (`VOL-` under `PREV`/`PLAY`, `VOL+` under `NEXT`/`EXPAND`), and `LOOP` under it; `↑` from the `♡` (or from what is under it, with no song) moves the focus to the nav tabs |
 | `←` / `→` on the progress bar | Seek -10 s / +10 s |
 | `enter` | Press the focused button (as a click) |
 | `l` / `a` | Love / add to a playlist the song playing |
 | `esc` | Back to the list (restoring an expanded player) |
-| `space`, `n` / `p`, seek and volume keys, `f` / `ctrl+f` | As on the playlists |
+| `space`, `n` / `p`, seek, volume and loop keys, `f` / `ctrl+f` | As on the playlists |
 
 Nav tabs (after `↑` past the top of the list, the SEARCH input, or the
 player; the focused tab shows a `▸`):
@@ -377,7 +400,7 @@ player; the focused tab shows a `▸`):
 | `←` / `→` | Walk `PLAYLISTS`, `SEARCH` and, on a page, `◀ BACK` |
 | `enter` | Press the focused tab (as a click); the list takes the focus |
 | `↓` / `esc` | Back where the focus came from (the same row, the SEARCH input, or the player's bar or button) |
-| `space`, `n` / `p`, seek and volume keys | Act on the player; the tabs keep the focus (on SEARCH too: nothing is typed) |
+| `space`, `n` / `p`, seek, volume and loop keys | Act on the player; the tabs keep the focus (on SEARCH too: nothing is typed) |
 
 On the tabs, any other key goes back where the focus came from and acts
 there. On the player, any other key goes back to the list and acts there (on
@@ -397,7 +420,10 @@ leaving NOW PLAYING at least 30 columns.
 
 ## Mouse
 
-The mouse does what the keys do; the keys keep working.
+The mouse does what the keys do; the keys keep working. Every control is
+one control for both: each button the mouse can press, the keyboard focus
+reaches too (or, for the controls ending a row, the row's own keys: `l`,
+`a`, `delete`), and there is no mouse-only duplicate of a row.
 
 | Click | Action |
 |-------|--------|
@@ -405,8 +431,8 @@ The mouse does what the keys do; the keys keep working.
 | The SEARCH input | Select the input |
 | `✕` at the end of a recent term | Delete that term (as `ctrl+d` / `delete`) |
 | `♡` / `♥` and `+` at the end of the selected song row | Love or unlove it (as `l`); add it to a playlist (as `a`) |
-| `╱ ♡ ╱` beside the title (NOW PLAYING) | Love or unlove the song playing |
-| `+ NEW PLAYLIST` (row over the playlists, or nav bar button on the playlists) | Name a new playlist |
+| `╱ ♡ ╱` beside the title (NOW PLAYING) | Love or unlove the song playing; the focus moves to the button |
+| `+ NEW PLAYLIST` (row over the playlists) | Name a new playlist |
 | A picker row, `CREATE`, `CANCEL` | As `enter` on the row; create; cancel |
 | A `[R] RETRY` notice | Retry, as `r` |
 | `PLAYLISTS` / `SEARCH` tabs (header rule) | `PLAYLISTS` as `tab` (from a library playlist page, back to the list); `SEARCH` as `/`; the lit tab is the branch shown |
@@ -414,6 +440,7 @@ The mouse does what the keys do; the keys keep working.
 | `◀◀ PREV`, `▶ PLAY` / `❚❚ PAUSE`, `NEXT ▶▶` (NOW PLAYING) | As `p`, `space`, `n`; the focus moves to the button |
 | `⤢ EXPAND` / `⤡ RESTORE` (NOW PLAYING) | Expand the player to the full width, or restore it |
 | `-` / `+` around the `VOL` readout (NOW PLAYING) | Volume down / up by 5%, as `j` / `k`; the focus moves to the button |
+| `↻ LOOP OFF` / `ALL` / `ONE` (NOW PLAYING, under the volume row; lit while on) | Cycle the loop mode, as `o`; the focus moves to the button |
 | Anywhere else in a panel (its frame and empty space included) | The panel takes the focus: the list keeps its cursor (nothing opens); NOW PLAYING focuses `PLAY`, or keeps the button it had |
 | The progress bar | Seek to that point of the song; the focus moves to the bar |
 
@@ -423,8 +450,13 @@ nav tabs; nothing while the player is expanded). Narrow layouts
 shorten the transport buttons to their glyphs (`EXPAND` first) and leave
 out buttons that do not fit; the tiny layout has none. The compact layout
 puts the volume row beside the transport buttons when it fits (the buttons
-as glyphs), and leaves it out otherwise. In the compact layout, expanding
-hides the list under the player.
+as glyphs), and leaves it out otherwise; `LOOP` ends the artist line. In the
+compact layout, expanding hides the list under the player.
+
+`LOOP` shows the mode asked for at once and keeps it until the player
+reports it; a refused change is reported on the status line and the button
+shows the player's mode again. A mode changed elsewhere (the Music app)
+shows with the next state.
 
 The `VOL` readout shows the system output volume, read at startup (`VOL --`
 until then, or when the output device has no settable volume; a refused
@@ -466,14 +498,14 @@ One JSON object per line.
 | `playSongs` | `ids`, `startIndex` | `{}`, or any of `{"missing":[...],"skipped":[...],"startedAlone":true}` (see [Queue preparation](#queue-preparation)) |
 | `playPlaylist` | `playlistId`, optional `startIndex` (an index into the `libraryPlaylist` tracks) | Same as `playSongs`; the playlist's catalog songs are queued (library-only songs are skipped; starting at one is an error). The UI plays library playlists with `playSongs` from the tracks it loaded instead |
 | `pause`, `resume`, `next`, `previous`, `stop` | none | `{}` |
-| `setRepeat` | `mode`: `off`, `all` (the queue), or `one` (the current song) | `{}`; `state` events report the mode as `repeat` (`off` when the player has none) |
+| `setRepeat` | `mode`: `off`, `all` (the queue), or `one` (the current song) | `{}`; `state` events report the mode as `repeat` (`off` when the player has none; the UI reads any mode it does not know as `off`) |
 | `seek` | `seconds` (>= 0) | `{}`, followed by a `state` event |
 | `volume` | none | `{"level":...}`: the system output volume, 0 to 1 (runs concurrently) |
 | `setVolume` | `level` (clamped to 0-1) | `{}`, or an error when the output device's volume cannot be changed (runs concurrently) |
 | `createPlaylist` | `name` (not blank), optional `description`, optional `songIds` (in order) | `{"id","name"}`: the new playlist, with its Apple Music API library id (`p.…`) |
 | `addToPlaylist` | `playlistId` (an API library id, `p.…`), `songIds` (not empty) | `{}`, or an error such as `playlist is not editable` |
-| `favorite` | `songId` | `{"favorite":true\|false}`: whether the song is loved (no rating is `false`) |
-| `favorites` | `songIds` (possibly empty) | `{"favorites":{"<id>":true\|false,...}}`: every requested id, loved or not; one ratings read per 100 ids of each kind (runs concurrently) |
+| `favorite` | `songId` | `{"favorite":true\|false}`: whether the song is loved (no rating is `false`; an unreadable ratings answer fails the command) |
+| `favorites` | `songIds` (possibly empty) | `{"favorites":{"<id>":true\|false,...}}`: every requested id, loved or not; one ratings read per 100 ids of each kind (runs concurrently); an unreadable ratings answer fails the command |
 | `setFavorite` | `songId`, `on` (a boolean) | `{}`: `true` loves the song, `false` removes its rating (a song without one included) |
 
 Playback commands (`setRepeat` included) run one at a time in arrival order, each bounded by 10 s
@@ -506,9 +538,12 @@ on its own. So `playSongs` and `playPlaylist` look the queued songs up in the
 local library first (`MusicLibraryRequest`, up to 1.5 s): when the chosen song
 is in it, every local song is queued as its library copy; otherwise the local
 songs are left out and listed as `"skipped"`. If the player still cannot prepare
-the queue, the chosen song is queued on its own (`"startedAlone":true`); if even
-that fails, the error names the song. Both steps are logged to the helper's
-stderr.
+the queue, the chosen song is queued on its own (`"startedAlone":true`) and,
+once it plays, the songs after it are appended to the queue, so the list
+still plays on (a failed append is only logged: the song plays alone); if
+even the song alone fails, the error names the song. These steps are logged
+to the helper's stderr. `state` events name a song queued as its library
+copy by the catalog id asked for, so the UI's `▶` and hearts match.
 
 ## Troubleshooting
 

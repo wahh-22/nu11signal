@@ -157,11 +157,14 @@ type Model struct {
 	// focus is the area taking the keys; on the player, control is the
 	// selected button, or onBar the progress bar above them. The expanded
 	// player takes the full width and keeps the focus, but for the nav
-	// tabs (see focus.go). inputHadFocus keeps, while the list does not
-	// have the focus, whether the search input had the keys before. On the
-	// nav tabs, tab is the selected one and tabsFrom the area ↓ returns to.
+	// tabs (see focus.go). favFrom is the transport button ↑ left for the
+	// ♥ of the song playing, which ↓ goes back to. inputHadFocus keeps,
+	// while the list does not have the focus, whether the search input had
+	// the keys before. On the nav tabs, tab is the selected one and
+	// tabsFrom the area ↓ returns to.
 	focus         focusArea
 	control       playerControl
+	favFrom       playerControl
 	onBar         bool
 	expanded      bool
 	inputHadFocus bool
@@ -194,6 +197,13 @@ type Model struct {
 	volumeKnown   bool
 	volumeBusy    bool
 	volumePending float64
+
+	// loopWant is the repeat mode LOOP asked for, shown while loopPending
+	// (until a state reports it or the player refuses it); loopSeq numbers
+	// the changes (see loop.go).
+	loopWant    playback.RepeatMode
+	loopPending bool
+	loopSeq     uint64
 
 	frame  uint64
 	bars   eq

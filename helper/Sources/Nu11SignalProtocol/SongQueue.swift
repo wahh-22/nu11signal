@@ -66,13 +66,23 @@ public struct PreparedQueue<Item> {
     public let start: Int
     /// Ids left out of the queue, in queue order (repeats included).
     public let skipped: [String]
+    /// The catalog id of each library copy queued, keyed by the copy's own
+    /// id: the player reports a copy by that id, and the state events name
+    /// the catalog song asked for instead. Empty when no copy is queued.
+    public let catalogIDs: [String: String]
 
     /// The caller guarantees `items.indices.contains(start)`.
     public init(items: [Item], start: Int, id: (Item) -> String, libraryCopies: [String: Item]) {
         if libraryCopies[id(items[start])] != nil {
-            self.items = items.map { libraryCopies[id($0)] ?? $0 }
+            var catalogIDs: [String: String] = [:]
+            self.items = items.map { item in
+                guard let copy = libraryCopies[id(item)] else { return item }
+                catalogIDs[id(copy)] = id(item)
+                return copy
+            }
             self.start = start
             self.skipped = []
+            self.catalogIDs = catalogIDs
             return
         }
         var kept: [Item] = []
@@ -90,6 +100,7 @@ public struct PreparedQueue<Item> {
         self.items = kept
         self.start = newStart
         self.skipped = skipped
+        self.catalogIDs = [:]
     }
 
     /// The catalog id a library song's play parameters name, from their
@@ -136,6 +147,14 @@ public enum QueueStart {
             try await fallback()
             return true
         }
+    }
+
+    /// The songs that follow `start` in `items`, in order: what is appended
+    /// after the start song when it had to be queued on its own. The songs
+    /// before it are left out, as the player would play them next.
+    public static func followers<Item>(of items: [Item], after start: Int) -> [Item] {
+        guard items.indices.contains(start) else { return [] }
+        return Array(items[(start + 1)...])
     }
 
     /// The error reported when song could not be started: a player error

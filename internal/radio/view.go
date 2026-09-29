@@ -131,8 +131,9 @@ func (m Model) listBodyWidth() int {
 }
 
 // renderCompact stacks the screen in one column: the nav bar takes the
-// header rule and the transport buttons, then the volume row while it
-// fits, the rule over the list, which the expanded player leaves out.
+// header rule, the title and artist lines end in the ♥ and LOOP buttons,
+// then the transport buttons, the volume row while it fits and the rule
+// over the list, which the expanded player leaves out.
 func (m Model) renderCompact() ([]string, zones) {
 	w := m.width
 	nav, zs := m.navLine(w)
@@ -145,6 +146,8 @@ func (m Model) renderCompact() ([]string, zones) {
 	title, artist := m.titleLines()
 	title, hz := m.heartTitle(title, w-1)
 	zs.addAt(0, len(lines), hz)
+	artist, lz := m.loopTail(artist, w-1)
+	zs.addAt(0, len(lines)+1, lz)
 	lines = append(lines, title, artist)
 	progress, barW := m.progressLine(w - 1)
 	if m.seekable() {
@@ -322,7 +325,7 @@ const nowPlayingMargin = 1
 
 // nowPlaying renders the inside of the NOW PLAYING panel, iw x ih cells,
 // with its zones: the progress bar (click to seek), the transport buttons
-// under the feed and the volume row under them.
+// under the feed, the volume row under them and LOOP under that.
 func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	title, artist := m.titleLines()
 	album := ""
@@ -366,6 +369,9 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	volume, vz := m.volumeBar(inner)
 	zs.addAt(nowPlayingMargin, len(lines), vz)
 	lines = append(lines, " "+volume)
+	loop, lz := m.loopBar(inner)
+	zs.addAt(nowPlayingMargin, len(lines), lz)
+	lines = append(lines, " "+loop)
 
 	eqRows := min(ih-len(lines), eqMaxRows)
 	if eqRows >= 2 {

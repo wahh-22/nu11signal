@@ -686,7 +686,7 @@ func TestClickOnTheBareListPanelGivesTheSearchInputBack(t *testing.T) {
 
 func TestClickOnTheExpandedPlayerFocusesIt(t *testing.T) {
 	m := playingModel(t, playbacktest.New())
-	m, _ = press(t, m, "f", "up", "up")
+	m, _ = press(t, m, "f", "up", "up", "up") // the bar, the ♥, the tabs
 	if m.focus != areaTabs {
 		t.Fatalf("focus %v; want the tabs", m.focus)
 	}

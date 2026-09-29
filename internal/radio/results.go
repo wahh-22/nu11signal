@@ -3,6 +3,7 @@ package radio
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -77,8 +78,9 @@ func (m Model) onResults(msg resultsMsg) Model {
 	return m
 }
 
-// resultsEnter opens the view of the selected row: an artist's page, an
-// album, a song's SONG view or a playlist.
+// resultsEnter acts on the selected row: a song plays with the rest of
+// its list (see resultsQueue); an artist, album or playlist opens its
+// view.
 func (m Model) resultsEnter() (Model, tea.Cmd) {
 	items := m.resultItems()
 	cur := m.cursor()
@@ -86,11 +88,60 @@ func (m Model) resultsEnter() (Model, tea.Cmd) {
 		return m, nil
 	}
 	it := items[cur]
+	if it.Kind == playback.ItemSong {
+		ids, start := m.resultsQueue(cur)
+		return m.playSongs(ids, start)
+	}
 	kind, ok := resultKinds[it.Kind]
 	if !ok {
 		return m, nil
 	}
 	return kind.open(m, it)
+}
+
+// resultsAlbum is the album key on the RESULTS page: the selected song's
+// SONG view; ok is false on any other row.
+func (m Model) resultsAlbum() (next Model, cmd tea.Cmd, ok bool) {
+	items := m.resultItems()
+	cur := m.cursor()
+	if cur < 0 || cur >= len(items) || items[cur].Kind != playback.ItemSong {
+		return m, nil, false
+	}
+	next, cmd = m.openSong(items[cur].Song)
+	return next, cmd, true
+}
+
+// resultsQueue is the queue for song row cur of the RESULTS page: the
+// songs of the SONGS section, started at the song. A top result plays the
+// SONGS section too, from its copy there; a top song missing from SONGS
+// plays first, the section after it.
+func (m Model) resultsQueue(cur int) (ids []string, start int) {
+	var top *playback.Song
+	var songs []playback.Song
+	n := 0
+	for _, s := range resultSections(m.top().results.found) {
+		for _, it := range s.items {
+			if n == cur {
+				if s.tagged {
+					song := it.Song
+					top = &song
+				} else {
+					start = len(songs)
+				}
+			}
+			if !s.tagged && it.Kind == playback.ItemSong {
+				songs = append(songs, it.Song)
+			}
+			n++
+		}
+	}
+	if top != nil {
+		start = slices.IndexFunc(songs, func(s playback.Song) bool { return s.ID == top.ID })
+		if start < 0 {
+			songs, start = append([]playback.Song{*top}, songs...), 0
+		}
+	}
+	return songIDs(songs), start
 }
 
 // resultKind is what the RESULTS page knows of one kind of row: how it

@@ -23,9 +23,11 @@ const (
 	areaTabs
 )
 
-// playerControl is a button of the player. The buttons sit in two rows,
-// each in the order ← and → walk it: the transport row, PREV to EXPAND,
-// and the volume row under it, VOL- and VOL+. ↑ and ↓ cross between them.
+// playerControl is a button of the player. The buttons sit in rows, each
+// in the order ← and → walk it: the ♥ of the song playing alone over the
+// progress bar, the transport row under the bar, PREV to EXPAND, the
+// volume row under it, VOL- and VOL+, and LOOP alone under that. ↑ and ↓
+// cross between them.
 type playerControl int
 
 const (
@@ -35,14 +37,19 @@ const (
 	ctlExpand
 	ctlVolDown
 	ctlVolUp
+	ctlLoop
+	ctlFav
 )
 
 // onVolumeRow reports whether c is a button of the volume row.
-func (c playerControl) onVolumeRow() bool { return c >= ctlVolDown }
+func (c playerControl) onVolumeRow() bool { return c == ctlVolDown || c == ctlVolUp }
 
 // rowEnds are the first and last buttons of c's row.
 func (c playerControl) rowEnds() (first, last playerControl) {
-	if c.onVolumeRow() {
+	switch {
+	case c == ctlLoop || c == ctlFav:
+		return c, c
+	case c.onVolumeRow():
 		return ctlVolDown, ctlVolUp
 	}
 	return ctlPrev, ctlExpand
@@ -168,7 +175,7 @@ func (m Model) handleTabsKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) {
 
 // playerKey handles the keys that drive the player from wherever the focus
 // is, but for the SEARCH input, which types them: play/pause, next and
-// previous, seek and volume. ok is false for any other key.
+// previous, seek, volume and loop. ok is false for any other key.
 func (m Model) playerKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 	switch k {
 	case keySpace:
@@ -188,6 +195,9 @@ func (m Model) playerKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 		return next, cmd, true
 	case keyVolumeDown, keyVolumeDownLetter, keyVolumeDownAnywhere:
 		next, cmd = m.stepVolume(-volumeStep)
+		return next, cmd, true
+	case keyLoop:
+		next, cmd = m.cycleLoop()
 		return next, cmd, true
 	}
 	return m, nil, false
@@ -231,11 +241,24 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 		_, last := m.control.rowEnds()
 		m.control = min(m.control+1, last)
 	case keyUp:
-		// Up from the volume row reaches the transport row; from there,
-		// the bar, if there is one to seek in; from there, the tabs.
+		// Up from LOOP reaches the volume row (VOL-); from there, the
+		// transport row; from there, the bar, if there is one to seek in;
+		// from there, the ♥ of the song playing, if there is one; from
+		// there, the tabs.
 		switch {
+		case m.control == ctlFav:
+			m.focusTabs()
+		case (m.onBar || !m.control.onVolumeRow() && m.control != ctlLoop && !m.seekable()) && m.drawn(zoneFavPlaying):
+			// From the bar, or from the transport row with no bar.
+			m.favFrom = m.control
+			m.control, m.onBar = ctlFav, false
 		case m.onBar:
 			m.focusTabs()
+		case m.control == ctlLoop && m.drawn(zoneVolDown):
+			m.control = ctlVolDown
+		case m.control == ctlLoop:
+			// A narrow compact layout leaves the volume row out.
+			m.control = ctlPlay
 		case m.control.onVolumeRow():
 			m.control = m.control.above()
 		case m.seekable():
@@ -245,11 +268,20 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 		}
 	case keyDown:
 		switch {
+		case m.control == ctlFav:
+			// Down to the bar, or with nothing to seek to the transport
+			// button ↑ left (PLAY after a click on the ♥).
+			m.control, m.onBar = m.favFrom, m.seekable()
 		case m.onBar:
 			m.onBar = false
+		case m.control == ctlLoop:
+			// The bottom row.
 		case !m.control.onVolumeRow() && m.drawn(zoneVolDown):
-			// A narrow compact layout leaves the volume row out.
 			m.control = m.control.below()
+		case m.drawn(zoneLoop):
+			// From the volume row, or from the transport row when a
+			// narrow compact layout leaves the volume row out.
+			m.control = ctlLoop
 		}
 	case keyEnter:
 		if m.onBar {
@@ -279,6 +311,9 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 // pressControl acts as a click on a player button, leaving the focus on
 // it (or on the list, when restoring the player).
 func (m Model) pressControl(c playerControl) (Model, tea.Cmd) {
+	if c == ctlFav && !m.focused(ctlFav) {
+		m.favFrom = ctlPlay // what ↓ from the ♥ reaches
+	}
 	m.focusPlayer(c)
 	switch c {
 	case ctlExpand:
@@ -291,18 +326,22 @@ func (m Model) pressControl(c playerControl) (Model, tea.Cmd) {
 		return m.stepVolume(-volumeStep)
 	case ctlVolUp:
 		return m.stepVolume(volumeStep)
+	case ctlLoop:
+		return m.cycleLoop()
+	case ctlFav:
+		return m.loveTarget()
 	}
 	return m, m.togglePlay()
 }
 
 // controlZone is the zone ID of a player button.
 func controlZone(c playerControl) string {
-	return [...]string{zonePrev, zonePlay, zoneNext, zoneExpand, zoneVolDown, zoneVolUp}[c]
+	return [...]string{zonePrev, zonePlay, zoneNext, zoneExpand, zoneVolDown, zoneVolUp, zoneLoop, zoneFavPlaying}[c]
 }
 
 // controlOf is the player button with zone ID id.
 func controlOf(id string) (playerControl, bool) {
-	for c := ctlPrev; c <= ctlVolUp; c++ {
+	for c := ctlPrev; c <= ctlFav; c++ {
 		if controlZone(c) == id {
 			return c, true
 		}
