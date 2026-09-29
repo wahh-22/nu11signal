@@ -1,0 +1,50 @@
+# Feature: player-focus
+
+Locator: `odd/tasks/player-focus.md` · Engram mirror: `odd/player-focus/tasks` · Branches (stacked to main): `feat/recent-delete` → `feat/player-focus`
+
+## Objective
+
+Second round of user feedback (2026-09-29): delete recent searches; keep the left panel at its maximum width; let the player panel expand to full width; and make the player's buttons reachable with the keyboard cursor, moving focus between the left list and the right player.
+
+## Scope
+
+- P1 — Delete recent searches: `Recents` gains `Remove(term)` and `Clear()`; SEARCH RECENT rows get a clickable `✕`, the selected recent row is deleted with `ctrl+d`/`delete`, and a `CLEAR RECENT` action (keyboard row + mouse button) empties the list; persisted by the file adapter.
+- P2 — Layout and focus:
+  - Left panel always uses its maximum width (the current page width) in every view.
+  - Player expand: a toggle (key + `EXPAND` button) makes NOW PLAYING take the full width (list hidden); toggle back restores.
+  - Focus: `←`/`→` move focus between the list and the player (user choice); inside the player `←`/`→` walk the buttons (PREV, PLAY/PAUSE, NEXT, EXPAND), `↑` reaches the progress bar where `←`/`→` seek, `↓` returns to the buttons; `enter` activates the focused control; focused control is highlighted in the neon style. Seeking moves to `shift+←/→` and `,`/`.` everywhere else.
+
+## Constraints
+
+- Keyboard and mouse stay equivalent; typing in the SEARCH input is never hijacked (arrows edit the input while it has focus).
+- Compact/tiny layouts must not break; cell widths only.
+- Artifacts in English.
+
+## Delivery
+
+- Strategy: `ask-on-risk`; chain `stacked-to-main` (as before). Forecast ~900 lines (P1 ~300, P2 ~600).
+
+## Tasks
+
+- [ ] P1 — Delete recent searches. Branch `feat/recent-delete`. Route: delegated (writer trigger: 2+ non-trivial files).
+- [ ] P2 — Max-width list, expandable player, keyboard focus across panels. Branch `feat/player-focus`. Route: delegated.
+
+## Acceptance criteria
+
+- A recent term can be removed individually (keyboard and mouse) and all can be cleared; the change persists across runs.
+- The left panel keeps the same (maximum) width in stations, SEARCH and pages.
+- The player can be expanded to full width and restored (keyboard and mouse).
+- From the list, `→` focuses the player; buttons are reachable and activatable with the keyboard; `←` returns to the list.
+
+## Checks
+
+- `go test -race ./...`, `go vet ./...`, `gofmt -l .`.
+- Manual: `make build && ./bin/nu11signal`.
+
+## Progress
+
+- Branch `feat/recent-delete` from `main` `73573e1`. Key decision (user): arrows move focus; seek moves to `shift+←/→` and `,`/`.`.
+
+## Next step
+
+P1.
