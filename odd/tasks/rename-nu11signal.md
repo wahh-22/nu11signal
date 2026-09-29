@@ -37,6 +37,9 @@ Rename the project from soul-king to **Nu11Signal** (display name) / **nu11signa
   - Golden `view_80x24.golden` regenerated with `-update`: only the wordmark changed (`SOUL KING` → `NU11SIGNAL`, one padding space less).
   - `git grep -i 'soul.?king|soulking'` outside spike/ and historical ODD docs: only bundle ID defaults, `soulking-notary`, the legacy profile fallbacks, and the README "formerly soul-king" note.
 
+- Local profiles renamed to the new defaults (`signing/Nu11Signal_Dev.provisionprofile`, `signing/Nu11Signal_DeveloperID.provisionprofile`); `make build` signs with them; tests green (Go 136, Swift 33).
+- N1 native review (range `a0c6081..e9661a7`): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-f45cf61dc4ffd80d`). Advisories (follow-ups): legacy `SOULKING_*` env vars are silently ignored (build.sh:34-37, locate.go:12) — documented as breaking in the v0.2.0 notes; duplicated legacy profile fallback (release.sh:52-55); profile fallback untested; CLI signing identifier change undocumented.
+
 ## Next step
 
-N2 — release `v0.2.0`. Optionally rename the local profile files to the new default names first (builds work either way).
+Merge PR, then N2 release `v0.2.0` from main.
