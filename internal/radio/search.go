@@ -371,14 +371,16 @@ func (m Model) inputWidth() int {
 
 // searchBody renders the search view in w x h cells: the input, a rule and
 // the rows, scrolled so the cursor stays on screen. Every line is exactly w
-// cells wide.
-func (m Model) searchBody(w, h int) []string {
+// cells wide. Its zones are the input and the rows shown.
+func (m Model) searchBody(w, h int) ([]string, zones) {
 	if h <= 0 || w <= 0 {
-		return nil
+		return nil, nil
 	}
+	var zs zones
+	zs.add(zoneInput, 0, 0, w)
 	lines := []string{fit(stYellow.Render("⌕ ")+m.input.View(), w)}
 	if h == 1 {
-		return lines
+		return lines, zs
 	}
 	lines = append(lines, stFrameDim.Render(strings.Repeat("─", w)))
 	room := h - 2
@@ -408,15 +410,16 @@ func (m Model) searchBody(w, h int) []string {
 		if room > 0 {
 			lines = append(lines, fit(" "+notice, w))
 		}
-		return lines
+		return lines, zs
 	}
 
 	cur := m.cursor()
 	offset := max(0, cur-room+1)
 	for i := offset; i < len(rows) && i-offset < room; i++ {
+		zs.add(rowZone(i), 0, len(lines), w)
 		lines = append(lines, m.searchRowLine(rows[i], i == cur, w))
 	}
-	return lines
+	return lines, zs
 }
 
 func (m Model) searchRowLine(r searchRow, selected bool, w int) string {

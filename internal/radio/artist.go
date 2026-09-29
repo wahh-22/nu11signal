@@ -282,7 +282,7 @@ func (m Model) artistCode() string {
 // artistBody renders the artist page in w x h cells: the name, a rule and
 // the sections, scrolled to keep the cursor near the middle. Every line is
 // exactly w cells wide.
-func (m Model) artistBody(w, h int) []string {
+func (m Model) artistBody(w, h int) ([]string, zones) {
 	page := m.top().artist
 	head := stYellowB.Render(strings.ToUpper(page.artistTitle()))
 	if g := page.artistGenre(); g != "" {

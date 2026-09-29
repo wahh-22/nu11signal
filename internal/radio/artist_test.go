@@ -414,7 +414,7 @@ func TestArtistBodyLinesFillWidth(t *testing.T) {
 	for _, w := range []int{9, 30, 46} {
 		for cur := range len(m.artistItems()) {
 			m.stack[len(m.stack)-1].cursor = cur
-			for i, row := range m.artistBody(w, 12) {
+			for i, row := range linesOf(m.artistBody(w, 12)) {
 				if got := ansi.StringWidth(row); got != w {
 					t.Errorf("w=%d cursor=%d: row %d is %d cells: %q", w, cur, i, got, ansi.Strip(row))
 				}

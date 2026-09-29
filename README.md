@@ -284,6 +284,24 @@ RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 | `r` | Retry after the page failed to load |
 | `space`, `n` / `p`, `←` / `→`, `q` | As on the stations |
 
+## Mouse
+
+The mouse does what the keys do; the keys keep working.
+
+| Click | Action |
+|-------|--------|
+| A row (station, search row, page row, MORE/LESS) | Select it and act as `enter` |
+| The SEARCH input | Select the input |
+| A `[R] RETRY` notice | Retry, as `r` |
+| `STATIONS` / `SEARCH` tabs (header rule) | As `tab` / `/`; the lit tab is the view shown |
+| `◀ BACK` (above the stations) | As `esc` |
+| `◀◀ PREV`, `▶ PLAY` / `❚❚ PAUSE`, `NEXT ▶▶` (NOW PLAYING) | As `p`, `space`, `n` |
+| The progress bar | Seek to that point of the song |
+
+The wheel moves the cursor like `↑`/`↓`. Narrow layouts shorten the
+transport buttons to their glyphs and leave out buttons that do not fit;
+the tiny layout has none.
+
 ## Helper lookup
 
 `nu11signal` never looks in the working directory. It uses the first match:

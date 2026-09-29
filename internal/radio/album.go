@@ -474,7 +474,7 @@ func (m Model) trackHead() []string {
 
 // trackBody renders the track page on top in w x h cells. Every line is
 // exactly w cells wide.
-func (m Model) trackBody(w, h int) []string {
+func (m Model) trackBody(w, h int) ([]string, zones) {
 	f := m.top()
 	lines, _ := m.trackLayout(w)
 	notice := pageNotice(f.tracks.loading, f.tracks.err, f.tracks.title(), len(lines) == 0)

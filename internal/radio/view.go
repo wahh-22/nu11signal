@@ -24,26 +24,37 @@ const (
 func (m Model) View() tea.View {
 	v := tea.NewView(m.render())
 	v.AltScreen = true
+	// Clicks, releases and the wheel; motion is not needed (no hover).
+	v.MouseMode = tea.MouseModeCellMotion
 	v.WindowTitle = "NU11SIGNAL // NIGHT CITY RADIO"
 	return v
 }
 
 // render returns the frame as a styled string of at most width x height.
 func (m Model) render() string {
+	lines, _ := m.layout()
+	return strings.Join(lines, "\n")
+}
+
+// layout lays out the frame: its lines, at most width x height, and the
+// clickable zones drawn on them. The tiny layout and the auth error screen
+// have no zones: there is no room for buttons, or nothing to click.
+func (m Model) layout() ([]string, zones) {
 	w, h := m.width, m.height
 	if w <= 0 || h <= 0 {
-		return ""
+		return nil, nil
 	}
 	var lines []string
+	var zs zones
 	switch {
 	case w < tinyMinWidth || h < tinyMinHeight:
 		lines = m.renderTiny()
 	case m.auth == authFailed:
 		lines = m.renderAuthError()
 	case w < fullMinWidth || h < fullMinHeight:
-		lines = m.renderCompact()
+		lines, zs = m.renderCompact()
 	default:
-		lines = m.renderFull()
+		lines, zs = m.renderFull()
 	}
 	if len(lines) > h {
 		lines = lines[:h]
@@ -51,27 +62,32 @@ func (m Model) render() string {
 	for i, l := range lines {
 		lines[i] = ansi.Truncate(l, w, "")
 	}
-	return strings.Join(lines, "\n")
+	return lines, zs.clip(w, h)
 }
 
 func (m Model) renderTiny() []string {
 	return []string{stRedBold.Render("NU11SIGNAL"), m.statusTag()}
 }
 
-func (m Model) renderFull() []string {
+func (m Model) renderFull() ([]string, zones) {
 	w, h := m.width, m.height
 	bodyH := h - 4
 	leftW := m.listPanelWidth(w)
 	rightW := w - leftW - 1
 
-	left := m.listPanel(leftW, bodyH)
-	right := panel("NOW PLAYING", "NC-NET 0x2077", m.nowPlaying(rightW-2, bodyH-2), rightW, bodyH, true)
+	left, leftZones := m.listPanel(leftW, bodyH)
+	playing, playingZones := m.nowPlaying(rightW-2, bodyH-2)
+	right := panel("NOW PLAYING", "NC-NET 0x2077", playing, rightW, bodyH, true)
 
-	lines := m.header(w)
+	lines, zs := m.header(w)
+	top := len(lines)
+	zs.addAt(0, top, leftZones)
+	// Inside the NOW PLAYING frame, right of the list panel and the gap.
+	zs.addAt(leftW+2, top+1, playingZones.clip(rightW-2, bodyH-2))
 	for i := range bodyH {
 		lines = append(lines, left[i]+" "+right[i])
 	}
-	return append(lines, m.statusLine(w), m.hintLine(w))
+	return append(lines, m.statusLine(w), m.hintLine(w)), zs
 }
 
 // listPanelWidth is the width of the list panel in the full layout. The
@@ -101,21 +117,33 @@ func (m Model) listBodyWidth() int {
 	return m.width
 }
 
-func (m Model) renderCompact() []string {
+// renderCompact stacks the screen in one column: the nav bar takes the
+// header rule and the transport buttons the rule over the list.
+func (m Model) renderCompact() ([]string, zones) {
 	w := m.width
-	lines := []string{m.headerLeft(false) + "  " + m.statusTag(), stFrameDim.Render(strings.Repeat("─", w))}
+	nav, zs := m.navLine(w)
+	zs = zs.shifted(0, 1)
+	lines := []string{m.headerLeft(false) + "  " + m.statusTag(), nav}
 	title, artist := m.titleLines()
-	lines = append(lines, title, artist, m.progressLine(w))
-	lines = append(lines, stFrameDim.Render(strings.Repeat("─", w)))
+	lines = append(lines, title, artist)
+	progress, barW := m.progressLine(w)
+	if m.seekable() {
+		zs.add(zoneSeek, 0, len(lines), barW)
+	}
+	lines = append(lines, progress)
+	transport, tz := m.transportBar(w - 1)
+	zs.addAt(1, len(lines), tz)
+	lines = append(lines, " "+transport+" "+stFrameDim.Render(strings.Repeat("─", max(w-2-ansi.StringWidth(transport), 0))))
 	listH := m.height - len(lines) - 2
 	if listH > 0 {
-		_, _, body := m.listView(w, listH)
+		_, _, body, bz := m.listView(w, listH)
+		zs.addAt(0, len(lines), bz.clip(w, listH))
 		lines = append(lines, body...)
 		for len(lines) < m.height-2 {
 			lines = append(lines, "")
 		}
 	}
-	return append(lines, m.statusLine(w), m.hintLine(w))
+	return append(lines, m.statusLine(w), m.hintLine(w)), zs
 }
 
 func (m Model) renderAuthError() []string {
@@ -150,7 +178,8 @@ func (m Model) headerLeft(wide bool) string {
 	return stYellow.Render("◢◤ ") + stRedBold.Render("NU11SIGNAL") + stMuted.Render(" // ") + stRed.Render(sub)
 }
 
-func (m Model) header(w int) []string {
+// header is the title line over the nav bar.
+func (m Model) header(w int) ([]string, zones) {
 	var auth string
 	switch m.auth {
 	case authOK:
@@ -174,10 +203,35 @@ func (m Model) header(w int) []string {
 	gap := max(w-ansi.StringWidth(left)-ansi.StringWidth(right), 1)
 	top := left + strings.Repeat(" ", gap) + right
 
-	code := " RDO-77 // NC-NET "
-	rule := stYellow.Render("▓▒░") + stFrameDim.Render(strings.Repeat("─", max(w-3-len(code)-2, 0))) +
-		stMuted.Render(code) + stFrameDim.Render("──")
-	return []string{top, rule}
+	nav, zs := m.navLine(w)
+	return []string{top, nav}, zs.shifted(0, 1)
+}
+
+// navLine is the header rule carrying the nav bar: the STATIONS and
+// SEARCH tabs and, above the stations root, BACK. The serial code stays
+// at the right edge while there is room for it.
+//
+//	▓▒░ ╱ STATIONS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ── RDO-77 // NC-NET ──
+func (m Model) navLine(w int) (string, zones) {
+	const (
+		mark    = "▓▒░"
+		gap     = " "
+		code    = " RDO-77 // NC-NET "
+		codeEnd = "──"
+		// minRule is the rule kept between the bar and the code.
+		minRule = 1
+	)
+	lead := ansi.StringWidth(mark + gap)
+	gapW := ansi.StringWidth(gap)
+	bar, bz := buttonBar(m.navButtons(), w-lead-gapW)
+	var zs zones
+	zs.addAt(lead, 0, bz)
+	rest := max(w-lead-ansi.StringWidth(bar)-gapW, 0)
+	tail := stFrameDim.Render(strings.Repeat("─", rest))
+	if codeW := ansi.StringWidth(code + codeEnd); rest >= codeW+minRule {
+		tail = stFrameDim.Render(strings.Repeat("─", rest-codeW)) + stMuted.Render(code) + stFrameDim.Render(codeEnd)
+	}
+	return stYellow.Render(mark) + gap + bar + gap + tail, zs
 }
 
 func (m Model) statusTag() string {
@@ -211,21 +265,27 @@ func (m Model) titleLines() (string, string) {
 	return stCyanBold.Render(title), stRed.Render(strings.ToUpper(m.state.Artist))
 }
 
-func (m Model) progressLine(w int) string {
+// progressLine renders the progress bar and the times in w cells; barW
+// is the width of the bar at the start of the line, 0 when there is no
+// room for one.
+func (m Model) progressLine(w int) (line string, barW int) {
 	var dur = m.state.Duration
 	pos := m.position()
 	times := formatClock(pos) + " / " + formatClock(dur)
-	barW := w - len(times) - 2
+	barW = w - len(times) - 2
 	if barW < 4 {
-		return stRed.Render(times)
+		return stRed.Render(times), 0
 	}
 	elapsed := progressBar(pos, dur, barW)
 	filled := strings.Count(elapsed, "▮")
 	return stCyan.Render(strings.Repeat("▮", filled)) + stDim.Render(strings.Repeat("▯", barW-filled)) +
-		"  " + stRed.Render(times)
+		"  " + stRed.Render(times), barW
 }
 
-func (m Model) nowPlaying(iw, ih int) []string {
+// nowPlaying renders the inside of the NOW PLAYING panel, iw x ih cells,
+// with its zones: the progress bar (click to seek) and the transport
+// buttons under the feed.
+func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	title, artist := m.titleLines()
 	album := ""
 	if m.hasState && !m.signalLost() {
@@ -246,10 +306,17 @@ func (m Model) nowPlaying(iw, ih int) []string {
 		" " + artist,
 		" " + album,
 		"",
-		" " + m.progressLine(iw-2),
-		" " + m.feedLine(),
-		"",
 	}
+	var zs zones
+	progress, barW := m.progressLine(iw - 2)
+	if m.seekable() {
+		zs.add(zoneSeek, 1, len(lines), barW)
+	}
+	lines = append(lines, " "+progress, " "+m.feedLine(), "")
+	transport, tz := m.transportBar(iw - 2)
+	zs.addAt(1, len(lines), tz)
+	lines = append(lines, " "+transport)
+
 	eqRows := min(ih-len(lines), eqMaxRows)
 	if eqRows >= 2 {
 		// Sit the spectrum on the bottom edge of the panel.
@@ -267,7 +334,7 @@ func (m Model) nowPlaying(iw, ih int) []string {
 			lines = append(lines, " "+style.Render(row))
 		}
 	}
-	return lines
+	return lines, zs
 }
 
 // feedLine names where the music comes from: a station's frequency or the
@@ -284,51 +351,62 @@ func (m Model) feedLine() string {
 	return stDim.Render("▞ ---.- MHZ // NO FEED")
 }
 
-// listPanel frames the view on top of the navigation stack.
-func (m Model) listPanel(w, h int) []string {
-	title, code, body := m.listView(w-2, h-2)
-	return panel(title, code, body, w, h, true)
+// listPanel frames the view on top of the navigation stack; its zones are
+// in the panel's coordinates.
+func (m Model) listPanel(w, h int) ([]string, zones) {
+	title, code, body, zs := m.listView(w-2, h-2)
+	return panel(title, code, body, w, h, true), zs.clip(w-2, h-2).shifted(1, 1)
 }
 
 // listView is the one dispatch on the view on top of the navigation stack:
-// its panel title and code, and its body rendered in w x h cells.
-func (m Model) listView(w, h int) (title, code string, body []string) {
+// its panel title and code, and its body rendered in w x h cells with the
+// zones of its rows.
+func (m Model) listView(w, h int) (title, code string, body []string, zs zones) {
 	switch m.top().kind {
 	case viewSearch:
-		return "SEARCH", m.searchCode(), m.searchBody(w, h)
+		body, zs = m.searchBody(w, h)
+		return "SEARCH", m.searchCode(), body, zs
 	case viewResults:
-		return "RESULTS", m.resultsCode(), m.resultsBody(w, h)
+		body, zs = m.resultsBody(w, h)
+		return "RESULTS", m.resultsCode(), body, zs
 	case viewArtist:
-		return "ARTIST", m.artistCode(), m.artistBody(w, h)
+		body, zs = m.artistBody(w, h)
+		return "ARTIST", m.artistCode(), body, zs
 	case viewAlbum, viewPlaylist:
-		return m.trackTitle(), m.trackCode(), m.trackBody(w, h)
+		body, zs = m.trackBody(w, h)
+		return m.trackTitle(), m.trackCode(), body, zs
 	}
-	return "STATIONS", fmt.Sprintf("BAND FM // %02d CH", len(m.stations)), m.stationRows(w, h)
+	body, zs = m.stationRows(w, h)
+	return "STATIONS", fmt.Sprintf("BAND FM // %02d CH", len(m.stations)), body, zs
 }
 
 // stationRows renders the visible window of the station list, scrolled so
 // the cursor stays on screen.
-func (m Model) stationRows(w, h int) []string {
+func (m Model) stationRows(w, h int) ([]string, zones) {
 	if h <= 0 {
-		return nil
+		return nil, nil
 	}
 	n := len(m.stations)
 	if n == 0 {
 		msg := "SCANNING BANDS..."
+		var zs zones
 		if m.stationsFailed {
 			msg = "[R] RETRY // SCAN FAILED"
+			zs.add(zoneRetry, 0, 0, w)
 		} else if m.auth == authOK {
 			msg = "NO STATIONS // LIBRARY EMPTY"
 		}
-		return []string{" " + stDim.Render(msg)}
+		return []string{" " + stDim.Render(msg)}, zs
 	}
 	cur := m.stationCursor()
 	offset := max(0, cur-h+1)
 	rows := make([]string, 0, h)
+	var zs zones
 	for i := offset; i < n && len(rows) < h; i++ {
+		zs.add(rowZone(i), 0, len(rows), w)
 		rows = append(rows, m.stationRow(i, i == cur, w))
 	}
-	return rows
+	return rows, zs
 }
 
 func (m Model) stationRow(i int, selected bool, w int) string {

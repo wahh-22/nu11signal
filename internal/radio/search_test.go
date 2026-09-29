@@ -233,7 +233,8 @@ func TestEscPopsTheSearchViewButNeverTheRoot(t *testing.T) {
 	if len(m.stack) != 1 || m.top().kind != viewStations {
 		t.Fatalf("esc popped the root: %v", m.stack)
 	}
-	if strings.Contains(plain(m), "SEARCH") {
+	// The SEARCH tab stays; the panel is gone.
+	if strings.Contains(plain(m), "▮ SEARCH") {
 		t.Fatal("search panel still shown after esc")
 	}
 	if len(catalogCalls(f)) != 0 {
@@ -522,5 +523,27 @@ func TestReturningToAStoppedSearchResumesIt(t *testing.T) {
 	}
 	if !strings.Contains(plain(m), "ONE MORE TIME") {
 		t.Fatalf("resumed search not shown:\n%s", plain(m))
+	}
+}
+
+// A recent term too short to search only fills the input.
+
+func TestShortRecentTermOnlyFillsTheInput(t *testing.T) {
+	f := playbacktest.New()
+	r := &fakeRecents{terms: []string{"x", "queen"}}
+	m := loadedWithRecents(t, f, r)
+	m, _ = press(t, m, "/", "down")
+	m, cmd := press(t, m, "enter")
+	if cmd != nil {
+		m = settle(t, m, cmd)
+	}
+	if m.top().kind != viewSearch || m.input.Value() != "x" || m.cursor() != -1 {
+		t.Fatalf("top %v input %q cursor %d; want the term in the input only", m.top().kind, m.input.Value(), m.cursor())
+	}
+	if len(catalogCalls(f)) != 0 || len(r.Added()) != 0 {
+		t.Fatalf("a too short term searched %v or was saved %v", catalogCalls(f), r.Added())
+	}
+	if !strings.Contains(plain(m), "KEEP TYPING") {
+		t.Fatalf("no keep-typing notice:\n%s", plain(m))
 	}
 }

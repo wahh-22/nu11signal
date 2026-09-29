@@ -196,7 +196,7 @@ func TestResultsRowsOpenTheirViews(t *testing.T) {
 			if want := []viewKind{viewStations, viewSearch, viewResults, tt.kind}; !reflect.DeepEqual(stackKinds(m), want) {
 				t.Fatalf("stack %v; want %v", stackKinds(m), want)
 			}
-			if title, _, _ := m.listView(40, 10); title != tt.title {
+			if title, _, _, _ := m.listView(40, 10); title != tt.title {
 				t.Errorf("panel title %q; want %q", title, tt.title)
 			}
 			if calls := callsOf(f, tt.method); len(calls) != 1 || calls[0].Args[0] != tt.arg {
@@ -381,7 +381,7 @@ func TestResultsBodyLinesFillWidth(t *testing.T) {
 	for _, w := range []int{9, 30, 70} {
 		for cur := 0; cur < len(m.resultItems()); cur++ {
 			m.stack[len(m.stack)-1].cursor = cur
-			for i, row := range m.resultsBody(w, 40) {
+			for i, row := range linesOf(m.resultsBody(w, 40)) {
 				if got := ansi.StringWidth(row); got != w {
 					t.Errorf("w=%d cursor=%d: row %d is %d cells: %q", w, cur, i, got, ansi.Strip(row))
 				}
@@ -473,5 +473,29 @@ func TestResultsTextNeverReachesTheTerminalRaw(t *testing.T) {
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 50})
 	if view := m.render(); strings.Contains(view, "\x07") || !strings.Contains(plain(m), "DISCOVERY]0;PWNED") {
 		t.Fatalf("results page not cleaned:\n%q", plain(m))
+	}
+}
+
+// Going back from RESULTS onto SEARCH keeps the live rows when they
+// already answer the input.
+
+func TestEscOntoSearchKeepsResultsThatAnswerTheInput(t *testing.T) {
+	f := playbacktest.New()
+	f.SearchCatalogResult = fullCatalog()
+	m := searchFor(t, loaded(t, f, newClock()), "daft")
+	// Enter on the input opens RESULTS for the very term the live rows
+	// answer.
+	m, cmd := press(t, m, "enter")
+	m = settle(t, m, cmd)
+	before := len(catalogCalls(f))
+	m, cmd = press(t, m, "esc")
+	if cmd != nil {
+		m = settle(t, m, cmd)
+	}
+	if calls := catalogCalls(f); len(calls) != before {
+		t.Fatalf("esc searched again: %v", calls[before:])
+	}
+	if !strings.Contains(plain(m), "ONE MORE TIME") {
+		t.Fatalf("live rows not shown:\n%s", plain(m))
 	}
 }
