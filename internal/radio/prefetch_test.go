@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wahh-22/nu11signal/internal/playback"
 	"github.com/wahh-22/nu11signal/internal/playback/playbacktest"
 )
 
@@ -120,5 +121,28 @@ func TestThePlayingSongOffThePageIsReadByTheTick(t *testing.T) {
 	}
 	if on, _ := m.favoriteOf("c1"); !on {
 		t.Fatal("the playing song's ♥ is not known")
+	}
+}
+
+func TestAStalePageReadsNoFavorites(t *testing.T) {
+	// Answers to pages no longer waited for (closed, or loaded again)
+	// must not read favorites for songs nobody sees.
+	song := playback.Song{ID: "s9", Title: "Gone"}
+	for _, tt := range []struct {
+		name string
+		msg  any
+	}{
+		{"artist", artistMsg{seq: 99, detail: playback.ArtistDetail{TopSongs: []playback.Song{song}}}},
+		{"album", albumMsg{seq: 99, detail: playback.AlbumDetail{Tracks: []playback.Track{{Song: song}}}}},
+		{"playlist", playlistMsg{seq: 99, detail: playback.PlaylistDetail{Tracks: []playback.Song{song}}}},
+		{"results", resultsMsg{seq: 99, found: playback.SearchResults{Songs: []playback.Song{song}}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := loaded(t, playbacktest.New(), newClock())
+			m, cmd := step(t, m, tt.msg)
+			if cmd != nil || m.favs[song.ID].reading {
+				t.Fatalf("a stale %s page read favorites", tt.name)
+			}
+		})
 	}
 }

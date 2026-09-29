@@ -19,6 +19,11 @@ import (
 // output device without a settable volume) is reported on the status line
 // and leaves the level unknown (VOL --) until the next press reads it
 // again.
+//
+// The player says, in its states, which volume it drives: its own (app)
+// or, as a fallback, the system's; the readout's label says which (VOL or
+// SYS). When the mode changes (the app volume granted mid-session, or
+// failed), the level is another one, so it is read again.
 
 // volumeStep is how much one press moves the volume.
 const volumeStep = 0.05
@@ -47,6 +52,22 @@ func (m Model) readVolumeCmd(step float64) tea.Cmd {
 		level, err := m.player.Volume(ctx)
 		return volumeMsg{level: level, step: step, err: err}
 	}
+}
+
+// followVolumeMode records the volume mode a state reports and, when it
+// changed from a mode already known, reads the level again (unless a call
+// is in flight: its answer is followed by the next read a press asks for).
+func (m Model) followVolumeMode(mode playback.VolumeMode) (Model, tea.Cmd) {
+	if mode == "" || mode == m.volumeMode {
+		return m, nil
+	}
+	changed := m.volumeMode != ""
+	m.volumeMode = mode
+	if !changed || m.volumeBusy {
+		return m, nil
+	}
+	m.volumeBusy = true
+	return m, m.readVolumeCmd(0)
 }
 
 // roundVolume clamps level and rounds it to whole percents, so that steps
@@ -124,7 +145,8 @@ func (m Model) onSetVolume(msg setVolumeMsg) (Model, tea.Cmd) {
 // volumeMeterMax is the widest meter of the volume readout.
 const volumeMeterMax = 10
 
-// volumeTextWidth is the room the readout takes besides its meter.
+// volumeTextWidth is the room the readout takes besides its meter; the
+// SYS label is as wide as VOL, so the layout does not move.
 var volumeTextWidth = ansi.StringWidth("VOL  100%")
 
 // volumeBar lays out VOL- and VOL+ around the volume readout in at most w
@@ -148,9 +170,12 @@ func (m Model) volumeBar(w int) (string, zones) {
 
 // volumeReadout renders "VOL ▮▮▮▯▯  60%" in exactly w cells, the meter as
 // wide as fits (up to volumeMeterMax), or "VOL --" while the level is
-// unknown.
+// unknown; SYS instead of VOL when the level is the system volume.
 func (m Model) volumeReadout(w int) string {
 	label := stMuted.Render("VOL ")
+	if m.volumeMode == playback.VolumeSystem {
+		label = stMuted.Render("SYS ")
+	}
 	if !m.volumeKnown {
 		return fit(label+stDim.Render("--"), w)
 	}

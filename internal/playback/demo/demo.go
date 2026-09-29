@@ -136,7 +136,8 @@ func (p *Player) skipLocked() {
 // when the buffer is full so the newest one always gets through. All sends
 // happen under mu, so the drain-then-send cannot block.
 func (p *Player) emitLocked() {
-	s := playback.State{Status: p.status, Position: p.pos, Repeat: p.repeat}
+	// The simulated volume is the player's own: VolumeApp.
+	s := playback.State{Status: p.status, Position: p.pos, Repeat: p.repeat, VolumeMode: playback.VolumeApp}
 	if len(p.queue) > 0 {
 		song := p.queue[p.index]
 		s.Title, s.Artist, s.Album, s.SongID, s.Duration = song.Title, song.Artist, song.Album, song.ID, song.Duration

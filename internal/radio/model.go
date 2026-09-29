@@ -197,12 +197,16 @@ type Model struct {
 	volumeKnown   bool
 	volumeBusy    bool
 	volumePending float64
+	// volumeMode is the volume the player last said it drives (app or
+	// system; empty until it says): the readout's label.
+	volumeMode playback.VolumeMode
 
 	// loopWant is the repeat mode LOOP asked for, shown while loopPending
-	// (until a state reports it or the player refuses it); loopSeq numbers
-	// the changes (see loop.go).
+	// (until a state reports it, the player refuses it or loopUntil);
+	// loopSeq numbers the changes (see loop.go).
 	loopWant    playback.RepeatMode
 	loopPending bool
+	loopUntil   time.Time
 	loopSeq     uint64
 
 	frame  uint64
@@ -515,7 +519,8 @@ func (m *Model) restoreBranch() (ok bool) {
 // settleFrame replaces the first entry, on the stack or parked, that match
 // accepts with settle's result. A failed load reaches the status line only
 // from the stack: a parked page keeps its failure until it is restored.
-func (m *Model) settleFrame(match func(frame) bool, settle func(frame) frame) {
+// It reports whether an entry matched.
+func (m *Model) settleFrame(match func(frame) bool, settle func(frame) frame) bool {
 	for i, f := range m.stack {
 		if match(f) {
 			settled := settle(f)
@@ -523,16 +528,17 @@ func (m *Model) settleFrame(match func(frame) bool, settle func(frame) frame) {
 			if failure := settled.loadFailure(); failure != "" {
 				m.setStatus(failure)
 			}
-			return
+			return true
 		}
 	}
 	for i, f := range m.parked {
 		if match(f) {
 			m.parked = slices.Clone(m.parked)
 			m.parked[i] = settle(f)
-			return
+			return true
 		}
 	}
+	return false
 }
 
 // setTop replaces the top entry.

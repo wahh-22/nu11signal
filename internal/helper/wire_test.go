@@ -58,3 +58,21 @@ func TestStateRepeatModeDefaultsToOff(t *testing.T) {
 		}
 	}
 }
+
+func TestStateVolumeModeIsKnownOrEmpty(t *testing.T) {
+	for _, tt := range []struct {
+		wire string
+		want playback.VolumeMode
+	}{
+		{"app", playback.VolumeApp},
+		{"system", playback.VolumeSystem},
+		// An older helper sends none; a newer one may send a mode this
+		// build does not know: neither names a mode.
+		{"", ""},
+		{"device", ""},
+	} {
+		if got := (wireState{VolumeMode: tt.wire}).toDomain().VolumeMode; got != tt.want {
+			t.Errorf("volumeMode %q = %q; want %q", tt.wire, got, tt.want)
+		}
+	}
+}

@@ -454,15 +454,45 @@ as glyphs), and leaves it out otherwise; `LOOP` ends the artist line. In the
 compact layout, expanding hides the list under the player.
 
 `LOOP` shows the mode asked for at once and keeps it until the player
-reports it; a refused change is reported on the status line and the button
+reports it (for at most 3 seconds); a refused change is reported on the status line and the button
 shows the player's mode again. A mode changed elsewhere (the Music app)
 shows with the next state.
 
-The `VOL` readout shows the system output volume, read at startup (`VOL --`
-until then, or when the output device has no settable volume; a refused
-change is reported on the status line). Changes show at once; rapid presses
-are coalesced, so only the latest level is sent once the previous change
-answers.
+The `VOL` readout shows Nu11Signal's own volume, independent of the system
+volume; `SYS` in its place means it shows (and changes) the system output
+volume instead, the fallback. It is read at startup (`VOL --` until then, or
+when the output device has no settable volume; a refused change is reported
+on the status line) and again when the mode changes. Changes show at once;
+rapid presses are coalesced, so only the latest level is sent once the
+previous change answers.
+
+### App volume
+
+MusicKit plays the helper's audio in a separate macOS process
+(`RemotePlayerService`), so the helper cannot scale its own output. Instead
+it creates a Core Audio process tap (macOS 14.2+) on that process, muting
+its direct output, and plays the tapped audio through a private aggregate
+device on the default output device, scaled by the app volume (a square-law
+curve, ramped over 15 ms so changes do not click). This adds about 60 ms of
+output latency. The level persists in the helper's preferences.
+
+- **Permission.** A tap needs the *audio capture* permission
+  (`NSAudioCaptureUsageDescription`: "Nu11Signal adjusts its own playback
+  volume…"). macOS asks on the first playback; the music plays at the system
+  volume (`SYS`) until it is granted, and stays there if it is denied (grant
+  it later in System Settings › Privacy & Security › Screen & System Audio
+  Recording, then restart the app). Nothing is muted while the prompt waits.
+- **Launch.** macOS attributes that permission to the *responsible* process,
+  which for a program started from a terminal is the terminal. The helper
+  therefore re-executes itself once at startup, in place (same process, same
+  pipes), with the private `responsibility_spawnattrs_setdisclaim` spawn
+  attribute (as LLDB and Chromium do), so the prompt names Nu11Signal. When
+  the private function is missing, the helper stays on the system volume.
+- **Resources.** The tap is built when playback starts; its audio thread stops
+  while paused and everything is released when playback stops or the app
+  quits. A new default output device or player process rebuilds it.
+- **Opting out.** `NU11SIGNAL_VOLUME_MODE=system` in the environment keeps the
+  system volume (no relaunch, no tap, no prompt).
 
 ## Helper lookup
 
@@ -500,8 +530,8 @@ One JSON object per line.
 | `pause`, `resume`, `next`, `previous`, `stop` | none | `{}` |
 | `setRepeat` | `mode`: `off`, `all` (the queue), or `one` (the current song) | `{}`; `state` events report the mode as `repeat` (`off` when the player has none; the UI reads any mode it does not know as `off`) |
 | `seek` | `seconds` (>= 0) | `{}`, followed by a `state` event |
-| `volume` | none | `{"level":...}`: the system output volume, 0 to 1 (runs concurrently) |
-| `setVolume` | `level` (clamped to 0-1) | `{}`, or an error when the output device's volume cannot be changed (runs concurrently) |
+| `volume` | none | `{"level":...,"mode":"app"\|"system"}`: the app volume (`app`) or, as a fallback, the system output volume (`system`), 0 to 1 (runs concurrently); `state` events carry the mode as `volumeMode`; see [App volume](#app-volume) |
+| `setVolume` | `level` (clamped to 0-1) | `{"level":...,"mode":...}` as `volume` reports after the change; in `app` mode the system volume is never touched; an error when the system output device's volume cannot be changed (runs concurrently) |
 | `createPlaylist` | `name` (not blank), optional `description`, optional `songIds` (in order) | `{"id","name"}`: the new playlist, with its Apple Music API library id (`p.…`) |
 | `addToPlaylist` | `playlistId` (an API library id, `p.…`), `songIds` (not empty) | `{}`, or an error such as `playlist is not editable` |
 | `favorite` | `songId` | `{"favorite":true\|false}`: whether the song is loved (no rating is `false`; an unreadable ratings answer fails the command) |

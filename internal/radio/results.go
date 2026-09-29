@@ -65,9 +65,10 @@ func (m *Model) loadResults(term string) tea.Cmd {
 }
 
 // onResults fills the page the answer belongs to, even while parked;
-// answers for a page that was left or reloaded are dropped.
-func (m Model) onResults(msg resultsMsg) Model {
-	m.settleFrame(func(f frame) bool {
+// answers for a page that was left or reloaded are dropped (fresh is
+// false).
+func (m Model) onResults(msg resultsMsg) (_ Model, fresh bool) {
+	fresh = m.settleFrame(func(f frame) bool {
 		return f.kind == viewResults && f.results.seq == msg.seq && f.results.loading
 	}, func(f frame) frame {
 		f.results.loading, f.results.cancel = false, nil
@@ -75,7 +76,7 @@ func (m Model) onResults(msg resultsMsg) Model {
 		f.cursor = 0
 		return f
 	})
-	return m
+	return m, fresh
 }
 
 // resultsEnter acts on the selected row: a song plays with the rest of

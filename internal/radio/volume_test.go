@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wahh-22/nu11signal/internal/playback"
 	"github.com/wahh-22/nu11signal/internal/playback/playbacktest"
 )
 
@@ -23,7 +24,7 @@ func withVolume(t *testing.T, m Model, level float64) Model {
 func volumeRow(t *testing.T, m Model) string {
 	t.Helper()
 	for _, l := range strings.Split(plain(m), "\n") {
-		if strings.Contains(l, "VOL ") {
+		if strings.Contains(l, "VOL ") || strings.Contains(l, "SYS ") {
 			return l
 		}
 	}
@@ -393,5 +394,57 @@ func TestVolumePressesBeforeTheStartupReadWaitForIt(t *testing.T) {
 	}
 	if got := setVolumeCalls(f); !reflect.DeepEqual(got, []any{0.6}) {
 		t.Fatalf("SetVolume calls %v; want both presses applied to the startup level", got)
+	}
+}
+
+// inMode is a playing state reporting volume mode mode.
+func inMode(mode playback.VolumeMode) playback.State {
+	s := playing(time.Minute, 3*time.Minute)
+	s.VolumeMode = mode
+	return s
+}
+
+func TestVolumeReadoutNamesTheSystemVolume(t *testing.T) {
+	m := withVolume(t, loaded(t, playbacktest.New(), newClock()), 0.6)
+	for _, tt := range []struct {
+		mode  playback.VolumeMode
+		label string
+	}{
+		// A player that does not say has the plain label.
+		{"", "VOL "},
+		{playback.VolumeApp, "VOL "},
+		{playback.VolumeSystem, "SYS "},
+	} {
+		m, _ = step(t, m, stateMsg{state: inMode(tt.mode)})
+		got := volumeRow(t, m)
+		if !strings.Contains(got, tt.label) || !strings.Contains(got, "60%") {
+			t.Fatalf("mode %q: readout %q; want %q at 60%%", tt.mode, got, tt.label)
+		}
+	}
+}
+
+func TestAVolumeModeChangeReadsTheLevelAgain(t *testing.T) {
+	f := playbacktest.New()
+	m := withVolume(t, loaded(t, f, newClock()), 0.6)
+	// The first mode reported names the level already read.
+	m, _ = step(t, m, stateMsg{state: inMode(playback.VolumeSystem)})
+	m, _ = step(t, m, stateMsg{state: inMode(playback.VolumeSystem)})
+	if n := len(callsOf(f, "Volume")); n != 0 {
+		t.Fatalf("%d Volume calls for an unchanged mode; want none", n)
+	}
+	// The app volume was granted: its level is another one.
+	f.VolumeResult = 0.35
+	m, cmd := step(t, m, stateMsg{state: inMode(playback.VolumeApp)})
+	f.Close() // lets the state wait in the batch return
+	for _, msg := range runAll(t, cmd) {
+		if v, ok := msg.(volumeMsg); ok {
+			m, _ = step(t, m, v)
+		}
+	}
+	if n := len(callsOf(f, "Volume")); n != 1 {
+		t.Fatalf("%d Volume calls after the mode changed; want 1", n)
+	}
+	if got := volumeRow(t, m); !strings.Contains(got, "35%") || !strings.Contains(got, "VOL ") {
+		t.Fatalf("readout %q; want VOL at 35%%", got)
 	}
 }

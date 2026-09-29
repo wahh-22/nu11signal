@@ -199,7 +199,7 @@ func runFakeHelper(scenario string) int {
 			// exactly 0.5.
 			switch cmd {
 			case "volume":
-				ok(id, map[string]any{"level": level})
+				ok(id, map[string]any{"level": level, "mode": "app"})
 				continue
 			case "setVolume":
 				v, isNumber := req["level"].(float64)
@@ -210,7 +210,7 @@ func runFakeHelper(scenario string) int {
 					fail(id, "output device has no settable volume")
 				default:
 					level = v
-					ok(id, map[string]any{})
+					ok(id, map[string]any{"level": v, "mode": "app"})
 				}
 				continue
 			}
@@ -325,7 +325,7 @@ func answer(id, cmd string) {
 			"notes": "After hours.",
 		})
 	case "volume":
-		ok(id, map[string]any{"level": 0.42})
+		ok(id, map[string]any{"level": 0.42, "mode": "app"})
 	case "createPlaylist":
 		ok(id, map[string]any{"id": "p.new", "name": "Night Drive"})
 	case "favorite":

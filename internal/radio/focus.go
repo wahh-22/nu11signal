@@ -248,7 +248,7 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 		switch {
 		case m.control == ctlFav:
 			m.focusTabs()
-		case (m.onBar || !m.control.onVolumeRow() && m.control != ctlLoop && !m.seekable()) && m.drawn(zoneFavPlaying):
+		case (m.onBar || (!m.control.onVolumeRow() && m.control != ctlLoop && !m.seekable())) && m.drawn(zoneFavPlaying):
 			// From the bar, or from the transport row with no bar.
 			m.favFrom = m.control
 			m.control, m.onBar = ctlFav, false

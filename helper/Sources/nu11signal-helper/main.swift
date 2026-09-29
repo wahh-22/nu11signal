@@ -4,9 +4,15 @@ import Foundation
 import MusicKit
 import Nu11SignalProtocol
 
+// First, before any thread exists: become the responsible process, so
+// macOS asks the user (not the terminal) for audio capture (see Relaunch).
+Relaunch.disclaimIfNeeded()
+
 // A vanished reader must surface as a write error, not kill the process.
 signal(SIGPIPE, SIG_IGN)
 
+// The volume reads its baseline of the player's processes before playback.
+let volume = MainActor.assumeIsolated { AppVolume.shared }
 let emitter = MainActor.assumeIsolated { StateEmitter() }
 let handler = MainActor.assumeIsolated { CommandHandler(emitter: emitter) }
 let inFlight = DispatchGroup()
@@ -51,7 +57,10 @@ func readRequests() {
     Lifecycle.shutdown(code: 0)
 }
 
-MainActor.assumeIsolated { emitter.start() }
+MainActor.assumeIsolated {
+    volume.onModeChange = { emitter.checkForChange() }
+    emitter.start()
+}
 Output.shared.event("ready")
 Thread.detachNewThread(readRequests)
 RunLoop.main.run()
