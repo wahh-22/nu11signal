@@ -173,6 +173,37 @@ func TestTrackMarkerFollowsThePlayingTrack(t *testing.T) {
 	}
 }
 
+func TestTrackMarkerOnALoneSong(t *testing.T) {
+	f := playbacktest.New()
+	f.MethodErr = map[string]error{"SongAlbum": errors.New("no album on file")}
+	m := openSong(t, f, 1) // DIGITAL LOVE, alone: its album failed
+	if body := trackRows(m); strings.Contains(body, "▶") {
+		t.Fatalf("▶ shown with nothing playing:\n%s", body)
+	}
+	m, _ = step(t, m, stateMsg{state: playback.State{Status: playback.StatusPlaying, SongID: "s2", Title: "Digital Love", Artist: "Daft Punk"}})
+	if body := trackRows(m); !strings.Contains(body, "▶ 1  DIGITAL LOVE") || strings.Count(body, "▶") != 1 {
+		t.Fatalf("want the lone song marked:\n%s", body)
+	}
+	m, _ = step(t, m, stateMsg{state: playing(0, 0)})
+	if body := trackRows(m); strings.Contains(body, "▶") {
+		t.Fatalf("▶ kept on the lone song while another plays:\n%s", body)
+	}
+}
+
+func TestTrackMarkerIsOffWhileStopped(t *testing.T) {
+	m := openSong(t, playbacktest.New(), 1)
+	s := playback.State{Status: playback.StatusPlaying, SongID: "s1", Title: "One More Time", Artist: "Daft Punk"}
+	m, _ = step(t, m, stateMsg{state: s})
+	if body := trackRows(m); !strings.Contains(body, "▶ 1  ONE MORE TIME") {
+		t.Fatalf("want the playing track marked:\n%s", body)
+	}
+	s.Status = playback.StatusStopped
+	m, _ = step(t, m, stateMsg{state: s})
+	if body := trackRows(m); strings.Contains(body, "▶") {
+		t.Fatalf("▶ shown while stopped:\n%s", body)
+	}
+}
+
 func TestPlaylistMarkerFollowsThePlayingTrack(t *testing.T) {
 	m := openFromArtist(t, playbacktest.New(), itemPlaylist)
 	if body := trackRows(m); strings.Contains(body, "▶") {

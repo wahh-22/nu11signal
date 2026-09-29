@@ -3,6 +3,7 @@ package radio
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,7 +22,9 @@ const detailCallTimeout = 12 * time.Second
 
 // trackPage is the state of one ALBUM, SONG or PLAYLIST view entry on the
 // navigation stack. A SONG view is the ALBUM view of the album holding a
-// song, opened with the cursor on that song.
+// song, opened with the cursor on that song. A PLAYLIST view shows a
+// catalog playlist, from the search branch, or a library playlist, from
+// the PLAYLISTS root.
 type trackPage struct {
 	// kind is the page's view: viewAlbum or viewPlaylist.
 	kind viewKind
@@ -30,6 +33,10 @@ type trackPage struct {
 	album    playback.Album
 	song     playback.Song
 	playlist playback.CatalogPlaylist
+	// library marks a library playlist: its tracks carry library ids, so
+	// it is played as the playlist (from ▶ PLAY or a track), never by
+	// song ids.
+	library bool
 	// seq numbers the load; answers for another number are dropped.
 	seq            uint64
 	loading        bool
@@ -56,11 +63,13 @@ type (
 	}
 )
 
-// trackItem is one selectable row of a track page: the track at index, or
-// the MORE/LESS toggle of the notes.
+// trackItem is one selectable row of a track page: the track at index,
+// the MORE/LESS toggle of the notes, or ▶ PLAY over a library playlist's
+// tracks.
 type trackItem struct {
-	index int
-	more  bool
+	index   int
+	more    bool
+	playAll bool
 }
 
 // openAlbum pushes the ALBUM view for a and starts loading it.
@@ -86,16 +95,31 @@ func (m Model) openPlaylist(p playback.CatalogPlaylist) (Model, tea.Cmd) {
 	return m, cmd
 }
 
+// openLibraryPlaylist pushes the PLAYLIST view for the library playlist
+// p and starts loading its tracks.
+func (m Model) openLibraryPlaylist(p playback.Playlist) (Model, tea.Cmd) {
+	m.push(frame{kind: viewPlaylist})
+	cmd := m.loadTracks(trackPage{playlist: playback.CatalogPlaylist{ID: p.ID, Name: p.Name}, library: true}, viewPlaylist)
+	return m, cmd
+}
+
 // loadTracks (re)loads the page on top of the stack, a kind view, for the
 // selection in sel.
 func (m *Model) loadTracks(sel trackPage, kind viewKind) tea.Cmd {
 	m.detailSeq++
 	seq := m.detailSeq
 	ctx, cancel := context.WithTimeout(context.Background(), max(m.timeout, detailCallTimeout))
-	page := trackPage{kind: kind, album: sel.album, song: sel.song, playlist: sel.playlist, seq: seq, loading: true, cancel: cancel}
+	page := trackPage{kind: kind, album: sel.album, song: sel.song, playlist: sel.playlist, library: sel.library, seq: seq, loading: true, cancel: cancel}
 	m.setTop(frame{kind: kind, tracks: page})
 	player := m.player
 	switch {
+	case kind == viewPlaylist && sel.library:
+		id := sel.playlist.ID
+		return func() tea.Msg {
+			defer cancel()
+			d, err := player.LibraryPlaylist(ctx, id)
+			return playlistMsg{seq: seq, detail: d, err: err}
+		}
 	case kind == viewPlaylist:
 		id := sel.playlist.ID
 		return func() tea.Msg {
@@ -231,8 +255,9 @@ func (m Model) playingIndex(p trackPage) int {
 	return -1
 }
 
-// tracksEnter plays the page's tracks from the selected one, or toggles
-// the notes on MORE.
+// tracksEnter plays the page's tracks from the selected one (a library
+// playlist as the playlist, from the start on ▶ PLAY), or toggles the notes
+// on MORE.
 func (m Model) tracksEnter() (Model, tea.Cmd) {
 	items := m.trackItems()
 	cur := m.cursor()
@@ -245,6 +270,16 @@ func (m Model) tracksEnter() (Model, tea.Cmd) {
 		f.tracks.notesOpen = !f.tracks.notesOpen
 		m.setTop(f)
 		return m, nil
+	}
+	if page := m.top().tracks; page.library {
+		id := page.playlist.ID
+		m.playSeq++
+		return m, m.playCmd(m.playSeq, "PLAY", id, func(ctx context.Context) error {
+			if it.playAll {
+				return m.player.PlayPlaylist(ctx, id)
+			}
+			return m.player.PlayPlaylistFrom(ctx, id, it.index)
+		})
 	}
 	songs := m.top().tracks.tracks()
 	ids := make([]string, len(songs))
@@ -286,6 +321,10 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 	var notes string
 	if f.kind == viewPlaylist {
 		d := page.playlistDetail
+		if page.library && len(d.Tracks) > 0 {
+			item(trackItem{playAll: true}, func(sel bool) string { return playAllLine(sel, w) })
+			add("")
+		}
 		for i, s := range d.Tracks {
 			total += s.Duration
 			item(trackItem{index: i}, func(sel bool) string {
@@ -355,6 +394,15 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 		}
 	}
 	return lines, items
+}
+
+// playAllLine renders the ▶ PLAY row of a library playlist in w cells.
+func playAllLine(selected bool, w int) string {
+	const label = "▶ PLAY"
+	if selected {
+		return stSelected.Render(fit("▌"+label, w))
+	}
+	return fit(" "+stYellowB.Render(label), w)
 }
 
 // trackLine lays out one track row in exactly w cells: the selection mark,
@@ -465,6 +513,12 @@ func (m Model) trackHead() []string {
 			pl = p.playlist
 		}
 		title, by, facts = pl.Name, pl.Curator, "PLAYLIST"
+		if p.library {
+			facts = "LIBRARY PLAYLIST"
+			if i := slices.IndexFunc(m.stations, func(s playback.Playlist) bool { return s.ID == pl.ID }); i >= 0 {
+				facts += " · " + frequency(i) + " MHZ"
+			}
+		}
 	} else {
 		d := p.albumDetail
 		a := d.Album

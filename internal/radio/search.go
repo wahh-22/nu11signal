@@ -156,9 +156,9 @@ func (m Model) resumeOrOpenSearch() (tea.Model, tea.Cmd) {
 // search view are dropped (cancelling their loads) and the input takes the
 // keys again, with the term kept for editing, as starting a new search.
 //
-// Pages are only ever opened from the search view, so one is below them;
-// should that change, / still lands on a search: the pages are dropped and
-// a fresh one opens.
+// On the PLAYLISTS branch (a library playlist page) no search view is
+// below: the pages are dropped and the parked search, or a fresh one,
+// opens.
 func (m Model) searchAgain() (Model, tea.Cmd) {
 	if !slices.ContainsFunc(m.stack, func(f frame) bool { return f.kind == viewSearch }) {
 		m.popToRoot()
@@ -203,7 +203,7 @@ func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyUp:
 		// Up from the first row selects the input; from the input, the
 		// tabs.
-		if m.cursor() < 0 {
+		if m.atListTop() {
 			m.focusTabs()
 			return m, nil
 		}

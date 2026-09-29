@@ -26,7 +26,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case tea.MouseWheelMsg:
 		// The wheel moves the selection like the arrow keys, which scrolls
 		// the list or page with it; the list takes the focus. The expanded
-		// player hides the list, so there the wheel does nothing.
+		// player hides the list, so there the wheel does nothing. The
+		// wheel scrolls: at the top of the list it stops, where ↑ would
+		// climb to the tabs.
 		if m.expanded {
 			return m, nil
 		}
@@ -40,11 +42,10 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		focus := m.focusList()
-		next, cmd := m.handleKey(arrow)
-		if nm, ok := next.(Model); ok && nm.focus == areaTabs {
-			// The wheel scrolls; it never climbs past the top to the tabs.
+		if msg.Button == tea.MouseWheelUp && m.atListTop() {
 			return m, focus
 		}
+		next, cmd := m.handleKey(arrow)
 		return next, tea.Batch(focus, cmd)
 	}
 	return m, nil
@@ -109,7 +110,9 @@ func (m Model) clickListZone(z zone) (tea.Model, tea.Cmd) {
 	case zoneRetry:
 		return m.handleKey(tea.KeyPressMsg{Code: 'r', Text: keyRetry})
 	case zoneTabStations:
-		if m.top().kind == viewStations {
+		if m.onPlaylistsBranch() {
+			// Back to the list from a library playlist page.
+			m.popToRoot()
 			return m, nil
 		}
 		// tab parks the search branch, from SEARCH and from its pages.

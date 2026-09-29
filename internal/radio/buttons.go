@@ -10,7 +10,7 @@ import (
 
 // button is one clickable control drawn as a slanted neon plate:
 //
-//	╱ STATIONS ╱  (the active one fills in yellow: ╱█SEARCH█╱)
+//	╱ PLAYLISTS ╱  (the active one fills in yellow: ╱█SEARCH█╱)
 type button struct {
 	id    string
 	label string
@@ -56,14 +56,14 @@ func buttonBar(bs []button, w int) (string, zones) {
 	return out.String(), zs
 }
 
-// navButtons are the STATIONS and SEARCH tabs, the one showing lit, and
-// BACK (esc) while a page is on top of a root view (the stations or the
-// SEARCH base). The tab the keyboard is on is marked.
+// navButtons are the PLAYLISTS and SEARCH tabs, the one of the branch
+// shown lit, and BACK (esc) while a page is on top of a root view (the
+// playlists or the SEARCH base). The tab the keyboard is on is marked.
 func (m Model) navButtons() []button {
-	onStations := m.top().kind == viewStations
+	lit := m.litTab()
 	bs := []button{
-		{id: zoneTabStations, label: "STATIONS", tone: stRed, active: onStations},
-		{id: zoneTabSearch, label: "SEARCH", tone: stRed, active: !onStations},
+		{id: zoneTabStations, label: "PLAYLISTS", tone: stRed, active: lit == zoneTabStations},
+		{id: zoneTabSearch, label: "SEARCH", tone: stRed, active: lit == zoneTabSearch},
 	}
 	if isPage(m.top().kind) {
 		bs = append(bs, button{id: zoneBack, label: "◀ BACK", tone: stYellow})

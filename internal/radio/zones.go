@@ -24,6 +24,8 @@ const (
 	zoneNext         = "next"
 	zoneSeek         = "seek"
 	zoneExpand       = "expand"
+	zoneVolDown      = "vol:down"
+	zoneVolUp        = "vol:up"
 	rowZonePrefix    = "row:"
 	deleteZonePrefix = "delete:"
 )

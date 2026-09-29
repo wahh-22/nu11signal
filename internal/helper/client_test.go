@@ -651,8 +651,20 @@ func TestVolumeErrorResponses(t *testing.T) {
 	if !errors.As(err, &cmdErr) || cmdErr.Command != "setVolume" || cmdErr.Message != "output device has no settable volume" {
 		t.Fatalf("SetVolume error = %v; want a setVolume CommandError", err)
 	}
-	if _, err := c.Volume(ctx); err != nil {
-		t.Fatalf("Volume after a failed set: %v", err)
+	// The refused level was not applied: the scenario's level stands.
+	if v, err := c.Volume(ctx); err != nil || v != 0.3 {
+		t.Fatalf("Volume after a failed set = %v, %v; want the level unchanged at 0.3", v, err)
+	}
+}
+
+func TestVolumeOutOfRangeFromTheHelperIsClamped(t *testing.T) {
+	// The "volumeOutOfRange" scenario reports 1.4, then -0.2.
+	c := startFake(t, "volumeOutOfRange", Options{})
+	ctx := t.Context()
+	for _, want := range []float64{1, 0} {
+		if v, err := c.Volume(ctx); err != nil || v != want {
+			t.Fatalf("Volume = %v, %v; want %v", v, err, want)
+		}
 	}
 }
 

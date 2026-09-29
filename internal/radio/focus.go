@@ -1,16 +1,18 @@
 package radio
 
 import (
+	"slices"
+
 	tea "charm.land/bubbletea/v2"
 )
 
 // Keyboard focus is on one area of the screen: the list panel (the
 // default), the NOW PLAYING player, or the nav tabs in the header rule. On
-// the player, one control is selected: a transport button, or the progress
-// bar above them. The expanded player hides the list, so it keeps the
-// focus; giving the focus back to the list restores it. ↑ past the top of
-// the list (the SEARCH input included) or of the player reaches the tabs,
-// and ↓ goes back where it came from.
+// the player, one control is selected: a transport button, the progress
+// bar above them, or a volume button below them. The expanded player hides
+// the list, so it keeps the focus; giving the focus back to the list
+// restores it. ↑ past the top of the list (the SEARCH input included) or
+// of the player reaches the tabs, and ↓ goes back where it came from.
 
 // focusArea is the area of the screen that takes the keys.
 type focusArea int
@@ -21,7 +23,9 @@ const (
 	areaTabs
 )
 
-// playerControl is a button of the player, in the order ← and → walk them.
+// playerControl is a button of the player. The buttons sit in two rows,
+// each in the order ← and → walk it: the transport row, PREV to EXPAND,
+// and the volume row under it, VOL- and VOL+. ↑ and ↓ cross between them.
 type playerControl int
 
 const (
@@ -29,7 +33,37 @@ const (
 	ctlPlay
 	ctlNext
 	ctlExpand
+	ctlVolDown
+	ctlVolUp
 )
+
+// onVolumeRow reports whether c is a button of the volume row.
+func (c playerControl) onVolumeRow() bool { return c >= ctlVolDown }
+
+// rowEnds are the first and last buttons of c's row.
+func (c playerControl) rowEnds() (first, last playerControl) {
+	if c.onVolumeRow() {
+		return ctlVolDown, ctlVolUp
+	}
+	return ctlPrev, ctlExpand
+}
+
+// below is the volume button under transport button c: VOL- under the
+// left half (PREV, PLAY), VOL+ under the right one. above goes back up,
+// VOL- to PREV and VOL+ to NEXT.
+func (c playerControl) below() playerControl {
+	if c <= ctlPlay {
+		return ctlVolDown
+	}
+	return ctlVolUp
+}
+
+func (c playerControl) above() playerControl {
+	if c == ctlVolDown {
+		return ctlPrev
+	}
+	return ctlNext
+}
 
 // focusPlayer moves the focus to control on the player. Coming from the
 // list, the search input stops taking keys (and showing its caret)
@@ -69,10 +103,7 @@ func (m *Model) focusTabs() {
 		m.input.Blur()
 	}
 	m.tabsFrom, m.focus = m.focus, areaTabs
-	m.tab = 0
-	if m.top().kind != viewStations {
-		m.tab = min(1, n-1) // SEARCH is lit on the search branch
-	}
+	m.tab = max(slices.Index(m.tabIDs(), m.litTab()), 0)
 }
 
 // leaveTabs gives the focus back to the area the tabs took it from, as it
@@ -85,7 +116,7 @@ func (m *Model) leaveTabs() tea.Cmd {
 	return m.focusList()
 }
 
-// tabIDs are the zone IDs of the nav tabs drawn, left to right: STATIONS,
+// tabIDs are the zone IDs of the nav tabs drawn, left to right: PLAYLISTS,
 // SEARCH and, on a page, BACK, as many as the width holds.
 func (m Model) tabIDs() []string {
 	_, zs := m.layout()
@@ -110,6 +141,7 @@ func (m Model) handleTabsKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) {
 	case keyRight:
 		m.tab = max(min(m.tab+1, len(ids)-1), 0)
 	case keyUp:
+		// Nothing is above the tabs: they keep the focus.
 	case keyDown, keyEsc:
 		cmd = m.leaveTabs()
 	case keyEnter:
@@ -121,9 +153,38 @@ func (m Model) handleTabsKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) {
 		next, cmd = m.clickListZone(zone{id: ids[m.tab]})
 		return next, tea.Batch(focus, cmd), true
 	default:
-		return m, nil, false
+		// The player keys act here, keeping the focus on the tabs; on
+		// SEARCH they would otherwise be typed in the input.
+		return m.playerKey(k)
 	}
 	return m, cmd, true
+}
+
+// playerKey handles the keys that drive the player from wherever the focus
+// is, but for the SEARCH input, which types them: play/pause, next and
+// previous, seek and volume. ok is false for any other key.
+func (m Model) playerKey(k string) (next Model, cmd tea.Cmd, ok bool) {
+	switch k {
+	case keySpace:
+		return m, m.togglePlay(), true
+	case keyNext:
+		return m, m.action("NEXT", m.player.Next), true
+	case keyPrev:
+		return m, m.action("PREV", m.player.Previous), true
+	case keySeekBack, keySeekBackAlt:
+		next, cmd = m.seek(-seekStep)
+		return next, cmd, true
+	case keySeekForward, keySeekForwardAlt:
+		next, cmd = m.seek(seekStep)
+		return next, cmd, true
+	case keyVolumeUp, keyVolumeUpAlt, keyVolumeUpAnywhere:
+		next, cmd = m.stepVolume(volumeStep)
+		return next, cmd, true
+	case keyVolumeDown, keyVolumeDownAnywhere:
+		next, cmd = m.stepVolume(-volumeStep)
+		return next, cmd, true
+	}
+	return m, nil, false
 }
 
 // toggleExpand is the one expand toggle, for the keys and the EXPAND
@@ -150,8 +211,8 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 			next, cmd = m.seek(-seekStep)
 			return next, cmd, true
 		}
-		switch {
-		case m.control > ctlPrev:
+		switch first, _ := m.control.rowEnds(); {
+		case m.control > first:
 			m.control--
 		case !m.expanded:
 			cmd = m.focusList()
@@ -161,17 +222,29 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 			next, cmd = m.seek(seekStep)
 			return next, cmd, true
 		}
-		m.control = min(m.control+1, ctlExpand)
+		_, last := m.control.rowEnds()
+		m.control = min(m.control+1, last)
 	case keyUp:
-		// Up from the buttons reaches the bar, if there is one to seek
-		// in; up from there, the tabs.
-		if !m.onBar && m.seekable() {
+		// Up from the volume row reaches the transport row; from there,
+		// the bar, if there is one to seek in; from there, the tabs.
+		switch {
+		case m.onBar:
+			m.focusTabs()
+		case m.control.onVolumeRow():
+			m.control = m.control.above()
+		case m.seekable():
 			m.onBar = true
-		} else {
+		default:
 			m.focusTabs()
 		}
 	case keyDown:
-		m.onBar = false
+		switch {
+		case m.onBar:
+			m.onBar = false
+		case !m.control.onVolumeRow() && m.drawn(zoneVolDown):
+			// A narrow compact layout leaves the volume row out.
+			m.control = m.control.below()
+		}
 	case keyEnter:
 		if m.onBar {
 			return m, nil, true
@@ -180,23 +253,11 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 		return next, cmd, true
 	case keyEsc:
 		cmd = m.focusList()
-	case keySpace:
-		cmd = m.togglePlay()
-	case keyNext:
-		cmd = m.action("NEXT", m.player.Next)
-	case keyPrev:
-		cmd = m.action("PREV", m.player.Previous)
-	case keySeekBack, keySeekBackAlt:
-		next, cmd = m.seek(-seekStep)
-		return next, cmd, true
-	case keySeekForward, keySeekForwardAlt:
-		next, cmd = m.seek(seekStep)
-		return next, cmd, true
 	case keyExpand, keyExpandAlt:
 		next, cmd = m.toggleExpand()
 		return next, cmd, true
 	default:
-		return m, nil, false
+		return m.playerKey(k)
 	}
 	return m, cmd, true
 }
@@ -212,23 +273,34 @@ func (m Model) pressControl(c playerControl) (Model, tea.Cmd) {
 		return m, m.action("PREV", m.player.Previous)
 	case ctlNext:
 		return m, m.action("NEXT", m.player.Next)
+	case ctlVolDown:
+		return m.stepVolume(-volumeStep)
+	case ctlVolUp:
+		return m.stepVolume(volumeStep)
 	}
 	return m, m.togglePlay()
 }
 
 // controlZone is the zone ID of a player button.
 func controlZone(c playerControl) string {
-	return [...]string{zonePrev, zonePlay, zoneNext, zoneExpand}[c]
+	return [...]string{zonePrev, zonePlay, zoneNext, zoneExpand, zoneVolDown, zoneVolUp}[c]
 }
 
 // controlOf is the player button with zone ID id.
 func controlOf(id string) (playerControl, bool) {
-	for c := ctlPrev; c <= ctlExpand; c++ {
+	for c := ctlPrev; c <= ctlVolUp; c++ {
 		if controlZone(c) == id {
 			return c, true
 		}
 	}
 	return 0, false
+}
+
+// drawn reports whether the frame on screen has a zone with id.
+func (m Model) drawn(id string) bool {
+	_, zs := m.layout()
+	_, ok := zs.find(id)
+	return ok
 }
 
 // focused reports whether the player has the focus on button c.

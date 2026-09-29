@@ -31,7 +31,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case playlistsMsg:
 		if msg.err != nil {
 			m.stationsFailed = true
-			m.setStatus("[R] RETRY // STATION LIST FAILED // " + msg.err.Error())
+			m.setStatus("[R] RETRY // PLAYLIST SCAN FAILED // " + msg.err.Error())
 			return m, nil
 		}
 		m.stationsFailed = false
@@ -74,6 +74,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onPlay(msg), nil
 	case seekMsg:
 		return m.onSeek(msg), nil
+	case volumeMsg:
+		return m.onVolume(msg)
+	case setVolumeMsg:
+		return m.onSetVolume(msg)
 	case stateMsg:
 		m = m.onState(msg.state)
 		if m.animating() && !m.tickFast {
@@ -167,6 +171,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.seek(-seekStep)
 		case keySeekForward:
 			return m.seek(seekStep)
+		case keyVolumeUpAnywhere:
+			return m.stepVolume(volumeStep)
+		case keyVolumeDownAnywhere:
+			return m.stepVolume(-volumeStep)
 		case keyExpand:
 			return m.toggleExpand()
 		}
@@ -190,7 +198,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyQuit:
 		return m, m.quitCmd()
 	case keyUp, keyUpAlt:
-		if m.stationCursor() == 0 {
+		if m.atListTop() {
 			m.focusTabs()
 			return m, nil
 		}
@@ -198,17 +206,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyDown, keyDownAlt:
 		m.moveCursor(1)
 	case keyEnter:
-		return m.playSelection()
-	case keySpace:
-		return m, m.togglePlay()
-	case keyNext:
-		return m, m.action("NEXT", m.player.Next)
-	case keyPrev:
-		return m, m.action("PREV", m.player.Previous)
-	case keySeekBackAlt:
-		return m.seek(-seekStep)
-	case keySeekForwardAlt:
-		return m.seek(seekStep)
+		return m.openSelection()
 	case keyRight:
 		m.focusPlayer(ctlPlay)
 	case keyExpandAlt:
@@ -223,8 +221,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyRetry:
 		if m.stationsFailed {
 			m.stationsFailed = false
-			m.setStatus("RESCANNING STATIONS")
+			m.setStatus("RESCANNING PLAYLISTS")
 			return m, m.loadPlaylistsCmd()
+		}
+	default:
+		if next, cmd, ok := m.playerKey(k); ok {
+			return next, cmd
 		}
 	}
 	return m, nil
@@ -243,16 +245,13 @@ func (m *Model) moveCursor(delta int) {
 	m.setStationCursor(max(0, min(m.stationCursor()+delta, len(m.stations)-1)))
 }
 
-// playSelection tunes the selected station.
-func (m Model) playSelection() (tea.Model, tea.Cmd) {
+// openSelection opens the page of the selected library playlist; the
+// page plays it.
+func (m Model) openSelection() (tea.Model, tea.Cmd) {
 	if len(m.stations) == 0 {
 		return m, nil
 	}
-	id := m.stations[m.stationCursor()].ID
-	m.playSeq++
-	return m, m.playCmd(m.playSeq, "TUNE", id, func(ctx context.Context) error {
-		return m.player.PlayPlaylist(ctx, id)
-	})
+	return m.openLibraryPlaylist(m.stations[m.stationCursor()])
 }
 
 // playCmd runs play request number seq; the on-air station changes only
@@ -284,7 +283,7 @@ func (m Model) onPlay(msg playMsg) Model {
 func (m Model) seekable() bool { return m.hasState && m.state.Duration > 0 }
 
 // seek jumps delta from the position, or from the pending seek's target.
-func (m Model) seek(delta time.Duration) (tea.Model, tea.Cmd) {
+func (m Model) seek(delta time.Duration) (Model, tea.Cmd) {
 	if !m.seekable() {
 		return m, nil
 	}
@@ -296,7 +295,7 @@ func (m Model) seek(delta time.Duration) (tea.Model, tea.Cmd) {
 }
 
 // seekTo jumps to target, clamped to the song.
-func (m Model) seekTo(target time.Duration) (tea.Model, tea.Cmd) {
+func (m Model) seekTo(target time.Duration) (Model, tea.Cmd) {
 	if !m.seekable() {
 		return m, nil
 	}

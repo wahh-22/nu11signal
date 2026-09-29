@@ -168,6 +168,16 @@ type Model struct {
 	tab           int
 	tabsFrom      focusArea
 
+	// volume is the output level shown, and the latest one asked for;
+	// volumeKnown is false until the player reports it, and again after
+	// it refused a change. volumeBusy means a Volume or SetVolume call is
+	// in flight (see volume.go); it starts true for the read Init sends.
+	// volumePending holds steps pressed while a read was in flight.
+	volume        float64
+	volumeKnown   bool
+	volumeBusy    bool
+	volumePending float64
+
 	frame  uint64
 	bars   eq
 	glitch int
@@ -197,22 +207,24 @@ func New(p playback.Player, opts Options) Model {
 	in.CharLimit = 120
 	in.SetStyles(inputStyles())
 	return Model{
-		player:        p,
-		now:           opts.Now,
-		seed:          opts.Seed,
-		timeout:       opts.CallTimeout,
-		closeTimeout:  opts.CloseTimeout,
-		stack:         []frame{{kind: viewStations}},
+		player:       p,
+		now:          opts.Now,
+		seed:         opts.Seed,
+		timeout:      opts.CallTimeout,
+		closeTimeout: opts.CloseTimeout,
+		stack:        []frame{{kind: viewStations}},
+		volumeBusy:   true, // Init reads the volume
+
 		input:         in,
 		recentsStore:  opts.Recents,
 		recentsWrites: newRecentsWriter(opts.Recents),
 	}
 }
 
-// Init authorizes, loads recent searches, starts listening to the player,
-// and starts animating.
+// Init authorizes, loads recent searches, reads the volume, starts
+// listening to the player, and starts animating.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.waitStates(), m.waitErrors(), tickAfter(idleTick, m.tickGen))
+	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.readVolumeCmd(0), m.waitStates(), m.waitErrors(), tickAfter(idleTick, m.tickGen))
 }
 
 // Messages produced by the model's commands.
@@ -373,6 +385,33 @@ func (m Model) signalLost() bool { return m.lostState || m.lostErrs }
 func (m Model) top() frame { return m.stack[len(m.stack)-1] }
 
 func (m Model) cursor() int { return m.top().cursor }
+
+// onPlaylistsBranch reports whether the stack is the PLAYLISTS root and
+// the pages opened from it (a library playlist), not the search branch.
+func (m Model) onPlaylistsBranch() bool {
+	return !slices.ContainsFunc(m.stack, func(f frame) bool { return f.kind == viewSearch })
+}
+
+// litTab is the zone ID of the nav tab lit for the branch shown.
+func (m Model) litTab() string {
+	if m.onPlaylistsBranch() {
+		return zoneTabStations
+	}
+	return zoneTabSearch
+}
+
+// atListTop reports whether the cursor of the view on top is on its first
+// row (on SEARCH, the input), where ↑ climbs to the nav tabs and the wheel
+// stops.
+func (m Model) atListTop() bool {
+	switch m.top().kind {
+	case viewStations:
+		return m.stationCursor() <= 0
+	case viewSearch:
+		return m.cursor() < 0
+	}
+	return m.cursor() <= 0
+}
 
 // stationCursor is the selected station: the cursor of the stations root,
 // whatever view is on top.

@@ -71,7 +71,7 @@ func fit(s string, w int) string {
 // corners, a label in the top edge and a serial code in the bottom edge;
 // an unfocused panel is dimmed, its ▮ hollowed to ▯:
 //
-//	╱─▮ STATIONS ──────┐
+//	╱─▮ PLAYLISTS ─────┐
 //	│ ...              │
 //	└──────── RDO-77 ─╱
 //

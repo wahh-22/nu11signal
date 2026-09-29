@@ -98,6 +98,14 @@ func (m Model) renderFull() ([]string, zones) {
 	return append(lines, m.statusLine(w), m.hintLine(w)), zs
 }
 
+// compactVolumeWidth is the widest volume row beside the transport
+// buttons in the compact layout, and compactVolumeMin the narrowest, with
+// its buttons and a bare percentage.
+const (
+	compactVolumeWidth = 26
+	compactVolumeMin   = 21
+)
+
 // playerMinWidth is the narrowest NOW PLAYING panel beside the list: room
 // for the four transport buttons as glyphs.
 const playerMinWidth = 30
@@ -119,8 +127,8 @@ func (m Model) listBodyWidth() int {
 }
 
 // renderCompact stacks the screen in one column: the nav bar takes the
-// header rule and the transport buttons the rule over the list, which the
-// expanded player leaves out.
+// header rule and the transport buttons, then the volume row while it
+// fits, the rule over the list, which the expanded player leaves out.
 func (m Model) renderCompact() ([]string, zones) {
 	w := m.width
 	nav, zs := m.navLine(w)
@@ -133,9 +141,21 @@ func (m Model) renderCompact() ([]string, zones) {
 		zs.add(zoneSeek, 1, len(lines), barW)
 	}
 	lines = append(lines, m.barMark()+progress)
-	transport, tz := m.transportBar(w - 1)
+	// The volume row takes the room of the transport labels when it can
+	// fit beside all four buttons that way.
+	transport, tz := m.transportBar(w - 3 - compactVolumeMin)
+	withVolume := len(tz) == int(ctlExpand)+1
+	if !withVolume {
+		transport, tz = m.transportBar(w - 1)
+	}
 	zs.addAt(1, len(lines), tz)
-	lines = append(lines, " "+transport+" "+stFrameDim.Render(strings.Repeat("─", max(w-2-ansi.StringWidth(transport), 0))))
+	controls := " " + transport + " "
+	if withVolume {
+		volume, vz := m.volumeBar(min(w-ansi.StringWidth(controls)-1, compactVolumeWidth))
+		zs.addAt(ansi.StringWidth(controls), len(lines), vz)
+		controls += volume + " "
+	}
+	lines = append(lines, controls+stFrameDim.Render(strings.Repeat("─", max(w-ansi.StringWidth(controls), 0))))
 	listH := m.height - len(lines) - 2
 	if listH > 0 && !m.expanded {
 		_, _, body, bz := m.listView(w, listH)
@@ -209,11 +229,11 @@ func (m Model) header(w int) ([]string, zones) {
 	return []string{top, nav}, zs.shifted(0, 1)
 }
 
-// navLine is the header rule carrying the nav bar: the STATIONS and
+// navLine is the header rule carrying the nav bar: the PLAYLISTS and
 // SEARCH tabs and, on a page, BACK. The serial code stays
 // at the right edge while there is room for it.
 //
-//	▓▒░ ╱ STATIONS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ── RDO-77 // NC-NET ──
+//	▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ── RDO-77 // NC-NET ──
 func (m Model) navLine(w int) (string, zones) {
 	const (
 		mark    = "▓▒░"
@@ -261,7 +281,7 @@ func (m Model) titleLines() (string, string) {
 	case m.signalLost():
 		return stYellowB.Render("SIGNAL LOST"), stRed.Render("HELPER OFFLINE // RESTART NU11SIGNAL")
 	case !m.hasState || m.state.Title == "":
-		return stMuted.Render("NO CARRIER"), stDim.Render("TUNE A STATION WITH [ENTER]")
+		return stMuted.Render("NO CARRIER"), stDim.Render("OPEN A PLAYLIST WITH [ENTER]")
 	}
 	title := glitchText(strings.ToUpper(m.state.Title), m.glitch, mix(m.seed, m.frame))
 	return stCyanBold.Render(title), stRed.Render(strings.ToUpper(m.state.Artist))
@@ -285,8 +305,8 @@ func (m Model) progressLine(w int) (line string, barW int) {
 }
 
 // nowPlaying renders the inside of the NOW PLAYING panel, iw x ih cells,
-// with its zones: the progress bar (click to seek) and the transport
-// buttons under the feed.
+// with its zones: the progress bar (click to seek), the transport buttons
+// under the feed and the volume row under them.
 func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	title, artist := m.titleLines()
 	album := ""
@@ -314,10 +334,18 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	if m.seekable() {
 		zs.add(zoneSeek, 1, len(lines), barW)
 	}
-	lines = append(lines, m.barMark()+progress, " "+m.feedLine(), "")
+	lines = append(lines, m.barMark()+progress, " "+m.feedLine())
+	if ih > len(lines)+2 {
+		// The buttons keep their gap from the feed while it leaves room
+		// for the volume row.
+		lines = append(lines, "")
+	}
 	transport, tz := m.transportBar(iw - 2)
 	zs.addAt(1, len(lines), tz)
 	lines = append(lines, " "+transport)
+	volume, vz := m.volumeBar(iw - 2)
+	zs.addAt(1, len(lines), vz)
+	lines = append(lines, " "+volume)
 
 	eqRows := min(ih-len(lines), eqMaxRows)
 	if eqRows >= 2 {
@@ -388,7 +416,7 @@ func (m Model) listView(w, h int) (title, code string, body []string, zs zones) 
 		return m.trackTitle(), m.trackCode(), body, zs
 	}
 	body, zs = m.stationRows(w, h)
-	return "STATIONS", fmt.Sprintf("BAND FM // %02d CH", len(m.stations)), body, zs
+	return "PLAYLISTS", fmt.Sprintf("BAND FM // %02d CH", len(m.stations)), body, zs
 }
 
 // stationRows renders the visible window of the station list, scrolled so
@@ -405,7 +433,7 @@ func (m Model) stationRows(w, h int) ([]string, zones) {
 			msg = "[R] RETRY // SCAN FAILED"
 			zs.add(zoneRetry, 0, 0, w)
 		} else if m.auth == authOK {
-			msg = "NO STATIONS // LIBRARY EMPTY"
+			msg = "NO PLAYLISTS // LIBRARY EMPTY"
 		}
 		return []string{" " + stDim.Render(msg)}, zs
 	}
