@@ -8,7 +8,7 @@ GO     ?= go
 BIN    := bin/nu11signal
 PKG    := ./cmd/nu11signal
 
-.PHONY: all build helper go demo test vet fmt-check release release-dry-run check-version clean
+.PHONY: all build helper go demo test vet fmt-check release release-dry-run cask check-version clean clean-dist
 
 all: build
 
@@ -44,13 +44,21 @@ fmt-check:
 release: check-version
 	./scripts/release.sh $(VERSION)
 
-## release-dry-run: build and assemble the release layout ad hoc, without notarizing
+## release-dry-run: assemble the release layout ad hoc in build/release-dry-run, without notarizing
 release-dry-run: check-version
 	./scripts/release.sh --dry-run $(VERSION)
+
+## cask: render the Homebrew cask for VERSION into the tap checkout and audit it (PUSH=1 commits and pushes)
+cask: check-version
+	./scripts/bump-cask.sh $(VERSION) $(if $(filter 1,$(PUSH)),--push)
 
 check-version:
 	@if [ -z "$(VERSION)" ]; then echo "usage: make $(MAKECMDGOALS) VERSION=x.y.z"; exit 2; fi
 
-## clean: remove build outputs
+## clean: remove build outputs (bin/, build/); release archives in dist/ are kept
 clean:
-	rm -rf bin build dist
+	rm -rf bin build
+
+## clean-dist: remove release archives (dist/)
+clean-dist:
+	rm -rf dist

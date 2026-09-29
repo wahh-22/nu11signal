@@ -32,29 +32,51 @@ var version = "dev"
 const startTimeout = 10 * time.Second
 
 func main() {
-	if err := run(); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return
-		}
-		fmt.Fprintln(os.Stderr, "nu11signal:", err)
-		os.Exit(1)
-	}
+	os.Exit(run(os.Args[1:], deps{
+		stdout:       os.Stdout,
+		stderr:       os.Stderr,
+		locateHelper: helper.Locate,
+		startHelper:  startHelper,
+		runUI:        runUI,
+	}))
 }
 
-func run() error {
-	opts, err := parseFlags(os.Args[1:], os.Stderr)
+// deps are run's side effects, injected so its exit paths are testable.
+type deps struct {
+	stdout, stderr io.Writer
+	// locateHelper finds the helper executable (helper.Locate).
+	locateHelper func() (string, error)
+	// startHelper launches the helper at path; ctx bounds only startup.
+	startHelper func(ctx context.Context, path string) (playback.Player, error)
+	// runUI runs the radio UI against player until the user quits.
+	runUI func(player playback.Player) error
+}
+
+// run executes the command with args (without the program name) and
+// returns the process exit code: 0 on success, --help, or an interrupt;
+// 2 for a command-line error (the flag package already printed it and the
+// usage); 1 for any other failure, reported on stderr.
+func run(args []string, d deps) int {
+	opts, err := parseFlags(args, d.stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		return 0
+	}
 	if err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return err
-		}
-		os.Exit(2) // the flag package already printed the error and usage
+		return 2
 	}
 	if opts.version {
-		printVersion(os.Stdout)
-		return nil
+		printVersion(d.stdout)
+		return 0
 	}
+	if err := play(opts.demo, d); err != nil {
+		fmt.Fprintln(d.stderr, "nu11signal:", err)
+		return 1
+	}
+	return 0
+}
 
-	player, err := openPlayer(opts.demo)
+func play(demoMode bool, d deps) error {
+	player, err := openPlayer(demoMode, d)
 	if err != nil {
 		return err
 	}
@@ -64,12 +86,16 @@ func run() error {
 	// shutdown and kills a helper that does not exit.
 	defer player.Close()
 
-	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano())})
-	_, err = tea.NewProgram(model).Run()
-	if err != nil && !errors.Is(err, tea.ErrInterrupted) {
+	if err := d.runUI(player); err != nil && !errors.Is(err, tea.ErrInterrupted) {
 		return err
 	}
 	return nil
+}
+
+func runUI(player playback.Player) error {
+	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano())})
+	_, err := tea.NewProgram(model).Run()
+	return err
 }
 
 // options are the parsed command-line flags.
@@ -96,11 +122,11 @@ func printVersion(w io.Writer) {
 	fmt.Fprintln(w, version)
 }
 
-func openPlayer(demoMode bool) (playback.Player, error) {
+func openPlayer(demoMode bool, d deps) (playback.Player, error) {
 	if demoMode {
 		return demo.New(demo.Options{}), nil
 	}
-	path, err := helper.Locate()
+	path, err := d.locateHelper()
 	if err != nil {
 		return nil, err
 	}
@@ -112,9 +138,18 @@ func openPlayer(demoMode bool) (playback.Player, error) {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
-	client, err := helper.Start(ctx, helper.Options{Path: path})
+	player, err := d.startHelper(ctx, path)
 	if err != nil {
 		return nil, fmt.Errorf("start helper: %w", err)
+	}
+	return player, nil
+}
+
+func startHelper(ctx context.Context, path string) (playback.Player, error) {
+	// Return a nil interface, not a typed nil *helper.Client, on failure.
+	client, err := helper.Start(ctx, helper.Options{Path: path})
+	if err != nil {
+		return nil, err
 	}
 	return client, nil
 }

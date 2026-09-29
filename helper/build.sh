@@ -8,11 +8,7 @@
 #   NU11SIGNAL_BUNDLE_ID      bundle identifier      (default: dev.wahh.soulking.player)
 #   NU11SIGNAL_TEAM_ID        Apple Developer team   (default: W6GZP998GQ)
 #   NU11SIGNAL_PROFILE        provisioning profile   (development default: signing/Nu11Signal_Dev.provisionprofile;
-#                                                     release default: signing/Nu11Signal_DeveloperID.provisionprofile.
-#                                                     Pre-rename names are still accepted when the default is
-#                                                     missing: signing/SoulKing_Player.provisionprofile, then
-#                                                     spike/SoulKing_Player.provisionprofile (development) and
-#                                                     signing/SoulKing_Player_DeveloperID.provisionprofile (release))
+#                                                     release default: signing/Nu11Signal_DeveloperID.provisionprofile)
 #   NU11SIGNAL_SIGN_IDENTITY  codesign identity      (development default: Apple Development;
 #                                                     release default: Developer ID Application)
 #   NU11SIGNAL_BUILD_DIR      output directory       (default: build)
@@ -38,16 +34,12 @@ BUILD_DIR="${NU11SIGNAL_BUILD_DIR:-build}"
 case "$MODE" in
   development)
     DEFAULT_PROFILE="signing/Nu11Signal_Dev.provisionprofile"
-    # Backward compatibility: profile names from before the rename.
-    LEGACY_PROFILES=("signing/SoulKing_Player.provisionprofile" "spike/SoulKing_Player.provisionprofile")
     DEFAULT_IDENTITY="Apple Development"
     PROFILE_KIND="macOS App Development"
     BUILD_ARGS=(-c release)
     ;;
   release)
     DEFAULT_PROFILE="signing/Nu11Signal_DeveloperID.provisionprofile"
-    # Backward compatibility: profile name from before the rename.
-    LEGACY_PROFILES=("signing/SoulKing_Player_DeveloperID.provisionprofile")
     DEFAULT_IDENTITY="Developer ID Application"
     PROFILE_KIND="Developer ID"
     BUILD_ARGS=(-c release --arch arm64 --arch x86_64)
@@ -58,19 +50,7 @@ case "$MODE" in
     ;;
 esac
 
-if [[ -n "${NU11SIGNAL_PROFILE:-}" ]]; then
-  PROFILE="$NU11SIGNAL_PROFILE"
-else
-  PROFILE="$DEFAULT_PROFILE"
-  if [[ ! -f "$PROFILE" ]]; then
-    for legacy in "${LEGACY_PROFILES[@]}"; do
-      if [[ -f "$legacy" ]]; then
-        PROFILE="$legacy"
-        break
-      fi
-    done
-  fi
-fi
+PROFILE="${NU11SIGNAL_PROFILE:-$DEFAULT_PROFILE}"
 IDENTITY="${NU11SIGNAL_SIGN_IDENTITY:-$DEFAULT_IDENTITY}"
 if [[ ! -f "$PROFILE" ]]; then
   if [[ "$IDENTITY" != "-" ]]; then

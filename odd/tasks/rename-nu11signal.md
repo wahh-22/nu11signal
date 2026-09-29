@@ -45,6 +45,36 @@ Rename the project from soul-king to **Nu11Signal** (display name) / **nu11signa
 - N2 published: tag `v0.2.0` → `326871f`; release https://github.com/wahh-22/nu11signal/releases/tag/v0.2.0 (latest) with archive + .sha256; the downloaded asset's sha256 matches.
 - N3: public tap https://github.com/wahh-22/homebrew-tap with `Casks/nu11signal.rb` (0.2.0); `brew audit --cask --online --strict` exit 0; `brew install --cask wahh-22/tap/nu11signal` links `/opt/homebrew/bin/nu11signal` → Caskroom; `nu11signal --version` from /tmp → 0.2.0; installed helper `spctl` accepted (Notarized Developer ID). README install section updated.
 
+- PR #4 merged (main `78aed45`).
+
+## Follow-ups (branch `chore/release-followups`)
+
+User decision (2026-09-29): nobody installed the old name, so there is no backward compatibility for `SOULKING_*` or the legacy profile names.
+
+- [x] F1 — Remove legacy fallbacks: old profile names and `spike/` in `helper/build.sh` and `scripts/release.sh`, plus the README legacy mentions (the "formerly soul-king" note stays). Resolves the duplicated-fallback advisory. Route: delegated (writer trigger). Commit `d85fe3a`.
+- [x] F2 — `release.sh` builds, notarizes, archives, and verifies in `dist/.staging-nu11signal-<ver>.XXXXXX` (same filesystem) and promotes `nu11signal-<ver>/`, the archive, and `.sha256` into `dist/` only after the final checks; the staging dir is removed on any exit. Dry runs write to `build/release-dry-run/` and never touch `dist/`. `make clean` removes `bin/` and `build/`; new `make clean-dist` removes `dist/`. Route: delegated (writer trigger). Commit `71e54ef`.
+- [x] F3 — `run(args, deps) int` injects stdout/stderr, helper lookup/start, and the UI; `cmd/nu11signal/run_test.go` covers `--version` (0), `-h` (0), unknown flag (2), helper not found (1, message), helper start failure (1, `start helper:` prefix), helper player handed to the UI and closed once, `--demo` uses `*demo.Player` without the helper, UI interrupt (0) and UI failure (1). Route: delegated (writer trigger). Commit `a43fa98`.
+- [x] F4 — `scripts/bump-cask.sh VERSION [--push]` / `make cask VERSION=x.y.z [PUSH=1]`: semver check, sha256 from `dist/…sha256` (fails clearly when missing or mismatched), tap checkout at `NU11SIGNAL_TAP_DIR` (default `../homebrew-tap`; clone when missing, `pull --ff-only` when present, refuse other uncommitted changes), render without the template header, `ruby -c`, `brew audit --cask --strict` through a temporary tap symlink (removed on exit), `git diff`; commit `chore: bump nu11signal to VERSION` and push only with `--push`. README "Releasing" documents it. Route: delegated (writer trigger). Commit `86c5aed`.
+
+Route: delegated (one writer; writer trigger: 2+ non-trivial files).
+
+### Follow-up evidence
+
+- `make test`: Go 146 tests passed (6 packages, -race; +10 from F3); Swift 33 passed. `make vet` clean; `make fmt-check` exit 0.
+- F1: `make build` signs `build/Nu11SignalHelper.app` with Apple Development, `codesign --verify --strict` valid, embedded profile byte-identical to `signing/Nu11Signal_Dev.provisionprofile`; `bin/nu11signal --version` → `dev`. `NU11SIGNAL_PROFILE=/nonexistent ./helper/build.sh` → `error: provisioning profile not found: /nonexistent` naming `signing/Nu11Signal_Dev.provisionprofile`, exit 1 (release mode names `signing/Nu11Signal_DeveloperID.provisionprofile`). No `SoulKing_` profile names left outside `odd/` and `spike/`.
+- F2: `make release-dry-run VERSION=0.2.1` → layout in `build/release-dry-run/nu11signal-0.2.1/{bin,libexec,LICENSE,README.md}`, both executables `x86_64 arm64`, no staging left; `dist/` content hash unchanged (`0baa87b3…`). Forced failure of a real run for the published version (`GOFLAGS=-mod=bogus scripts/release.sh 0.2.0`, fails after staging, before notarization) → exit 1, `dist/` hash unchanged, no staging left. `make clean` removed `bin/` and `build/`, `dist/` intact (hash unchanged); `make build` restored the dev environment.
+- F3: RED observed twice — compile failure (`undefined: deps`, `too many arguments in call to run`), then with a stub `run` returning -1 all 8 new tests failed on exit-code assertions; GREEN after the refactor. The pre-existing `parseFlags`/`printVersion` tests are unchanged characterization tests. Real binary: `--version` exit 0, `--nope` exit 2, `-h` exit 0, a lone copy without a helper → `nu11signal: nu11signal-helper not found: …` exit 1.
+- F4: `NU11SIGNAL_TAP_DIR=<temp> make cask VERSION=0.2.0` cloned the tap, rendered, `ruby -c` OK, audit passed, empty `git diff`; file identical to the published `Casks/nu11signal.rb`. Rerun on the existing checkout fast-forwarded and passed. With a temporary fake `dist/…0.2.1….sha256` the diff showed only `version`/`sha256` and "Not pushed" (fake removed). `make cask VERSION=0.2` → semver error, exit 2; missing checksum → clear error; stray file in the tap → refused. The audit reads the linked checkout (a render without `homepage` fails it). Nothing was pushed.
+- Note: an early F4 draft set `HOMEBREW_NO_INSTALL_FROM_API=1`, which made Homebrew tap `homebrew/core` (1.4 GB); the option was removed and `homebrew/core` untapped again, restoring the previous tap list.
+
+- Template comment updated to describe `make cask` (inline, 1 file).
+- F1–F4 native review (range `e9661a7..HEAD`): tier high; consent granted; 4-lens review approved, receipt acknowledged (lineage `review-6bc032f28c0027b1`).
+
+## Backlog (non-blocking advisories)
+
+- `bump-cask.sh --push`: a commit left unpushed after a failed push is not detected on retry (131-149); the dirty-check exclusion scope (86-88); no script tests.
+- `release.sh` promotion into `dist/` is two renames, not a single atomic step (145-150, 232-233).
+
 ## Next step
 
-Done. Follow-ups: legacy env var warning, deduplicate the profile fallback, release.sh keeps the previous archive until the new build succeeds, main.go exit-path tests; automate cask bumps on release.
+PR + merge of `chore/release-followups`.

@@ -95,7 +95,7 @@ MusicKit only works in a signed app with an embedded provisioning profile.
 |----------|---------|---------|
 | `NU11SIGNAL_BUNDLE_ID` | Bundle ID of the App ID | `dev.wahh.soulking.player` |
 | `NU11SIGNAL_TEAM_ID` | Your Team ID | `W6GZP998GQ` |
-| `NU11SIGNAL_PROFILE` | Path to the profile | `signing/Nu11Signal_Dev.provisionprofile`; if missing, the pre-rename `signing/SoulKing_Player.provisionprofile`, then `spike/SoulKing_Player.provisionprofile` |
+| `NU11SIGNAL_PROFILE` | Path to the profile | `signing/Nu11Signal_Dev.provisionprofile` (`signing/Nu11Signal_DeveloperID.provisionprofile` in release mode) |
 | `NU11SIGNAL_SIGN_IDENTITY` | `codesign` identity | `Apple Development` |
 | `NU11SIGNAL_BUILD_DIR` | Where `Nu11SignalHelper.app` is written | `build` |
 | `NU11SIGNAL_SIGN_MODE` | `development`, or `release` (universal, hardened runtime; used by `make release`) | `development` |
@@ -118,8 +118,10 @@ The first run asks for Apple Music access.
 | `make test` | `go test -race ./...` and `swift test` in `helper/` |
 | `make vet` / `make fmt-check` | `go vet`; fails if `gofmt -l .` lists files |
 | `make release VERSION=x.y.z` | Signed, notarized `dist/nu11signal-x.y.z-macos-universal.tar.gz` (see Releasing) |
-| `make release-dry-run VERSION=x.y.z` | Same layout in `dist/`, ad-hoc signed, not notarized; lists missing release setup |
-| `make clean` | Removes `bin/`, `build/`, and `dist/` |
+| `make release-dry-run VERSION=x.y.z` | Same layout in `build/release-dry-run/`, ad-hoc signed, not notarized; lists missing release setup |
+| `make cask VERSION=x.y.z` | Renders the Homebrew cask into a tap checkout and audits it; `PUSH=1` commits and pushes (see Releasing) |
+| `make clean` | Removes `bin/` and `build/`; release archives in `dist/` are kept |
+| `make clean-dist` | Removes `dist/` (release archives) |
 
 ## Releasing
 
@@ -140,8 +142,7 @@ provisioning profile (MusicKit needs it), and are notarized.
    Distribution > Developer ID, choose the App ID `dev.wahh.soulking.player`
    (MusicKit enabled) and the Developer ID certificate, generate, download,
    and save it as `signing/Nu11Signal_DeveloperID.provisionprofile`
-   (gitignored; the pre-rename name
-   `signing/SoulKing_Player_DeveloperID.provisionprofile` is still accepted).
+   (gitignored).
 3. **Notary credentials.** Create an app-specific password at
    [account.apple.com](https://account.apple.com) (Sign-In and Security >
    App-Specific Passwords), then store it in the keychain:
@@ -163,13 +164,28 @@ make release VERSION=0.2.0
 tracked files have uncommitted changes. It builds both binaries, signs them,
 notarizes the whole layout, staples the helper app, and writes
 `dist/nu11signal-0.2.0-macos-universal.tar.gz` plus `.sha256`, then checks the
-unpacked archive with `spctl` and `codesign --verify --strict`. If
+unpacked archive with `spctl` and `codesign --verify --strict`. Everything is
+built in a staging directory and moved into `dist/` only after those checks
+pass, so a failed run leaves an earlier `dist/nu11signal-0.2.0*` untouched. If
 notarization is rejected it prints the `xcrun notarytool log` command.
 Overrides: `NU11SIGNAL_SIGN_IDENTITY`, `NU11SIGNAL_PROFILE`,
 `NU11SIGNAL_NOTARY_PROFILE`, `NU11SIGNAL_TEAM_ID`.
 
-Publishing stays manual: tag `v0.2.0`, attach the archive and checksum to a
-GitHub release, and fill `version` and `sha256` in the cask template.
+Publishing: tag `v0.2.0` and attach the archive and checksum to a GitHub
+release. Then update the Homebrew cask:
+
+```sh
+make cask VERSION=0.2.0          # render, ruby -c, brew audit --cask --strict, show the diff
+make cask VERSION=0.2.0 PUSH=1   # same, then commit "chore: bump nu11signal to 0.2.0" and push
+```
+
+`scripts/bump-cask.sh` fills `packaging/homebrew/nu11signal.rb.template` with
+the version and the sha256 from `dist/nu11signal-0.2.0-macos-universal.tar.gz.sha256`
+and writes `Casks/nu11signal.rb` in a checkout of
+[wahh-22/homebrew-tap](https://github.com/wahh-22/homebrew-tap):
+`NU11SIGNAL_TAP_DIR` (default `../homebrew-tap`), cloned when missing and
+fast-forwarded when present. It refuses a checkout with other uncommitted
+changes. Without `PUSH=1` nothing is committed.
 
 ## Keys
 
@@ -234,6 +250,5 @@ Playback commands run one at a time in arrival order, each bounded by 10 s
 ## Repository notes
 
 - `spike/` is the historical proof of concept (authorize, search, play from a
-  signed windowless app). It is kept for reference and not used by the build,
-  except as a fallback profile location.
+  signed windowless app). It is kept for reference and not used by the build.
 - License: MIT — see [LICENSE](LICENSE).
