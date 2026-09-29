@@ -44,7 +44,7 @@ Second round of user feedback (2026-09-29): delete recent searches; keep the lef
 ## Progress
 
 - Branch `feat/recent-delete` from `main` `73573e1`. Key decision (user): arrows move focus; seek moves to `shift+←/→` and `,`/`.`.
-- P1 done (route: delegated writer). RED: history build failure then 7 radio behaviour failures (✕ click, clear button/row, delete keys, cursor after delete, failure path, hints). GREEN: `go test -race ./...` ok (parent spot check), `go vet`/`gofmt` clean. Clear writes `{"terms":[]}`; per-row ✕ zone overrides the row click; `[DEL] DROP` hint. Open: no undo for CLEAR RECENT (suggest `u` undo later); store command ordering and late initial load are pre-existing races.
+- P1 done (route: delegated writer). RED: history build failure then 7 radio behaviour failures (✕ click, clear button/row, delete keys, cursor after delete, failure path, hints). GREEN: `go test -race ./...` ok (parent spot check), `go vet`/`gofmt` clean. Clear writes `{"terms":[]}`; per-row ✕ zone overrides the row click; `[DEL] DROP` hint. Open: no undo for CLEAR RECENT (suggest `u` undo later); store command ordering and late initial load are pre-existing races. Commit `8d37005`. RDD: high, 614 lines, consent granted, lineage `review-b11c0aee27b3fc03`, 4 lenses, APPROVED, acknowledged (burned); boundary → `8d37005`. Advisories (folded into P2): serialize recents store writes (Remove/Clear vs Add ordering, R4 WARNING); name the ✕ cell width once (R2 WARNING); deleteRecentAt comment vs last-row behavior; CLEAR RECENT label/style shared; `[DEL] DROP` hint only when a recent row is selected (and mention ctrl+d if it fits); clear-button test asserts on rendered header.
 
 ## Next step
 
