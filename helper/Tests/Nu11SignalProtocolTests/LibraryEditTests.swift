@@ -27,8 +27,13 @@ final class LibraryEditTests: XCTestCase {
     func testLocalLibraryIDsAreRejected() {
         // MusicKit on macOS names library items by 64-bit persistent ids,
         // which the Apple Music API does not know.
-        for id in ["34807486897551531", "-6576179985726945418", "i.", "", "abc"] {
-            assertThrows("song \"\(id)\" has no Apple Music API id (library songs listed by this Mac are not supported yet)") {
+        for id in ["34807486897551531", "i.", "abc"] {
+            assertThrows("song \"\(id)\" has no Apple Music API id") {
+                try LibraryEdit.songType(id)
+            }
+        }
+        for id in ["-6576179985726945418", ""] {
+            assertThrows("\"\(id)\" is not a valid Apple Music id") {
                 try LibraryEdit.songType(id)
             }
         }
@@ -37,7 +42,7 @@ final class LibraryEditTests: XCTestCase {
     func testPlaylistIDMustBeAnAPILibraryID() throws {
         XCTAssertEqual(try LibraryEdit.playlistID("p.6xZagAVsYGZAdVp"), "p.6xZagAVsYGZAdVp")
         for id in ["7193945518659293268", "pl.u-123", "p."] {
-            assertThrows("playlist \"\(id)\" has no Apple Music API id (playlists listed by this Mac are not supported yet)") {
+            assertThrows("playlist \"\(id)\" has no Apple Music API id") {
                 try LibraryEdit.playlistID(id)
             }
         }
@@ -72,7 +77,7 @@ final class LibraryEditTests: XCTestCase {
         assertThrows(#""description" must be a string"#) {
             try LibraryEdit.createPlaylist(self.request("createPlaylist", ["name": "x", "description": 3]))
         }
-        assertThrows("song \"123456789012345678\" has no Apple Music API id (library songs listed by this Mac are not supported yet)") {
+        assertThrows("song \"123456789012345678\" has no Apple Music API id") {
             try LibraryEdit.createPlaylist(self.request("createPlaylist", ["name": "x", "songIds": ["123456789012345678"]]))
         }
     }

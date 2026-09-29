@@ -17,13 +17,47 @@ public struct MusicAPICall: Equatable {
     public let method: String
     /// The path below https://api.music.apple.com.
     public let path: String
+    /// The query string's items, in order; empty for none.
+    public let query: [URLQueryItem]
     /// The JSON body, or nil for none.
     public let body: Data?
 
-    public init(method: String, path: String, body: Data?) {
+    public init(method: String, path: String, query: [URLQueryItem] = [], body: Data?) {
         self.method = method
         self.path = path
+        self.query = query
         self.body = body
+    }
+}
+
+/// An Apple Music API request answered with an error status. description
+/// is the message for the UI (see LibraryEdit.failureMessage).
+public struct MusicAPIFailure: Error, CustomStringConvertible, Equatable {
+    public let status: Int
+    public let description: String
+
+    /// The failure of command, from the status and the API's error title
+    /// and detail (MusicDataRequest.Error); the detail wins when present.
+    public init(command: String, status: Int, title: String, detail: String) {
+        self.status = status
+        self.description = LibraryEdit.failureMessage(
+            command: command, status: status, detail: detail.isEmpty ? title : detail)
+    }
+}
+
+/// Ids interpolated into Apple Music API paths.
+public enum APIPathID {
+    /// id when it is safe as one path segment: ASCII letters, digits and
+    /// dots only, and no "..", so it can neither add a segment nor climb
+    /// out of the resource. Every id that reaches a path passes here.
+    public static func checked(_ id: String) throws -> String {
+        let allowed = !id.isEmpty && id.unicodeScalars.allSatisfy { scalar in
+            scalar.isASCII && (CharacterSet.alphanumerics.contains(scalar) || scalar == ".")
+        }
+        guard allowed, id != ".", !id.contains("..") else {
+            throw ArgumentError(description: "\"\(id)\" is not a valid Apple Music id")
+        }
+        return id
     }
 }
 
@@ -48,25 +82,26 @@ public enum LibraryEdit {
 
     /// The Apple Music API resource type of a song id: "library-songs" for
     /// an API library id ("i.…"), "songs" for a catalog id. Any other id,
-    /// such as the persistent ids `libraryPlaylist` lists, is an error.
+    /// such as a MusicKit persistent id, is an error, as is one unsafe in
+    /// a path (see APIPathID).
     public static func songType(_ id: String) throws -> String {
+        _ = try APIPathID.checked(id)
         if id.hasPrefix("i."), id.count > 2 { return "library-songs" }
         if (1...maxCatalogIDDigits).contains(id.count), id.allSatisfy({ $0.isASCII && $0.isNumber }) {
             return "songs"
         }
         throw ArgumentError(description:
-            "song \"\(id)\" has no Apple Music API id (library songs listed by this Mac are not supported yet)")
+            "song \"\(id)\" has no Apple Music API id")
     }
 
     /// A library playlist id the Apple Music API accepts ("p.…", as
-    /// `createPlaylist` returns). The persistent ids `playlists` lists are
-    /// an error.
+    /// `playlists` lists and `createPlaylist` returns). MusicKit's
+    /// persistent ids are an error.
     public static func playlistID(_ id: String) throws -> String {
         guard id.hasPrefix("p."), id.count > 2 else {
-            throw ArgumentError(description:
-                "playlist \"\(id)\" has no Apple Music API id (playlists listed by this Mac are not supported yet)")
+            throw ArgumentError(description: "playlist \"\(id)\" has no Apple Music API id")
         }
-        return id
+        return try APIPathID.checked(id)
     }
 
     /// `createPlaylist` with `name`, an optional `description` and optional
@@ -139,6 +174,45 @@ public enum LibraryEdit {
     public static func isFavorite(_ data: Data) -> Bool {
         let attributes = firstItem(data)?["attributes"] as? JSONObject
         return (attributes?["value"] as? NSNumber)?.intValue == 1
+    }
+
+    /// The answer to `favorite`: whether the rating read loves the song.
+    /// The API answers 404 for a song without a rating: not a favorite.
+    public static func favoriteAnswer(_ result: Result<Data, Error>) throws -> Bool {
+        switch result {
+        case .success(let data): return isFavorite(data)
+        case .failure(let failure as MusicAPIFailure) where failure.status == 404: return false
+        case .failure(let error): throw error
+        }
+    }
+
+    /// The answer to `setFavorite`. Clearing the rating of a song that has
+    /// none is answered with 404; the song is then already not a favorite,
+    /// so that succeeds.
+    public static func setFavoriteAnswer(on: Bool, _ result: Result<Data, Error>) throws {
+        switch result {
+        case .success: return
+        case .failure(let failure as MusicAPIFailure) where !on && failure.status == 404: return
+        case .failure(let error): throw error
+        }
+    }
+
+    /// The error command reports for error. A write that timed out may
+    /// still be applied later (MusicDataRequest cannot be cancelled), so
+    /// its message says the outcome is unknown instead of that it failed;
+    /// it is never retried automatically, which could apply it twice.
+    public static func settled(_ command: String, _ error: Error) -> Error {
+        guard let timeout = error as? Deadline.TimedOut else { return error }
+        let outcome: String
+        switch command {
+        case "createPlaylist":
+            outcome = "the playlist may or may not have been created; check the library before trying again"
+        case "addToPlaylist":
+            outcome = "the songs may or may not have been added; check the playlist before trying again"
+        default:
+            return error
+        }
+        return ArgumentError(description: "\(command) \(timeout.description): \(outcome)")
     }
 
     /// A failed request as a message for the UI. detail is the API's

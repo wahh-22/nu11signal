@@ -46,24 +46,38 @@ type station struct {
 	ids []string
 }
 
+// songs lists the station's songs, catalog and library-only, in order.
 func (s station) songs() []playback.Song {
 	out := make([]playback.Song, 0, len(s.ids))
 	for _, id := range s.ids {
 		if song, ok := songByID(id); ok {
+			out = append(out, song)
+		} else if song, ok := uploads[id]; ok {
 			out = append(out, song)
 		}
 	}
 	return out
 }
 
-// stations seed each player's library (see Player.library).
+// uploads are demo songs only in the library, not in the catalog: listed
+// in playlists but never played, as with the helper.
+var uploads = map[string]playback.Song{
+	"i.demo-upload-1": func() playback.Song {
+		s := song("i.demo-upload-1", "Basement Tape #3", "Static FM Crew", "", 142)
+		s.LibraryOnly = true
+		return s
+	}(),
+}
+
+// stations seed each player's library (see Player.library). All are the
+// user's own, so editable.
 var stations = []station{
-	{playback.Playlist{ID: "demo-1", Name: "Heat Sink Radio"}, []string{"d01", "d03", "d09"}},
-	{playback.Playlist{ID: "demo-2", Name: "Night Drive"}, []string{"d02", "d05", "d11", "d12"}},
-	{playback.Playlist{ID: "demo-3", Name: "Badlands Rock"}, []string{"d04", "d07"}},
-	{playback.Playlist{ID: "demo-4", Name: "Coastline Dreams"}, []string{"d06", "d08", "d10"}},
-	{playback.Playlist{ID: "demo-5", Name: "Low Orbit"}, []string{"d10", "d08", "d03", "d11"}},
-	{playback.Playlist{ID: "demo-6", Name: "Static FM"}, []string{"d12", "d01", "d05", "d07", "d09"}},
+	{playback.Playlist{ID: "demo-1", Name: "Heat Sink Radio", Editable: true}, []string{"d01", "d03", "d09"}},
+	{playback.Playlist{ID: "demo-2", Name: "Night Drive", Editable: true}, []string{"d02", "d05", "d11", "d12"}},
+	{playback.Playlist{ID: "demo-3", Name: "Badlands Rock", Editable: true}, []string{"d04", "d07"}},
+	{playback.Playlist{ID: "demo-4", Name: "Coastline Dreams", Editable: true}, []string{"d06", "d08", "d10"}},
+	{playback.Playlist{ID: "demo-5", Name: "Low Orbit", Editable: true}, []string{"d10", "d08", "d03", "d11"}},
+	{playback.Playlist{ID: "demo-6", Name: "Static FM", Editable: true}, []string{"d12", "d01", "i.demo-upload-1", "d05", "d07", "d09"}},
 }
 
 func songByID(id string) (playback.Song, bool) {

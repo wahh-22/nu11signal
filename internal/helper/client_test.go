@@ -27,7 +27,8 @@ func TestRoundTrip(t *testing.T) {
 	}
 
 	lists, err := c.Playlists(ctx)
-	if err != nil || len(lists) != 1 || lists[0] != (playback.Playlist{ID: "p1", Name: "Night City"}) {
+	wantLists := []playback.Playlist{{ID: "p1", Name: "Night City", Editable: true}, {ID: "p.fav", Name: "Favorite Songs"}}
+	if err != nil || !reflect.DeepEqual(lists, wantLists) {
 		t.Fatalf("Playlists = %+v, %v", lists, err)
 	}
 
@@ -224,7 +225,7 @@ func TestOutOfOrderResponsesAreCorrelated(t *testing.T) {
 	if searchErr != nil || len(found.Songs) != 1 || found.Songs[0].ID != "s1" {
 		t.Fatalf("SearchCatalog = %+v, %v", found, searchErr)
 	}
-	if listErr != nil || len(lists) != 1 || lists[0].ID != "p1" {
+	if listErr != nil || len(lists) != 2 || lists[0].ID != "p1" {
 		t.Fatalf("Playlists = %+v, %v", lists, listErr)
 	}
 }
@@ -674,8 +675,8 @@ func TestLibraryPlaylistRoundTrip(t *testing.T) {
 	want := playback.PlaylistDetail{
 		Playlist: playback.CatalogPlaylist{ID: "p1", Name: "Night City"},
 		Tracks: []playback.Song{
-			{ID: "i.s1", Title: "Nightcall", Artist: "Kavinsky", Album: "OutRun", Duration: 258 * time.Second},
-			{ID: "i.s2", Title: "Resonance", Artist: "Home", Album: "Odyssey", Duration: 212*time.Second + 250*time.Millisecond},
+			{ID: "1440857781", Title: "Nightcall", Artist: "Kavinsky", Album: "OutRun", Duration: 258 * time.Second},
+			{ID: "i.s2", Title: "Resonance", Artist: "Home", Album: "Odyssey", Duration: 212*time.Second + 250*time.Millisecond, LibraryOnly: true},
 		},
 		Notes: "After hours.",
 	}

@@ -68,7 +68,9 @@ func (c *Client) CatalogPlaylist(ctx context.Context, playlistID string) (playba
 	return res.toDomain(), nil
 }
 
-// Playlists lists the user's library playlists, sorted by name.
+// Playlists lists the user's library playlists, alphabetically, with
+// their Apple Music API library ids ("p.…") and whether they are
+// editable.
 func (c *Client) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	var res playlistsResult
 	if err := c.call(ctx, "playlists", nil, &res); err != nil {
@@ -76,13 +78,15 @@ func (c *Client) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	}
 	lists := make([]playback.Playlist, len(res.Playlists))
 	for i, p := range res.Playlists {
-		lists[i] = playback.Playlist{ID: p.ID, Name: p.Name}
+		lists[i] = playback.Playlist{ID: p.ID, Name: p.Name, Editable: p.Editable}
 	}
 	return lists, nil
 }
 
 // LibraryPlaylist loads a library playlist page: its songs (music videos
-// are left out) with their library ids. The id travels as "playlistId".
+// are left out) with their catalog ids; a song not in the catalog keeps
+// its library id ("i.…") and is marked LibraryOnly. The id travels as
+// "playlistId".
 func (c *Client) LibraryPlaylist(ctx context.Context, playlistID string) (playback.PlaylistDetail, error) {
 	var res catalogPlaylistResult
 	if err := c.call(ctx, "libraryPlaylist", map[string]any{"playlistId": playlistID}, &res); err != nil {
@@ -149,8 +153,8 @@ func (c *Client) SetVolume(ctx context.Context, level float64) error {
 // CreatePlaylist creates a library playlist through the Apple Music API.
 // The songs travel as "songIds", always an array (possibly empty); an
 // empty description is left out. The helper accepts catalog song ids and
-// API library ids ("i.…"), not the persistent ids LibraryPlaylist lists,
-// and answers with the playlist's API library id ("p.…").
+// API library ids ("i.…"), as LibraryPlaylist lists them, and answers
+// with the playlist's API library id ("p.…").
 func (c *Client) CreatePlaylist(ctx context.Context, name, description string, songIDs []string) (playback.Playlist, error) {
 	args := map[string]any{"name": name, "songIds": nonNil(songIDs)}
 	if description != "" {
@@ -164,8 +168,9 @@ func (c *Client) CreatePlaylist(ctx context.Context, name, description string, s
 }
 
 // AddToPlaylist appends songs to a library playlist through the Apple
-// Music API. The playlist must have an API library id ("p.…", as
-// CreatePlaylist returns); the ids travel as "playlistId" and "songIds".
+// Music API. The playlist id is an API library id ("p.…", as Playlists
+// and CreatePlaylist return); the ids travel as "playlistId" and
+// "songIds".
 func (c *Client) AddToPlaylist(ctx context.Context, playlistID string, songIDs []string) error {
 	return c.call(ctx, "addToPlaylist", map[string]any{"playlistId": playlistID, "songIds": nonNil(songIDs)}, nil)
 }

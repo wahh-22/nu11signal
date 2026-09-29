@@ -224,7 +224,9 @@ brings back the same view (an artist or album page included) with its cursor.
 
 `enter` on a library playlist opens its PLAYLIST page over the PLAYLISTS
 root: `▶ PLAY` plays it from the start, and `enter` on a track plays the
-playlist from that track (the dial then shows the playlist on air). `esc` or
+playlist from that track (the dial then shows the playlist on air). Songs
+that are only in your library (uploads, or songs no longer in the Apple Music
+catalog) are listed muted and skipped: `enter` on one only shows a notice. `esc` or
 the `PLAYLISTS` tab goes back to the list; `tab` or `/` goes to SEARCH (the
 page is closed).
 
@@ -402,10 +404,10 @@ One JSON object per line.
 | `album` | `albumId` | `{"album":{...},"tracks":[...],"genre","releaseDate","recordLabel","copyright","notes"}` |
 | `songAlbum` | `songId` | Same as `album`, for the album holding the song |
 | `catalogPlaylist` | `playlistId` | `{"playlist":{...},"tracks":[...],"notes"}` |
-| `playlists` | none | `{"playlists":[{"id":...,"name":...}]}` |
-| `libraryPlaylist` | `playlistId` (a library id) | `{"playlist":{"id","name"},"tracks":[...],"notes"}`; songs only, with library ids |
+| `playlists` | none | `{"playlists":[{"id","name","editable"}]}`: alphabetical, with Apple Music API library ids (`p.…`); `editable` is false for playlists followed from the catalog |
+| `libraryPlaylist` | `playlistId` (an API library id, `p.…`) | `{"playlist":{"id","name"},"tracks":[...],"notes"}`; songs only, with their catalog ids; a song not in the catalog keeps its library id (`i.…`) and carries `"libraryOnly":true` |
 | `playSongs` | `ids`, `startIndex` | `{}` or `{"missing":[...]}` |
-| `playPlaylist` | `playlistId`, optional `startIndex` (an index into the `libraryPlaylist` tracks) | `{}` |
+| `playPlaylist` | `playlistId`, optional `startIndex` (an index into the `libraryPlaylist` tracks) | `{}` or `{"missing":[...]}`; the playlist's catalog songs are queued (library-only songs are skipped; starting at one is an error) |
 | `pause`, `resume`, `next`, `previous`, `stop` | none | `{}` |
 | `seek` | `seconds` (>= 0) | `{}`, followed by a `state` event |
 | `volume` | none | `{"level":...}`: the system output volume, 0 to 1 (runs concurrently) |
@@ -413,7 +415,7 @@ One JSON object per line.
 | `createPlaylist` | `name` (not blank), optional `description`, optional `songIds` (in order) | `{"id","name"}`: the new playlist, with its Apple Music API library id (`p.…`) |
 | `addToPlaylist` | `playlistId` (an API library id, `p.…`), `songIds` (not empty) | `{}`, or an error such as `playlist is not editable` |
 | `favorite` | `songId` | `{"favorite":true\|false}`: whether the song is loved (no rating is `false`) |
-| `setFavorite` | `songId`, `on` (a boolean) | `{}`: `true` loves the song, `false` removes its rating |
+| `setFavorite` | `songId`, `on` (a boolean) | `{}`: `true` loves the song, `false` removes its rating (a song without one included) |
 
 Playback commands run one at a time in arrival order, each bounded by 10 s
 (a hung one is answered with a timeout error); `authorize`, `playlists`, and
@@ -424,8 +426,13 @@ left empty instead of failing the page. The library edits (`createPlaylist`,
 `addToPlaylist`, `favorite`, `setFavorite`) run concurrently too, one Apple Music
 API request each (`/v1/me/library/playlists`, `/v1/me/ratings/...`) through
 MusicKit's `MusicDataRequest`, as MusicKit's own library editing is unavailable on
-macOS. Their song ids are catalog ids or API library ids (`i.…`): the persistent
-ids `playlists` and `libraryPlaylist` return are refused. At stdin EOF the helper finishes in-flight work
+macOS. `playlists` and `libraryPlaylist` read the library through the same API
+(`GET /v1/me/library/playlists` and `.../{id}/tracks`, following pages up to 500
+playlists or 1000 songs), so every id they return is one the edits accept: song
+ids are catalog ids or API library ids (`i.…`), playlist ids are `p.…`. Ids are
+checked (letters, digits, and dots only) before they go into a request path. A
+`createPlaylist` or `addToPlaylist` that times out may still be applied: its
+error says the outcome is unknown, and it is not retried. At stdin EOF the helper finishes in-flight work
 (up to 3 s), stops playback, and exits.
 
 ## Troubleshooting

@@ -320,23 +320,50 @@ func (p *Player) LibraryPlaylist(ctx context.Context, playlistID string) (playba
 	return d, err
 }
 
-// PlayPlaylist plays a demo station from its first track.
+// PlayPlaylist plays a demo station from its first playable track.
 func (p *Player) PlayPlaylist(ctx context.Context, id string) error {
-	return p.PlayPlaylistFrom(ctx, id, 0)
+	return p.playStation(ctx, id, -1)
 }
 
 // PlayPlaylistFrom plays a demo station from the track at index start.
 func (p *Player) PlayPlaylistFrom(ctx context.Context, playlistID string, start int) error {
+	if start < 0 {
+		return fmt.Errorf("demo: start %d out of range", start)
+	}
+	return p.playStation(ctx, playlistID, start)
+}
+
+// playStation plays a station from the track at index start, or from its
+// first playable track when start is -1. As with the helper, library-only
+// songs are left out of the queue and cannot be the start.
+func (p *Player) playStation(ctx context.Context, playlistID string, start int) error {
 	return p.do(ctx, true, func() error {
 		s, ok := p.stationLocked(playlistID)
 		if !ok {
 			return fmt.Errorf("demo: unknown playlist %q", playlistID)
 		}
 		songs := s.songs()
-		if start < 0 || start >= len(songs) {
+		if start >= len(songs) {
 			return fmt.Errorf("demo: start %d out of range", start)
 		}
-		p.playLocked(songs, start)
+		if start >= 0 && songs[start].LibraryOnly {
+			return fmt.Errorf("demo: %q is not in the catalog", songs[start].Title)
+		}
+		var queue []playback.Song
+		at := 0
+		for i, song := range songs {
+			if song.LibraryOnly {
+				continue
+			}
+			if i == start {
+				at = len(queue)
+			}
+			queue = append(queue, song)
+		}
+		if len(queue) == 0 {
+			return fmt.Errorf("demo: playlist %q has no playable songs", playlistID)
+		}
+		p.playLocked(queue, at)
 		return nil
 	})
 }
@@ -364,7 +391,7 @@ func (p *Player) CreatePlaylist(ctx context.Context, name, description string, s
 			return err
 		}
 		p.created++
-		pl = playback.Playlist{ID: fmt.Sprintf("demo-new-%d", p.created), Name: name}
+		pl = playback.Playlist{ID: fmt.Sprintf("demo-new-%d", p.created), Name: name, Editable: true}
 		p.library = append(p.library, station{pl, append([]string(nil), songIDs...)})
 		if description != "" {
 			p.notes[pl.ID] = description
