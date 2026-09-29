@@ -618,3 +618,21 @@ func TestPlayerFocusHintsFollowTheExpandedStateAndTheInput(t *testing.T) {
 		}
 	}
 }
+
+func TestReturningFromThePlayerOffSearchLeavesTheInputAlone(t *testing.T) {
+	// The input took the keys when the player got the focus, but SEARCH
+	// is no longer on top when the focus comes back, so the input must
+	// stay blurred.
+	f := playbacktest.New()
+	f.SearchCatalogResult = catalog()
+	m := searchFor(t, playingModel(t, f), "daft")
+	m, _ = press(t, m, "ctrl+f")
+	if m.focus != areaPlayer || m.input.Focused() {
+		t.Fatalf("focus %v input focused %v; want the player alone", m.focus, m.input.Focused())
+	}
+	m.stack = m.stack[:1:1]
+	m, _ = press(t, m, "ctrl+f")
+	if m.focus != areaList || m.input.Focused() {
+		t.Fatalf("back on the stations: focus %v input focused %v; want the list with the input blurred", m.focus, m.input.Focused())
+	}
+}

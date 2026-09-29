@@ -41,12 +41,12 @@ func (m *Model) focusPlayer(control playerControl) {
 
 // focusList gives the focus back to the list as the player found it,
 // restoring the expanded player: the search input takes the keys again
-// only if it had them.
+// only if it had them and SEARCH is still the view on top.
 func (m *Model) focusList() tea.Cmd {
 	wasPlayer := m.focus == areaPlayer
-	m.focus, m.onBar, m.expanded = areaList, false, false
-	if wasPlayer && m.inputHadFocus {
-		m.inputHadFocus = false
+	hadInput := m.inputHadFocus
+	m.focus, m.onBar, m.expanded, m.inputHadFocus = areaList, false, false, false
+	if wasPlayer && hadInput && m.top().kind == viewSearch {
 		return m.input.Focus()
 	}
 	return nil
