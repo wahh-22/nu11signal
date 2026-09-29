@@ -1,7 +1,9 @@
 package demo
 
 import (
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
 )
@@ -68,4 +70,97 @@ func songByID(id string) (playback.Song, bool) {
 		}
 	}
 	return playback.Song{}, false
+}
+
+// albumYears dates the demo albums; every album is by one artist.
+var albumYears = map[string]int{
+	"Last Call Sessions": 2076,
+	"Dockside Nights":    2075,
+	"Route 77":           2071,
+	"Spire Tower":        2077,
+	"Implants":           2074,
+	"Signal Bleed":       2077,
+}
+
+// artistExtras is what an artist page adds to the catalog: its about text,
+// singles and playlists. Top songs and albums come from the catalog.
+type artistExtras struct {
+	notes, origin, formed string
+	singles               []string
+	playlists             []string
+}
+
+var extras = map[string]artistExtras{
+	"demo-artist-chrome-saints": {
+		notes:     "Chrome Saints turned the last-call jukeboxes of Watson into a genre: slow-burning synth anthems for people who never go home.",
+		origin:    "Watson, Night City",
+		formed:    "2069",
+		singles:   []string{"Overclocked Heart (Edit)"},
+		playlists: []string{"Chrome Saints Essentials"},
+	},
+	"demo-artist-lux-vendetta": {
+		notes:  "Darkwave duo recorded entirely on the docks of Kabuki, between shift changes.",
+		origin: "Kabuki, Night City",
+	},
+	"demo-artist-dust-protocol": {
+		notes:   "Badlands rock played loud enough to reach Night City from the highway.",
+		formed:  "2066",
+		singles: []string{"Harbor Undertow (Live)"},
+	},
+	"demo-artist-the-netrunners": {
+		notes:     "Industrial crew rumoured to master their records inside the Net itself.",
+		playlists: []string{"Netrunners: Deep Dive"},
+	},
+	"demo-artist-midnight-surgeon": {
+		notes: "Electronic lullabies for the freshly chromed.",
+	},
+	"demo-artist-kuroi-hana": {
+		notes:  "J-Pop idols turned static-soaked producers; Signal Bleed is their third reinvention.",
+		origin: "Japantown, Night City",
+	},
+}
+
+// artistPage builds the demo page of the artist with id.
+func artistPage(id string) (playback.ArtistDetail, bool) {
+	var d playback.ArtistDetail
+	found := false
+	for _, a := range artists {
+		if a.ID == id {
+			d.Artist, found = a, true
+		}
+	}
+	if !found {
+		return d, false
+	}
+	name := d.Artist.Name
+	for _, s := range catalog {
+		if s.Artist != name {
+			continue
+		}
+		d.TopSongs = append(d.TopSongs, s)
+		if n := len(d.Albums); n > 0 && d.Albums[n-1].Title == s.Album {
+			d.Albums[n-1].TrackCount++
+			continue
+		}
+		d.Albums = append(d.Albums, playback.Album{
+			ID: "demo-album-" + slug(s.Album), Title: s.Album, Artist: name, Year: albumYears[s.Album], TrackCount: 1,
+		})
+	}
+	d.EssentialAlbums = append([]playback.Album(nil), d.Albums[:1]...)
+	x := extras[id]
+	for _, title := range x.singles {
+		d.Singles = append(d.Singles, playback.Album{ID: "demo-single-" + slug(title), Title: title, Artist: name, Year: 2077, TrackCount: 1})
+	}
+	for _, pl := range x.playlists {
+		d.Playlists = append(d.Playlists, playback.CatalogPlaylist{ID: "demo-playlist-" + slug(pl), Name: pl, Curator: "Nu11Signal"})
+	}
+	d.About = playback.ArtistAbout{Notes: x.notes, Genre: d.Artist.Genres[0], Origin: x.origin, Formed: x.formed}
+	return d, true
+}
+
+// slug turns a title into an id fragment: "Route 77" -> "route-77".
+func slug(s string) string {
+	return strings.Join(strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}), "-")
 }

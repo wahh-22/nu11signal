@@ -63,6 +63,36 @@ type searchCatalogResult struct {
 	Songs       []wireSong   `json:"songs"`
 }
 
+type wireAlbum struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	Artist     string `json:"artist"`
+	Year       int    `json:"year"`
+	TrackCount int    `json:"trackCount"`
+}
+
+type wireCatalogPlaylist struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Curator string `json:"curator"`
+}
+
+type artistResult struct {
+	Artist          wireArtist            `json:"artist"`
+	TopSongs        []wireSong            `json:"topSongs"`
+	EssentialAlbums []wireAlbum           `json:"essentialAlbums"`
+	Albums          []wireAlbum           `json:"albums"`
+	Singles         []wireAlbum           `json:"singles"`
+	Compilations    []wireAlbum           `json:"compilations"`
+	Playlists       []wireCatalogPlaylist `json:"playlists"`
+	About           struct {
+		Notes  string `json:"notes"`
+		Genre  string `json:"genre"`
+		Origin string `json:"origin"`
+		Formed string `json:"formed"`
+	} `json:"about"`
+}
+
 type playlistsResult struct {
 	Playlists []struct {
 		ID   string `json:"id"`
@@ -130,4 +160,36 @@ func (r searchCatalogResult) toDomain() playback.SearchResults {
 		res.Songs = append(res.Songs, s.toDomain())
 	}
 	return res
+}
+
+func (a wireAlbum) toDomain() playback.Album {
+	return playback.Album{ID: a.ID, Title: a.Title, Artist: a.Artist, Year: a.Year, TrackCount: a.TrackCount}
+}
+
+// albums converts a section, keeping one the helper omitted nil.
+func albums(in []wireAlbum) []playback.Album {
+	var out []playback.Album
+	for _, a := range in {
+		out = append(out, a.toDomain())
+	}
+	return out
+}
+
+// toDomain keeps sections the helper omitted nil.
+func (r artistResult) toDomain() playback.ArtistDetail {
+	d := playback.ArtistDetail{
+		Artist:          r.Artist.toDomain(),
+		EssentialAlbums: albums(r.EssentialAlbums),
+		Albums:          albums(r.Albums),
+		Singles:         albums(r.Singles),
+		Compilations:    albums(r.Compilations),
+		About:           playback.ArtistAbout(r.About),
+	}
+	for _, s := range r.TopSongs {
+		d.TopSongs = append(d.TopSongs, s.toDomain())
+	}
+	for _, p := range r.Playlists {
+		d.Playlists = append(d.Playlists, playback.CatalogPlaylist{ID: p.ID, Name: p.Name, Curator: p.Curator})
+	}
+	return d
 }

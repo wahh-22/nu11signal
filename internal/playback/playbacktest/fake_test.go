@@ -108,3 +108,26 @@ func TestFakeSearchCatalogMethodErr(t *testing.T) {
 		t.Fatalf("SearchCatalog result on error = %+v; want zero", res)
 	}
 }
+
+func TestFakeArtistReturnsCannedDetailAndRecordsID(t *testing.T) {
+	f := New()
+	f.ArtistResult = playback.ArtistDetail{
+		Artist:   playback.Artist{ID: "a1", Name: "Daft Punk"},
+		TopSongs: []playback.Song{{ID: "s1"}},
+		About:    playback.ArtistAbout{Genre: "Electronic"},
+	}
+	got, err := f.Artist(t.Context(), "a1")
+	if err != nil || !reflect.DeepEqual(got, f.ArtistResult) {
+		t.Fatalf("Artist = %+v, %v; want the canned detail", got, err)
+	}
+	if want := []Call{{Method: "Artist", Args: []any{"a1"}}}; !reflect.DeepEqual(f.Calls(), want) {
+		t.Fatalf("Calls = %#v; want %#v", f.Calls(), want)
+	}
+
+	boom := errors.New("boom")
+	f.MethodErr = map[string]error{"Artist": boom}
+	got, err = f.Artist(t.Context(), "a1")
+	if !errors.Is(err, boom) || !reflect.DeepEqual(got, playback.ArtistDetail{}) {
+		t.Fatalf("Artist on error = %+v, %v; want zero, boom", got, err)
+	}
+}

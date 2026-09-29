@@ -31,6 +31,46 @@ type SearchResults struct {
 	Songs       []Song
 }
 
+// Album is a catalog album, single or compilation.
+type Album struct {
+	ID     string
+	Title  string
+	Artist string
+	// Year is the release year; 0 when unknown.
+	Year       int
+	TrackCount int
+}
+
+// CatalogPlaylist is a catalog playlist, such as an artist's essentials.
+type CatalogPlaylist struct {
+	ID      string
+	Name    string
+	Curator string
+}
+
+// ArtistAbout is the "About" section of an artist page. Every field is
+// empty when the catalog does not know it.
+type ArtistAbout struct {
+	// Notes is the editorial text, as plain text.
+	Notes  string
+	Genre  string
+	Origin string
+	Formed string
+}
+
+// ArtistDetail is an artist page: its sections in Apple Music order, each
+// empty when the catalog has nothing for it.
+type ArtistDetail struct {
+	Artist          Artist
+	TopSongs        []Song
+	EssentialAlbums []Album
+	Albums          []Album
+	Singles         []Album
+	Compilations    []Album
+	Playlists       []CatalogPlaylist
+	About           ArtistAbout
+}
+
 // Playlist is a library playlist; the UI presents it as a radio station.
 type Playlist struct {
 	ID   string
@@ -79,6 +119,7 @@ const (
 type Player interface {
 	Authorize(ctx context.Context) (AuthStatus, error)
 	SearchCatalog(ctx context.Context, term string, limit int) (SearchResults, error)
+	Artist(ctx context.Context, artistID string) (ArtistDetail, error)
 	Playlists(ctx context.Context) ([]Playlist, error)
 	PlaySongs(ctx context.Context, ids []string, start int) error
 	PlayPlaylist(ctx context.Context, id string) error

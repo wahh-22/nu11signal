@@ -26,6 +26,18 @@ func (c *Client) SearchCatalog(ctx context.Context, term string, limit int) (pla
 	return res.toDomain(), nil
 }
 
+// Artist loads an artist page. The helper leaves out sections the catalog
+// has nothing for (or failed to load); they stay empty.
+//
+// The id travels as "artistId", never "id" (see PlayPlaylist).
+func (c *Client) Artist(ctx context.Context, artistID string) (playback.ArtistDetail, error) {
+	var res artistResult
+	if err := c.call(ctx, "artist", map[string]any{"artistId": artistID}, &res); err != nil {
+		return playback.ArtistDetail{}, err
+	}
+	return res.toDomain(), nil
+}
+
 // Playlists lists the user's library playlists, sorted by name.
 func (c *Client) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	var res playlistsResult
