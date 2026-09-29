@@ -447,6 +447,9 @@ func (m Model) hintLine(w int) string {
 	switch m.top().kind {
 	case viewSearch:
 		hints = searchHints
+		if m.inputTerm() == "" && len(m.recents) > 0 {
+			hints = recentHints
+		}
 	case viewResults:
 		hints = resultsHints
 	case viewArtist:

@@ -38,6 +38,7 @@ type (
 		err   error
 	}
 	recentSavedMsg    struct{ err error }
+	recentEditedMsg   struct{ err error }
 	searchDebounceMsg struct{ seq uint64 }
 	catalogMsg        struct {
 		seq     uint64
@@ -55,7 +56,12 @@ const (
 	rowSuggestion
 	rowArtist
 	rowSong
+	rowClearRecents
 )
+
+// recentCrossMinWidth is the narrowest row that still gets a ✕ to delete
+// its recent term.
+const recentCrossMinWidth = 8
 
 // searchRow is one selectable row of the search view.
 type searchRow struct {
@@ -98,6 +104,39 @@ func (m *Model) remember(term string) tea.Cmd {
 	m.recents = history.Push(m.recents, term)
 	store := m.recentsStore
 	return func() tea.Msg { return recentSavedMsg{err: store.Add(term)} }
+}
+
+// deleteRecentAt deletes the recent term on search row i (a no-op on any
+// other row). The list on screen changes at once, the cursor staying on
+// the row that takes the deleted one's place; a failure to store the
+// change only reaches the status line.
+func (m Model) deleteRecentAt(i int) (Model, tea.Cmd) {
+	rows := m.searchRows()
+	if i < 0 || i >= len(rows) || rows[i].kind != rowRecent {
+		return m, nil
+	}
+	term := rows[i].term
+	m.recents = history.Without(m.recents, term)
+	switch cur := m.cursor(); {
+	case len(m.recents) == 0:
+		m.setCursor(-1) // CLEAR RECENT went with the last term
+	case cur > i:
+		m.setCursor(cur - 1)
+	case cur == i:
+		m.setCursor(min(i, len(m.recents)-1))
+	}
+	store := m.recentsStore
+	return m, func() tea.Msg { return recentEditedMsg{err: store.Remove(term)} }
+}
+
+// clearRecents deletes every recent term, with a notice on the status
+// line; a failure to store the change replaces the notice.
+func (m Model) clearRecents() (Model, tea.Cmd) {
+	m.recents = nil
+	m.setCursor(-1)
+	m.setStatus("RECENT CLEARED")
+	store := m.recentsStore
+	return m, func() tea.Msg { return recentEditedMsg{err: store.Clear()} }
 }
 
 // resumeOrOpenSearch brings back the parked search branch exactly as it
@@ -149,7 +188,9 @@ func (m *Model) resumeSearch() tea.Cmd {
 }
 
 // handleSearchKey handles keys while the search view is on top. Text keys
-// go to the input, so the player's letter shortcuts are off here.
+// go to the input, so the player's letter shortcuts are off here. With a
+// row selected, ctrl+d and delete delete a recent term instead of editing
+// the input.
 func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keyEsc:
@@ -172,6 +213,10 @@ func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case keyEnter:
 		return m.searchEnter()
+	case keyDelete, keyDeleteAlt:
+		if cur := m.cursor(); cur >= 0 {
+			return m.deleteRecentAt(cur)
+		}
 	}
 	before := m.input.Value()
 	var cmd tea.Cmd
@@ -297,6 +342,8 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 	}
 	row := rows[cur]
 	switch row.kind {
+	case rowClearRecents:
+		return m.clearRecents()
 	case rowArtist:
 		save := m.remember(m.search.term)
 		next, open := m.openArtist(row.artist)
@@ -316,7 +363,7 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 }
 
 // searchRows lists the selectable rows: recent terms while the input is
-// empty, otherwise the results for the typed term as Apple Music orders
+// empty (then CLEAR RECENT when there are any), otherwise the results for the typed term as Apple Music orders
 // them (suggestions, artists, songs). Results for another term (the input
 // changed and the new search has not answered yet) are not rows.
 func (m Model) searchRows() []searchRow {
@@ -325,6 +372,9 @@ func (m Model) searchRows() []searchRow {
 	if term == "" {
 		for _, t := range m.recents {
 			rows = append(rows, searchRow{kind: rowRecent, term: t})
+		}
+		if len(rows) > 0 {
+			rows = append(rows, searchRow{kind: rowClearRecents})
 		}
 		return rows
 	}
@@ -371,7 +421,8 @@ func (m Model) inputWidth() int {
 
 // searchBody renders the search view in w x h cells: the input, a rule and
 // the rows, scrolled so the cursor stays on screen. Every line is exactly w
-// cells wide. Its zones are the input and the rows shown.
+// cells wide. Its zones are the input, the rows shown with the ✕ of each
+// recent term, and the CLEAR RECENT button.
 func (m Model) searchBody(w, h int) ([]string, zones) {
 	if h <= 0 || w <= 0 {
 		return nil, nil
@@ -391,7 +442,9 @@ func (m Model) searchBody(w, h int) ([]string, zones) {
 	switch {
 	case term == "":
 		if room > 0 {
-			lines = append(lines, fit(" "+stMuted.Render(spaced("RECENT")), w))
+			line, bz := m.recentHeader(w)
+			zs.addAt(0, len(lines), bz)
+			lines = append(lines, line)
 			room--
 		}
 		if len(rows) == 0 {
@@ -417,13 +470,34 @@ func (m Model) searchBody(w, h int) ([]string, zones) {
 	offset := max(0, cur-room+1)
 	for i := offset; i < len(rows) && i-offset < room; i++ {
 		zs.add(rowZone(i), 0, len(lines), w)
+		if rows[i].kind == rowRecent && w >= recentCrossMinWidth {
+			// On top of the row: the " ✕" in its last two cells.
+			zs.add(recentDeleteZone(i), w-2, len(lines), 2)
+		}
 		lines = append(lines, m.searchRowLine(rows[i], i == cur, w))
 	}
 	return lines, zs
 }
 
+// recentHeader is the RECENT line, with a CLEAR RECENT button at its
+// right edge while there are terms and it fits. The zone is in the line's
+// coordinates.
+func (m Model) recentHeader(w int) (string, zones) {
+	head := " " + stMuted.Render(spaced("RECENT"))
+	b := button{id: zoneClearRecents, label: "CLEAR RECENT", tone: stRed}
+	x := w - b.width()
+	if len(m.recents) == 0 || x < ansi.StringWidth(head)+1 {
+		return fit(head, w), nil
+	}
+	var zs zones
+	zs.add(b.id, x, 0, b.width())
+	return fit(head, x) + b.render(), zs
+}
+
 func (m Model) searchRowLine(r searchRow, selected bool, w int) string {
 	switch r.kind {
+	case rowClearRecents:
+		return searchLine("✕", stYellow, "CLEAR RECENT", styled(stYellow), "", selected, w)
 	case rowArtist:
 		tag := "ARTIST"
 		if len(r.artist.Genres) > 0 {
@@ -443,7 +517,16 @@ func (m Model) searchRowLine(r searchRow, selected bool, w int) string {
 		prefix := strings.ToUpper(m.search.term)
 		return searchLine("⌕", stMuted, text, func(t string) string { return highlightPrefix(t, prefix) }, "", selected, w)
 	}
-	return searchLine("⌕", stMuted, strings.ToUpper(r.term), styled(stRed), "", selected, w)
+	text := strings.ToUpper(r.term)
+	if w < recentCrossMinWidth {
+		return searchLine("⌕", stMuted, text, styled(stRed), "", selected, w)
+	}
+	// A recent term ends in the ✕ that deletes it.
+	cross := stRed.Render(" ✕")
+	if selected {
+		cross = stSelected.Render(" ✕")
+	}
+	return searchLine("⌕", stMuted, text, styled(stRed), "", selected, w-2) + cross
 }
 
 // searchLine lays out one row in exactly w cells: a selection mark, a

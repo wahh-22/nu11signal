@@ -48,6 +48,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setStatus("RECENT SEARCH NOT SAVED // " + msg.err.Error())
 		}
 		return m, nil
+	case recentEditedMsg:
+		if msg.err != nil {
+			m.setStatus("RECENT CHANGE NOT SAVED // " + msg.err.Error())
+		}
+		return m, nil
 	case searchDebounceMsg:
 		return m.onSearchDebounce(msg)
 	case catalogMsg:

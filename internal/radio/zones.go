@@ -14,25 +14,37 @@ import (
 
 // Zone IDs. Rows of the list panel use rowZone.
 const (
-	zoneInput       = "input"
-	zoneRetry       = "retry"
-	zoneTabStations = "tab:stations"
-	zoneTabSearch   = "tab:search"
-	zoneBack        = "back"
-	zonePrev        = "prev"
-	zonePlay        = "play"
-	zoneNext        = "next"
-	zoneSeek        = "seek"
-	rowZonePrefix   = "row:"
+	zoneInput        = "input"
+	zoneRetry        = "retry"
+	zoneTabStations  = "tab:stations"
+	zoneTabSearch    = "tab:search"
+	zoneBack         = "back"
+	zonePrev         = "prev"
+	zonePlay         = "play"
+	zoneNext         = "next"
+	zoneSeek         = "seek"
+	zoneClearRecents = "clear-recents"
+	rowZonePrefix    = "row:"
+	deleteZonePrefix = "delete:"
 )
 
 // rowZone is the ID of selectable row i of the view on top: a station, a
 // search row or a page item.
 func rowZone(i int) string { return rowZonePrefix + strconv.Itoa(i) }
 
+// recentDeleteZone is the ID of the ✕ that deletes the recent term on
+// search row i.
+func recentDeleteZone(i int) string { return deleteZonePrefix + strconv.Itoa(i) }
+
 // rowOf parses a rowZone ID.
-func rowOf(id string) (int, bool) {
-	s, ok := strings.CutPrefix(id, rowZonePrefix)
+func rowOf(id string) (int, bool) { return indexOf(id, rowZonePrefix) }
+
+// recentDeleteOf parses a recentDeleteZone ID.
+func recentDeleteOf(id string) (int, bool) { return indexOf(id, deleteZonePrefix) }
+
+// indexOf parses an ID made of prefix and an index.
+func indexOf(id, prefix string) (int, bool) {
+	s, ok := strings.CutPrefix(id, prefix)
 	if !ok {
 		return 0, false
 	}

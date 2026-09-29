@@ -235,7 +235,8 @@ Recent searches are the last 10 terms you submitted with `enter` (typed, a
 suggestion, or a recent term) or opened an artist or song from, stored in
 `nu11signal/recent.json` under `os.UserConfigDir()`
 (`~/Library/Application Support/nu11signal/recent.json` on macOS). Demo mode
-keeps them in memory only.
+keeps them in memory only. Delete one with `ctrl+d` / `delete` or its `✕`;
+`CLEAR RECENT` deletes them all at once (no confirmation, no undo).
 
 Limitations:
 
@@ -267,7 +268,8 @@ SEARCH (typing goes to the input, so letter shortcuts are off):
 | Key | Action |
 |-----|--------|
 | `↑`/`↓` | Move between the input and the rows |
-| `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, open its SONG view |
+| `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, open its SONG view; on `✕ CLEAR RECENT` (the last RECENT row), delete every recent term |
+| `ctrl+d` / `delete` | On a recent term, delete it (on the input, they edit the text) |
 | `tab` | Back to the stations (the search is kept for the next `/` or `tab`) |
 | `esc` | Back one view (closing the search: the next `/` starts empty) |
 | `ctrl+c` | Quit |
@@ -292,6 +294,8 @@ The mouse does what the keys do; the keys keep working.
 |-------|--------|
 | A row (station, search row, page row, MORE/LESS) | Select it and act as `enter` |
 | The SEARCH input | Select the input |
+| `✕` at the end of a recent term | Delete that term (as `ctrl+d` / `delete`) |
+| `CLEAR RECENT` (RECENT header) | Delete every recent term |
 | A `[R] RETRY` notice | Retry, as `r` |
 | `STATIONS` / `SEARCH` tabs (header rule) | As `tab` / `/`; the lit tab is the view shown |
 | `◀ BACK` (above the stations) | As `esc` |

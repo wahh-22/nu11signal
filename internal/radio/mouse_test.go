@@ -523,3 +523,62 @@ func TestNavTabLightsTheViewShown(t *testing.T) {
 		t.Fatal("the active tab looks like the others")
 	}
 }
+
+func TestClickOnRecentCrossRemovesOnlyThatTerm(t *testing.T) {
+	r := &fakeRecents{}
+	m := withThreeRecents(t, r)
+	z := zoneOf(t, m, recentDeleteZone(1))
+	if got := textAt(m, z); !strings.Contains(got, "✕") {
+		t.Fatalf("delete zone covers %q; want the ✕", got)
+	}
+	if row := zoneOf(t, m, rowZone(1)); row.y != z.y || !strings.Contains(textAt(m, row), "DAFT PUNK") {
+		t.Fatalf("✕ of row 1 is not on the DAFT PUNK row")
+	}
+	m, cmd := click(t, m, recentDeleteZone(1))
+	if want := []string{"queen", "samurai"}; !reflect.DeepEqual(m.recents, want) {
+		t.Fatalf("recents = %q; want %q", m.recents, want)
+	}
+	if m.top().kind != viewSearch {
+		t.Fatal("clicking ✕ opened the term")
+	}
+	settle(t, m, cmd)
+	if got := r.Removed(); !reflect.DeepEqual(got, []string{"daft punk"}) {
+		t.Fatalf("store Remove calls = %q; want [daft punk]", got)
+	}
+}
+
+func TestClickOnRecentRowStillOpensIt(t *testing.T) {
+	m := withThreeRecents(t, &fakeRecents{})
+	m, _ = click(t, m, rowZone(1))
+	if m.top().kind != viewResults || len(m.recents) != 3 {
+		t.Fatalf("view %v, recents %q; want RESULTS with every term kept", m.top().kind, m.recents)
+	}
+}
+
+func TestClickOnClearRecentClearsEveryTerm(t *testing.T) {
+	for _, id := range []string{zoneClearRecents, rowZone(3)} {
+		t.Run(id, func(t *testing.T) {
+			r := &fakeRecents{}
+			m := withThreeRecents(t, r)
+			if got := textAt(m, zoneOf(t, m, id)); !strings.Contains(got, "CLEAR RECENT") {
+				t.Fatalf("zone covers %q; want CLEAR RECENT", got)
+			}
+			m, cmd := click(t, m, id)
+			if len(m.recents) != 0 || m.top().kind != viewSearch {
+				t.Fatalf("recents = %q, view %v; want none, still SEARCH", m.recents, m.top().kind)
+			}
+			if !strings.Contains(plain(m), "RECENT CLEARED") {
+				t.Fatalf("status line lacks the notice:\n%s", plain(m))
+			}
+			settle(t, m, cmd)
+			if r.Clears() != 1 {
+				t.Fatalf("store Clear calls = %d; want 1", r.Clears())
+			}
+			if _, zs := m.layout(); len(zs) > 0 {
+				if _, ok := zs.find(zoneClearRecents); ok {
+					t.Fatal("CLEAR RECENT button still shown with no terms")
+				}
+			}
+		})
+	}
+}
