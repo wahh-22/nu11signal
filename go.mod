@@ -1,4 +1,4 @@
-module github.com/wahh-22/soul-king
+module github.com/wahh-22/nu11signal
 
 go 1.26.2
 

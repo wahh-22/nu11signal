@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // ChannelBuffer is how many states and errors the Fake buffers before

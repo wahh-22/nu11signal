@@ -1,4 +1,4 @@
-// Package radio is the soul-king terminal UI: a Cyberpunk 2077 style car
+// Package radio is the Nu11Signal terminal UI: a Cyberpunk 2077 style car
 // radio driving a playback.Player. It depends only on the playback port.
 package radio
 
@@ -9,7 +9,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // Options configures a radio Model. Zero values select sensible defaults.

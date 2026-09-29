@@ -1,6 +1,6 @@
 import Darwin
 import Foundation
-import SoulKingProtocol
+import Nu11SignalProtocol
 
 /// stdout writer: producers enqueue complete lines and return immediately;
 /// one dedicated thread writes them to the file descriptor (no stdio
@@ -18,7 +18,7 @@ final class Output: @unchecked Sendable {
 
     private init() {
         let thread = Thread { [outbox] in Output.writeLoop(outbox) }
-        thread.name = "soulking-helper.stdout"
+        thread.name = "nu11signal-helper.stdout"
         thread.start()
     }
 
@@ -38,7 +38,7 @@ final class Output: @unchecked Sendable {
 
     private static func writeLoop(_ outbox: Outbox) {
         // drain closes the outbox on a failed write (unit tested in
-        // SoulKingProtocol); only the process-level reaction lives here.
+        // Nu11SignalProtocol); only the process-level reaction lives here.
         guard let failure = outbox.drain({ writeAll(STDOUT_FILENO, $0) }) else { return }
         log("stdout write failed: \(String(cString: strerror(failure))); shutting down")
         Lifecycle.shutdown(code: failure == EPIPE ? 0 : 1)
@@ -66,5 +66,5 @@ private func writeAll(_ fd: Int32, _ data: Data) -> Int32? {
 /// Diagnostics go to stderr so stdout stays pure protocol. Logging is best
 /// effort: a failed or closed stderr is ignored, never raised.
 func log(_ text: String) {
-    _ = writeAll(STDERR_FILENO, Data("soulking-helper: \(text)\n".utf8))
+    _ = writeAll(STDERR_FILENO, Data("nu11signal-helper: \(text)\n".utf8))
 }

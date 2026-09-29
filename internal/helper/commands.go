@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // Authorize asks for Apple Music access; the system may prompt the user.

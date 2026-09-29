@@ -9,22 +9,22 @@ import (
 )
 
 // HelperEnv overrides the helper executable path. It must be absolute.
-const HelperEnv = "SOULKING_HELPER"
+const HelperEnv = "NU11SIGNAL_HELPER"
 
 // bundleRelPath is the executable inside the signed helper bundle.
-var bundleRelPath = filepath.Join("SoulKingHelper.app", "Contents", "MacOS", "soulking-helper")
+var bundleRelPath = filepath.Join("Nu11SignalHelper.app", "Contents", "MacOS", "nu11signal-helper")
 
 // ErrHelperNotFound is wrapped when no helper executable can be found.
-var ErrHelperNotFound = errors.New("soulking-helper not found")
+var ErrHelperNotFound = errors.New("nu11signal-helper not found")
 
 // Locate finds the helper executable. Only trusted locations are searched,
 // never the working directory (a helper planted there would run with the
 // user's Apple Music access). In order:
 //
-//  1. $SOULKING_HELPER, which must be an absolute path to an executable;
-//  2. <exeDir>/SoulKingHelper.app/... (bundle next to the binary);
-//  3. <exeDir>/../libexec/SoulKingHelper.app/... (Homebrew-style install);
-//  4. <exeDir>/../build/SoulKingHelper.app/... (dev layout: bin/ + build/).
+//  1. $NU11SIGNAL_HELPER, which must be an absolute path to an executable;
+//  2. <exeDir>/Nu11SignalHelper.app/... (bundle next to the binary);
+//  3. <exeDir>/../libexec/Nu11SignalHelper.app/... (Homebrew-style install);
+//  4. <exeDir>/../build/Nu11SignalHelper.app/... (dev layout: bin/ + build/).
 //
 // exeDir is the directory of the running executable with symlinks resolved.
 func Locate() (string, error) {

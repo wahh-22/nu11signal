@@ -12,7 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/wahh-22/soul-king/internal/playback/playbacktest"
+	"github.com/wahh-22/nu11signal/internal/playback/playbacktest"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -38,8 +38,8 @@ func TestViewFitsEverySize(t *testing.T) {
 					t.Errorf("line %d is %d cells wide, want at most %d: %q", i, w, sz.w, l)
 				}
 			}
-			if sz.w >= 40 && sz.h >= 10 && !strings.Contains(out, "SOUL KING") {
-				t.Errorf("view lacks SOUL KING:\n%s", out)
+			if sz.w >= 40 && sz.h >= 10 && !strings.Contains(out, "NU11SIGNAL") {
+				t.Errorf("view lacks NU11SIGNAL:\n%s", out)
 			}
 			if sz.w >= 60 && sz.h >= 16 && !strings.Contains(out, "NOW PLAYING") {
 				t.Errorf("view lacks NOW PLAYING:\n%s", out)

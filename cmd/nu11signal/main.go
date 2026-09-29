@@ -1,7 +1,7 @@
-// Command soul-king is a Cyberpunk 2077 style terminal radio for Apple Music.
+// Command nu11signal is a Cyberpunk 2077 style terminal radio for Apple Music.
 //
 // By default it starts the signed MusicKit helper, found only through
-// $SOULKING_HELPER (an absolute path) or next to the soul-king binary (see
+// $NU11SIGNAL_HELPER (an absolute path) or next to the nu11signal binary (see
 // helper.Locate), never in the working directory; with --demo it runs
 // against an in-process simulated player instead. --version prints the
 // release version stamped at link time.
@@ -19,10 +19,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/wahh-22/soul-king/internal/helper"
-	"github.com/wahh-22/soul-king/internal/playback"
-	"github.com/wahh-22/soul-king/internal/playback/demo"
-	"github.com/wahh-22/soul-king/internal/radio"
+	"github.com/wahh-22/nu11signal/internal/helper"
+	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/demo"
+	"github.com/wahh-22/nu11signal/internal/radio"
 )
 
 // version is stamped by release builds with -ldflags "-X main.version=x.y.z".
@@ -36,7 +36,7 @@ func main() {
 		if errors.Is(err, flag.ErrHelp) {
 			return
 		}
-		fmt.Fprintln(os.Stderr, "soul-king:", err)
+		fmt.Fprintln(os.Stderr, "nu11signal:", err)
 		os.Exit(1)
 	}
 }
@@ -82,7 +82,7 @@ type options struct {
 // to output.
 func parseFlags(args []string, output io.Writer) (options, error) {
 	var opts options
-	fs := flag.NewFlagSet("soul-king", flag.ContinueOnError)
+	fs := flag.NewFlagSet("nu11signal", flag.ContinueOnError)
 	fs.SetOutput(output)
 	fs.BoolVar(&opts.demo, "demo", false, "run against a simulated player (no Apple Music, no sound)")
 	fs.BoolVar(&opts.version, "version", false, "print the version and exit")

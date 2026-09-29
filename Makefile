@@ -1,18 +1,18 @@
-# soul-king build tooling. Signing is configured through the environment
-# (see README.md): SOULKING_BUNDLE_ID, SOULKING_TEAM_ID, SOULKING_PROFILE,
-# SOULKING_SIGN_IDENTITY. Defaults live in helper/build.sh.
+# nu11signal build tooling. Signing is configured through the environment
+# (see README.md): NU11SIGNAL_BUNDLE_ID, NU11SIGNAL_TEAM_ID, NU11SIGNAL_PROFILE,
+# NU11SIGNAL_SIGN_IDENTITY. Defaults live in helper/build.sh.
 
-export SOULKING_BUNDLE_ID SOULKING_TEAM_ID SOULKING_PROFILE SOULKING_SIGN_IDENTITY SOULKING_HELPER
+export NU11SIGNAL_BUNDLE_ID NU11SIGNAL_TEAM_ID NU11SIGNAL_PROFILE NU11SIGNAL_SIGN_IDENTITY NU11SIGNAL_HELPER
 
 GO     ?= go
-BIN    := bin/soul-king
-PKG    := ./cmd/soul-king
+BIN    := bin/nu11signal
+PKG    := ./cmd/nu11signal
 
 .PHONY: all build helper go demo test vet fmt-check release release-dry-run check-version clean
 
 all: build
 
-## build: signed helper bundle (build/SoulKingHelper.app) + Go binary (bin/soul-king)
+## build: signed helper bundle (build/Nu11SignalHelper.app) + Go binary (bin/nu11signal)
 build: helper go
 
 ## helper: build, bundle, and sign the MusicKit helper

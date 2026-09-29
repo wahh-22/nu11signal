@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // Compile-time check that the demo satisfies the port.

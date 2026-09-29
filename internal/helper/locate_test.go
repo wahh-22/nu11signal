@@ -33,8 +33,8 @@ func realRoot(t *testing.T) string {
 
 func TestLocateResolutionOrder(t *testing.T) {
 	root := realRoot(t)
-	exe := filepath.Join(root, "bin", "soul-king")
-	envPath := filepath.Join(root, "custom", "soulking-helper")
+	exe := filepath.Join(root, "bin", "nu11signal")
+	envPath := filepath.Join(root, "custom", "nu11signal-helper")
 	besideExe := filepath.Join(root, "bin", bundleRelPath)
 	libexec := filepath.Join(root, "libexec", bundleRelPath)
 	devBuild := filepath.Join(root, "build", bundleRelPath)
@@ -92,7 +92,7 @@ func TestLocateResolutionOrder(t *testing.T) {
 // the explicit override and executable-relative locations are trusted.
 func TestLocateIgnoresWorkingDirectory(t *testing.T) {
 	root := realRoot(t)
-	exe := writeExecutable(t, filepath.Join(root, "install", "bin", "soul-king"))
+	exe := writeExecutable(t, filepath.Join(root, "install", "bin", "nu11signal"))
 	attacker := filepath.Join(root, "attacker")
 	writeExecutable(t, filepath.Join(attacker, "build", bundleRelPath))
 	writeExecutable(t, filepath.Join(attacker, bundleRelPath))
@@ -113,9 +113,9 @@ func TestLocateIgnoresWorkingDirectory(t *testing.T) {
 
 func TestLocateResolvesExecutableSymlinks(t *testing.T) {
 	root := realRoot(t)
-	realExe := writeExecutable(t, filepath.Join(root, "repo", "bin", "soul-king"))
+	realExe := writeExecutable(t, filepath.Join(root, "repo", "bin", "nu11signal"))
 	want := writeExecutable(t, filepath.Join(root, "repo", "build", bundleRelPath))
-	link := filepath.Join(root, "usr", "local", "bin", "soul-king")
+	link := filepath.Join(root, "usr", "local", "bin", "nu11signal")
 	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestLocateResolvesExecutableSymlinks(t *testing.T) {
 
 func TestLocateErrorListsPathsTried(t *testing.T) {
 	root := realRoot(t)
-	exe := writeExecutable(t, filepath.Join(root, "bin", "soul-king"))
+	exe := writeExecutable(t, filepath.Join(root, "bin", "nu11signal"))
 	l := locator{
 		getenv:     func(string) string { return "" },
 		executable: func() (string, error) { return exe, nil },
@@ -166,15 +166,15 @@ func TestLocateFailsWhenExecutableIsUnknown(t *testing.T) {
 	}
 }
 
-// A Homebrew cask symlinks bin/soul-king from the unpacked release archive
+// A Homebrew cask symlinks bin/nu11signal from the unpacked release archive
 // into the prefix; the helper must still be found in the archive's
 // ../libexec, relative to the real file rather than the symlink.
 func TestLocateResolvesHomebrewCaskSymlink(t *testing.T) {
 	root := realRoot(t)
-	release := filepath.Join(root, "Caskroom", "soul-king", "0.1.0", "soul-king-0.1.0")
-	realExe := writeExecutable(t, filepath.Join(release, "bin", "soul-king"))
+	release := filepath.Join(root, "Caskroom", "nu11signal", "0.1.0", "nu11signal-0.1.0")
+	realExe := writeExecutable(t, filepath.Join(release, "bin", "nu11signal"))
 	want := writeExecutable(t, filepath.Join(release, "libexec", bundleRelPath))
-	link := filepath.Join(root, "homebrew", "bin", "soul-king")
+	link := filepath.Join(root, "homebrew", "bin", "nu11signal")
 	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
 		t.Fatal(err)
 	}

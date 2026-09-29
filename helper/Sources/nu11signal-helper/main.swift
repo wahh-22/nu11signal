@@ -1,8 +1,8 @@
-// soulking-helper: a windowless MusicKit player driven by JSON Lines on
-// stdin/stdout. It must run from inside the signed SoulKingHelper.app bundle.
+// nu11signal-helper: a windowless MusicKit player driven by JSON Lines on
+// stdin/stdout. It must run from inside the signed Nu11SignalHelper.app bundle.
 import Foundation
 import MusicKit
-import SoulKingProtocol
+import Nu11SignalProtocol
 
 // A vanished reader must surface as a write error, not kill the process.
 signal(SIGPIPE, SIG_IGN)

@@ -1,0 +1,25 @@
+# Homebrew cask for Nu11Signal. Copy to Casks/nu11signal.rb in a tap, then
+# replace __VERSION__ and __SHA256__ with the release version (no "v") and
+# the digest from dist/nu11signal-<version>-macos-universal.tar.gz.sha256.
+#
+# Homebrew symlinks bin/nu11signal into its prefix; nu11signal resolves the
+# symlink and finds the helper in the archive's ../libexec.
+cask "nu11signal" do
+  version "__VERSION__"
+  sha256 "__SHA256__"
+
+  url "https://github.com/wahh-22/nu11signal/releases/download/v#{version}/nu11signal-#{version}-macos-universal.tar.gz"
+  name "Nu11Signal"
+  desc "Cyberpunk-style terminal radio for Apple Music"
+  homepage "https://github.com/wahh-22/nu11signal"
+
+  depends_on macos: ">= :sonoma"
+
+  binary "nu11signal-#{version}/bin/nu11signal"
+
+  caveats <<~EOS
+    Nu11Signal requires an Apple Music subscription.
+    The first launch asks for access to Apple Music; if it was denied, enable
+    Nu11SignalHelper in System Settings > Privacy & Security > Media & Apple Music.
+  EOS
+end

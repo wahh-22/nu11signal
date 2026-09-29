@@ -1,6 +1,6 @@
 import Foundation
 import MusicKit
-import SoulKingProtocol
+import Nu11SignalProtocol
 
 struct CommandError: Error, CustomStringConvertible {
     let description: String
