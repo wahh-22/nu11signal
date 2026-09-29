@@ -95,6 +95,8 @@ func TestVolumeKeysStepAndClamp(t *testing.T) {
 		{"minus", 0.6, []string{"-"}, []any{0.55}, 0.55},
 		{"shift+up", 0.6, []string{"shift+up"}, []any{0.65}, 0.65},
 		{"shift+down", 0.6, []string{"shift+down"}, []any{0.55}, 0.55},
+		{"k", 0.6, []string{"k"}, []any{0.65}, 0.65},
+		{"j", 0.6, []string{"j"}, []any{0.55}, 0.55},
 		{"clamped at full", 0.98, []string{"+"}, []any{1.0}, 1},
 		{"clamped at silent", 0.02, []string{"-"}, []any{0.0}, 0},
 	}
@@ -115,22 +117,71 @@ func TestVolumeKeysStepAndClamp(t *testing.T) {
 }
 
 func TestVolumeKeysOnPagesAndThePlayer(t *testing.T) {
-	for name, open := range map[string]func(*testing.T, *playbacktest.Fake) Model{
+	opens := map[string]func(*testing.T, *playbacktest.Fake) Model{
+		"list": func(t *testing.T, f *playbacktest.Fake) Model { return loaded(t, f, newClock()) },
 		"page": func(t *testing.T, f *playbacktest.Fake) Model { return openStation(t, loaded(t, f, newClock()), 0) },
+		"results": func(t *testing.T, f *playbacktest.Fake) Model {
+			return openResults(t, f, &fakeRecents{})
+		},
 		"player": func(t *testing.T, f *playbacktest.Fake) Model {
 			m, _ := press(t, loaded(t, f, newClock()), "right")
 			return m
 		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			f := playbacktest.New()
-			m := withVolume(t, open(t, f), 0.5)
-			m, cmd := press(t, m, "+")
-			settle(t, m, cmd)
-			if got := setVolumeCalls(f); !reflect.DeepEqual(got, []any{0.55}) {
-				t.Fatalf("SetVolume calls %v; want [0.55]", got)
-			}
-		})
+		"tabs": func(t *testing.T, f *playbacktest.Fake) Model {
+			m, _ := press(t, loaded(t, f, newClock()), "up")
+			return m
+		},
+	}
+	keys := []struct {
+		key  string
+		want float64
+	}{{"+", 0.55}, {"k", 0.55}, {"j", 0.45}}
+	for name, open := range opens {
+		for _, k := range keys {
+			t.Run(name+" "+k.key, func(t *testing.T) {
+				f := playbacktest.New()
+				m := withVolume(t, open(t, f), 0.5)
+				focus, stack, cursor := m.focus, stackKinds(m), m.cursor()
+				m, cmd := press(t, m, k.key)
+				settle(t, m, cmd)
+				if got := setVolumeCalls(f); !reflect.DeepEqual(got, []any{k.want}) {
+					t.Fatalf("SetVolume calls %v; want [%v]", got, k.want)
+				}
+				// The volume keys never move the cursor or the focus.
+				if m.focus != focus || !reflect.DeepEqual(stackKinds(m), stack) || m.cursor() != cursor {
+					t.Fatalf("focus %v stack %v cursor %d; want %v %v %d kept",
+						m.focus, stackKinds(m), m.cursor(), focus, stack, cursor)
+				}
+			})
+		}
+	}
+}
+
+func TestArrowsAloneMoveTheRows(t *testing.T) {
+	f := playbacktest.New()
+	m := withVolume(t, loaded(t, f, newClock()), 0.5)
+	m, _ = press(t, m, "down")
+	if m.stationCursor() != 1 {
+		t.Fatalf("down: cursor %d; want 1", m.stationCursor())
+	}
+	m, _ = press(t, m, "j", "j", "k")
+	if m.stationCursor() != 1 || m.focus != areaList {
+		t.Fatalf("j/k: cursor %d focus %v; want row 1 on the list kept", m.stationCursor(), m.focus)
+	}
+	m, _ = press(t, m, "up")
+	if m.stationCursor() != 0 {
+		t.Fatalf("up: cursor %d; want 0", m.stationCursor())
+	}
+
+	p := openStation(t, withVolume(t, loaded(t, f, newClock()), 0.5), 0)
+	p, _ = press(t, p, "down")
+	at := p.cursor()
+	if at == 0 {
+		t.Fatal("down did not move the page cursor")
+	}
+	p, _ = press(t, p, "j", "k", "k")
+	if p.cursor() != at || p.focus != areaList {
+		t.Fatalf("page j/k: cursor %d focus %v; want %d on the list kept", p.cursor(), p.focus, at)
 	}
 }
 
@@ -138,8 +189,8 @@ func TestVolumeKeysTypeInTheSearchInput(t *testing.T) {
 	f := playbacktest.New()
 	m := withVolume(t, loaded(t, f, newClock()), 0.5)
 	m, _ = press(t, m, "/")
-	m = typeText(t, m, "a-ha+=")
-	if m.input.Value() != "a-ha+=" || len(callsOf(f, "SetVolume")) != 0 {
+	m = typeText(t, m, "a-ha+=jk")
+	if m.input.Value() != "a-ha+=jk" || len(callsOf(f, "SetVolume")) != 0 {
 		t.Fatalf("input %q, SetVolume calls %v; want the keys typed", m.input.Value(), setVolumeCalls(f))
 	}
 	// shift+↑ and shift+↓ work anywhere, the input included.
@@ -148,7 +199,7 @@ func TestVolumeKeysTypeInTheSearchInput(t *testing.T) {
 	if got := setVolumeCalls(f); !reflect.DeepEqual(got, []any{0.45}) {
 		t.Fatalf("SetVolume calls %v; want [0.45]", got)
 	}
-	if m.input.Value() != "a-ha+=" {
+	if m.input.Value() != "a-ha+=jk" {
 		t.Fatalf("input %q; shift+down edited it", m.input.Value())
 	}
 }
@@ -291,6 +342,8 @@ func TestPlayerKeysActOnTheTabs(t *testing.T) {
 		{"shift+left", "Seek", []any{50 * time.Second}},
 		{"+", "SetVolume", []any{0.55}},
 		{"-", "SetVolume", []any{0.45}},
+		{"k", "SetVolume", []any{0.55}},
+		{"j", "SetVolume", []any{0.45}},
 	}
 	for _, view := range []string{"root", "search"} {
 		for _, tt := range tests {

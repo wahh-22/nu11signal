@@ -31,13 +31,13 @@ type pageLine struct {
 // others (player keys, quit), which keep their usual meaning.
 func (m Model) handlePageKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 	switch k {
-	case keyUp, keyUpAlt:
+	case keyUp:
 		if m.atListTop() {
 			m.focusTabs()
 			return m, nil, true
 		}
 		m.setCursor(m.cursor() - 1)
-	case keyDown, keyDownAlt:
+	case keyDown:
 		m.setCursor(max(min(m.cursor()+1, m.pageItemCount()-1), 0))
 	case keyEnter:
 		next, cmd = m.pageEnter()

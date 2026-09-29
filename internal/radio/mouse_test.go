@@ -565,3 +565,169 @@ func TestClickOnRecentRowStillOpensIt(t *testing.T) {
 		t.Fatalf("view %v, recents %q; want RESULTS with every term kept", m.top().kind, m.recents)
 	}
 }
+
+// bareCell is a cell of zone id's region that no zone drawn over it
+// covers: a click there lands on id itself.
+func bareCell(t *testing.T, m Model, id string) (x, y int) {
+	t.Helper()
+	_, zs := m.layout()
+	for _, z := range zs {
+		if z.id != id {
+			continue
+		}
+		for x := z.x; x < z.x+z.w; x++ {
+			if top, ok := zs.at(x, z.y); ok && top.id == id {
+				return x, z.y
+			}
+		}
+	}
+	t.Fatalf("no bare %q cell in:\n%s", id, plain(m))
+	return 0, 0
+}
+
+// clickBare presses the left button on a bare cell of zone id.
+func clickBare(t *testing.T, m Model, id string) (Model, tea.Cmd) {
+	t.Helper()
+	x, y := bareCell(t, m, id)
+	return step(t, m, tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+}
+
+func TestPanelsCoverTheirWholeFrame(t *testing.T) {
+	m := playingModel(t, playbacktest.New())
+	_, zs := m.layout()
+	lines := strings.Split(plain(m), "\n")
+	rows := func(id string) (first, last, x, w int) {
+		first, last = -1, -1
+		for _, z := range zs {
+			if z.id != id {
+				continue
+			}
+			if first < 0 {
+				first, x, w = z.y, z.x, z.w
+			}
+			last = z.y
+		}
+		return first, last, x, w
+	}
+	lf, ll, lx, lw := rows(zonePanelList)
+	pf, pl, px, pw := rows(zonePanelPlayer)
+	if lf < 0 || pf < 0 {
+		t.Fatalf("panel zones missing: %v", zs)
+	}
+	// Both panels span the body, from their top edge to their bottom one.
+	if !strings.HasSuffix(ansi.Cut(lines[lf], lx, lx+lw), "┐") || !strings.HasPrefix(ansi.Cut(lines[ll], lx, lx+lw), "└") {
+		t.Fatalf("list panel zones %d..%d miss its frame", lf, ll)
+	}
+	if !strings.Contains(ansi.Cut(lines[pf], px, px+pw), "NOW PLAYING") || !strings.HasPrefix(ansi.Cut(lines[pl], px, px+pw), "└") {
+		t.Fatalf("player panel zones %d..%d miss its frame", pf, pl)
+	}
+	// The rows and buttons stay on top of the panels.
+	for _, id := range []string{rowZone(1), zonePlay, zoneVolUp, zoneSeek} {
+		z := zoneOf(t, m, id)
+		if top, _ := zs.at(z.x, z.y); top.id != id {
+			t.Fatalf("%s is covered by %s", id, top.id)
+		}
+	}
+}
+
+func TestClickOnTheBarePlayerPanelFocusesIt(t *testing.T) {
+	f := playbacktest.New()
+	m := playingModel(t, f)
+	before := len(f.Calls())
+	m, cmd := clickBare(t, m, zonePanelPlayer)
+	if cmd != nil {
+		t.Fatal("a click on the bare player panel issued a command")
+	}
+	if m.focus != areaPlayer || m.control != ctlPlay || m.onBar {
+		t.Fatalf("focus %v control %v bar %v; want PLAY focused", m.focus, m.control, m.onBar)
+	}
+	if len(f.Calls()) != before {
+		t.Fatalf("player calls %v; want none", f.Calls()[before:])
+	}
+	// Already on the player, the focused control stays.
+	m, _ = press(t, m, "right")
+	m, _ = clickBare(t, m, zonePanelPlayer)
+	if m.focus != areaPlayer || m.control != ctlNext {
+		t.Fatalf("focus %v control %v; want NEXT kept", m.focus, m.control)
+	}
+}
+
+func TestClickOnTheBareListPanelFocusesIt(t *testing.T) {
+	f := playbacktest.New()
+	m := playingModel(t, f)
+	m, _ = press(t, m, "down", "right")
+	if m.focus != areaPlayer {
+		t.Fatalf("focus %v; want the player", m.focus)
+	}
+	before := len(f.Calls())
+	m, _ = clickBare(t, m, zonePanelList)
+	if m.focus != areaList || m.stationCursor() != 1 || len(m.stack) != 1 {
+		t.Fatalf("focus %v cursor %d stack %v; want the list on row 1, nothing opened",
+			m.focus, m.stationCursor(), stackKinds(m))
+	}
+	if len(f.Calls()) != before {
+		t.Fatalf("player calls %v; want none", f.Calls()[before:])
+	}
+}
+
+func TestClickOnTheBareListPanelGivesTheSearchInputBack(t *testing.T) {
+	m := playingModel(t, playbacktest.New())
+	m, _ = press(t, m, "/")
+	m = typeText(t, m, "da")
+	m, _ = clickBare(t, m, zonePanelPlayer)
+	if m.focus != areaPlayer || m.input.Focused() {
+		t.Fatalf("focus %v input %v; want the player, the input blurred", m.focus, m.input.Focused())
+	}
+	m, _ = clickBare(t, m, zonePanelList)
+	if m.focus != areaList || !m.input.Focused() || m.input.Value() != "da" {
+		t.Fatalf("focus %v input %v %q; want the input back as it was", m.focus, m.input.Focused(), m.input.Value())
+	}
+}
+
+func TestClickOnTheExpandedPlayerFocusesIt(t *testing.T) {
+	m := playingModel(t, playbacktest.New())
+	m, _ = press(t, m, "f", "up", "up")
+	if m.focus != areaTabs {
+		t.Fatalf("focus %v; want the tabs", m.focus)
+	}
+	m, _ = clickBare(t, m, zonePanelPlayer)
+	if m.focus != areaPlayer || !m.expanded {
+		t.Fatalf("focus %v expanded %v; want the expanded player focused", m.focus, m.expanded)
+	}
+}
+
+func TestClickOnTheCompactPanelsFocusesThem(t *testing.T) {
+	m := playingModel(t, playbacktest.New())
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 50, Height: 14})
+	m, _ = clickBare(t, m, zonePanelPlayer)
+	if m.focus != areaPlayer {
+		t.Fatalf("compact: focus %v; want the player", m.focus)
+	}
+	m, _ = clickBare(t, m, zonePanelList)
+	if m.focus != areaList || len(m.stack) != 1 {
+		t.Fatalf("compact: focus %v stack %v; want the list, nothing opened", m.focus, stackKinds(m))
+	}
+}
+
+func TestClickOnTheNavBarOutsideATabDoesNothing(t *testing.T) {
+	f := playbacktest.New()
+	m := playingModel(t, f)
+	m, _ = press(t, m, "right")
+	tab := zoneOf(t, m, zoneTabSearch)
+	_, zs := m.layout()
+	x := -1
+	for c := tab.x + tab.w; c < m.width; c++ {
+		if _, ok := zs.at(c, tab.y); !ok {
+			x = c
+			break
+		}
+	}
+	if x < 0 {
+		t.Fatalf("no bare nav cell in:\n%s", plain(m))
+	}
+	before := len(f.Calls())
+	m2, cmd := step(t, m, tea.MouseClickMsg{X: x, Y: tab.y, Button: tea.MouseLeft})
+	if cmd != nil || m2.focus != areaPlayer || !reflect.DeepEqual(stackKinds(m2), stackKinds(m)) || len(f.Calls()) != before {
+		t.Fatalf("a click on the bare nav bar acted: focus %v", m2.focus)
+	}
+}

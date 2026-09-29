@@ -80,12 +80,12 @@ func TestUpPastTheTopOfTheStationsFocusesTheTabs(t *testing.T) {
 	if m.focus != areaList || m.stationCursor() != 0 {
 		t.Fatalf("down: focus %v cursor %d; want back on the first station", m.focus, m.stationCursor())
 	}
-	// k is up too.
+	// k is the volume, not up: the list keeps the focus.
 	m, _ = press(t, m, "k")
-	if m.focus != areaTabs {
-		t.Fatalf("k at the top: focus %v; want the tabs", m.focus)
+	if m.focus != areaList {
+		t.Fatalf("k at the top: focus %v; want the list kept", m.focus)
 	}
-	m, _ = press(t, m, "esc")
+	m, _ = press(t, m, "up", "esc")
 	if m.focus != areaList || len(m.stack) != 1 {
 		t.Fatalf("esc: focus %v stack %v; want back on the list, nothing popped", m.focus, stackKinds(m))
 	}
