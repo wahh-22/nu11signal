@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 import MusicKit
-import SoulKingProtocol
+import Nu11SignalProtocol
 
 /// Publishes `state` events: every 500 ms while playing, and immediately
 /// whenever the playback status or the current queue entry changes.

@@ -1,4 +1,4 @@
-// Package playback is the domain core of soul-king: the music types the UI
+// Package playback is the domain core of Nu11Signal: the music types the UI
 // works with and the Player port that any playback backend implements.
 package playback
 

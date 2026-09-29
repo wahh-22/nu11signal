@@ -1,4 +1,4 @@
-// Package helper adapts the soulking-helper process (a windowless MusicKit
+// Package helper adapts the nu11signal-helper process (a windowless MusicKit
 // app speaking JSON Lines on stdin/stdout) to the playback.Player port.
 package helper
 
@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 var (

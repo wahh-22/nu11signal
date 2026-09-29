@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import SoulKingProtocol
+@testable import Nu11SignalProtocol
 
 final class RoutingTests: XCTestCase {
     func testPlaybackCommandsAreSerialized() {

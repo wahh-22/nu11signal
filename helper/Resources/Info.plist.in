@@ -5,9 +5,9 @@
 	<key>CFBundleIdentifier</key>
 	<string>__BUNDLE_ID__</string>
 	<key>CFBundleName</key>
-	<string>SoulKingHelper</string>
+	<string>Nu11SignalHelper</string>
 	<key>CFBundleExecutable</key>
-	<string>soulking-helper</string>
+	<string>nu11signal-helper</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -19,6 +19,6 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleMusicUsageDescription</key>
-	<string>soul-king needs access to Apple Music to search and play your music.</string>
+	<string>Nu11Signal needs access to Apple Music to search and play your music.</string>
 </dict>
 </plist>

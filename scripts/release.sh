@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Builds a signed, notarized soul-king release for macOS (arm64 + x86_64).
+# Builds a signed, notarized Nu11Signal release for macOS (arm64 + x86_64).
 #
 # Usage: scripts/release.sh [--dry-run] VERSION      (VERSION: x.y.z or x.y.z-pre)
 #
-# Produces dist/soul-king-VERSION-macos-universal.tar.gz and its .sha256,
-# containing soul-king-VERSION/{bin/soul-king, libexec/SoulKingHelper.app,
+# Produces dist/nu11signal-VERSION-macos-universal.tar.gz and its .sha256,
+# containing nu11signal-VERSION/{bin/nu11signal, libexec/Nu11SignalHelper.app,
 # LICENSE, README.md}.
 #
 # Requires (see README.md, "Releasing"):
 #   - a "Developer ID Application" certificate for the team in the keychain;
-#   - the Developer ID provisioning profile at $SOULKING_PROFILE
-#     (default signing/SoulKing_Player_DeveloperID.provisionprofile);
-#   - a notarytool keychain profile $SOULKING_NOTARY_PROFILE (default soulking-notary);
+#   - the Developer ID provisioning profile at $NU11SIGNAL_PROFILE
+#     (default signing/Nu11Signal_DeveloperID.provisionprofile; the pre-rename
+#     name signing/SoulKing_Player_DeveloperID.provisionprofile is still accepted);
+#   - a notarytool keychain profile $NU11SIGNAL_NOTARY_PROFILE (default soulking-notary);
 #   - no uncommitted changes to tracked files.
 #
 # --dry-run (or DRY_RUN=1) reports missing requirements without aborting,
@@ -45,11 +46,16 @@ for arg in "$@"; do
   esac
 done
 
-TEAM_ID="${SOULKING_TEAM_ID:-W6GZP998GQ}"
-IDENTITY="${SOULKING_SIGN_IDENTITY:-Developer ID Application}"
-PROFILE="${SOULKING_PROFILE:-signing/SoulKing_Player_DeveloperID.provisionprofile}"
-NOTARY_PROFILE="${SOULKING_NOTARY_PROFILE:-soulking-notary}"
-CLI_IDENTIFIER="${SOULKING_CLI_IDENTIFIER:-dev.wahh.soulking.cli}"
+TEAM_ID="${NU11SIGNAL_TEAM_ID:-W6GZP998GQ}"
+BUNDLE_ID="${NU11SIGNAL_BUNDLE_ID:-dev.wahh.soulking.player}"
+IDENTITY="${NU11SIGNAL_SIGN_IDENTITY:-Developer ID Application}"
+PROFILE="${NU11SIGNAL_PROFILE:-signing/Nu11Signal_DeveloperID.provisionprofile}"
+LEGACY_PROFILE="signing/SoulKing_Player_DeveloperID.provisionprofile" # name before the rename
+if [[ -z "${NU11SIGNAL_PROFILE:-}" && ! -f "$PROFILE" && -f "$LEGACY_PROFILE" ]]; then
+  PROFILE="$LEGACY_PROFILE"
+fi
+NOTARY_PROFILE="${NU11SIGNAL_NOTARY_PROFILE:-soulking-notary}"
+CLI_IDENTIFIER="${NU11SIGNAL_CLI_IDENTIFIER:-dev.wahh.nu11signal.cli}"
 
 step() { echo "==> $*"; }
 die() {
@@ -67,7 +73,7 @@ for tool in go swift xcrun codesign lipo ditto plutil shasum tar git security; d
   command -v "$tool" >/dev/null 2>&1 || die "required tool not found: $tool"
 done
 
-step "Preflight for soul-king $VERSION$([[ "$DRY_RUN" == 1 ]] && echo " (dry run)")"
+step "Preflight for nu11signal $VERSION$([[ "$DRY_RUN" == 1 ]] && echo " (dry run)")"
 missing=()
 
 if security find-identity -v -p codesigning | grep -F "\"$IDENTITY" | grep -qF "($TEAM_ID)"; then
@@ -82,7 +88,7 @@ if [[ -f "$PROFILE" ]]; then
   echo "    ok: provisioning profile $PROFILE"
 else
   missing+=("Developer ID provisioning profile not found: $PROFILE
-      Create it for $TEAM_ID.dev.wahh.soulking.player and save it there (README.md, Releasing, step 2)")
+      Create it for $TEAM_ID.$BUNDLE_ID and save it there (README.md, Releasing, step 2)")
 fi
 
 if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
@@ -115,48 +121,48 @@ fi
 
 # --- Build -----------------------------------------------------------------
 
-NAME="soul-king-$VERSION"
+NAME="nu11signal-$VERSION"
 DIST="$ROOT/dist"
 STAGE="$DIST/$NAME"
 ARCHIVE="$DIST/$NAME-macos-universal.tar.gz"
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/soulking-release.XXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nu11signal-release.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 rm -rf "$STAGE" "$ARCHIVE" "$ARCHIVE.sha256"
 mkdir -p "$STAGE/bin" "$STAGE/libexec"
 
-step "Building universal soul-king $VERSION"
+step "Building universal nu11signal $VERSION"
 for arch in arm64 amd64; do
   GOOS=darwin GOARCH="$arch" CGO_ENABLED=0 go build -trimpath \
     -ldflags "-s -w -X main.version=$VERSION" \
-    -o "$WORK_DIR/soul-king-$arch" ./cmd/soul-king
+    -o "$WORK_DIR/nu11signal-$arch" ./cmd/nu11signal
 done
-lipo -create -output "$STAGE/bin/soul-king" "$WORK_DIR/soul-king-arm64" "$WORK_DIR/soul-king-amd64"
+lipo -create -output "$STAGE/bin/nu11signal" "$WORK_DIR/nu11signal-arm64" "$WORK_DIR/nu11signal-amd64"
 
-step "Signing soul-king with \"$IDENTITY\""
+step "Signing nu11signal with \"$IDENTITY\""
 if [[ "$IDENTITY" == "-" ]]; then
   codesign --force --options runtime --timestamp=none --identifier "$CLI_IDENTIFIER" \
-    --sign - "$STAGE/bin/soul-king"
+    --sign - "$STAGE/bin/nu11signal"
 else
   codesign --force --options runtime --timestamp --identifier "$CLI_IDENTIFIER" \
-    --sign "$IDENTITY" "$STAGE/bin/soul-king"
+    --sign "$IDENTITY" "$STAGE/bin/nu11signal"
 fi
-codesign --verify --strict --verbose=2 "$STAGE/bin/soul-king"
+codesign --verify --strict --verbose=2 "$STAGE/bin/nu11signal"
 
-step "Building universal SoulKingHelper.app"
-SOULKING_SIGN_MODE=release \
-  SOULKING_SIGN_IDENTITY="$IDENTITY" \
-  SOULKING_PROFILE="$PROFILE" \
-  SOULKING_BUILD_DIR="$STAGE/libexec" \
-  SOULKING_VERSION="$VERSION" \
+step "Building universal Nu11SignalHelper.app"
+NU11SIGNAL_SIGN_MODE=release \
+  NU11SIGNAL_SIGN_IDENTITY="$IDENTITY" \
+  NU11SIGNAL_PROFILE="$PROFILE" \
+  NU11SIGNAL_BUILD_DIR="$STAGE/libexec" \
+  NU11SIGNAL_VERSION="$VERSION" \
   ./helper/build.sh
 
 cp LICENSE README.md "$STAGE/"
 
 if [[ "$DRY_RUN" == 1 ]]; then
   step "Dry run: skipping notarization, stapling, and archiving"
-  lipo -archs "$STAGE/bin/soul-king"
-  lipo -archs "$STAGE/libexec/SoulKingHelper.app/Contents/MacOS/soulking-helper"
+  lipo -archs "$STAGE/bin/nu11signal"
+  lipo -archs "$STAGE/libexec/Nu11SignalHelper.app/Contents/MacOS/nu11signal-helper"
   echo "Assembled (ad hoc, not distributable): $STAGE"
   exit 0
 fi
@@ -180,8 +186,8 @@ fi
 echo "    notarized: submission $SUBMISSION"
 
 step "Stapling the helper app"
-xcrun stapler staple "$STAGE/libexec/SoulKingHelper.app"
-xcrun stapler validate "$STAGE/libexec/SoulKingHelper.app"
+xcrun stapler staple "$STAGE/libexec/Nu11SignalHelper.app"
+xcrun stapler validate "$STAGE/libexec/Nu11SignalHelper.app"
 
 # --- Archive ---------------------------------------------------------------
 
@@ -196,11 +202,11 @@ step "Verifying the archived contents"
 CHECK_DIR="$WORK_DIR/check"
 mkdir -p "$CHECK_DIR"
 tar -C "$CHECK_DIR" -xzf "$ARCHIVE"
-spctl --assess --type execute -vv "$CHECK_DIR/$NAME/libexec/SoulKingHelper.app"
-codesign --verify --strict --deep --verbose=2 "$CHECK_DIR/$NAME/libexec/SoulKingHelper.app"
-codesign --verify --strict --verbose=2 "$CHECK_DIR/$NAME/bin/soul-king"
-[[ "$("$CHECK_DIR/$NAME/bin/soul-king" --version)" == "$VERSION" ]] ||
-  die "archived soul-king --version does not print $VERSION"
+spctl --assess --type execute -vv "$CHECK_DIR/$NAME/libexec/Nu11SignalHelper.app"
+codesign --verify --strict --deep --verbose=2 "$CHECK_DIR/$NAME/libexec/Nu11SignalHelper.app"
+codesign --verify --strict --verbose=2 "$CHECK_DIR/$NAME/bin/nu11signal"
+[[ "$("$CHECK_DIR/$NAME/bin/nu11signal" --version)" == "$VERSION" ]] ||
+  die "archived nu11signal --version does not print $VERSION"
 
 step "Release ready"
 cat "$ARCHIVE.sha256"

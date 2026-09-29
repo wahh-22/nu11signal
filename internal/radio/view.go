@@ -7,7 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // Layout thresholds. Below fullMin* the UI collapses into a single column
@@ -24,7 +24,7 @@ const (
 func (m Model) View() tea.View {
 	v := tea.NewView(m.render())
 	v.AltScreen = true
-	v.WindowTitle = "SOUL KING // NIGHT CITY RADIO"
+	v.WindowTitle = "NU11SIGNAL // NIGHT CITY RADIO"
 	return v
 }
 
@@ -55,7 +55,7 @@ func (m Model) render() string {
 }
 
 func (m Model) renderTiny() []string {
-	return []string{stRedBold.Render("SOUL KING"), m.statusTag()}
+	return []string{stRedBold.Render("NU11SIGNAL"), m.statusTag()}
 }
 
 func (m Model) renderFull() []string {
@@ -96,7 +96,7 @@ func (m Model) renderAuthError() []string {
 		"",
 		stYellowB.Render("▲ ACCESS DENIED"),
 		"",
-		stRed.Render("SOUL KING CANNOT REACH YOUR APPLE MUSIC LIBRARY."),
+		stRed.Render("NU11SIGNAL CANNOT REACH YOUR APPLE MUSIC LIBRARY."),
 		stMuted.Render(strings.ToUpper(m.authDetail)),
 		"",
 		stRed.Render("GRANT ACCESS IN SYSTEM SETTINGS › PRIVACY & SECURITY"),
@@ -119,7 +119,7 @@ func (m Model) headerLeft(wide bool) string {
 	if wide {
 		sub = spaced(sub)
 	}
-	return stYellow.Render("◢◤ ") + stRedBold.Render("SOUL KING") + stMuted.Render(" // ") + stRed.Render(sub)
+	return stYellow.Render("◢◤ ") + stRedBold.Render("NU11SIGNAL") + stMuted.Render(" // ") + stRed.Render(sub)
 }
 
 func (m Model) header(w int) []string {
@@ -175,7 +175,7 @@ func (m Model) statusTag() string {
 func (m Model) titleLines() (string, string) {
 	switch {
 	case m.signalLost():
-		return stYellowB.Render("SIGNAL LOST"), stRed.Render("HELPER OFFLINE // RESTART SOUL KING")
+		return stYellowB.Render("SIGNAL LOST"), stRed.Render("HELPER OFFLINE // RESTART NU11SIGNAL")
 	case !m.hasState || m.state.Title == "":
 		return stMuted.Render("NO CARRIER"), stDim.Render("TUNE A STATION WITH [ENTER]")
 	}

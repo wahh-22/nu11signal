@@ -8,7 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // Update handles one message.

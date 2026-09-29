@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // ErrClosed is returned by calls made after Close.

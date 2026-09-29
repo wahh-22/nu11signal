@@ -2,19 +2,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "SoulKingHelper",
+    name: "Nu11SignalHelper",
     platforms: [.macOS(.v14)],
     targets: [
         // Pure JSON-lines codec, free of MusicKit so it can be unit tested.
-        .target(name: "SoulKingProtocol"),
-        // The MusicKit-backed helper process bundled as SoulKingHelper.app.
+        .target(name: "Nu11SignalProtocol"),
+        // The MusicKit-backed helper process bundled as Nu11SignalHelper.app.
         .executableTarget(
-            name: "soulking-helper",
-            dependencies: ["SoulKingProtocol"]
+            name: "nu11signal-helper",
+            dependencies: ["Nu11SignalProtocol"]
         ),
         .testTarget(
-            name: "SoulKingProtocolTests",
-            dependencies: ["SoulKingProtocol"]
+            name: "Nu11SignalProtocolTests",
+            dependencies: ["Nu11SignalProtocol"]
         ),
     ]
 )

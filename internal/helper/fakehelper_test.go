@@ -13,7 +13,7 @@ import (
 
 // fakeEnv selects a fake helper scenario. When it is set, the test binary
 // re-executes itself as the helper process instead of running tests.
-const fakeEnv = "SOULKING_FAKE_HELPER"
+const fakeEnv = "NU11SIGNAL_FAKE_HELPER"
 
 func TestMain(m *testing.M) {
 	if scenario := os.Getenv(fakeEnv); scenario != "" {

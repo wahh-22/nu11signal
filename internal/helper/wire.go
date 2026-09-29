@@ -6,11 +6,11 @@ import (
 	"math"
 	"time"
 
-	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // Wire types for the helper's JSON Lines protocol (see
-// helper/Sources/SoulKingProtocol/Codec.swift).
+// helper/Sources/Nu11SignalProtocol/Codec.swift).
 //
 // Requests:  {"id":"<id>","cmd":"<name>", ...args}
 // Responses: {"id":"<id>","ok":true,"result":{...}} | {"id":"<id>","ok":false,"error":"<msg>"}

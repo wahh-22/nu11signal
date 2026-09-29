@@ -9,8 +9,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/wahh-22/soul-king/internal/playback"
-	"github.com/wahh-22/soul-king/internal/playback/playbacktest"
+	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/playbacktest"
 )
 
 // clock is a settable time source for deterministic tests.

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wahh-22/soul-king/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 var _ playback.Player = (*Client)(nil)
