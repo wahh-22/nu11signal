@@ -75,6 +75,15 @@ Route: delegated (one writer; writer trigger: 2+ non-trivial files).
 - `bump-cask.sh --push`: a commit left unpushed after a failed push is not detected on retry (131-149); the dirty-check exclusion scope (86-88); no script tests.
 - `release.sh` promotion into `dist/` is two renames, not a single atomic step (145-150, 232-233).
 
+## Backlog work (branch `chore/release-backlog`, user-requested 2026-09-29)
+
+- [ ] B1 — `bump-cask.sh --push`: detect and push a bump commit left unpushed after an earlier failed push (tap ahead of origin); narrow the dirty-check exclusion to exactly `Casks/nu11signal.rb`.
+- [ ] B2 — `release.sh`: promote into `dist/` as a single atomic step (one directory rename per version instead of several separate moves), so an interruption never leaves a half-promoted release.
+- [ ] B3 — Script tests: a hermetic test harness for `bump-cask.sh` and `release.sh` (stubbed `brew`/`git`/`xcrun`/`codesign` on PATH, temp dirs), runnable from `make test`.
+- [ ] B4 — Rename the local working directory `~/wahh22/soul-king` → `~/wahh22/nu11signal` (last step; the session must be restarted in the new path).
+
+Route: delegated (one writer, B1–B3); B4 inline, last.
+
 ## Next step
 
-PR + merge of `chore/release-followups`.
+B1–B3, then B4.
