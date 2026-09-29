@@ -45,6 +45,19 @@ Rename the project from soul-king to **Nu11Signal** (display name) / **nu11signa
 - N2 published: tag `v0.2.0` → `326871f`; release https://github.com/wahh-22/nu11signal/releases/tag/v0.2.0 (latest) with archive + .sha256; the downloaded asset's sha256 matches.
 - N3: public tap https://github.com/wahh-22/homebrew-tap with `Casks/nu11signal.rb` (0.2.0); `brew audit --cask --online --strict` exit 0; `brew install --cask wahh-22/tap/nu11signal` links `/opt/homebrew/bin/nu11signal` → Caskroom; `nu11signal --version` from /tmp → 0.2.0; installed helper `spctl` accepted (Notarized Developer ID). README install section updated.
 
+- PR #4 merged (main `78aed45`).
+
+## Follow-ups (branch `chore/release-followups`)
+
+User decision (2026-09-29): nobody installed the old name, so there is no backward compatibility for `SOULKING_*` or the legacy profile names.
+
+- [ ] F1 — Remove legacy fallbacks: old profile names and `spike/` in `helper/build.sh` and `scripts/release.sh`, plus any legacy mentions in the README (keep the "formerly soul-king" note). This resolves the duplicated-fallback advisory.
+- [ ] F2 — `release.sh` builds into a temporary staging area and replaces `dist/nu11signal-<ver>*` only on success. `make clean` no longer deletes published archives: `clean` removes `bin/` and `build/`; a new `clean-dist` removes `dist/`.
+- [ ] F3 — Tests for the `cmd/nu11signal` exit paths (review advisory, main.go:46-51).
+- [ ] F4 — Automate cask bumps: `scripts/bump-cask.sh VERSION` (or `make cask VERSION=`) renders the template with the sha256 from `dist/…sha256` into a local checkout of `wahh-22/homebrew-tap` and runs `brew audit`; the commit and push stay explicit, with a documented `--push` flag.
+
+Route: delegated (one writer; writer trigger: 2+ non-trivial files).
+
 ## Next step
 
-Done. Follow-ups: legacy env var warning, deduplicate the profile fallback, release.sh keeps the previous archive until the new build succeeds, main.go exit-path tests; automate cask bumps on release.
+F1–F4.
