@@ -61,7 +61,7 @@ func (m Model) renderTiny() []string {
 func (m Model) renderFull() []string {
 	w, h := m.width, m.height
 	bodyH := h - 4
-	leftW := max(28, min(w*2/5, 44))
+	leftW := listPanelWidth(w)
 	rightW := w - leftW - 1
 
 	left := m.listPanel(leftW, bodyH)
@@ -73,6 +73,9 @@ func (m Model) renderFull() []string {
 	}
 	return append(lines, m.statusLine(w), m.hintLine(w))
 }
+
+// listPanelWidth is the width of the list panel in the full layout.
+func listPanelWidth(w int) int { return max(28, min(w*2/5, 44)) }
 
 func (m Model) renderCompact() []string {
 	w := m.width
@@ -253,43 +256,42 @@ func (m Model) feedLine() string {
 }
 
 func (m Model) listPanel(w, h int) []string {
-	label, code := "STATIONS", fmt.Sprintf("BAND FM // %02d CH", len(m.stations))
-	if m.showingResults() {
-		label = "SCAN // " + strings.ToUpper(m.resultsTerm)
-		code = fmt.Sprintf("HITS %02d", len(m.results))
+	if m.top().kind == viewSearch {
+		return panel("SEARCH", m.searchCode(), m.searchBody(w-2, h-2), w, h, true)
 	}
-	return panel(label, code, m.listRows(w-2, h-2), w, h, !m.searching)
+	code := fmt.Sprintf("BAND FM // %02d CH", len(m.stations))
+	return panel("STATIONS", code, m.stationRows(w-2, h-2), w, h, true)
 }
 
-// listRows renders the visible window of the active list, scrolled so the
-// cursor stays on screen.
+// listRows renders the body of the view on top of the navigation stack.
 func (m Model) listRows(w, h int) []string {
+	if m.top().kind == viewSearch {
+		return m.searchBody(w, h)
+	}
+	return m.stationRows(w, h)
+}
+
+// stationRows renders the visible window of the station list, scrolled so
+// the cursor stays on screen.
+func (m Model) stationRows(w, h int) []string {
 	if h <= 0 {
 		return nil
 	}
-	var n int
-	var row func(i int, selected bool) string
-	if m.showingResults() {
-		n = len(m.results)
-		row = func(i int, sel bool) string { return m.resultRow(i, sel, w) }
-	} else {
-		n = len(m.stations)
-		row = func(i int, sel bool) string { return m.stationRow(i, sel, w) }
-	}
+	n := len(m.stations)
 	if n == 0 {
 		msg := "SCANNING BANDS..."
-		if m.stationsFailed && !m.showingResults() {
+		if m.stationsFailed {
 			msg = "[R] RETRY // SCAN FAILED"
 		} else if m.auth == authOK {
 			msg = "NO STATIONS // LIBRARY EMPTY"
 		}
 		return []string{" " + stDim.Render(msg)}
 	}
-	cur := m.cursor()
+	cur := m.stack[0].cursor
 	offset := max(0, cur-h+1)
 	rows := make([]string, 0, h)
 	for i := offset; i < n && len(rows) < h; i++ {
-		rows = append(rows, row(i, i == cur))
+		rows = append(rows, m.stationRow(i, i == cur, w))
 	}
 	return rows
 }
@@ -316,21 +318,7 @@ func (m Model) stationRow(i int, selected bool, w int) string {
 	return fit(fit(text, textWidth)+stYellow.Render(mark), w)
 }
 
-func (m Model) resultRow(i int, selected bool, w int) string {
-	s := m.results[i]
-	idx := fmt.Sprintf("%02d", i+1)
-	title := strings.ToUpper(s.Title)
-	artist := strings.ToUpper(s.Artist)
-	if selected {
-		return stSelected.Render(fit("▌▶ "+idx+"  "+title+" // "+artist, w))
-	}
-	return fit("   "+stMuted.Render(idx)+"  "+stRed.Render(title)+stMuted.Render(" // "+artist), w)
-}
-
 func (m Model) statusLine(w int) string {
-	if m.searching {
-		return stYellow.Render("// ") + stYellowB.Render("CATALOG SCAN") + stYellow.Render(" ▸ ") + m.input.View()
-	}
 	if m.status != "" {
 		return stYellow.Render("▲ " + strings.ToUpper(m.status))
 	}
@@ -343,7 +331,7 @@ func keyCap(k string) string { return stYellow.Render("[" + k + "]") }
 // quit) until they fit.
 func (m Model) hintLine(w int) string {
 	hints := playerHints
-	if m.searching {
+	if m.top().kind == viewSearch {
 		hints = searchHints
 	}
 	render := func(hs []hint) string {

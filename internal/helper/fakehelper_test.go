@@ -52,7 +52,6 @@ func startFake(t *testing.T, scenario string, opts Options) *Client {
 // any mismatch is answered with an error response.
 var expectedArgs = map[string]map[string]any{
 	"authorize":     {},
-	"search":        {"term": "daft punk", "limit": float64(2)},
 	"searchCatalog": {"term": "daft", "limit": float64(3)},
 	"playlists":     {},
 	"playSongs":     {"ids": []any{"s1", "s2"}, "startIndex": float64(1)},
@@ -170,11 +169,6 @@ func answer(id, cmd string) {
 	switch cmd {
 	case "authorize":
 		ok(id, map[string]any{"status": "authorized"})
-	case "search":
-		ok(id, map[string]any{"songs": []any{
-			map[string]any{"id": "s1", "title": "One More Time", "artist": "Daft Punk", "album": "Discovery", "duration": 320.5},
-			map[string]any{"id": "s2", "title": "Digital Love", "artist": "Daft Punk", "album": "Discovery", "duration": 301},
-		}})
 	case "searchCatalog":
 		ok(id, map[string]any{
 			"suggestions": []any{"daft punk", "daft punk discovery"},

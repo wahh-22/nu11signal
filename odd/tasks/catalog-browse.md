@@ -38,7 +38,7 @@ Today only library playlists ("stations") and a songs-only search are reachable.
 - [ ] C2 — Recent-searches port + JSON file adapter; TUI navigation stack + SEARCH view (recent, suggestions, artist/song rows) wired to `SearchCatalog`; retire songs-only `search`. Branch `feat/catalog-search-view`. Route: delegated.
 - [ ] C3 — Artist end to end: `ArtistDetail` (top songs, essential/featured albums, albums, playlists, singles & EPs, compilations, about: notes, genre, origin/formed best effort) + Swift `artist` + adapter + ARTIST view (MORE toggle). Branch `feat/catalog-artist`. Route: delegated.
 - [ ] C4 — Song/album end to end: `AlbumDetail` + Swift `album`/`songAlbum`/`playAlbum` + adapter + SONG/ALBUM view (song highlighted, play from track). Branch `feat/catalog-song`. Route: delegated.
-- [ ] C5 — README/keys docs, golden refresh, live smoke test. Branch `feat/catalog-docs`. Route: delegated.
+- [ ] C5 — Extract Swift term/limit validation into a testable pure helper + tests (C1 advisory); README/keys docs, golden refresh, live smoke test. Branch `feat/catalog-docs`. Route: delegated.
 
 ## Acceptance criteria
 
@@ -58,6 +58,7 @@ Today only library playlists ("stations") and a songs-only search are reachable.
 - Exploration done (architecture map + MusicKit research). Branch `feat/catalog-browse` created (renamed `feat/catalog-search` for slice 1).
 - C1 done (route: delegated writer; trigger: writer, 2+ non-trivial files). RED: compile failure on missing `SearchCatalog`, then assertion failures with stub returns (6 tests); GREEN: `go test -race ./...` 151 passed, `go vet` clean, `gofmt -l .` empty, `swift build` OK, `swift test` 34 passed. Parent spot check: `go test -race ./...` 151 passed. MusicKit: `MusicCatalogSearchSuggestionsRequest(term:)` + `suggestions.map(\.searchTerm)`, limit capped at 10; suggestions failure degrades to empty. Open (verify in C5 smoke): suggestion cap, artist `genreNames` presence.
   - Commit `5a2e7df` `feat(search): add catalog search for artists, songs and suggestions`. RDD assess (base `112b5ee`, committed-only): risk medium, 394 lines, `review_due=false` (`under_budget`) → pending in slice; reviewed boundary stays `112b5ee`.
+  - Native review (hook-prompted, consent granted): lineage `review-03156733c6d971ac`, lens review-reliability, APPROVED and acknowledged (authority burned); reviewed boundary → `647a796`. Advisories: R3-demo-contract-divergence (demo empty term / limit<=0 differ from helper) → folded into C2; R3-swift-searchcatalog-untested (move term/limit validation into a testable helper) → C5.
 
 ## Next step
 

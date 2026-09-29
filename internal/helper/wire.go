@@ -51,10 +51,6 @@ type authResult struct {
 	Status string `json:"status"`
 }
 
-type searchResult struct {
-	Songs []wireSong `json:"songs"`
-}
-
 type wireArtist struct {
 	ID     string   `json:"id"`
 	Name   string   `json:"name"`

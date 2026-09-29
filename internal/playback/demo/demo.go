@@ -17,6 +17,10 @@ import (
 // ErrClosed is returned by calls made after Close.
 var ErrClosed = errors.New("demo player closed")
 
+// ErrEmptyTerm is returned by SearchCatalog for a blank term, as the
+// helper rejects one.
+var ErrEmptyTerm = errors.New("search term is empty")
+
 // Options configures New.
 type Options struct {
 	// Tick is how often playback advances and a state is emitted
@@ -25,6 +29,9 @@ type Options struct {
 }
 
 const stateBuffer = 16
+
+// maxSearchLimit is the helper's per-type cap on catalog search results.
+const maxSearchLimit = 25
 
 // Player is the demo playback.Player. Methods are safe for concurrent use.
 type Player struct {
@@ -137,30 +144,17 @@ func (p *Player) Authorize(ctx context.Context) (playback.AuthStatus, error) {
 	return playback.AuthAuthorized, nil
 }
 
-// Search matches term against titles, artists and albums, case-insensitively.
-func (p *Player) Search(ctx context.Context, term string, limit int) ([]playback.Song, error) {
-	var out []playback.Song
-	err := p.do(ctx, false, func() error {
-		needle := strings.ToLower(term)
-		for _, s := range catalog {
-			if len(out) >= limit {
-				break
-			}
-			hay := strings.ToLower(s.Title + " " + s.Artist + " " + s.Album)
-			if strings.Contains(hay, needle) {
-				out = append(out, s)
-			}
-		}
-		return nil
-	})
-	return out, err
-}
-
-// SearchCatalog matches term case-insensitively: artists by name, songs as
-// Search does, and suggestions from the matching artist names and song
-// titles. limit caps each list separately.
+// SearchCatalog matches term case-insensitively: artists by name, songs by
+// title, artist or album, and suggestions from the matching artist names and song
+// titles. Like the helper, it rejects a blank term (ErrEmptyTerm) and
+// clamps limit, which caps each list separately, to 1...25.
 func (p *Player) SearchCatalog(ctx context.Context, term string, limit int) (playback.SearchResults, error) {
 	var res playback.SearchResults
+	term = strings.TrimSpace(term)
+	if term == "" {
+		return res, ErrEmptyTerm
+	}
+	limit = min(max(limit, 1), maxSearchLimit)
 	err := p.do(ctx, false, func() error {
 		needle := strings.ToLower(term)
 		seen := map[string]bool{}

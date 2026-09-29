@@ -3,7 +3,6 @@ package radio
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -16,7 +15,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.input.SetWidth(max(m.width-24, 8))
+		m.input.SetWidth(m.inputWidth())
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -35,10 +34,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.stationsFailed = false
 		m.stations = msg.playlists
-		m.stationCursor = min(m.stationCursor, max(len(m.stations)-1, 0))
+		m.setCursorAt(0, min(m.stack[0].cursor, max(len(m.stations)-1, 0)))
 		return m, nil
-	case searchMsg:
-		return m.onSearch(msg)
+	case recentsMsg:
+		return m.onRecents(msg), nil
+	case recentSavedMsg:
+		if msg.err != nil {
+			m.setStatus("RECENT SEARCH NOT SAVED // " + msg.err.Error())
+		}
+		return m, nil
+	case searchDebounceMsg:
+		return m.onSearchDebounce(msg)
+	case catalogMsg:
+		return m.onCatalog(msg), nil
 	case actionMsg:
 		if msg.err != nil {
 			m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
@@ -64,7 +72,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lostErrs = true
 		return m, nil
 	}
-	if m.searching {
+	if m.top().kind == viewSearch {
+		// Cursor blinks and other input internals.
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
 		return m, cmd
@@ -83,22 +92,6 @@ func (m Model) onAuth(msg authMsg) (tea.Model, tea.Cmd) {
 	}
 	m.auth = authOK
 	return m, m.loadPlaylistsCmd()
-}
-
-func (m Model) onSearch(msg searchMsg) (tea.Model, tea.Cmd) {
-	if msg.err != nil {
-		m.setStatus("CATALOG SCAN FAILED // " + msg.err.Error())
-		return m, nil
-	}
-	if len(msg.songs) == 0 {
-		m.setStatus(fmt.Sprintf("NO SIGNAL FOR %q", msg.term))
-		return m, nil
-	}
-	m.status = ""
-	m.results, m.resultsTerm = msg.songs, msg.term
-	m.resultCursor = 0
-	m.list = viewResults
-	return m, nil
 }
 
 func (m Model) onState(s playback.State) Model {
@@ -127,7 +120,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if k == keyCtrlC {
 		return m, m.quitCmd()
 	}
-	if m.searching {
+	if m.top().kind == viewSearch {
 		return m.handleSearchKey(msg)
 	}
 	if m.auth == authFailed {
@@ -160,19 +153,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyForward:
 		return m.seek(seekStep)
 	case keySearch:
-		m.searching = true
-		m.input.Reset()
-		return m, m.input.Focus()
+		return m.openSearch(true)
 	case keyTab:
-		if len(m.results) > 0 {
-			if m.list == viewResults {
-				m.list = viewStations
-			} else {
-				m.list = viewResults
-			}
-		}
+		// tab returns to the last search; inside it, tab comes back here.
+		return m.openSearch(false)
 	case keyEsc:
-		m.list = viewStations
+		m.pop()
 	case keyRetry:
 		if m.stationsFailed {
 			m.stationsFailed = false
@@ -183,51 +169,17 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case keyEsc:
-		m.searching = false
-		m.input.Blur()
-		return m, nil
-	case keyEnter:
-		term := strings.TrimSpace(m.input.Value())
-		m.searching = false
-		m.input.Blur()
-		if term == "" {
-			return m, nil
-		}
-		m.setStatus("SCANNING CATALOG // " + strings.ToUpper(term))
-		return m, m.searchCmd(term)
-	}
-	var cmd tea.Cmd
-	m.input, cmd = m.input.Update(msg)
-	return m, cmd
-}
-
+// moveCursor moves the stations cursor, the only list handleKey drives.
 func (m *Model) moveCursor(delta int) {
-	if m.showingResults() {
-		m.resultCursor = max(0, min(m.resultCursor+delta, len(m.results)-1))
-		return
-	}
-	m.stationCursor = max(0, min(m.stationCursor+delta, len(m.stations)-1))
+	m.setCursor(max(0, min(m.cursor()+delta, len(m.stations)-1)))
 }
 
+// playSelection tunes the selected station.
 func (m Model) playSelection() (tea.Model, tea.Cmd) {
-	if m.showingResults() {
-		ids := make([]string, len(m.results))
-		for i, s := range m.results {
-			ids[i] = s.ID
-		}
-		start := m.resultCursor
-		m.playSeq++
-		return m, m.playCmd(m.playSeq, "PLAY", "", func(ctx context.Context) error {
-			return m.player.PlaySongs(ctx, ids, start)
-		})
-	}
 	if len(m.stations) == 0 {
 		return m, nil
 	}
-	id := m.stations[m.stationCursor].ID
+	id := m.stations[m.cursor()].ID
 	m.playSeq++
 	return m, m.playCmd(m.playSeq, "TUNE", id, func(ctx context.Context) error {
 		return m.player.PlayPlaylist(ctx, id)

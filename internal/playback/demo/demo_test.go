@@ -86,18 +86,42 @@ func TestPlaylistPlaysAndProgresses(t *testing.T) {
 func TestSearchAndPlaySongs(t *testing.T) {
 	p := newPlayer(t)
 	ctx := context.Background()
-	songs, err := p.Search(ctx, "NEON", 25)
-	if err != nil || len(songs) == 0 {
-		t.Fatalf("Search = %d, %v; want matches", len(songs), err)
+	res, err := p.SearchCatalog(ctx, "NEON", 25)
+	if err != nil || len(res.Songs) == 0 {
+		t.Fatalf("SearchCatalog = %d songs, %v; want matches", len(res.Songs), err)
 	}
-	if limited, _ := p.Search(ctx, "", 2); len(limited) != 2 {
-		t.Errorf("Search limit 2 returned %d songs", len(limited))
+	if limited, _ := p.SearchCatalog(ctx, "e", 2); len(limited.Songs) != 2 {
+		t.Errorf("SearchCatalog limit 2 returned %d songs", len(limited.Songs))
 	}
+	songs := res.Songs
 	ids := []string{songs[0].ID}
 	if err := p.PlaySongs(ctx, ids, 0); err != nil {
 		t.Fatal(err)
 	}
 	waitState(t, p, func(s playback.State) bool { return s.SongID == songs[0].ID && s.Status == playback.StatusPlaying })
+}
+
+// TestSearchCatalogFollowsHelperContract pins the edges the helper enforces:
+// a blank term is an error and limit is clamped to 1...25.
+func TestSearchCatalogFollowsHelperContract(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+
+	for _, term := range []string{"", "   "} {
+		if _, err := p.SearchCatalog(ctx, term, 5); !errors.Is(err, ErrEmptyTerm) {
+			t.Errorf("SearchCatalog(%q) error = %v; want ErrEmptyTerm", term, err)
+		}
+	}
+	for _, limit := range []int{0, -3} {
+		res, err := p.SearchCatalog(ctx, "e", limit)
+		if err != nil || len(res.Songs) != 1 {
+			t.Errorf("SearchCatalog limit %d = %d songs, %v; want clamped to 1", limit, len(res.Songs), err)
+		}
+	}
+	res, err := p.SearchCatalog(ctx, "e", 1000)
+	if err != nil || len(res.Songs) == 0 || len(res.Songs) > 25 {
+		t.Errorf("SearchCatalog limit 1000 = %d songs, %v; want 1...25", len(res.Songs), err)
+	}
 }
 
 func TestSearchCatalogMatchesArtistsSongsAndSuggestions(t *testing.T) {
