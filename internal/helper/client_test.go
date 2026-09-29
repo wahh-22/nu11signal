@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"os"
 	"reflect"
@@ -737,6 +738,32 @@ func TestLibraryEditEdgeCasesAndErrors(t *testing.T) {
 			var cmdErr *CommandError
 			if err := tt.call(); !errors.As(err, &cmdErr) || cmdErr.Command != tt.command || cmdErr.Message != tt.message {
 				t.Fatalf("error = %v; want CommandError{%s, %s}", err, tt.command, tt.message)
+			}
+		})
+	}
+}
+
+func TestCommandErrorOutcomeUnknown(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		err  *CommandError
+		want bool
+	}{
+		{"timed-out create", &CommandError{Command: "createPlaylist", Message: "createPlaylist timed out after 6.0s: the playlist may or may not have been created; check the library before trying again"}, true},
+		{"timed-out add", &CommandError{Command: "addToPlaylist", Message: "addToPlaylist timed out after 6.0s: the songs may or may not have been added; check the playlist before trying again"}, true},
+		{"refused add", &CommandError{Command: "addToPlaylist", Message: "addToPlaylist failed (403): playlist is not editable"}, false},
+		{"timed-out read", &CommandError{Command: "playlists", Message: "playlists timed out after 6.0s"}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// The UI finds the method through wrapping, without importing
+			// this package.
+			var u interface{ OutcomeUnknown() bool }
+			wrapped := fmt.Errorf("add: %w", tt.err)
+			if !errors.As(wrapped, &u) {
+				t.Fatal("OutcomeUnknown not found through wrapping")
+			}
+			if got := u.OutcomeUnknown(); got != tt.want {
+				t.Fatalf("OutcomeUnknown() = %v; want %v", got, tt.want)
 			}
 		})
 	}

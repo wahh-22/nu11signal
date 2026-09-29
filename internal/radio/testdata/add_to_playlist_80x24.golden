@@ -1,17 +1,17 @@
 ◢◤ NU11SIGNAL // NIGHT CITY RADIO              AUTH OK  ▮  SIG ▂▄▆█  ▮  23:41:07
-▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ + NEW PLAYLIST ╱ ──────────── RDO-77 // NC-NET ──
-╱─▮ PLAYLISTS ─────────────────────────────────┐ ╱─▯ NOW PLAYING ──────────────┐
-│   + NEW PLAYLIST                             │ │ NOW PLAYING        ▮ PLAYING│
-│▌▶ 088.1  NIGHT DRIVE                         │ │                             │
-│   089.7  SAMURAI                             │ │ CHIPPIN' IN           ╱ ♡ ╱ │
-│   091.3  BODY HEAT                           │ │ SAMURAI                     │
-│                                              │ │ NEVER FADE AWAY             │
+▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ ◀ BACK ╱ ──────────────────── RDO-77 // NC-NET ──
+╱─▮ ADD TO PLAYLIST ───────────────────────────┐ ╱─▯ NOW PLAYING ──────────────┐
+│ ♪ DIGITAL LOVE · DAFT PUNK                   │ │ NOW PLAYING        ▮ PLAYING│
+│──────────────────────────────────────────────│ │                             │
+│   + NEW PLAYLIST                             │ │ CHIPPIN' IN           ╱ ♡ ╱ │
+│▌▶ 089.7  NIGHT DRIVE                         │ │ SAMURAI                     │
+│   091.3  SAMURAI                             │ │ NEVER FADE AWAY             │
 │                                              │ │                             │
 │                                              │ │ ▮▮▮▮▯▯▯▯▯▯▯▯  01:23 / 03:45 │
 │                                              │ │ ▞ CATALOG FEED // DIRECT    │
 │                                              │ │                             │
 │                                              │ │ ╱ ◀◀ ╱ ╱ ❚❚ ╱ ╱ ▶▶ ╱ ╱ ⤢ ╱  │
-│                                              │ │ ╱ - ╱ VOL --          ╱ + ╱ │
+│                                              │ │ ╱ - ╱ VOL ▮▮▮▮▯▯  60% ╱ + ╱ │
 │                                              │ │                             │
 │                                              │ │ ▃           ▂               │
 │                                              │ │ █   ▃   ▄   █ ▆   ▄   ▇   ▃ │
@@ -19,6 +19,6 @@
 │                                              │ │ █ █ █ █ █   █ █ █ █ ▁ █ █ █ │
 │                                              │ │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │
 │                                              │ │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │
-└─────────────────────────── BAND FM // 03 CH ─╱ └───────────── NC-NET 0x2077 ─╱
+└──────────────────────────────── EDITABLE 02 ─╱ └───────────── NC-NET 0x2077 ─╱
 ░▒▓ SYS NOMINAL // BUF 0x5EF6                                                   
-[ENTER] OPEN  [/] SCAN  [SPACE] PLAY/PAUSE  [→] PLAYER  [,/.] SEEK  [Q] QUIT
+[ENTER] ADD  [↑↓] MOVE  [ESC] CANCEL  [SPACE] PLAY/PAUSE  [Q] QUIT

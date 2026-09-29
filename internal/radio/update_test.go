@@ -218,9 +218,10 @@ func TestEnterOnAPlaylistRowLoadsIt(t *testing.T) {
 func TestNavigationClampsToList(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
-	m, _ = press(t, m, "up", "down", "up")
-	if m.cursor() != 0 {
-		t.Fatalf("cursor = %d after moving up at top, want 0", m.cursor())
+	// Over the first playlist is the + NEW PLAYLIST row.
+	m, _ = press(t, m, "up", "up", "down", "up")
+	if m.cursor() != -1 {
+		t.Fatalf("cursor = %d after moving up at top, want the + NEW PLAYLIST row", m.cursor())
 	}
 	m, _ = press(t, m, "down", "down", "down", "down", "down")
 	if m.cursor() != 2 {
@@ -473,7 +474,7 @@ func TestStationMarkedOnAirOnlyAfterHelperConfirms(t *testing.T) {
 		m := loaded(t, f, newClock())
 		m, cmd := tune(t, m, 0)
 		m, _ = step(t, m, run(t, cmd))
-		f.MethodErr = map[string]error{"PlayPlaylist": errors.New("not in library")}
+		f.MethodErr = map[string]error{"PlaySongs": errors.New("not in library")}
 		m, cmd = tune(t, m, 1)
 		m, _ = step(t, m, run(t, cmd))
 		if m.playingStation != "pl-1" {

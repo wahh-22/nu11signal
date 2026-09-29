@@ -33,9 +33,8 @@ type trackPage struct {
 	album    playback.Album
 	song     playback.Song
 	playlist playback.CatalogPlaylist
-	// library marks a library playlist: it is played as the playlist
-	// (from ▶ PLAY or a track), never by song ids, so the helper can skip
-	// its library-only songs.
+	// library marks a library playlist: it opens with ▶ PLAY, and its
+	// library-only songs are skipped when it plays.
 	library bool
 	// seq numbers the load; answers for another number are dropped.
 	seq            uint64
@@ -256,9 +255,8 @@ func (m Model) playingIndex(p trackPage) int {
 }
 
 // tracksEnter plays the page's tracks from the selected one (a library
-// playlist as the playlist, from the start on ▶ PLAY), or toggles the notes
-// on MORE. A library-only track only shows a notice: the helper cannot
-// play it.
+// playlist from the start on ▶ PLAY), or toggles the notes on MORE. A
+// library-only track only shows a notice: the helper cannot play it.
 func (m Model) tracksEnter() (Model, tea.Cmd) {
 	items := m.trackItems()
 	cur := m.cursor()
@@ -277,13 +275,21 @@ func (m Model) tracksEnter() (Model, tea.Cmd) {
 			m.setStatus(strings.ToUpper(songs[it.index].Title) + " IS NOT IN THE APPLE MUSIC CATALOG // IT CANNOT BE PLAYED HERE")
 			return m, nil
 		}
-		id := page.playlist.ID
+		// The songs the page loaded are played by their catalog ids, the
+		// library-only ones left out: PlayPlaylistFrom would read the
+		// playlist again inside the helper's playback budget.
+		index := it.index
+		if it.playAll {
+			index = -1
+		}
+		ids, from := playableQueue(page.tracks(), index)
+		if len(ids) == 0 {
+			m.setStatus("NONE OF THESE SONGS ARE IN THE APPLE MUSIC CATALOG")
+			return m, nil
+		}
 		m.playSeq++
-		return m, m.playCmd(m.playSeq, "PLAY", id, func(ctx context.Context) error {
-			if it.playAll {
-				return m.player.PlayPlaylist(ctx, id)
-			}
-			return m.player.PlayPlaylistFrom(ctx, id, it.index)
+		return m, m.playCmd(m.playSeq, "PLAY", page.playlist.ID, func(ctx context.Context) error {
+			return m.player.PlaySongs(ctx, ids, from)
 		})
 	}
 	songs := m.top().tracks.tracks()
@@ -295,6 +301,22 @@ func (m Model) tracksEnter() (Model, tea.Cmd) {
 	return m, m.playCmd(m.playSeq, "PLAY", "", func(ctx context.Context) error {
 		return m.player.PlaySongs(ctx, ids, it.index)
 	})
+}
+
+// playableQueue is the catalog ids of songs, library-only ones left out,
+// and the position among them of songs[index] (the first of them for a
+// negative index).
+func playableQueue(songs []playback.Song, index int) (ids []string, start int) {
+	for i, s := range songs {
+		if s.LibraryOnly {
+			continue
+		}
+		if i == index {
+			start = len(ids)
+		}
+		ids = append(ids, s.ID)
+	}
+	return ids, start
 }
 
 // trackItems lists the selectable rows of the track page on top, at the
@@ -319,6 +341,12 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 		items = append(items, it)
 		lines = append(lines, pageLine{text: render(n == cur), item: n})
 	}
+	// song adds the row of track s, ended by its controls.
+	song := func(it trackItem, s playback.Song, render func(selected bool, w int) string) {
+		n := len(items)
+		items = append(items, it)
+		lines = append(lines, m.songLine(s, n, n == cur, w, render))
+	}
 
 	// ▶ marks the track playing, never the one searched for.
 	on := m.playingIndex(page)
@@ -332,7 +360,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 		}
 		for i, s := range d.Tracks {
 			total += s.Duration
-			item(trackItem{index: i}, func(sel bool) string {
+			song(trackItem{index: i}, s, func(sel bool, w int) string {
 				return trackLine(i+1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, i == on, sel, s.LibraryOnly, w)
 			})
 		}
@@ -343,7 +371,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 		}
 	} else if page.loneSong() {
 		s := page.song
-		item(trackItem{index: 0}, func(sel bool) string {
+		song(trackItem{index: 0}, s, func(sel bool, w int) string {
 			return trackLine(1, strings.ToUpper(s.Title), strings.ToUpper(s.Artist), s.Duration, on == 0, sel, false, w)
 		})
 	} else {
@@ -366,7 +394,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 			if n <= 0 {
 				n = i + 1
 			}
-			item(trackItem{index: i}, func(sel bool) string {
+			song(trackItem{index: i}, t.Song, func(sel bool, w int) string {
 				return trackLine(n, strings.ToUpper(t.Title), "", t.Duration, i == on, sel, false, w)
 			})
 		}

@@ -168,6 +168,23 @@ type Model struct {
 	tab           int
 	tabsFrom      focusArea
 
+	// favs caches the favorite state of songs by id, and favSeq numbers
+	// its reads and changes (see library.go).
+	favs   map[string]favorite
+	favSeq uint64
+	// editor is the ADD TO PLAYLIST picker or the NEW PLAYLIST name input
+	// over the list panel; nameInput holds the name. editSeq numbers the
+	// library writes; libraryWriting means one is in flight (see
+	// library.go). created are the playlists created here that the API
+	// does not list yet; createCheck, when set, is a create of unknown
+	// outcome to look for in the next playlists read.
+	editor         libraryEditor
+	nameInput      textinput.Model
+	editSeq        uint64
+	libraryWriting bool
+	created        []playback.Playlist
+	createCheck    *createCheck
+
 	// volume is the output level shown, and the latest one asked for;
 	// volumeKnown is false until the player reports it, and again after
 	// it refused a change. volumeBusy means a Volume or SetVolume call is
@@ -206,6 +223,11 @@ func New(p playback.Player, opts Options) Model {
 	in.Placeholder = "ARTISTS, SONGS"
 	in.CharLimit = 120
 	in.SetStyles(inputStyles())
+	name := textinput.New()
+	name.Prompt = ""
+	name.Placeholder = "PLAYLIST NAME"
+	name.CharLimit = 100
+	name.SetStyles(inputStyles())
 	return Model{
 		player:       p,
 		now:          opts.Now,
@@ -216,6 +238,7 @@ func New(p playback.Player, opts Options) Model {
 		volumeBusy:   true, // Init reads the volume
 
 		input:         in,
+		nameInput:     name,
 		recentsStore:  opts.Recents,
 		recentsWrites: newRecentsWriter(opts.Recents),
 	}
@@ -408,7 +431,7 @@ func (m Model) litTab() string {
 func (m Model) atListTop() bool {
 	switch m.top().kind {
 	case viewStations:
-		return m.stationCursor() <= 0
+		return m.stationCursor() <= m.firstStationRow()
 	case viewSearch:
 		return m.cursor() < 0
 	}
@@ -420,6 +443,15 @@ func (m Model) atListTop() bool {
 func (m Model) stationCursor() int { return m.stack[0].cursor }
 
 func (m *Model) setStationCursor(c int) { m.setCursorAt(0, c) }
+
+// firstStationRow is the stations cursor of the top row: -1, the + NEW
+// PLAYLIST row, once the library is reachable, else the first playlist.
+func (m Model) firstStationRow() int {
+	if m.auth == authOK {
+		return -1
+	}
+	return 0
+}
 
 // The stack helpers copy the stack before changing it: Models are values,
 // and an older copy must never see a newer one's navigation.

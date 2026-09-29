@@ -21,10 +21,12 @@ func isPage(kind viewKind) bool {
 }
 
 // pageLine is one line of a page body below its head; item is the
-// selectable row it shows, or -1.
+// selectable row it shows, or -1. actions marks the selected song row,
+// which ends in its ♥ and + controls.
 type pageLine struct {
-	text string
-	item int
+	text    string
+	item    int
+	actions bool
 }
 
 // handlePageKey handles the keys a browse page owns; ok is false for the
@@ -65,6 +67,12 @@ func (m Model) handlePageKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 			return m, nil, false
 		}
 		cmd = m.reloadPage()
+	case keyLove:
+		next, cmd = m.loveTarget()
+		return next, cmd, true
+	case keyAdd:
+		next, cmd = m.addTarget()
+		return next, cmd, true
 	default:
 		return m, nil, false
 	}
@@ -205,6 +213,9 @@ func (m Model) pageBody(w, h int, head []string, lines []pageLine, notice string
 	for i := offset; i < len(lines) && i-offset < room; i++ {
 		if lines[i].item >= 0 {
 			zs.add(rowZone(lines[i].item), 0, len(out), w)
+		}
+		if lines[i].actions {
+			addActionZones(&zs, w, len(out))
 		}
 		out = append(out, fit(lines[i].text, w))
 	}

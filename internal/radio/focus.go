@@ -66,24 +66,29 @@ func (c playerControl) above() playerControl {
 }
 
 // focusPlayer moves the focus to control on the player. Coming from the
-// list, the search input stops taking keys (and showing its caret)
-// meanwhile; focusList gives them back as they were.
+// list, the search input (or the NEW PLAYLIST name) stops taking keys (and
+// showing its caret) meanwhile; focusList gives them back as they were.
 func (m *Model) focusPlayer(control playerControl) {
 	if m.focus == areaList {
 		m.inputHadFocus = m.input.Focused()
 		m.input.Blur()
+		m.nameInput.Blur()
 	}
 	m.focus, m.control, m.onBar = areaPlayer, control, false
 }
 
 // focusList gives the focus back to the list as the player or the tabs
 // found it, restoring the expanded player: the search input takes the keys
-// again only if it had them and SEARCH is still the view on top.
+// again only if it had them and SEARCH is still the view on top, under no
+// editor; the NEW PLAYLIST name always does.
 func (m *Model) focusList() tea.Cmd {
 	away := m.focus != areaList
 	hadInput := m.inputHadFocus
 	m.focus, m.onBar, m.expanded, m.inputHadFocus = areaList, false, false, false
-	if away && hadInput && m.top().kind == viewSearch {
+	switch {
+	case away && m.editor.mode == editName:
+		return m.nameInput.Focus()
+	case away && hadInput && m.top().kind == viewSearch && m.editor.mode == editClosed:
 		return m.input.Focus()
 	}
 	return nil
@@ -101,6 +106,7 @@ func (m *Model) focusTabs() {
 	if m.focus == areaList {
 		m.inputHadFocus = m.input.Focused()
 		m.input.Blur()
+		m.nameInput.Blur()
 	}
 	m.tabsFrom, m.focus = m.focus, areaTabs
 	m.tab = max(slices.Index(m.tabIDs(), m.litTab()), 0)
@@ -253,6 +259,14 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 		return next, cmd, true
 	case keyEsc:
 		cmd = m.focusList()
+	case keyLove:
+		// The song playing, the focus staying here.
+		next, cmd = m.loveTarget()
+		return next, cmd, true
+	case keyAdd:
+		// The song playing, in the picker, which takes the focus.
+		next, cmd = m.addTarget()
+		return next, cmd, true
 	case keyExpand, keyExpandAlt:
 		next, cmd = m.toggleExpand()
 		return next, cmd, true

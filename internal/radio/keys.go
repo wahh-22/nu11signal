@@ -37,6 +37,11 @@ const (
 	keyQuit               = "q"
 	keyRetry              = "r"
 	keyCtrlC              = "ctrl+c"
+	// keyLove toggles the favorite state of the selected song, or of the
+	// song playing; keyAdd adds it to a library playlist. Both act
+	// wherever typing does not take them (on SEARCH, on a song row).
+	keyLove = "l"
+	keyAdd  = "a"
 	// keyDelete and keyDeleteAlt delete the selected recent search.
 	keyDelete    = "delete"
 	keyDeleteAlt = "ctrl+d"
@@ -56,6 +61,8 @@ var playerHints = []hint{
 	{"N/P", "NEXT/PREV"},
 	{"J/K", "VOL"},
 	{"F", "EXPAND"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"↑↓", "MOVE"},
 	{"Q", "QUIT"},
 }
@@ -79,6 +86,7 @@ func playerFocusHints(expanded, typing bool) []hint {
 		{"ESC", "LIST"},
 		expand,
 		{"SPACE", "PLAY/PAUSE"},
+		{"L", "LOVE"},
 		quit,
 	}
 }
@@ -103,11 +111,15 @@ func tabsFocusHints(typing bool) []hint {
 
 // artistHints replace playerHints on an artist page: enter plays a top
 // song, opens an album or playlist, or expands the ABOUT notes (MORE).
+// On the pages under the root, L and A come after ESC BACK, so an
+// 80-column footer drops them first.
 var artistHints = []hint{
 	{"ENTER", "SELECT/MORE"},
 	{"↑↓", "MOVE"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
 	{"Q", "QUIT"},
@@ -120,6 +132,8 @@ var resultsHints = []hint{
 	{"↑↓", "MOVE"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
 	{"Q", "QUIT"},
@@ -132,9 +146,40 @@ var trackHints = []hint{
 	{"↑↓", "MOVE"},
 	{"SPACE", "PLAY/PAUSE"},
 	{"ESC", "BACK"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
 	{"Q", "QUIT"},
+}
+
+// pickerHints replace the view's hints while ADD TO PLAYLIST is open, and
+// nameHints while NEW PLAYLIST takes a name: every key but enter and esc
+// is typed there, so ctrl+c quits.
+var pickerHints = []hint{
+	{"ENTER", "ADD"},
+	{"↑↓", "MOVE"},
+	{"ESC", "CANCEL"},
+	{"SPACE", "PLAY/PAUSE"},
+	{"Q", "QUIT"},
+}
+
+var nameHints = []hint{
+	{"ENTER", "CREATE"},
+	{"ESC", "CANCEL"},
+	{"CTRL+C", "QUIT"},
+}
+
+// searchSongHints replace searchHints while a song row is selected, where
+// l and a act instead of being typed.
+var searchSongHints = []hint{
+	{"ENTER", "SELECT"},
+	{"↑↓", "MOVE"},
+	{"TAB", "PLAYLISTS"},
+	{"ESC", "BACK"},
+	{"L", "LOVE"},
+	{"A", "ADD"},
+	{"CTRL+C", "QUIT"},
 }
 
 // searchHints replace playerHints while the search view is open: typing

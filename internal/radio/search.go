@@ -185,7 +185,7 @@ func (m *Model) resumeSearch() tea.Cmd {
 // handleSearchKey handles keys while the search view is on top. Text keys
 // go to the input, so the player's letter shortcuts are off here. With a
 // row selected, ctrl+d and delete delete a recent term instead of editing
-// the input.
+// the input, and on a song row l and a love it and add it to a playlist.
 func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keyEsc:
@@ -226,6 +226,13 @@ func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyDelete, keyDeleteAlt:
 		if cur := m.cursor(); cur >= 0 {
 			return m.deleteRecentAt(cur)
+		}
+	case keyLove, keyAdd:
+		if _, ok := m.selectedSong(); ok {
+			if msg.String() == keyLove {
+				return m.loveTarget()
+			}
+			return m.addTarget()
 		}
 	}
 	before := m.input.Value()
@@ -433,7 +440,7 @@ func (m Model) inputWidth() int {
 // searchBody renders the search view in w x h cells: the input, a rule and
 // the rows, scrolled so the cursor stays on screen. Every line is exactly w
 // cells wide. Its zones are the input and the rows shown, with the ✕ of
-// each recent term.
+// each recent term and the ♥ and + of the selected song.
 func (m Model) searchBody(w, h int) ([]string, zones) {
 	if h <= 0 || w <= 0 {
 		return nil, nil
@@ -483,6 +490,9 @@ func (m Model) searchBody(w, h int) ([]string, zones) {
 			// On top of the row: the ✕ in its last cells.
 			zs.add(recentDeleteZone(i), w-recentCrossWidth, len(lines), recentCrossWidth)
 		}
+		if rows[i].kind == rowSong && i == cur && w >= songActionsMinWidth {
+			addActionZones(&zs, w, len(lines))
+		}
 		lines = append(lines, m.searchRowLine(rows[i], i == cur, w))
 	}
 	return lines, zs
@@ -503,7 +513,10 @@ func (m Model) searchRowLine(r searchRow, selected bool, w int) string {
 		if r.song.Artist != "" {
 			tag += " · " + strings.ToUpper(r.song.Artist)
 		}
-		return searchLine("♪", stCyan, title, styled(stRed), tag, selected, w)
+		line, _ := m.songRow(r.song, selected, w, func(w int) string {
+			return searchLine("♪", stCyan, title, styled(stRed), tag, selected, w)
+		})
+		return line
 	case rowSuggestion:
 		text := strings.ToUpper(r.term)
 		prefix := strings.ToUpper(m.search.term)

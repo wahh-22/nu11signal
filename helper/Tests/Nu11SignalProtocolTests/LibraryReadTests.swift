@@ -214,6 +214,47 @@ final class LibraryReadTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
+    func testCollectReadsOnPastAPageEntirelyFilteredOut() async throws {
+        // A full page of music videos parses to no songs, but the API still
+        // has more: paging goes on while the API sends resources.
+        let videos = #"""
+        {"next":"/v1/me/library/playlists/p.A1/tracks?offset=100","data":[
+          {"id":"i.V1","type":"library-music-videos","attributes":{"name":"V1"}},
+          {"id":"i.V2","type":"library-music-videos","attributes":{"name":"V2"}}
+        ]}
+        """#
+        let songs = #"""
+        {"data":[{"id":"i.S1","type":"library-songs","attributes":{"name":"S1",
+          "playParams":{"id":"i.S1","kind":"song","isLibrary":true,"catalogId":"77"}}}]}
+        """#
+        let first = try LibraryRead.tracksCall(Request(id: "1", cmd: "libraryPlaylist", args: ["playlistId": "p.A1"]))
+        var fetched = 0
+        let items = try await LibraryRead.collect(from: first, cap: 1000, fetch: { _ in
+            fetched += 1
+            return Data((fetched == 1 ? videos : songs).utf8)
+        }, page: LibraryRead.tracksPage)
+        XCTAssertEqual(items.map(\.id), ["77"])
+        XCTAssertEqual(fetched, 2)
+    }
+
+    func testCollectStopsAtANextLinkThatRepeatsAnOffset() async throws {
+        // Page 2 links back to offset 2, already read: no page is fetched
+        // twice, so no song is listed twice.
+        let page1 = #"{"next":"/v1/me/library/playlists?offset=2","data":[{"id":"p.a","attributes":{"name":"a"}}]}"#
+        let page2 = #"{"next":"/v1/me/library/playlists?offset=2","data":[{"id":"p.b","attributes":{"name":"b"}}]}"#
+        let backToStart = #"{"next":"/v1/me/library/playlists?offset=0","data":[{"id":"p.c","attributes":{"name":"c"}}]}"#
+        for (pages, want) in [([page1, page2], ["p.a", "p.b"]), ([backToStart], ["p.c"])] {
+            var fetched = 0
+            let items = try await LibraryRead.collect(from: LibraryRead.playlistsCall, cap: 500, fetch: { _ in
+                fetched += 1
+                XCTAssertLessThanOrEqual(fetched, pages.count, "a page was fetched again")
+                return Data(pages[min(fetched, pages.count) - 1].utf8)
+            }, page: LibraryRead.playlistsPage)
+            XCTAssertEqual(items.map(\.id), want)
+            XCTAssertEqual(fetched, pages.count)
+        }
+    }
+
     func testCollectPassesFetchErrorsOn() async {
         struct Boom: Error {}
         do {
