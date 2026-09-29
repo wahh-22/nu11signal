@@ -123,10 +123,15 @@ type albumResult struct {
 	Notes       string      `json:"notes"`
 }
 
+// catalogPlaylistResult answers catalogPlaylist and libraryPlaylist.
 type catalogPlaylistResult struct {
 	Playlist wireCatalogPlaylist `json:"playlist"`
 	Tracks   []wireSong          `json:"tracks"`
 	Notes    string              `json:"notes"`
+}
+
+type volumeResult struct {
+	Level float64 `json:"level"`
 }
 
 type playlistsResult struct {

@@ -3,6 +3,7 @@ package demo
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -230,6 +231,99 @@ func TestInvalidRequestsFail(t *testing.T) {
 	}
 }
 
+func TestVolumeStartsAtDefaultAndClamps(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	if v, err := p.Volume(ctx); err != nil || v != DefaultVolume {
+		t.Fatalf("Volume = %v, %v; want %v", v, err, DefaultVolume)
+	}
+	tests := []struct {
+		name      string
+		set, want float64
+	}{
+		{"within range", 0.3, 0.3},
+		{"above one", 2, 1},
+		{"below zero", -1, 0},
+		{"not a number", math.NaN(), 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := p.SetVolume(ctx, tt.set); err != nil {
+				t.Fatalf("SetVolume(%v): %v", tt.set, err)
+			}
+			if v, err := p.Volume(ctx); err != nil || v != tt.want {
+				t.Fatalf("Volume after SetVolume(%v) = %v, %v; want %v", tt.set, v, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestLibraryPlaylistListsStationTracks(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	pls, err := p.Playlists(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pl := range pls {
+		d, err := p.LibraryPlaylist(ctx, pl.ID)
+		if err != nil {
+			t.Fatalf("LibraryPlaylist(%s): %v", pl.ID, err)
+		}
+		if d.Playlist != (playback.CatalogPlaylist{ID: pl.ID, Name: pl.Name}) || len(d.Tracks) == 0 {
+			t.Fatalf("LibraryPlaylist(%s) = %+v; want the station with tracks", pl.ID, d)
+		}
+		for _, s := range d.Tracks {
+			if s.ID == "" || s.Title == "" || s.Duration <= 0 {
+				t.Fatalf("LibraryPlaylist(%s) track %+v lacks an id, title or duration", pl.ID, s)
+			}
+		}
+		again, _ := p.LibraryPlaylist(ctx, pl.ID)
+		if !reflect.DeepEqual(again, d) {
+			t.Fatalf("LibraryPlaylist(%s) is not deterministic", pl.ID)
+		}
+	}
+	first, _ := p.LibraryPlaylist(ctx, "demo-1")
+	var ids []string
+	for _, s := range first.Tracks {
+		ids = append(ids, s.ID)
+	}
+	if want := []string{"d01", "d03", "d09"}; !reflect.DeepEqual(ids, want) {
+		t.Errorf("demo-1 tracks = %v; want %v", ids, want)
+	}
+	if _, err := p.LibraryPlaylist(ctx, "nope"); err == nil {
+		t.Error("unknown library playlist accepted")
+	}
+}
+
+func TestPlayPlaylistFromStartsAtTheTrack(t *testing.T) {
+	p := newPlayer(t)
+	ctx := context.Background()
+	d, err := p.LibraryPlaylist(ctx, "demo-2")
+	if err != nil || len(d.Tracks) < 4 {
+		t.Fatalf("LibraryPlaylist(demo-2) = %+v, %v; want at least 4 tracks", d, err)
+	}
+	if err := p.PlayPlaylistFrom(ctx, "demo-2", 2); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, p, func(s playback.State) bool {
+		return s.Status == playback.StatusPlaying && s.SongID == d.Tracks[2].ID
+	})
+	if err := p.Next(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, p, func(s playback.State) bool { return s.SongID == d.Tracks[3].ID })
+
+	for _, start := range []int{-1, len(d.Tracks)} {
+		if err := p.PlayPlaylistFrom(ctx, "demo-2", start); err == nil {
+			t.Errorf("PlayPlaylistFrom start %d accepted", start)
+		}
+	}
+	if err := p.PlayPlaylistFrom(ctx, "nope", 0); err == nil {
+		t.Error("unknown playlist accepted")
+	}
+}
+
 func TestCloseClosesChannelsAndRejectsCalls(t *testing.T) {
 	p := New(Options{Tick: 5 * time.Millisecond})
 	if err := p.Close(); err != nil {
@@ -244,6 +338,9 @@ func TestCloseClosesChannelsAndRejectsCalls(t *testing.T) {
 	}
 	if err := p.Next(context.Background()); !errors.Is(err, ErrClosed) {
 		t.Fatalf("Next after Close = %v, want ErrClosed", err)
+	}
+	if _, err := p.Volume(context.Background()); !errors.Is(err, ErrClosed) {
+		t.Fatalf("Volume after Close = %v, want ErrClosed", err)
 	}
 }
 

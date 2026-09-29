@@ -4,6 +4,7 @@ package playback
 
 import (
 	"context"
+	"math"
 	"time"
 )
 
@@ -119,8 +120,9 @@ type AlbumDetail struct {
 	Notes string
 }
 
-// PlaylistDetail is a catalog playlist page: the playlist, its songs in
-// order and its description as plain text.
+// PlaylistDetail is a playlist page: the playlist, its songs in order and
+// its description as plain text. A library playlist has no curator, and
+// its songs carry library ids.
 type PlaylistDetail struct {
 	Playlist CatalogPlaylist
 	Tracks   []Song
@@ -167,6 +169,14 @@ const (
 	AuthNotDetermined AuthStatus = "notDetermined"
 )
 
+// ClampVolume limits a volume level to 0...1; NaN becomes 0.
+func ClampVolume(level float64) float64 {
+	if math.IsNaN(level) {
+		return 0
+	}
+	return min(max(level, 0), 1)
+}
+
 // Player is the port through which the application drives playback.
 //
 // Methods are safe for concurrent use. States delivers snapshots as they
@@ -182,14 +192,24 @@ type Player interface {
 	SongAlbum(ctx context.Context, songID string) (AlbumDetail, error)
 	CatalogPlaylist(ctx context.Context, playlistID string) (PlaylistDetail, error)
 	Playlists(ctx context.Context) ([]Playlist, error)
+	// LibraryPlaylist loads a library playlist page: its songs, in order.
+	LibraryPlaylist(ctx context.Context, playlistID string) (PlaylistDetail, error)
 	PlaySongs(ctx context.Context, ids []string, start int) error
+	// PlayPlaylist plays a library playlist from its first song.
 	PlayPlaylist(ctx context.Context, id string) error
+	// PlayPlaylistFrom plays a library playlist starting at the song at
+	// index start of its LibraryPlaylist tracks.
+	PlayPlaylistFrom(ctx context.Context, playlistID string, start int) error
 	Pause(ctx context.Context) error
 	Resume(ctx context.Context) error
 	Next(ctx context.Context) error
 	Previous(ctx context.Context) error
 	Stop(ctx context.Context) error
 	Seek(ctx context.Context, position time.Duration) error
+	// Volume reports the output volume, from 0 (silent) to 1 (full).
+	Volume(ctx context.Context) (float64, error)
+	// SetVolume sets the output volume; level is clamped with ClampVolume.
+	SetVolume(ctx context.Context, level float64) error
 	States() <-chan State
 	Errors() <-chan error
 	Close() error

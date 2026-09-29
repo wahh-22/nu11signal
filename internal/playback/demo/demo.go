@@ -47,7 +47,11 @@ type Player struct {
 	index  int
 	status playback.Status
 	pos    time.Duration
+	volume float64
 }
+
+// DefaultVolume is the demo player's volume until SetVolume changes it.
+const DefaultVolume = 0.75
 
 // New starts a demo player. Close stops it.
 func New(opts Options) *Player {
@@ -60,6 +64,7 @@ func New(opts Options) *Player {
 		states: make(chan playback.State, stateBuffer),
 		errs:   make(chan error, 1),
 		status: playback.StatusStopped,
+		volume: DefaultVolume,
 	}
 	p.wg.Add(1)
 	go p.run()
@@ -282,16 +287,41 @@ func (p *Player) PlaySongs(ctx context.Context, ids []string, start int) error {
 	})
 }
 
+// LibraryPlaylist returns a demo station's page: its tracks, in order.
+func (p *Player) LibraryPlaylist(ctx context.Context, playlistID string) (playback.PlaylistDetail, error) {
+	var d playback.PlaylistDetail
+	err := p.do(ctx, false, func() error {
+		s, ok := stationByID(playlistID)
+		if !ok {
+			return fmt.Errorf("demo: unknown playlist %q", playlistID)
+		}
+		d = playback.PlaylistDetail{
+			Playlist: playback.CatalogPlaylist{ID: s.ID, Name: s.Name},
+			Tracks:   s.songs(),
+		}
+		return nil
+	})
+	return d, err
+}
+
 // PlayPlaylist plays a demo station from its first track.
 func (p *Player) PlayPlaylist(ctx context.Context, id string) error {
+	return p.PlayPlaylistFrom(ctx, id, 0)
+}
+
+// PlayPlaylistFrom plays a demo station from the track at index start.
+func (p *Player) PlayPlaylistFrom(ctx context.Context, playlistID string, start int) error {
 	return p.do(ctx, true, func() error {
-		for _, s := range stations {
-			if s.ID == id {
-				p.playLocked(s.songs(), 0)
-				return nil
-			}
+		s, ok := stationByID(playlistID)
+		if !ok {
+			return fmt.Errorf("demo: unknown playlist %q", playlistID)
 		}
-		return fmt.Errorf("demo: unknown playlist %q", id)
+		songs := s.songs()
+		if start < 0 || start >= len(songs) {
+			return fmt.Errorf("demo: start %d out of range", start)
+		}
+		p.playLocked(songs, start)
+		return nil
 	})
 }
 
@@ -360,6 +390,24 @@ func (p *Player) Seek(ctx context.Context, position time.Duration) error {
 			return errors.New("demo: nothing queued")
 		}
 		p.pos = max(0, min(position, p.queue[p.index].Duration))
+		return nil
+	})
+}
+
+// Volume reports the simulated output volume; it starts at DefaultVolume.
+func (p *Player) Volume(ctx context.Context) (float64, error) {
+	var v float64
+	err := p.do(ctx, false, func() error {
+		v = p.volume
+		return nil
+	})
+	return v, err
+}
+
+// SetVolume sets the simulated output volume, clamped to 0...1.
+func (p *Player) SetVolume(ctx context.Context, level float64) error {
+	return p.do(ctx, false, func() error {
+		p.volume = playback.ClampVolume(level)
 		return nil
 	})
 }

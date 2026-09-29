@@ -169,3 +169,77 @@ func TestFakeAlbumPlaylistAndSongAlbumReturnCannedDetails(t *testing.T) {
 		t.Errorf("CatalogPlaylist on error = %+v, %v; want zero, boom", got, err)
 	}
 }
+
+func TestFakeVolumeIsSettableAndRecorded(t *testing.T) {
+	f := New()
+	f.VolumeResult = 0.4
+	ctx := t.Context()
+
+	if v, err := f.Volume(ctx); err != nil || v != 0.4 {
+		t.Fatalf("Volume = %v, %v; want the canned 0.4", v, err)
+	}
+	// SetVolume records the level as asked and stores it clamped, so a
+	// later Volume reads it back as a real player would.
+	for _, tt := range []struct{ set, want float64 }{{0.7, 0.7}, {1.5, 1}, {-2, 0}} {
+		if err := f.SetVolume(ctx, tt.set); err != nil {
+			t.Fatalf("SetVolume(%v): %v", tt.set, err)
+		}
+		if v, _ := f.Volume(ctx); v != tt.want {
+			t.Fatalf("Volume after SetVolume(%v) = %v; want %v", tt.set, v, tt.want)
+		}
+	}
+	want := []Call{
+		{Method: "Volume"},
+		{Method: "SetVolume", Args: []any{0.7}}, {Method: "Volume"},
+		{Method: "SetVolume", Args: []any{1.5}}, {Method: "Volume"},
+		{Method: "SetVolume", Args: []any{-2.0}}, {Method: "Volume"},
+	}
+	if !reflect.DeepEqual(f.Calls(), want) {
+		t.Fatalf("Calls = %#v; want %#v", f.Calls(), want)
+	}
+
+	boom := errors.New("boom")
+	f.MethodErr = map[string]error{"Volume": boom, "SetVolume": boom}
+	if v, err := f.Volume(ctx); !errors.Is(err, boom) || v != 0 {
+		t.Errorf("Volume on error = %v, %v; want 0, boom", v, err)
+	}
+	if err := f.SetVolume(ctx, 0.2); !errors.Is(err, boom) {
+		t.Errorf("SetVolume on error = %v; want boom", err)
+	}
+	f.MethodErr = nil
+	if v, _ := f.Volume(ctx); v != 0 {
+		t.Errorf("a failed SetVolume changed the volume to %v", v)
+	}
+}
+
+func TestFakeLibraryPlaylistAndPlayPlaylistFrom(t *testing.T) {
+	f := New()
+	f.LibraryPlaylistResult = playback.PlaylistDetail{
+		Playlist: playback.CatalogPlaylist{ID: "p1", Name: "Night City"},
+		Tracks:   []playback.Song{{ID: "i.s1"}},
+	}
+	ctx := t.Context()
+
+	if got, err := f.LibraryPlaylist(ctx, "p1"); err != nil || !reflect.DeepEqual(got, f.LibraryPlaylistResult) {
+		t.Fatalf("LibraryPlaylist = %+v, %v; want the canned playlist", got, err)
+	}
+	if err := f.PlayPlaylistFrom(ctx, "p1", 3); err != nil {
+		t.Fatalf("PlayPlaylistFrom: %v", err)
+	}
+	want := []Call{
+		{Method: "LibraryPlaylist", Args: []any{"p1"}},
+		{Method: "PlayPlaylistFrom", Args: []any{"p1", 3}},
+	}
+	if !reflect.DeepEqual(f.Calls(), want) {
+		t.Fatalf("Calls = %#v; want %#v", f.Calls(), want)
+	}
+
+	boom := errors.New("boom")
+	f.MethodErr = map[string]error{"LibraryPlaylist": boom, "PlayPlaylistFrom": boom}
+	if got, err := f.LibraryPlaylist(ctx, "p1"); !errors.Is(err, boom) || !reflect.DeepEqual(got, playback.PlaylistDetail{}) {
+		t.Errorf("LibraryPlaylist on error = %+v, %v; want zero, boom", got, err)
+	}
+	if err := f.PlayPlaylistFrom(ctx, "p1", 0); !errors.Is(err, boom) {
+		t.Errorf("PlayPlaylistFrom on error = %v; want boom", err)
+	}
+}

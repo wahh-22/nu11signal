@@ -66,6 +66,23 @@ var expectedArgs = map[string]map[string]any{
 	"previous":        {},
 	"stop":            {},
 	"seek":            {"seconds": 90.5},
+	"volume":          {},
+	"setVolume":       {"level": 0.25},
+	"libraryPlaylist": {"playlistId": "p1"},
+}
+
+// playPlaylistFromArgs is what the standard scenario requires for a
+// playPlaylist that starts at a track; without "startIndex" the request
+// must match expectedArgs["playPlaylist"] instead.
+var playPlaylistFromArgs = map[string]any{"playlistId": "p1", "startIndex": float64(2)}
+
+// wantArgs returns the arguments the standard scenario requires for req.
+func wantArgs(cmd string, req map[string]any) (map[string]any, bool) {
+	if _, from := req["startIndex"]; cmd == "playPlaylist" && from {
+		return playPlaylistFromArgs, true
+	}
+	want, known := expectedArgs[cmd]
+	return want, known
 }
 
 var stdout = bufio.NewWriter(os.Stdout)
@@ -116,6 +133,7 @@ func runFakeHelper(scenario string) int {
 
 	in := bufio.NewScanner(os.Stdin)
 	var held []map[string]any
+	level := 0.3 // the "volume" scenario's current level
 	for in.Scan() {
 		var req map[string]any
 		if err := json.Unmarshal(in.Bytes(), &req); err != nil {
@@ -165,6 +183,29 @@ func runFakeHelper(scenario string) int {
 			case "catalogPlaylist":
 				answerSparseDetail(id, req["playlistId"], "playlist not found")
 				continue
+			case "libraryPlaylist":
+				answerSparseDetail(id, req["playlistId"], "playlist not found in the library")
+				continue
+			}
+		case "volume":
+			// Keeps the level it is sent and reports it back; refuses
+			// exactly 0.5.
+			switch cmd {
+			case "volume":
+				ok(id, map[string]any{"level": level})
+				continue
+			case "setVolume":
+				v, isNumber := req["level"].(float64)
+				switch {
+				case !isNumber:
+					fail(id, `setVolume requires a number "level"`)
+				case v == 0.5:
+					fail(id, "output device has no settable volume")
+				default:
+					level = v
+					ok(id, map[string]any{})
+				}
+				continue
 			}
 		case "sparseCatalog":
 			// Answers searchCatalog by term: empty result, fields
@@ -175,7 +216,7 @@ func runFakeHelper(scenario string) int {
 			}
 		}
 
-		if want, known := expectedArgs[cmd]; !known {
+		if want, known := wantArgs(cmd, req); !known {
 			fail(id, "unknown command: "+cmd)
 		} else if !reflect.DeepEqual(req, want) {
 			fail(id, fmt.Sprintf("unexpected args for %s: %v", cmd, req))
@@ -253,6 +294,17 @@ func answer(id, cmd string) {
 		ok(id, map[string]any{"playlists": []any{
 			map[string]any{"id": "p1", "name": "Night City"},
 		}})
+	case "libraryPlaylist":
+		ok(id, map[string]any{
+			"playlist": map[string]any{"id": "p1", "name": "Night City"},
+			"tracks": []any{
+				map[string]any{"id": "i.s1", "title": "Nightcall", "artist": "Kavinsky", "album": "OutRun", "duration": 258},
+				map[string]any{"id": "i.s2", "title": "Resonance", "artist": "Home", "album": "Odyssey", "duration": 212.25},
+			},
+			"notes": "After hours.",
+		})
+	case "volume":
+		ok(id, map[string]any{"level": 0.42})
 	case "resume":
 		emit(map[string]any{"event": "state", "state": map[string]any{
 			"status": "playing", "title": "One More Time", "artist": "Daft Punk",
