@@ -98,10 +98,12 @@ func (m Model) transportButtons(labels []string) []button {
 	bs := make([]button, len(labels))
 	for i, l := range labels {
 		c := playerControl(i)
-		bs[i] = button{id: controlZone(c), label: l, tone: stCyan, focused: m.focused(c)}
-	}
-	if !m.focused(ctlExpand) {
-		bs[ctlExpand].tone = stYellow
+		tone := stCyan
+		if c == ctlExpand {
+			// EXPAND stands apart from the transport controls.
+			tone = stYellow
+		}
+		bs[i] = button{id: controlZone(c), label: l, tone: tone, focused: m.focused(c)}
 	}
 	return bs
 }

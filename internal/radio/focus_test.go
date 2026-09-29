@@ -3,6 +3,7 @@ package radio
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -78,7 +79,7 @@ func TestExpandKeysToggleTheFullWidthPlayer(t *testing.T) {
 		t.Run(k, func(t *testing.T) {
 			m := playingModel(t, playbacktest.New())
 			m, _ = press(t, m, k)
-			if !m.expanded || m.focus != focusPlayer {
+			if !m.expanded || m.focus != areaPlayer {
 				t.Fatalf("expanded %v focus %v; want expanded with the player focused", m.expanded, m.focus)
 			}
 			view := plain(m)
@@ -93,7 +94,7 @@ func TestExpandKeysToggleTheFullWidthPlayer(t *testing.T) {
 				t.Fatalf("the expand button does not offer RESTORE:\n%s", view)
 			}
 			m, _ = press(t, m, k)
-			if m.expanded || m.focus != focusList || !strings.Contains(plain(m), "NIGHT DRIVE") {
+			if m.expanded || m.focus != areaList || !strings.Contains(plain(m), "NIGHT DRIVE") {
 				t.Fatalf("expanded %v focus %v; want the list back and focused:\n%s", m.expanded, m.focus, plain(m))
 			}
 		})
@@ -106,11 +107,11 @@ func TestExpandButtonTogglesThePlayer(t *testing.T) {
 		t.Fatalf("expand zone covers %q", got)
 	}
 	m, _ = click(t, m, zoneExpand)
-	if !m.expanded || m.focus != focusPlayer || m.control != ctlExpand {
+	if !m.expanded || m.focus != areaPlayer || m.control != ctlExpand {
 		t.Fatalf("expanded %v focus %v control %v; want expanded, EXPAND focused", m.expanded, m.focus, m.control)
 	}
 	m, _ = click(t, m, zoneExpand)
-	if m.expanded || m.focus != focusList {
+	if m.expanded || m.focus != areaList {
 		t.Fatalf("expanded %v focus %v; want restored with the list focused", m.expanded, m.focus)
 	}
 }
@@ -127,7 +128,7 @@ func TestExpandInSearchNeverTypes(t *testing.T) {
 	}
 	// Typing goes back to the list: the player restores and the key types.
 	m, _ = press(t, m, "x")
-	if m.expanded || m.focus != focusList || m.input.Value() != "fx" {
+	if m.expanded || m.focus != areaList || m.input.Value() != "fx" {
 		t.Fatalf("typing: expanded %v focus %v input %q; want restored, typed", m.expanded, m.focus, m.input.Value())
 	}
 }
@@ -164,18 +165,18 @@ func TestArrowsWalkFromTheListThroughTheButtons(t *testing.T) {
 		focus focusArea
 		ctl   playerControl
 	}{
-		{"right", focusPlayer, ctlPlay},
-		{"right", focusPlayer, ctlNext},
-		{"right", focusPlayer, ctlExpand},
-		{"right", focusPlayer, ctlExpand}, // the last button stays
-		{"left", focusPlayer, ctlNext},
-		{"left", focusPlayer, ctlPlay},
-		{"left", focusPlayer, ctlPrev},
-		{"left", focusList, ctlPrev},
+		{"right", areaPlayer, ctlPlay},
+		{"right", areaPlayer, ctlNext},
+		{"right", areaPlayer, ctlExpand},
+		{"right", areaPlayer, ctlExpand}, // the last button stays
+		{"left", areaPlayer, ctlNext},
+		{"left", areaPlayer, ctlPlay},
+		{"left", areaPlayer, ctlPrev},
+		{"left", areaList, ctlPrev},
 	}
 	for i, s := range steps {
 		m, _ = press(t, m, s.key)
-		if m.focus != s.focus || (s.focus == focusPlayer && m.control != s.ctl) {
+		if m.focus != s.focus || (s.focus == areaPlayer && m.control != s.ctl) {
 			t.Fatalf("step %d (%s): focus %v control %v; want %v %v", i, s.key, m.focus, m.control, s.focus, s.ctl)
 		}
 	}
@@ -218,7 +219,7 @@ func TestProgressBarSeeksWithTheArrows(t *testing.T) {
 	m = settle(t, m, cmd)
 	assertCall(t, f, "Seek", 60*time.Second)
 	m, _ = press(t, m, "down")
-	if m.onBar || m.focus != focusPlayer || m.control != ctlNext {
+	if m.onBar || m.focus != areaPlayer || m.control != ctlNext {
 		t.Fatalf("down: onBar %v focus %v control %v; want back on NEXT", m.onBar, m.focus, m.control)
 	}
 }
@@ -266,7 +267,7 @@ func TestEnterActivatesTheFocusedButton(t *testing.T) {
 			t.Fatalf("expanded %v control %v; want expanded, still on the button", m.expanded, m.control)
 		}
 		m, _ = press(t, m, "enter")
-		if m.expanded || m.focus != focusList {
+		if m.expanded || m.focus != areaList {
 			t.Fatalf("expanded %v focus %v; want restored, list focused", m.expanded, m.focus)
 		}
 	})
@@ -275,16 +276,16 @@ func TestEnterActivatesTheFocusedButton(t *testing.T) {
 func TestEscReturnsFocusToTheList(t *testing.T) {
 	m := playingModel(t, playbacktest.New())
 	m, _ = press(t, m, "right", "esc")
-	if m.focus != focusList {
+	if m.focus != areaList {
 		t.Fatalf("focus %v; want the list", m.focus)
 	}
 	m, _ = press(t, m, "f", "esc")
-	if m.expanded || m.focus != focusList {
+	if m.expanded || m.focus != areaList {
 		t.Fatalf("esc from the expanded player: expanded %v focus %v; want restored", m.expanded, m.focus)
 	}
 	// The expanded player keeps the focus: left from PREV goes nowhere.
 	m, _ = press(t, m, "f", "left", "left", "left", "left")
-	if !m.expanded || m.focus != focusPlayer || m.control != ctlPrev {
+	if !m.expanded || m.focus != areaPlayer || m.control != ctlPrev {
 		t.Fatalf("expanded %v focus %v control %v; want the player kept", m.expanded, m.focus, m.control)
 	}
 }
@@ -295,22 +296,22 @@ func TestSearchInputKeepsTheArrows(t *testing.T) {
 	m := searchFor(t, playingModel(t, f), "daft")
 	m, _ = press(t, m, "left", "left")
 	m = typeText(t, m, "X")
-	if m.focus != focusList || m.input.Value() != "daXft" {
+	if m.focus != areaList || m.input.Value() != "daXft" {
 		t.Fatalf("focus %v input %q; want the arrows to move the caret", m.focus, m.input.Value())
 	}
 	m, _ = press(t, m, "right", "right", "right")
-	if m.focus != focusList {
+	if m.focus != areaList {
 		t.Fatal("right at the end of the input left the input")
 	}
 
 	// With a row selected, right crosses to the player and back.
 	m = searchFor(t, playingModel(t, f), "daft")
 	m, _ = press(t, m, "down", "right")
-	if m.focus != focusPlayer || m.input.Value() != "daft" {
+	if m.focus != areaPlayer || m.input.Value() != "daft" {
 		t.Fatalf("focus %v input %q; want the player, input untouched", m.focus, m.input.Value())
 	}
 	m, _ = press(t, m, "left", "left")
-	if m.focus != focusList || m.cursor() != 0 || m.input.Value() != "daft" {
+	if m.focus != areaList || m.cursor() != 0 || m.input.Value() != "daft" {
 		t.Fatalf("focus %v cursor %d input %q; want back on row 0", m.focus, m.cursor(), m.input.Value())
 	}
 	// Left on a row does not reach the hidden caret.
@@ -343,17 +344,17 @@ func TestClicksMoveTheFocus(t *testing.T) {
 	m := playingModel(t, f)
 	m, cmd := click(t, m, zoneNext)
 	settle(t, m, cmd)
-	if m.focus != focusPlayer || m.control != ctlNext {
+	if m.focus != areaPlayer || m.control != ctlNext {
 		t.Fatalf("focus %v control %v; want NEXT focused", m.focus, m.control)
 	}
 	m, cmd = click(t, m, zoneSeek)
 	settle(t, m, cmd)
-	if m.focus != focusPlayer || !m.onBar {
+	if m.focus != areaPlayer || !m.onBar {
 		t.Fatalf("focus %v onBar %v; want the bar focused", m.focus, m.onBar)
 	}
 	m, cmd = click(t, m, rowZone(1))
 	settle(t, m, cmd)
-	if m.focus != focusList || m.stationCursor() != 1 {
+	if m.focus != areaList || m.stationCursor() != 1 {
 		t.Fatalf("focus %v cursor %d; want the list on row 1", m.focus, m.stationCursor())
 	}
 	assertCall(t, f, "PlayPlaylist", "pl-2")
@@ -369,12 +370,12 @@ func TestPlayerKeysKeepWorkingWithThePlayerFocused(t *testing.T) {
 	m, cmd = press(t, m, ".")
 	settle(t, m, cmd)
 	assertCall(t, f, "Seek", 70*time.Second)
-	if m.focus != focusPlayer {
+	if m.focus != areaPlayer {
 		t.Fatalf("focus %v; player keys moved it", m.focus)
 	}
 	// A list key goes back to the list.
 	m, _ = press(t, m, "j")
-	if m.focus != focusList || m.stationCursor() != 1 {
+	if m.focus != areaList || m.stationCursor() != 1 {
 		t.Fatalf("focus %v cursor %d; want the list, moved", m.focus, m.stationCursor())
 	}
 }
@@ -441,5 +442,179 @@ func TestRecentAddThenRemoveEndsRemoved(t *testing.T) {
 	}
 	if got, _ := store.Load(); !reflect.DeepEqual(got, []string{"queen"}) {
 		t.Fatalf("stored %q after the late add command; want [queen]", got)
+	}
+}
+
+func TestReturningFromThePlayerRestoresTheSearchAsItWas(t *testing.T) {
+	f := playbacktest.New()
+	f.SearchCatalogResult = catalog()
+	tests := []struct {
+		name string
+		keys []string // from the input to the list state left for the player
+		back []string // from the player back to the list
+	}{
+		{"row by arrows", []string{"down", "right"}, []string{"left", "left"}},
+		{"row by esc", []string{"down", "right"}, []string{"esc"}},
+		{"row by expand", []string{"down", "ctrl+f"}, []string{"ctrl+f"}},
+		{"input by expand", []string{"ctrl+f"}, []string{"ctrl+f"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := searchFor(t, playingModel(t, f), "daft")
+			m, _ = press(t, m, tt.keys[:len(tt.keys)-1]...)
+			cursor, focused := m.cursor(), m.input.Focused()
+			m, _ = press(t, m, tt.keys[len(tt.keys)-1])
+			if m.focus != areaPlayer || m.input.Focused() {
+				t.Fatalf("focus %v input focused %v; want the player alone", m.focus, m.input.Focused())
+			}
+			m, _ = press(t, m, tt.back...)
+			if m.focus != areaList || m.cursor() != cursor || m.input.Focused() != focused || m.input.Value() != "daft" {
+				t.Fatalf("back: focus %v cursor %d focused %v input %q; want the list, cursor %d, focused %v",
+					m.focus, m.cursor(), m.input.Focused(), m.input.Value(), cursor, focused)
+			}
+		})
+	}
+}
+
+func TestExpandKeepsTheFocusedControl(t *testing.T) {
+	// Expanding focuses the player on the control it already had (PLAY
+	// from the list); the EXPAND button is that control when clicked or
+	// pressed. Restoring always gives the focus back to the list.
+	tests := []struct {
+		name   string
+		expand func(t *testing.T, m Model) Model
+		want   playerControl
+	}{
+		{"key from the list", func(t *testing.T, m Model) Model {
+			m, _ = press(t, m, "f")
+			return m
+		}, ctlPlay},
+		{"key on NEXT", func(t *testing.T, m Model) Model {
+			m, _ = press(t, m, "right", "right", "f")
+			return m
+		}, ctlNext},
+		{"key on the bar", func(t *testing.T, m Model) Model {
+			m, _ = press(t, m, "right", "up", "ctrl+f")
+			return m
+		}, ctlPlay},
+		{"enter on EXPAND", func(t *testing.T, m Model) Model {
+			m, _ = press(t, m, "right", "right", "right", "enter")
+			return m
+		}, ctlExpand},
+		{"button from the list", func(t *testing.T, m Model) Model {
+			m, _ = click(t, m, zoneExpand)
+			return m
+		}, ctlExpand},
+		{"button on NEXT", func(t *testing.T, m Model) Model {
+			m, _ = press(t, m, "right", "right")
+			m, _ = click(t, m, zoneExpand)
+			return m
+		}, ctlExpand},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.expand(t, playingModel(t, playbacktest.New()))
+			if !m.expanded || m.focus != areaPlayer || m.control != tt.want {
+				t.Fatalf("expanded %v focus %v control %v; want expanded on %v", m.expanded, m.focus, m.control, tt.want)
+			}
+			for _, restore := range []string{"key", "button"} {
+				r := m
+				if restore == "key" {
+					r, _ = press(t, r, "f")
+				} else {
+					r, _ = click(t, r, zoneExpand)
+				}
+				if r.expanded || r.focus != areaList || r.onBar {
+					t.Fatalf("restore by %s: expanded %v focus %v onBar %v; want the list", restore, r.expanded, r.focus, r.onBar)
+				}
+			}
+		})
+	}
+}
+
+func TestBarFocusFallsBackWhenTheSongStopsBeingSeekable(t *testing.T) {
+	m := playingModel(t, playbacktest.New())
+	m, _ = press(t, m, "right", "right", "up") // NEXT, then the bar
+	if !m.barFocused() {
+		t.Fatal("up did not reach the progress bar")
+	}
+	live := playing(0, 0) // a stream with no length
+	m, _ = step(t, m, stateMsg{state: live})
+	if m.onBar || !m.focused(ctlNext) {
+		t.Fatalf("onBar %v control %v; want the focus back on NEXT", m.onBar, m.control)
+	}
+	if got := textAt(m, zoneOf(t, m, zoneNext)); !strings.Contains(got, "▸") {
+		t.Fatalf("NEXT shows %q; want the ▸ marker", got)
+	}
+	// A seekable song later does not bring the bar focus back.
+	m, _ = step(t, m, stateMsg{state: playing(time.Minute, 3*time.Minute)})
+	if m.onBar {
+		t.Fatal("the bar took the focus back by itself")
+	}
+}
+
+func TestRightMovesTheFocusToThePlayerFromEveryPage(t *testing.T) {
+	pages := []struct {
+		name string
+		kind viewKind
+		open func(t *testing.T, f *playbacktest.Fake) Model
+	}{
+		{"results", viewResults, func(t *testing.T, f *playbacktest.Fake) Model {
+			return openResults(t, f, &fakeRecents{})
+		}},
+		{"artist", viewArtist, openDaftPunk},
+		{"album", viewAlbum, func(t *testing.T, f *playbacktest.Fake) Model {
+			return openFromArtist(t, f, itemAlbum)
+		}},
+		{"song", viewAlbum, func(t *testing.T, f *playbacktest.Fake) Model { return openSong(t, f, 0) }},
+		{"playlist", viewPlaylist, func(t *testing.T, f *playbacktest.Fake) Model {
+			return openFromArtist(t, f, itemPlaylist)
+		}},
+	}
+	for _, p := range pages {
+		t.Run(p.name, func(t *testing.T) {
+			m := p.open(t, playbacktest.New())
+			if m.top().kind != p.kind {
+				t.Fatalf("opened %v; want %v", m.top().kind, p.kind)
+			}
+			cursor := m.cursor()
+			m, _ = press(t, m, "right")
+			if m.focus != areaPlayer || m.control != ctlPlay || m.top().kind != p.kind || m.cursor() != cursor {
+				t.Fatalf("focus %v control %v top %v cursor %d; want PLAY focused over the page, cursor %d",
+					m.focus, m.control, m.top().kind, m.cursor(), cursor)
+			}
+			m, _ = press(t, m, "left", "left")
+			if m.focus != areaList || m.top().kind != p.kind || m.cursor() != cursor {
+				t.Fatalf("back: focus %v top %v cursor %d; want the page as left", m.focus, m.top().kind, m.cursor())
+			}
+		})
+	}
+}
+
+func TestStationsFooterKeepsTheEssentialHintsAt80Columns(t *testing.T) {
+	m := playingModel(t, playbacktest.New())
+	lines := strings.Split(plain(m), "\n")
+	got := strings.TrimRight(lines[len(lines)-1], " ")
+	want := "[ENTER] TUNE  [/] SCAN  [SPACE] PLAY/PAUSE  [→] PLAYER  [,/.] SEEK  [Q] QUIT"
+	if got != want {
+		t.Fatalf("stations footer\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestPlayerFocusHintsFollowTheExpandedStateAndTheInput(t *testing.T) {
+	tests := []struct {
+		expanded, typing bool
+		expand, quit     hint
+	}{
+		{false, false, hint{"F", "EXPAND"}, hint{"Q", "QUIT"}},
+		{true, false, hint{"F", "RESTORE"}, hint{"Q", "QUIT"}},
+		{false, true, hint{"F", "EXPAND"}, hint{"CTRL+C", "QUIT"}},
+		{true, true, hint{"F", "RESTORE"}, hint{"CTRL+C", "QUIT"}},
+	}
+	for _, tt := range tests {
+		hs := playerFocusHints(tt.expanded, tt.typing)
+		if !slices.Contains(hs, tt.expand) || hs[len(hs)-1] != tt.quit {
+			t.Errorf("expanded %v typing %v: hints %v; want %v and %v last", tt.expanded, tt.typing, hs, tt.expand, tt.quit)
+		}
 	}
 }

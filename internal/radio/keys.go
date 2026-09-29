@@ -39,28 +39,38 @@ type hint struct{ key, label string }
 // playerHints are shown in priority order; the footer drops entries from
 // the end (keeping quit) when the terminal is too narrow.
 var playerHints = []hint{
-	{"SPACE", "PLAY/PAUSE"},
-	{"N/P", "NEXT/PREV"},
-	{",/.", "SEEK"},
-	{"→", "PLAYER"},
-	{"F", "EXPAND"},
-	{"/", "SCAN"},
 	{"ENTER", "TUNE"},
+	{"/", "SCAN"},
+	{"SPACE", "PLAY/PAUSE"},
+	{"→", "PLAYER"},
+	{",/.", "SEEK"},
+	{"N/P", "NEXT/PREV"},
+	{"F", "EXPAND"},
 	{"J/K", "MOVE"},
 	{"Q", "QUIT"},
 }
 
 // playerFocusHints replace the view's hints while the player has the
 // focus: ←→ walk the buttons (or seek on the bar), ↑↓ switch between the
-// buttons and the bar.
-var playerFocusHints = []hint{
-	{"←→", "SELECT"},
-	{"ENTER", "PRESS"},
-	{"↑↓", "BAR"},
-	{"ESC", "LIST"},
-	{"F", "EXPAND"},
-	{"SPACE", "PLAY/PAUSE"},
-	{"Q", "QUIT"},
+// buttons and the bar. F restores the expanded player; while the list
+// behind is the SEARCH input (typing), q types there, so ctrl+c quits.
+func playerFocusHints(expanded, typing bool) []hint {
+	expand, quit := hint{"F", "EXPAND"}, hint{"Q", "QUIT"}
+	if expanded {
+		expand.label = "RESTORE"
+	}
+	if typing {
+		quit.key = "CTRL+C"
+	}
+	return []hint{
+		{"←→", "SELECT"},
+		{"ENTER", "PRESS"},
+		{"↑↓", "BAR"},
+		{"ESC", "LIST"},
+		expand,
+		{"SPACE", "PLAY/PAUSE"},
+		quit,
+	}
 }
 
 // artistHints replace playerHints on an artist page: enter plays a top

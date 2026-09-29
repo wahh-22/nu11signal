@@ -306,7 +306,14 @@ panel frame shows which side has the focus):
 Any other key goes back to the list and acts there (on SEARCH, a letter is
 typed). The expanded player hides the list, so it holds the focus: `←` from
 `PREV` stays put, and going back to the list (`esc`, another key, `f`,
-`ctrl+f`, or `RESTORE`) restores it.
+`ctrl+f`, or `RESTORE`) restores it. Expanding, by key or button, focuses
+the player on the control it already had (`PLAY` from the list, `EXPAND`
+once its button is pressed); restoring always gives the focus back to the
+list, as it was left (on SEARCH, the same row or the input).
+
+The footer names the keys of the side and view in focus; when it does not
+fit, it keeps the essential ones first (on the stations: `enter`, `/`,
+`space`, `→`) and always quit.
 
 The list panel keeps one width in every view (the browse pages' width),
 leaving NOW PLAYING at least 30 columns.

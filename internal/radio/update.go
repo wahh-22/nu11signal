@@ -118,6 +118,9 @@ func (m Model) onState(s playback.State) Model {
 		m.seekPending = false // the pending target belonged to another song
 	}
 	m.state, m.hasState, m.stateAt = cleanState(s), true, m.now()
+	// With nothing left to seek in, the bar focus falls back to the
+	// button below it.
+	m.onBar = m.onBar && m.seekable()
 	return m
 }
 
@@ -139,7 +142,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.quitCmd()
 	}
 	if m.auth != authFailed {
-		if m.focus == focusPlayer {
+		if m.focus == areaPlayer {
 			if next, cmd, ok := m.handlePlayerKey(k); ok {
 				return next, cmd
 			}

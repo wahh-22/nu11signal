@@ -157,10 +157,13 @@ type Model struct {
 	// focus is the side taking the keys; on the player, control is the
 	// selected button, or onBar the progress bar above them. The expanded
 	// player takes the full width and always has the focus (see focus.go).
-	focus    focusArea
-	control  playerControl
-	onBar    bool
-	expanded bool
+	// inputHadFocus keeps, while the player has the focus, whether the
+	// search input had the keys before.
+	focus         focusArea
+	control       playerControl
+	onBar         bool
+	expanded      bool
+	inputHadFocus bool
 
 	frame  uint64
 	bars   eq

@@ -87,7 +87,7 @@ func (m Model) renderFull() ([]string, zones) {
 
 	left, leftZones := m.listPanel(leftW, bodyH)
 	playing, playingZones := m.nowPlaying(rightW-2, bodyH-2)
-	right := panel("NOW PLAYING", "NC-NET 0x2077", playing, rightW, bodyH, m.focus == focusPlayer)
+	right := panel("NOW PLAYING", "NC-NET 0x2077", playing, rightW, bodyH, m.focus == areaPlayer)
 
 	zs.addAt(0, top, leftZones)
 	// Inside the NOW PLAYING frame, right of the list panel and the gap.
@@ -366,7 +366,7 @@ func (m Model) feedLine() string {
 // in the panel's coordinates.
 func (m Model) listPanel(w, h int) ([]string, zones) {
 	title, code, body, zs := m.listView(w-2, h-2)
-	return panel(title, code, body, w, h, m.focus == focusList), zs.clip(w-2, h-2).shifted(1, 1)
+	return panel(title, code, body, w, h, m.focus == areaList), zs.clip(w-2, h-2).shifted(1, 1)
 }
 
 // listView is the one dispatch on the view on top of the navigation stack:
@@ -456,17 +456,8 @@ func keyCap(k string) string { return stYellow.Render("[" + k + "]") }
 func (m Model) hintLine(w int) string {
 	hints := playerHints
 	switch kind := m.top().kind; {
-	case m.focus == focusPlayer:
-		hints = slices.Clone(playerFocusHints)
-		for i, h := range hints {
-			if h.label == "EXPAND" && m.expanded {
-				hints[i].label = "RESTORE"
-			}
-		}
-		if kind == viewSearch {
-			// q types in the input the list goes back to.
-			hints[len(hints)-1] = hint{"CTRL+C", "QUIT"}
-		}
+	case m.focus == areaPlayer:
+		hints = playerFocusHints(m.expanded, kind == viewSearch)
 	case kind == viewSearch:
 		hints = searchHints
 		if m.recentSelected() {

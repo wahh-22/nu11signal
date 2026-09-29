@@ -14,8 +14,8 @@ import (
 type focusArea int
 
 const (
-	focusList focusArea = iota
-	focusPlayer
+	areaList focusArea = iota
+	areaPlayer
 )
 
 // playerControl is a button of the player, in the order ← and → walk them.
@@ -28,31 +28,39 @@ const (
 	ctlExpand
 )
 
-// focusPlayer moves the focus to control on the player. The search input
-// stops showing its caret meanwhile.
+// focusPlayer moves the focus to control on the player. Coming from the
+// list, the search input stops taking keys (and showing its caret)
+// meanwhile; focusList gives them back as they were.
 func (m *Model) focusPlayer(control playerControl) {
-	m.focus, m.control, m.onBar = focusPlayer, control, false
-	m.input.Blur()
+	if m.focus == areaList {
+		m.inputHadFocus = m.input.Focused()
+		m.input.Blur()
+	}
+	m.focus, m.control, m.onBar = areaPlayer, control, false
 }
 
-// focusList gives the focus back to the list, restoring the expanded
-// player; on SEARCH the input takes the keys again.
+// focusList gives the focus back to the list as the player found it,
+// restoring the expanded player: the search input takes the keys again
+// only if it had them.
 func (m *Model) focusList() tea.Cmd {
-	wasPlayer := m.focus == focusPlayer
-	m.focus, m.onBar, m.expanded = focusList, false, false
-	if wasPlayer && m.top().kind == viewSearch {
+	wasPlayer := m.focus == areaPlayer
+	m.focus, m.onBar, m.expanded = areaList, false, false
+	if wasPlayer && m.inputHadFocus {
+		m.inputHadFocus = false
 		return m.input.Focus()
 	}
 	return nil
 }
 
-// toggleExpand expands the player to the full width, focusing it, or
-// restores it, focusing the list.
+// toggleExpand is the one expand toggle, for the keys and the EXPAND
+// button alike. Expanding focuses the player on the control it already
+// has (PLAY when the list had the focus; EXPAND once its button is
+// pressed); restoring gives the focus back to the list.
 func (m Model) toggleExpand() (Model, tea.Cmd) {
 	if m.expanded {
 		return m, m.focusList()
 	}
-	if m.focus != focusPlayer {
+	if m.focus != areaPlayer {
 		m.focusPlayer(ctlPlay)
 	}
 	m.expanded = true
@@ -116,16 +124,10 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 // pressControl acts as a click on a player button, leaving the focus on
 // it (or on the list, when restoring the player).
 func (m Model) pressControl(c playerControl) (Model, tea.Cmd) {
-	if c == ctlExpand {
-		m.focusPlayer(ctlExpand)
-		m.expanded = !m.expanded
-		if !m.expanded {
-			return m, m.focusList()
-		}
-		return m, nil
-	}
 	m.focusPlayer(c)
 	switch c {
+	case ctlExpand:
+		return m.toggleExpand()
 	case ctlPrev:
 		return m, m.action("PREV", m.player.Previous)
 	case ctlNext:
@@ -151,8 +153,8 @@ func controlOf(id string) (playerControl, bool) {
 
 // focused reports whether the player has the focus on button c.
 func (m Model) focused(c playerControl) bool {
-	return m.focus == focusPlayer && !m.onBar && m.control == c
+	return m.focus == areaPlayer && !m.onBar && m.control == c
 }
 
 // barFocused reports whether the player has the focus on the progress bar.
-func (m Model) barFocused() bool { return m.focus == focusPlayer && m.onBar }
+func (m Model) barFocused() bool { return m.focus == areaPlayer && m.onBar }
