@@ -44,6 +44,12 @@ func keyMsg(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyLeft}
 	case "right":
 		return tea.KeyPressMsg{Code: tea.KeyRight}
+	case "shift+left":
+		return tea.KeyPressMsg{Code: tea.KeyLeft, Mod: tea.ModShift}
+	case "shift+right":
+		return tea.KeyPressMsg{Code: tea.KeyRight, Mod: tea.ModShift}
+	case "ctrl+f":
+		return tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl}
 	case "up":
 		return tea.KeyPressMsg{Code: tea.KeyUp}
 	case "down":
@@ -261,10 +267,12 @@ func TestSeekClampsToTrack(t *testing.T) {
 		key      string
 		want     time.Duration
 	}{
-		{"forward", time.Minute, 3 * time.Minute, "right", 70 * time.Second},
-		{"back", time.Minute, 3 * time.Minute, "left", 50 * time.Second},
-		{"back clamps at zero", 5 * time.Second, 3 * time.Minute, "left", 0},
-		{"forward clamps at duration", 175 * time.Second, 3 * time.Minute, "right", 3 * time.Minute},
+		{"forward", time.Minute, 3 * time.Minute, "shift+right", 70 * time.Second},
+		{"back", time.Minute, 3 * time.Minute, "shift+left", 50 * time.Second},
+		{"forward with .", time.Minute, 3 * time.Minute, ".", 70 * time.Second},
+		{"back with ,", time.Minute, 3 * time.Minute, ",", 50 * time.Second},
+		{"back clamps at zero", 5 * time.Second, 3 * time.Minute, "shift+left", 0},
+		{"forward clamps at duration", 175 * time.Second, 3 * time.Minute, "shift+right", 3 * time.Minute},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -282,7 +290,7 @@ func TestSeekWithoutTrackDoesNothing(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
 	before := len(f.Calls())
-	if _, cmd := press(t, m, "right"); cmd != nil {
+	if _, cmd := press(t, m, "shift+right"); cmd != nil {
 		run(t, cmd)
 	}
 	if len(f.Calls()) != before {
@@ -296,7 +304,7 @@ func TestSeekUsesElapsedPlaybackTime(t *testing.T) {
 	m := loaded(t, f, c)
 	m, _ = step(t, m, stateMsg{state: playing(time.Minute, 3*time.Minute)})
 	c.advance(5 * time.Second)
-	_, cmd := press(t, m, "right")
+	_, cmd := press(t, m, "shift+right")
 	run(t, cmd)
 	assertCall(t, f, "Seek", 75*time.Second)
 }
@@ -558,7 +566,7 @@ func TestRapidSeeksAccumulate(t *testing.T) {
 	var cmds []tea.Cmd
 	for range 3 {
 		var cmd tea.Cmd
-		m, cmd = press(t, m, "right")
+		m, cmd = press(t, m, ".")
 		cmds = append(cmds, cmd)
 	}
 	var results []tea.Msg
@@ -585,7 +593,7 @@ func TestRapidSeeksAccumulate(t *testing.T) {
 	}
 	// With no seek pending, the next one starts from the playback position.
 	c.advance(5 * time.Second)
-	_, cmd := press(t, m, "left")
+	_, cmd := press(t, m, ",")
 	run(t, cmd)
 	assertCall(t, f, "Seek", 85*time.Second)
 }
@@ -595,10 +603,10 @@ func TestFailedSeekDropsPendingTarget(t *testing.T) {
 	f.MethodErr = map[string]error{"Seek": errors.New("not seekable")}
 	m := loaded(t, f, newClock())
 	m, _ = step(t, m, stateMsg{state: playing(time.Minute, 3*time.Minute)})
-	m, cmd := press(t, m, "right")
+	m, cmd := press(t, m, "shift+right")
 	m, _ = step(t, m, run(t, cmd))
 	f.MethodErr = nil
-	_, cmd = press(t, m, "right")
+	_, cmd = press(t, m, "shift+right")
 	run(t, cmd)
 	assertCall(t, f, "Seek", 70*time.Second)
 }

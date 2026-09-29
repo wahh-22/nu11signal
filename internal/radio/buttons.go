@@ -1,6 +1,7 @@
 package radio
 
 import (
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -16,11 +17,17 @@ type button struct {
 	// tone colors the plate; an active button is filled in yellow instead.
 	tone   lipgloss.Style
 	active bool
+	// focused marks the button the keyboard is on: filled in yellow, with
+	// a ▸ before its label.
+	focused bool
 }
 
 func (b button) width() int { return ansi.StringWidth(b.label) + 4 }
 
 func (b button) render() string {
+	if b.focused {
+		return stYellow.Render("╱") + stButtonOn.Render("▸"+b.label+" ") + stYellow.Render("╱")
+	}
 	if b.active {
 		return stYellow.Render("╱") + stButtonOn.Render(" "+b.label+" ") + stYellow.Render("╱")
 	}
@@ -63,25 +70,38 @@ func (m Model) navButtons() []button {
 	return bs
 }
 
-// transportBar lays out PREV, PLAY or PAUSE, and NEXT in at most w cells:
-// labelled while they fit, else glyphs only, else as many as fit.
+// transportBar lays out PREV, PLAY or PAUSE, NEXT and EXPAND or RESTORE in
+// at most w cells: labelled while they fit, else EXPAND as a glyph, else
+// glyphs only, else as many as fit. The button the keyboard is on is marked.
 func (m Model) transportBar(w int) (string, zones) {
-	full := []string{"◀◀ PREV", "▶ PLAY", "NEXT ▶▶"}
-	short := []string{"◀◀", "▶", "▶▶"}
+	full := []string{"◀◀ PREV", "▶ PLAY", "NEXT ▶▶", "⤢ EXPAND"}
+	short := []string{"◀◀", "▶", "▶▶", "⤢"}
 	if m.isPlaying() {
-		full[1], short[1] = "❚❚ PAUSE", "❚❚"
+		full[ctlPlay], short[ctlPlay] = "❚❚ PAUSE", "❚❚"
 	}
-	if bar, zs := buttonBar(transportButtons(full), w); len(zs) == len(full) {
-		return bar, zs
+	if m.expanded {
+		full[ctlExpand], short[ctlExpand] = "⤡ RESTORE", "⤡"
 	}
-	return buttonBar(transportButtons(short), w)
+	// EXPAND gives up its label first.
+	mixed := append(slices.Clone(full[:ctlExpand]), short[ctlExpand])
+	for _, labels := range [][]string{full, mixed} {
+		if bar, zs := buttonBar(m.transportButtons(labels), w); len(zs) == len(labels) {
+			return bar, zs
+		}
+	}
+	return buttonBar(m.transportButtons(short), w)
 }
 
-func transportButtons(labels []string) []button {
-	ids := []string{zonePrev, zonePlay, zoneNext}
+// transportButtons are the player buttons with labels, in playerControl
+// order.
+func (m Model) transportButtons(labels []string) []button {
 	bs := make([]button, len(labels))
 	for i, l := range labels {
-		bs[i] = button{id: ids[i], label: l, tone: stCyan}
+		c := playerControl(i)
+		bs[i] = button{id: controlZone(c), label: l, tone: stCyan, focused: m.focused(c)}
+	}
+	if !m.focused(ctlExpand) {
+		bs[ctlExpand].tone = stYellow
 	}
 	return bs
 }

@@ -19,11 +19,13 @@ import (
 // fakeRecents is an in-memory history.Recents that records Add, Remove
 // and Clear calls and can be made to fail.
 type fakeRecents struct {
-	mu        sync.Mutex
-	terms     []string
-	added     []string
-	removed   []string
-	clears    int
+	mu      sync.Mutex
+	terms   []string
+	added   []string
+	removed []string
+	clears  int
+	// ops logs every write in the order the store received it.
+	ops       []string
 	loadErr   error
 	addErr    error
 	removeErr error
@@ -40,6 +42,7 @@ func (r *fakeRecents) Add(term string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.added = append(r.added, term)
+	r.ops = append(r.ops, "add:"+term)
 	return r.addErr
 }
 
@@ -47,6 +50,7 @@ func (r *fakeRecents) Remove(term string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.removed = append(r.removed, term)
+	r.ops = append(r.ops, "remove:"+term)
 	return r.removeErr
 }
 
@@ -54,6 +58,7 @@ func (r *fakeRecents) Clear() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.clears++
+	r.ops = append(r.ops, "clear")
 	return r.clearErr
 }
 
@@ -67,6 +72,12 @@ func (r *fakeRecents) Clears() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.clears
+}
+
+func (r *fakeRecents) Ops() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.ops...)
 }
 
 func (r *fakeRecents) Added() []string {
@@ -686,9 +697,17 @@ func TestRecentEditFailuresOnlyShowStatus(t *testing.T) {
 	}
 }
 
-func TestRecentHintsMentionTheDeleteKey(t *testing.T) {
+func TestRecentHintsMentionTheDeleteKeyOnARecentRow(t *testing.T) {
 	m := withThreeRecents(t, &fakeRecents{})
-	if !strings.Contains(plain(m), "[DEL]") {
-		t.Fatalf("footer lacks the delete key:\n%s", plain(m))
+	if strings.Contains(plain(m), "DROP") {
+		t.Fatalf("footer offers DROP with the input selected:\n%s", plain(m))
+	}
+	m, _ = press(t, m, "down")
+	if !strings.Contains(plain(m), "DEL] DROP") {
+		t.Fatalf("footer lacks the delete key on a recent row:\n%s", plain(m))
+	}
+	m, _ = press(t, m, "down", "down", "down") // CLEAR RECENT
+	if strings.Contains(plain(m), "DROP") {
+		t.Fatalf("footer offers DROP on CLEAR RECENT:\n%s", plain(m))
 	}
 }

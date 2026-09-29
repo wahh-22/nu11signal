@@ -10,14 +10,24 @@ const (
 	keySpace   = "space"
 	keyNext    = "n"
 	keyPrev    = "p"
-	keyBack    = "left"
-	keyForward = "right"
-	keySearch  = "/"
-	keyTab     = "tab"
-	keyEsc     = "esc"
-	keyQuit    = "q"
-	keyRetry   = "r"
-	keyCtrlC   = "ctrl+c"
+	keyLeft    = "left"
+	keyRight   = "right"
+	// keySeekBack and keySeekForward seek anywhere; keySeekBackAlt and
+	// keySeekForwardAlt wherever typing does not take them.
+	keySeekBack       = "shift+left"
+	keySeekForward    = "shift+right"
+	keySeekBackAlt    = ","
+	keySeekForwardAlt = "."
+	// keyExpand toggles the full-width player anywhere, the SEARCH input
+	// included; keyExpandAlt wherever typing does not take it.
+	keyExpand    = "ctrl+f"
+	keyExpandAlt = "f"
+	keySearch    = "/"
+	keyTab       = "tab"
+	keyEsc       = "esc"
+	keyQuit      = "q"
+	keyRetry     = "r"
+	keyCtrlC     = "ctrl+c"
 	// keyDelete and keyDeleteAlt delete the selected recent search.
 	keyDelete    = "delete"
 	keyDeleteAlt = "ctrl+d"
@@ -31,10 +41,25 @@ type hint struct{ key, label string }
 var playerHints = []hint{
 	{"SPACE", "PLAY/PAUSE"},
 	{"N/P", "NEXT/PREV"},
-	{"←→", "SEEK"},
+	{",/.", "SEEK"},
+	{"→", "PLAYER"},
+	{"F", "EXPAND"},
 	{"/", "SCAN"},
 	{"ENTER", "TUNE"},
 	{"J/K", "MOVE"},
+	{"Q", "QUIT"},
+}
+
+// playerFocusHints replace the view's hints while the player has the
+// focus: ←→ walk the buttons (or seek on the bar), ↑↓ switch between the
+// buttons and the bar.
+var playerFocusHints = []hint{
+	{"←→", "SELECT"},
+	{"ENTER", "PRESS"},
+	{"↑↓", "BAR"},
+	{"ESC", "LIST"},
+	{"F", "EXPAND"},
+	{"SPACE", "PLAY/PAUSE"},
 	{"Q", "QUIT"},
 }
 
@@ -84,13 +109,17 @@ var searchHints = []hint{
 	{"CTRL+C", "QUIT"},
 }
 
-// recentHints replace searchHints while the search view lists recent
-// terms: the delete key is the last to go when the footer is too narrow.
+// recentHints replace searchHints while a recent term is selected: the
+// delete key comes right after enter, so it is among the last to go when
+// the footer is too narrow. recentDeleteKeys names both delete keys when
+// the whole footer fits, else only DEL.
 var recentHints = []hint{
 	{"ENTER", "SELECT"},
+	{recentDeleteKeys, "DROP"},
 	{"↑↓", "MOVE"},
 	{"TAB", "STATIONS"},
 	{"ESC", "BACK"},
-	{"DEL", "DROP"},
 	{"CTRL+C", "QUIT"},
 }
+
+const recentDeleteKeys = "DEL/CTRL+D"

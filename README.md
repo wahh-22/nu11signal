@@ -256,7 +256,9 @@ Stations (and anywhere the key is not taken by the view):
 | `enter` | Tune the station |
 | `space` | Play / pause |
 | `n` / `p` | Next / previous track |
-| `←` / `→` | Seek -10 s / +10 s |
+| `shift+←` / `shift+→` or `,` / `.` | Seek -10 s / +10 s |
+| `→` | Move the focus to the player (see below) |
+| `f` / `ctrl+f` | Expand the player to the full width, or restore it |
 | `/` | Back to the search left with `tab` (same view and cursor); otherwise open SEARCH with an empty input |
 | `tab` | Same as `/` |
 | `esc` | Back one view |
@@ -268,6 +270,9 @@ SEARCH (typing goes to the input, so letter shortcuts are off):
 | Key | Action |
 |-----|--------|
 | `↑`/`↓` | Move between the input and the rows |
+| `←`/`→` | On the input, move the text cursor; on a row, `→` moves the focus to the player |
+| `shift+←` / `shift+→` | Seek -10 s / +10 s (`,` and `.` are typed) |
+| `ctrl+f` | Expand or restore the player (`f` is typed) |
 | `enter` | On the input, a recent term, or a suggestion, open the RESULTS for that term (the input keeps it); on an artist, open its page; on a song, open its SONG view; on `✕ CLEAR RECENT` (the last RECENT row), delete every recent term |
 | `ctrl+d` / `delete` | On a recent term, delete it (on the input, they edit the text) |
 | `tab` | Back to the stations (the search is kept for the next `/` or `tab`) |
@@ -284,7 +289,27 @@ RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 | `tab` | Back to the stations (the page and the ones below it are kept for the next `/` or `tab`) |
 | `/` | Back to the SEARCH input, with the term kept for editing (the pages above it are closed) |
 | `r` | Retry after the page failed to load |
-| `space`, `n` / `p`, `←` / `→`, `q` | As on the stations |
+| `space`, `n` / `p`, seek keys, `→`, `f` / `ctrl+f`, `q` | As on the stations |
+
+Player (after `→` from the list, or a click on its controls; the lit
+panel frame shows which side has the focus):
+
+| Key | Action |
+|-----|--------|
+| `←` / `→` | Walk `PREV`, `PLAY`/`PAUSE`, `NEXT`, `EXPAND`; `←` from `PREV` goes back to the list |
+| `↑` / `↓` | Move to the progress bar (when the song can seek) and back to the buttons |
+| `←` / `→` on the progress bar | Seek -10 s / +10 s |
+| `enter` | Press the focused button (as a click) |
+| `esc` | Back to the list (restoring an expanded player) |
+| `space`, `n` / `p`, seek keys, `f` / `ctrl+f` | As on the stations |
+
+Any other key goes back to the list and acts there (on SEARCH, a letter is
+typed). The expanded player hides the list, so it holds the focus: `←` from
+`PREV` stays put, and going back to the list (`esc`, another key, `f`,
+`ctrl+f`, or `RESTORE`) restores it.
+
+The list panel keeps one width in every view (the browse pages' width),
+leaving NOW PLAYING at least 30 columns.
 
 ## Mouse
 
@@ -299,12 +324,15 @@ The mouse does what the keys do; the keys keep working.
 | A `[R] RETRY` notice | Retry, as `r` |
 | `STATIONS` / `SEARCH` tabs (header rule) | As `tab` / `/`; the lit tab is the view shown |
 | `◀ BACK` (above the stations) | As `esc` |
-| `◀◀ PREV`, `▶ PLAY` / `❚❚ PAUSE`, `NEXT ▶▶` (NOW PLAYING) | As `p`, `space`, `n` |
-| The progress bar | Seek to that point of the song |
+| `◀◀ PREV`, `▶ PLAY` / `❚❚ PAUSE`, `NEXT ▶▶` (NOW PLAYING) | As `p`, `space`, `n`; the focus moves to the button |
+| `⤢ EXPAND` / `⤡ RESTORE` (NOW PLAYING) | Expand the player to the full width, or restore it |
+| The progress bar | Seek to that point of the song; the focus moves to the bar |
 
-The wheel moves the cursor like `↑`/`↓`. Narrow layouts shorten the
-transport buttons to their glyphs and leave out buttons that do not fit;
-the tiny layout has none.
+Clicks elsewhere move the focus back to the list. The wheel moves the
+cursor like `↑`/`↓` (nothing while the player is expanded). Narrow layouts
+shorten the transport buttons to their glyphs (`EXPAND` first) and leave
+out buttons that do not fit; the tiny layout has none. In the compact
+layout, expanding hides the list under the player.
 
 ## Helper lookup
 

@@ -68,7 +68,8 @@ func fit(s string, w int) string {
 }
 
 // panel draws an angular frame with clipped top-left and bottom-right
-// corners, a label in the top edge and a serial code in the bottom edge:
+// corners, a label in the top edge and a serial code in the bottom edge;
+// an unfocused panel is dimmed, its ▮ hollowed to ▯:
 //
 //	╱─▮ STATIONS ──────┐
 //	│ ...              │
@@ -80,13 +81,13 @@ func panel(label, code string, body []string, w, h int, focused bool) []string {
 	if w < 6 || h < 2 {
 		return nil
 	}
-	frame, lbl := stFrameDim, stMuted
+	frame, lbl, mark := stFrameDim, stMuted, stMuted.Render("▯")
 	if focused {
-		frame, lbl = stFrame, stRedBold
+		frame, lbl, mark = stFrame, stRedBold, stYellow.Render("▮")
 	}
 	iw, ih := w-2, h-2
 
-	head := frame.Render("╱─") + stYellow.Render("▮") + " " + lbl.Render(label) + " "
+	head := frame.Render("╱─") + mark + " " + lbl.Render(label) + " "
 	head = ansi.Truncate(head, w-1, "")
 	head += frame.Render(strings.Repeat("─", max(w-1-ansi.StringWidth(head), 0)) + "┐")
 

@@ -229,6 +229,8 @@ func TestTransportButtonsDriveThePlayer(t *testing.T) {
 			s := playing(83*time.Second, 225*time.Second)
 			s.Status = tt.status
 			m, _ = step(t, m, stateMsg{state: s})
+			// Room for the labels beside the list panel.
+			m, _ = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
 			// Typing never swallows a click: the buttons work over SEARCH.
 			m, _ = press(t, m, "/")
 			if got := textAt(m, zoneOf(t, m, tt.button)); !strings.Contains(got, tt.label) {
@@ -247,7 +249,8 @@ func TestTransportButtonsDriveThePlayer(t *testing.T) {
 func TestClickOnTheProgressBarSeeks(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
-	// At 80 columns the bar is 28 cells, so a 280 s song is 10 s a cell.
+	// At 120 columns the bar is 28 cells, so a 280 s song is 10 s a cell.
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
 	m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 280*time.Second)})
 	z := zoneOf(t, m, zoneSeek)
 	if got := textAt(m, z); strings.Trim(got, "▮▯") != "" || got == "" {
@@ -574,10 +577,12 @@ func TestClickOnClearRecentClearsEveryTerm(t *testing.T) {
 			if r.Clears() != 1 {
 				t.Fatalf("store Clear calls = %d; want 1", r.Clears())
 			}
-			if _, zs := m.layout(); len(zs) > 0 {
-				if _, ok := zs.find(zoneClearRecents); ok {
-					t.Fatal("CLEAR RECENT button still shown with no terms")
-				}
+			header := strings.Split(plain(m), "\n")[5] // under the input and its rule
+			if !strings.Contains(header, "R E C E N T") || strings.Contains(header, "CLEAR RECENT") {
+				t.Fatalf("RECENT header %q; want it without the CLEAR RECENT button", header)
+			}
+			if _, zs := m.layout(); hasZone(zs, zoneClearRecents) {
+				t.Fatal("CLEAR RECENT zone still there with no terms")
 			}
 		})
 	}

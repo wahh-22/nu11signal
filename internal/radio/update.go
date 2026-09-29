@@ -138,6 +138,26 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if k == keyCtrlC {
 		return m, m.quitCmd()
 	}
+	if m.auth != authFailed {
+		if m.focus == focusPlayer {
+			if next, cmd, ok := m.handlePlayerKey(k); ok {
+				return next, cmd
+			}
+			// Any other key belongs to the list, which takes the focus back.
+			focus := m.focusList()
+			next, cmd := m.handleKey(msg)
+			return next, tea.Batch(focus, cmd)
+		}
+		// Keys no view takes, the SEARCH input included.
+		switch k {
+		case keySeekBack:
+			return m.seek(-seekStep)
+		case keySeekForward:
+			return m.seek(seekStep)
+		case keyExpand:
+			return m.toggleExpand()
+		}
+	}
 	if m.top().kind == viewSearch {
 		return m.handleSearchKey(msg)
 	}
@@ -168,10 +188,14 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.action("NEXT", m.player.Next)
 	case keyPrev:
 		return m, m.action("PREV", m.player.Previous)
-	case keyBack:
+	case keySeekBackAlt:
 		return m.seek(-seekStep)
-	case keyForward:
+	case keySeekForwardAlt:
 		return m.seek(seekStep)
+	case keyRight:
+		m.focusPlayer(ctlPlay)
+	case keyExpandAlt:
+		return m.toggleExpand()
 	case keySearch, keyTab:
 		// Both bring back the search branch tab left, else a fresh search.
 		return m.resumeOrOpenSearch()

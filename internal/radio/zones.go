@@ -23,6 +23,7 @@ const (
 	zonePlay         = "play"
 	zoneNext         = "next"
 	zoneSeek         = "seek"
+	zoneExpand       = "expand"
 	zoneClearRecents = "clear-recents"
 	rowZonePrefix    = "row:"
 	deleteZonePrefix = "delete:"

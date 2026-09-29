@@ -136,6 +136,27 @@ func TestViewGolden80x24(t *testing.T) {
 	assertGolden(t, "view_80x24.golden", ansi.Strip(m.View().Content))
 }
 
+func TestPlayerGolden80x24(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		keys []string
+	}{
+		{"player_expanded", []string{"f"}},
+		{"player_focus", []string{"right", "right"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := playbacktest.New()
+			m := loaded(t, f, newClock())
+			m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 225*time.Second)})
+			for i := 0; i < 12; i++ {
+				m, _ = step(t, m, tickMsg{gen: m.tickGen})
+			}
+			m, _ = press(t, m, tt.keys...)
+			assertGolden(t, tt.name+"_80x24.golden", ansi.Strip(m.View().Content))
+		})
+	}
+}
+
 // assertGolden compares got with testdata/name, rewriting it under -update.
 func assertGolden(t *testing.T, name, got string) {
 	t.Helper()

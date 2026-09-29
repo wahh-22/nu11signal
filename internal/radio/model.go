@@ -124,6 +124,9 @@ type Model struct {
 	search       searchState
 	recents      []string
 	recentsStore history.Recents
+	// recentsWrites orders the changes to recentsStore; the Models of one
+	// program share it.
+	recentsWrites *recentsWriter
 	// artistSeq numbers artist page loads (see artistPage.seq).
 	artistSeq uint64
 	// detailSeq numbers album and playlist page loads (see trackPage.seq).
@@ -150,6 +153,14 @@ type Model struct {
 	// pressGuardUntil ignores left presses until then, after one that
 	// changed the view (see doubleClickGuard).
 	pressGuardUntil time.Time
+
+	// focus is the side taking the keys; on the player, control is the
+	// selected button, or onBar the progress bar above them. The expanded
+	// player takes the full width and always has the focus (see focus.go).
+	focus    focusArea
+	control  playerControl
+	onBar    bool
+	expanded bool
 
 	frame  uint64
 	bars   eq
@@ -180,14 +191,15 @@ func New(p playback.Player, opts Options) Model {
 	in.CharLimit = 120
 	in.SetStyles(inputStyles())
 	return Model{
-		player:       p,
-		now:          opts.Now,
-		seed:         opts.Seed,
-		timeout:      opts.CallTimeout,
-		closeTimeout: opts.CloseTimeout,
-		stack:        []frame{{kind: viewStations}},
-		input:        in,
-		recentsStore: opts.Recents,
+		player:        p,
+		now:           opts.Now,
+		seed:          opts.Seed,
+		timeout:       opts.CallTimeout,
+		closeTimeout:  opts.CloseTimeout,
+		stack:         []frame{{kind: viewStations}},
+		input:         in,
+		recentsStore:  opts.Recents,
+		recentsWrites: newRecentsWriter(opts.Recents),
 	}
 }
 
