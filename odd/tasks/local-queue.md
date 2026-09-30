@@ -14,7 +14,7 @@ Diagnostics: helper stderr to a log file, `playSongs` result decoded and shown o
 No library writes in automated tests; no system volume changes; spike playback only with user consent (granted 2026-09-30 for a few seconds of "Canciones favoritas"); do not touch the user's running app. Conventional commits.
 
 ## Tasks
-- [ ] Q1 — Diagnostics: helper stderr appended to a log file under ~/Library/Logs/nu11signal/; decode `playSongs` result in Go (`missing`, `skipped`, `startedAlone`) and report on the status line (e.g. `2 SONGS SKIPPED`). Route: delegated writer (Go client + TUI + main).
+- [x] Q1 — Diagnostics: helper stderr appended to a log file under ~/Library/Logs/nu11signal/; decode `playSongs` result in Go (`missing`, `skipped`, `startedAlone`) and report on the status line (e.g. `2 SONGS SKIPPED`). Route: delegated writer (Go client + TUI + main).
 - [ ] Q2 — Spike: does MusicKit accept a queue mixing catalog songs with library-copy Song items (or all library items) without Code=6? Route: delegated, spike/ only, consented playback.
 - [ ] Q3 — Fix per Q2 result: stop dropping local songs. Route: TBD.
 
@@ -28,3 +28,5 @@ Forecast ~350 authored lines; ask-on-risk. Branch `fix/local-queue` stacked on `
 
 ## Progress
 - Created 2026-09-30.
+- Q1 done (route: delegated writer), commit `c882966`. Port `PlaySongs` returns `playback.QueueReport{Missing, Skipped []string; StartedAlone bool}`; helper `queueResult` decodes it; TUI `queueNotice`: `PLAYING ALONE // QUEUE REFUSED` or `N SONGS SKIPPED // NOT IN QUEUE`, latest play only. Helper stderr appended to ~/Library/Logs/nu11signal/helper.log (0700/0600, rotated to .1 over 1 MB at startup). RED: build failures on new symbols; GREEN: `go test -race ./...` 874 passed, vet/gofmt clean.
+- Review (slice c650bbb..c882966: rain R1 + Q1): high, 714 lines, consent granted, lineage `review-5b6ebe62ec1b629e`, 4 lenses, APPROVED, acknowledged (burned). Boundary now c882966. Advisory follow-ups: log grows unbounded within a session; log fd not closed if helper start fails; queueResult doc mentions playPlaylist whose report is dropped; stat-error nil deref in helperlog_test; rain pulse cutoff constant and rainBeat wait doc.
