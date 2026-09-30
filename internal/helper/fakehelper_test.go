@@ -340,6 +340,11 @@ func answer(id, cmd string) {
 			"repeat": "one",
 		}})
 		ok(id, map[string]any{})
+	case "pause":
+		emit(map[string]any{"event": "levels", "bands": []int{10, 20}})
+		emit(map[string]any{"event": "levels", "bands": []int{0, 50, 100, 120, -5}})
+		emit(map[string]any{"event": "levels"})
+		ok(id, map[string]any{})
 	case "previous":
 		emit(map[string]any{"event": "error", "message": "failed to encode message"})
 		ok(id, map[string]any{})

@@ -193,7 +193,12 @@ func (m Model) onState(s playback.State) Model {
 func (m Model) onTick() (tea.Model, tea.Cmd) {
 	m.frame++
 	m.fx = m.fx.advance(m.now(), m.seed, m.fxActive())
-	m.bars = m.bars.step(m.isPlaying(), m.seed, m.frame)
+	m = m.pollLevels()
+	if levels, ok := m.liveSpectrum(); ok {
+		m.bars = m.bars.follow(levels, m.eqBarCount())
+	} else {
+		m.bars = m.bars.step(m.isPlaying(), m.seed, m.frame)
+	}
 	if m.glitch > 0 {
 		m.glitch--
 	}

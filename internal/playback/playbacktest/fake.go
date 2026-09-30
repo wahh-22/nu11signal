@@ -50,6 +50,7 @@ type Fake struct {
 	calls  []Call
 	closed bool
 	states chan playback.State
+	levels chan []float64
 	errs   chan error
 }
 
@@ -58,6 +59,7 @@ func New() *Fake {
 	return &Fake{
 		AuthStatus: playback.AuthAuthorized,
 		states:     make(chan playback.State, ChannelBuffer),
+		levels:     make(chan []float64, 1),
 		errs:       make(chan error, ChannelBuffer),
 	}
 }
@@ -79,6 +81,22 @@ func (f *Fake) Closed() bool {
 // PushState delivers s on States. It blocks when ChannelBuffer states are
 // unread.
 func (f *Fake) PushState(s playback.State) { f.states <- s }
+
+// PushLevels delivers a spectrum reading on Levels, replacing one still
+// unread, as the helper does. Call it from one goroutine at a time.
+func (f *Fake) PushLevels(levels []float64) {
+	for {
+		select {
+		case f.levels <- levels:
+			return
+		default:
+		}
+		select {
+		case <-f.levels:
+		default:
+		}
+	}
+}
 
 // PushError delivers err on Errors. It blocks when ChannelBuffer errors are
 // unread.
@@ -264,7 +282,10 @@ func (f *Fake) SetFavorite(_ context.Context, songID string, on bool) error {
 func (f *Fake) States() <-chan playback.State { return f.states }
 func (f *Fake) Errors() <-chan error          { return f.errs }
 
-// Close closes the States and Errors channels. It is idempotent; pushing
+// Levels delivers what PushLevels pushes (see playback.LevelSource).
+func (f *Fake) Levels() <-chan []float64 { return f.levels }
+
+// Close closes the States, Levels and Errors channels. It is idempotent; pushing
 // after Close panics, as sending on a closed channel does.
 func (f *Fake) Close() error {
 	f.mu.Lock()
@@ -272,6 +293,7 @@ func (f *Fake) Close() error {
 	if !f.closed {
 		f.closed = true
 		close(f.states)
+		close(f.levels)
 		close(f.errs)
 	}
 	return nil

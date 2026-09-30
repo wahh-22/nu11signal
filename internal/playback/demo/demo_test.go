@@ -854,3 +854,11 @@ func TestStatesReportTheAppVolume(t *testing.T) {
 		t.Fatalf("VolumeMode = %q; want %q", s.VolumeMode, playback.VolumeApp)
 	}
 }
+
+func TestDemoIsNotALevelSource(t *testing.T) {
+	// No audio, no spectrum: the UI keeps its decorative bars.
+	var p playback.Player = &Player{}
+	if _, ok := p.(playback.LevelSource); ok {
+		t.Fatal("the demo player claims to measure levels")
+	}
+}

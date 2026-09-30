@@ -34,6 +34,8 @@ const stateBuffer = 16
 const maxSearchLimit = 25
 
 // Player is the demo playback.Player. Methods are safe for concurrent use.
+// It plays no audio, so it measures none: it is not a playback.LevelSource,
+// and the UI's spectrum stays decorative.
 type Player struct {
 	tick time.Duration
 	done chan struct{}

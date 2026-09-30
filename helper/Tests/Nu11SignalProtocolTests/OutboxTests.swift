@@ -15,8 +15,9 @@ final class RoutingTests: XCTestCase {
         }
     }
 
-    func testOnlyStateEventsAreDroppable() {
+    func testOnlyStateAndLevelsEventsAreDroppable() {
         XCTAssertTrue(Message.event(name: "state", fields: [:]).isDroppable)
+        XCTAssertTrue(Message.event(name: "levels", fields: [:]).isDroppable)
         XCTAssertFalse(Message.event(name: "ready", fields: [:]).isDroppable)
         XCTAssertFalse(Message.event(name: "error", fields: [:]).isDroppable)
         XCTAssertFalse(Message.success(id: "1", result: [:]).isDroppable)

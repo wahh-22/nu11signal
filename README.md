@@ -2,7 +2,7 @@
 
 A lightweight terminal player for Apple Music, styled after a neon cyberpunk
 car radio: your library PLAYLISTS sit on a pseudo FM dial, with a
-now-playing panel, a volume readout, decorative EQ bars, and Apple Music style catalog browsing
+now-playing panel, a volume readout, spectrum EQ bars, and Apple Music style catalog browsing
 (search, artist pages, albums, songs, and playlists).
 
 It plays through a tiny windowless MusicKit helper (about 31 MB RSS measured
@@ -64,8 +64,10 @@ Apple Music access.
 | Demo player | `internal/playback/demo` | In-process simulated player for `--demo` |
 | Helper | `helper/` | SwiftPM package; `build.sh` bundles and signs the `.app` |
 
-MusicKit exposes no audio samples, so the EQ bars follow the playback state,
-not the sound.
+MusicKit exposes no audio samples, but in [app volume](#app-volume) mode the
+helper renders the music itself, so the EQ bars show its real spectrum (see
+[Spectrum](#spectrum)). Otherwise (system volume, `--demo`, macOS before 15)
+the bars are decorative: they follow the playback state, not the sound.
 
 ## Requirements
 
@@ -543,6 +545,21 @@ output latency. The level persists in the helper's preferences.
 - **Opting out.** `NU11SIGNAL_VOLUME_MODE=system` in the environment keeps the
   system volume (no relaunch, no tap, no prompt).
 
+### Spectrum
+
+In app volume mode (macOS 15+), the tap's audio thread also copies each
+buffer, before the app volume is applied (so the bars do not change with
+the volume) and mixed to mono, into a lock-free ring buffer. A timer on a
+utility queue, running only while that thread runs (playing in app mode),
+reads the newest 2048 samples 15 times a second, applies a Hann window and
+a vDSP FFT, sums the bins into 24 log-spaced bands from 40 Hz to 16 kHz,
+maps each band's power from -50 dBFS (empty) to -10 dBFS (full), smooths
+it (fast attack, a fall of about a second) and emits
+`{"event":"levels","bands":[0-100, ...]}`. The TUI resamples the 24 bands to
+the bars the panel has room for on its own 10 fps playing frame, and falls
+back to the decorative bars when no reading arrived in the last 500 ms; when
+paused the bars fall to zero. Nothing is measured in system volume mode.
+
 ## Helper lookup
 
 `nu11signal` never looks in the working directory. It uses the first match:
@@ -562,7 +579,7 @@ One JSON object per line.
 |-----------|-------|
 | Request | `{"id":"<string>","cmd":"<name>", ...args}` |
 | Response | `{"id":"<id>","ok":true,"result":{...}}` or `{"id":"<id>","ok":false,"error":"<msg>"}` |
-| Event | `{"event":"ready"}`, `{"event":"state","state":{...}}`, `{"event":"error","message":"<msg>"}` |
+| Event | `{"event":"ready"}`, `{"event":"state","state":{...}}`, `{"event":"error","message":"<msg>"}`, `{"event":"levels","bands":[...]}` (app volume mode only; see [Spectrum](#spectrum)) |
 
 | Command | Args | Result |
 |---------|------|--------|

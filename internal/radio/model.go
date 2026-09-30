@@ -224,9 +224,14 @@ type Model struct {
 	loopUntil   time.Time
 	loopSeq     uint64
 
-	frame  uint64
-	bars   eq
-	glitch int
+	frame uint64
+	bars  eq
+	// levels delivers the player's spectrum readings (nil when it cannot
+	// measure); spectrum is the latest, taken at spectrumAt.
+	levels     <-chan []float64
+	spectrum   []float64
+	spectrumAt time.Time
+	glitch     int
 	// tickGen identifies the live tick chain; ticks from older chains are
 	// dropped so rescheduling never doubles the frame rate.
 	tickGen  uint64
@@ -259,8 +264,13 @@ func New(p playback.Player, opts Options) Model {
 	name.Placeholder = "PLAYLIST NAME"
 	name.CharLimit = 100
 	name.SetStyles(inputStyles())
+	var levels <-chan []float64
+	if src, ok := p.(playback.LevelSource); ok {
+		levels = src.Levels()
+	}
 	return Model{
 		player:       p,
+		levels:       levels,
 		now:          opts.Now,
 		seed:         opts.Seed,
 		timeout:      opts.CallTimeout,

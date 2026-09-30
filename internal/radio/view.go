@@ -88,14 +88,14 @@ func (m Model) renderFull() ([]string, zones) {
 	// The panels go under the zones drawn in them, which stay on top.
 	if m.expanded {
 		// NOW PLAYING takes the list panel's place too.
-		playing, playingZones := m.nowPlaying(w-2, bodyH-2)
+		playing, playingZones := m.nowPlaying(m.playerPanelWidth()-2, bodyH-2)
 		zs.addBox(zonePanelPlayer, 0, top, w, bodyH)
 		zs.addAt(1, top+1, playingZones.clip(w-2, bodyH-2))
 		lines = append(lines, panel("NOW PLAYING", "NC-NET 0x2077", playing, w, bodyH, true)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
 	leftW := listPanelWidthFor(w)
-	rightW := w - leftW - 1
+	rightW := m.playerPanelWidth()
 
 	left, leftZones := m.listPanel(leftW, bodyH)
 	playing, playingZones := m.nowPlaying(rightW-2, bodyH-2)
@@ -110,6 +110,23 @@ func (m Model) renderFull() ([]string, zones) {
 		lines = append(lines, left[i]+" "+right[i])
 	}
 	return append(lines, m.statusLine(w), m.hintLine(w)), zs
+}
+
+// playerPanelWidth is the width of the NOW PLAYING panel, frame included,
+// in the full layout: the whole screen when expanded, else what the list
+// panel leaves.
+func (m Model) playerPanelWidth() int {
+	if m.expanded {
+		return m.width
+	}
+	return m.width - listPanelWidthFor(m.width) - 1
+}
+
+// eqBarCount is how many bars the spectrum shows: one every other column
+// inside the NOW PLAYING margins, at most eqBands.
+func (m Model) eqBarCount() int {
+	inner := m.playerPanelWidth() - 2 - 2*nowPlayingMargin
+	return min(max((inner+1)/2, 0), eqBands)
 }
 
 // compactVolumeWidth is the widest volume row beside the transport

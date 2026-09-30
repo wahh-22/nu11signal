@@ -15,6 +15,7 @@ import (
 // Requests:  {"id":"<id>","cmd":"<name>", ...args}
 // Responses: {"id":"<id>","ok":true,"result":{...}} | {"id":"<id>","ok":false,"error":"<msg>"}
 // Events:    {"event":"ready"} | {"event":"state","state":{...}} | {"event":"error","message":"<msg>"}
+//            | {"event":"levels","bands":[0...100, ...]}
 
 // inbound is any line the helper writes to stdout. Lines carrying "event"
 // are events; everything else is a response. A response with an empty id
@@ -27,6 +28,9 @@ type inbound struct {
 	Event   string          `json:"event"`
 	State   *wireState      `json:"state"`
 	Message string          `json:"message"`
+	// Bands are a levels event's readings, percentages from low to high
+	// frequencies.
+	Bands []float64 `json:"bands"`
 }
 
 type wireState struct {
@@ -180,6 +184,15 @@ func encodeRequest(id, cmd string, args map[string]any) ([]byte, error) {
 		return nil, err
 	}
 	return append(line, '\n'), nil
+}
+
+// levels converts a levels event's percentages to 0...1 levels.
+func levels(bands []float64) []float64 {
+	out := make([]float64, len(bands))
+	for i, b := range bands {
+		out[i] = min(max(b/100, 0), 1)
+	}
+	return out
 }
 
 // seconds converts the protocol's fractional seconds to a Duration.

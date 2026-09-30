@@ -14,9 +14,13 @@ The EQ bars are decorative; the user wants them to follow the music. Now that th
 
 ## Tasks
 
-- [ ] E1 — Real spectrum levels from the tap + TUI rendering + fallback + tests + measurement. Route: delegated.
+- [x] E1 — Real spectrum levels from the tap + TUI rendering + fallback + tests + measurement. Route: delegated.
 
 ## Constraints
 
 - No allocation or locks in the IOProc; pure testable band mapping/smoothing in Nu11SignalProtocol and Go.
 - Artifacts in English.
+
+## Progress
+
+- E1 done (route: delegated writer). Pre-gain mono samples into a lock-free SPSC ring (Synchronization.Atomic → macOS 15+, decorative on 14.x); 15 Hz utility timer while the IOProc runs: 2048 Hann, vDSP FFT, 24 log bands 40 Hz–16 kHz, −50..−10 dBFS, attack 0.7 / release 0.2; droppable `levels` event; Go optional `playback.LevelSource` (latest-only channel); TUI reads without blocking on the 10 fps tick, real bars only while playing with a reading < 500 ms old, else decorative/decay; demo stays decorative. RED/GREEN: Swift 191, Go 756. Measured (60 s playing, app mode): TUI 2.7% CPU (~580 interrupt wakeups/s vs 419 decorative), helper 0.6% (vs ~0.1%); bars follow structure (frame correlation 0.83 vs 0.25), bass > treble, quiet 2–3 rows vs loud 5–6. Open: bars average ~70% height (adaptive peak could help), extra TUI wakeups partly unexplained, helper Outbox wake per event.

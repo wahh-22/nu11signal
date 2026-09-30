@@ -95,10 +95,10 @@ public enum Message {
     case failure(id: String, error: String)
     case event(name: String, fields: JSONObject)
 
-    /// Periodic state events may be dropped under backpressure (a newer one
-    /// always follows); responses and other events never are.
+    /// Periodic state and levels events may be dropped under backpressure
+    /// (a newer one always follows); responses and other events never are.
     public var isDroppable: Bool {
-        if case .event(name: "state", fields: _) = self { return true }
+        if case let .event(name, _) = self { return name == "state" || name == LevelsEvent.name }
         return false
     }
 }
