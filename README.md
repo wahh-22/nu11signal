@@ -442,32 +442,42 @@ characters: every altered character keeps its color, and blank space stays
 blank. A real message on the status line is never glitched. The effects are drawn
 over the frame, so clicks and keys work during a burst.
 
+New content scrambles in the same way: when text appears that was not on
+screen (another tab or page, a list or search results arriving, the ADD TO
+PLAYLIST picker or NEW PLAYLIST editor opening, a new artist, album or feed
+in NOW PLAYING), its new characters show glitch glyphs and resolve left to
+right within about 0.4 s, each keeping its color. Only text that changed
+intros: the clock, progress, volume and visualizer never do, moving the
+cursor or scrolling a list does not, and the SEARCH input and the playlist
+name never scramble while you type (live results intro once as they
+arrive). Intros follow the same switch as the effects.
+
 `x` turns them off or on; `nu11signal --calm` (or `NU11SIGNAL_CALM=1`)
 starts with them off. They pause while the SEARCH input or a NEW PLAYLIST
-name takes the keys, and on the tiny layout. They add no timer: the
-animation tick sleeps until the next effect is due; a text wave runs at
-10 fps (while a song plays it rides the 10 fps animation) and a burst at
-about 15 fps. The terminal is redrawn at most 20 times a second, not Bubble
+name takes the keys (intros keep running, off the input line), and on the
+tiny layout. They add no timer: the animation tick sleeps until the next
+effect is due; a text wave runs at 10 fps (while a song plays it rides the
+10 fps animation), a burst at about 15 fps and an intro at 20 fps. The terminal is redrawn at most 20 times a second, not Bubble
 Tea's default 60, to keep the process's wakeups (and battery use) low.
 
 ## Visualizers
 
-The spectrum area at the bottom of NOW PLAYING draws one of five
-visualizers:
+The spectrum area at the bottom of NOW PLAYING draws one of four
+visualizers, all in the bars' colors (yellow tips, bold red, red, dim red
+behind the music):
 
 | Name | Look |
 |------|------|
 | `bars` | The equalizer bars (the default) |
-| `oscilloscope` | The waveform traced in braille dots (2 x 4 per cell) around a dim center axis |
-| `waterfall` | A scrolling spectrogram: each frame the bands become a new row at the top and older rows flow down; shades ` ░▒▓█` and a cyan → magenta → yellow gradient show how loud each band was |
-| `rain` | Data rain: hex digits and half-width katakana fall down every other column, bright heads over dimming trails; the louder the band under a column, the more, faster and longer its drops (a loud one gets a yellow head) |
-| `synthwave` | A striped sun sinking behind mountains raised by the spectrum, over a perspective grid that scrolls toward you faster the louder the music |
+| `oscilloscope` | The waveform traced in braille dots (2 x 4 per cell) around a dim center axis, colored by how far it swings; a slow auto-gain lets loud passages reach the edges while quiet ones stay smaller |
+| `rain` | Data rain: hex digits and half-width katakana fall down every other column; a silent band stays dry, and the louder the band under a column, the more, faster, longer and brighter its drops (yellow heads when loud) |
+| `synthwave` | A horizon across the middle with the spectrum standing above it as a solid mountain range (bass on the left), mirrored dim below over a perspective grid that scrolls toward you and glows with the bass |
 
 Choose one in `nu11signal/config.json` under `os.UserConfigDir()`
 (`~/Library/Application Support/nu11signal/config.json` on macOS):
 
 ```json
-{"visualizer": "waterfall"}
+{"visualizer": "synthwave"}
 ```
 
 The name is case-insensitive. `"random"` picks a visualizer per song: a
@@ -475,11 +485,12 @@ hash of the song's id chooses it, never the one just shown, so the same
 song after the same visualizer always gets the same one. nu11signal only
 reads the file, once at startup, and never creates it: without it you get
 `bars`. A file that is not valid JSON, or names an unknown visualizer,
-also gives `bars`, and the status line says so once. Demo mode reads it
+also gives `bars`, and the status line says so once (so does the retired
+`waterfall`). Demo mode reads it
 too.
 
-`v` shows the next visualizer (bars, oscilloscope, waterfall, rain,
-synthwave, then bars again) for this session only, with a brief
+`v` shows the next visualizer (bars, oscilloscope, rain, synthwave, then
+bars again) for this session only, with a brief
 `VISUALIZER // NAME` on the status line; the file is left alone. In random
 mode `v` cycles the same way, and the next song picks at random again.
 
@@ -487,9 +498,9 @@ Every visualizer draws the player's readings in app volume mode (see
 [Spectrum](#spectrum)): the bands, and for the oscilloscope the waveform.
 Without readings (system volume, `--demo`, macOS before 15) they run on
 the decorative bars: the oscilloscope draws a smooth synthetic wave as
-loud as the bars and the rain turns to a slow drizzle. When paused they
+loud as the bars and the rain turns to a slow, dim drizzle. When paused they
 settle as the bars do (the oscilloscope's trace flattens, the synthwave
-mountains fall, the waterfall and the rain hold still), so the animation
+mountains fall, the rain holds still), so the animation
 tick slows down to once a second. They draw on the existing animation
 frames; the signal effects run over any of them.
 

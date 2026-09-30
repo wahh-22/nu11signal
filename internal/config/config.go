@@ -1,7 +1,7 @@
 // Package config reads the user's settings file, config.json in the
 // nu11signal directory of the user's config directory:
 //
-//	{"visualizer": "waterfall"}
+//	{"visualizer": "synthwave"}
 //
 // The file is optional and only read: nu11signal never creates or writes
 // it. Unknown fields are ignored; what a value means is the UI's business.

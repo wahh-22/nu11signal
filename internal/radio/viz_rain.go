@@ -3,13 +3,17 @@ package radio
 import "math"
 
 // rainViz is data rain: hex digits and half-width katakana fall down the
-// columns (every other one), a bright head over a trail that dims. Each
-// column follows the band under it: the louder the band, the more often
-// drops start there, the faster and longer they fall, and a loud one
-// falls with a yellow head. Without the player's readings it drizzles
-// slowly instead. Paused, the rain holds still.
+// columns (every other one), a bright head over a trail that dims, in the
+// bars' colors. Each column follows the band under it: silent, nothing
+// falls; the louder it gets, the more often drops start there, the faster
+// and longer they fall, and the brighter the column burns, up to yellow
+// heads, as a bar that high would. Without the player's readings it
+// drizzles slowly, dim, instead. Paused, the rain holds still.
 type rainViz struct {
 	drops []rainDrop
+	// levels are the bands under the columns on the last frame (nil
+	// without readings): they light the drops as they fall.
+	levels []float64
 	// tick counts the frames rained, the clock of the rain.
 	tick uint64
 }
@@ -21,7 +25,6 @@ type rainDrop struct {
 	y      float64
 	speed  float64
 	length int
-	loud   bool
 	seed   uint64
 }
 
@@ -35,8 +38,12 @@ var rainGlyphs = func() []rune {
 	return g
 }()
 
-// saltRain keeps the rain's random stream apart from the other effects'.
-const saltRain uint64 = 301
+const (
+	// saltRain keeps the rain's random stream apart from the other effects'.
+	saltRain uint64 = 301
+	// rainFloor is the band level under which a column stays dry.
+	rainFloor = 0.08
+)
 
 func (rainViz) Name() string { return vizNames[vizRain] }
 
@@ -45,6 +52,13 @@ func (v rainViz) Step(in vizInput) visualizer {
 		return v
 	}
 	v.tick++
+	v.levels = nil
+	if in.Real {
+		v.levels = make([]float64, max(in.W, 0))
+		for x := range v.levels {
+			v.levels[x] = bandAt(in.Bands, x, in.W)
+		}
+	}
 	drops := make([]rainDrop, 0, len(v.drops)+in.W/2+1)
 	// busy marks the columns whose newest drop has not left the top yet,
 	// so drops in a column never overlap.
@@ -63,18 +77,21 @@ func (v rainViz) Step(in vizInput) visualizer {
 		if busy[x] {
 			continue
 		}
-		level := bandAt(in.Bands, x, in.W)
 		chance, speed, length := 0.04, 0.35, 3
 		if in.Real {
-			chance = 0.03 + 0.4*level*level
-			speed = 0.4 + 1.2*level
-			length = 2 + int(math.Round(level*float64(in.H)))
+			level := v.levels[x]
+			if level < rainFloor {
+				continue
+			}
+			chance = 0.05 + 0.6*level*level
+			speed = 0.3 + 1.7*level
+			length = 1 + int(math.Round(1.2*level*float64(in.H)))
 		}
 		h := mix(in.Seed, saltRain, v.tick, uint64(x))
 		if unit(h) >= chance {
 			continue
 		}
-		drops = append(drops, rainDrop{x: x, speed: speed, length: length, loud: in.Real && level > 0.7, seed: h})
+		drops = append(drops, rainDrop{x: x, speed: speed, length: length, seed: h})
 	}
 	v.drops = drops
 	return v
@@ -86,28 +103,26 @@ func (v rainViz) Render(w, h int) []string {
 	c := newCanvas(w, h)
 	n := uint64(len(rainGlyphs))
 	for _, d := range v.drops {
-		head := int(d.y)
+		if d.x >= w {
+			continue
+		}
+		// The head burns in the ink of its band's level (dim red in a
+		// drizzle); the trail steps down the bars' colors to dim.
+		head := inkMuted
+		if d.x < len(v.levels) {
+			head = levelInk(v.levels[d.x])
+		}
+		top := int(d.y)
 		for i := d.length - 1; i >= 0; i-- {
-			y := head - i
-			if y < 0 || y >= h || d.x >= w {
+			y := top - i
+			if y < 0 || y >= h {
 				continue
 			}
 			// A trail cell keeps its glyph; the head flickers.
 			g := rainGlyphs[mix(d.seed, uint64(y))%n]
-			k := inkCyanDim
-			switch {
-			case i == 0:
-				g = rainGlyphs[mix(d.seed, v.tick)%n]
-				k = inkPale
-				if d.loud {
-					k = inkYellow
-				}
-			case i <= 2:
-				k = inkCyanBold
-			case i < d.length/2+2:
-				k = inkCyan
-			case i == d.length-1:
-				k = inkCyanDeep
+			k := min(head+uint8(1+i*3/max(d.length, 1)), inkDim)
+			if i == 0 {
+				g, k = rainGlyphs[mix(d.seed, v.tick)%n], head
 			}
 			c.set(d.x, y, g, k)
 		}

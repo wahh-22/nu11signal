@@ -2,23 +2,28 @@ package radio
 
 import "math"
 
-// synthViz is a synthwave horizon: a striped sun sinking behind a ridge
-// of mountains raised by the spectrum (bass on the left), over a
-// perspective grid that scrolls toward the viewer, faster the louder the
-// music. The mountains ease toward the bands; paused, the grid stops and
-// the mountains fall with the bars.
+// synthViz is a synthwave horizon made of the spectrum. A horizon line
+// runs across the middle; above it the bands stand as one solid mountain
+// range (bass on the left), every column filled up to its band like the
+// bars joined into a silhouette, in the bars' colors by height; below it
+// the range is mirrored, dim and squashed, over a perspective floor grid
+// whose lines scroll toward the viewer faster, and glow brighter, the
+// more bass there is. The range eases toward the bands; paused, the grid
+// stops and the range falls as the bars do.
 type synthViz struct {
-	// ridge are the mountains' levels, the bands eased.
+	// ridge are the range's levels, the bands eased.
 	ridge []float64
 	// phase is how far the grid scrolled; its fraction places the lines.
 	phase float64
+	// bass is the level of the lowest quarter of the bands.
+	bass float64
 }
 
 const (
-	synthEase   = 0.35 // per frame, of the way to the bands
-	synthSpeed  = 0.06 // grid lines per frame in silence
-	synthBoost  = 0.30 // more at full energy
-	synthRidgeH = 0.65 // of the sky, at full level: the sun shows over it
+	synthEase    = 0.35 // per frame, of the way to the bands
+	synthSpeed   = 0.04 // grid lines per frame in silence
+	synthBoost   = 0.40 // more at full bass
+	synthReflect = 0.6  // of the floor, the reflection of a full column
 )
 
 func (synthViz) Name() string { return vizNames[vizSynthwave] }
@@ -30,13 +35,22 @@ func (v synthViz) Step(in vizInput) visualizer {
 		if i < len(v.ridge) {
 			old = v.ridge[i]
 		}
-		if ridge[i] = old + (b-old)*synthEase; ridge[i] < 0.01 {
-			ridge[i] = 0
+		next := old + (b-old)*synthEase
+		if !in.Playing {
+			next = old * eqDecay
 		}
+		if next < 0.01 {
+			next = 0
+		}
+		ridge[i] = next
 	}
 	v.ridge = ridge
+	v.bass = 0
+	if low := in.Bands[:(len(in.Bands)+3)/4]; len(low) > 0 && in.Playing {
+		v.bass = energy(low)
+	}
 	if in.Playing {
-		v.phase = math.Mod(v.phase+synthSpeed+synthBoost*energy(in.Bands), 1)
+		v.phase = math.Mod(v.phase+synthSpeed+synthBoost*v.bass, 1)
 	}
 	return v
 }
@@ -47,7 +61,7 @@ func (v synthViz) Idle() bool {
 			return false
 		}
 	}
-	return true
+	return v.bass == 0
 }
 
 func (v synthViz) Render(w, h int) []string {
@@ -55,72 +69,63 @@ func (v synthViz) Render(w, h int) []string {
 	if w <= 0 || h <= 0 {
 		return c.lines()
 	}
-	grid := (h - 1) / 2
-	horizon := h - 1 - grid
-	v.sun(c, horizon)
-	v.mountains(c, horizon)
+	horizon := h / 2
+	floor := h - 1 - horizon
+	v.grid(c, horizon, floor)
+	steps := len(eqGlyphs) - 1
 	for x := range w {
-		c.set(x, horizon, '━', inkMagentaBold)
+		level := v.levelAt(x, w)
+		// The range: eighths of a cell up from the horizon, as the bars.
+		eighths := int(level*float64(horizon*steps) + 0.5)
+		for y := horizon - 1; eighths > 0 && y >= 0; y-- {
+			fill := min(eighths, steps)
+			c.set(x, y, eqGlyphs[fill], barInk(y, horizon))
+			eighths -= fill
+		}
+		// Its reflection: shaded cells down from the horizon, a lighter
+		// shade at the tip.
+		eighths = int(level*synthReflect*float64(floor*steps) + 0.5)
+		for y := horizon + 1; eighths > 0 && y < h; y++ {
+			g, k := '▒', inkMuted
+			if eighths < steps {
+				g, k = '░', inkDim
+			}
+			c.set(x, y, g, k)
+			eighths -= steps
+		}
 	}
-	v.grid(c, horizon, grid)
+	for x := range w {
+		c.set(x, horizon, '━', inkRedBold)
+	}
 	return c.lines()
 }
 
-// sun draws a half sun on the horizon, yellow at the top to magenta, its
-// lower half striped, when the sky has room for one.
-func (v synthViz) sun(c canvas, horizon int) {
-	r := min(horizon, c.w/6)
-	if r < 3 {
-		return
+// levelAt is the range's level over column x of w, the bands spread
+// across the width.
+func (v synthViz) levelAt(x, w int) float64 {
+	if len(v.ridge) == 0 {
+		return 0
 	}
-	cx := float64(c.w) / 2
-	for y := horizon - r; y < horizon; y++ {
-		up := horizon - y // 1 to r rows over the horizon
-		dy := float64(up) - 0.5
-		half := 2 * math.Sqrt(float64(r*r)-dy*dy) // cells are twice as tall as wide
-		glyph := '█'
-		if up <= r/2 && up%2 == 1 {
-			glyph = '▄' // the stripes
-		}
-		k := inkGradient + uint8(gradientSteps/2+(gradientSteps/2-1)*up/r)
-		for x := int(math.Ceil(cx - half)); x < int(cx+half); x++ {
-			c.set(x, y, glyph, k)
-		}
+	t := 0.0
+	if w > 1 {
+		t = float64(x) / float64(w-1)
 	}
-}
-
-// mountains draws the ridge over the sky, rising from the horizon.
-func (v synthViz) mountains(c canvas, horizon int) {
-	if len(v.ridge) == 0 || horizon <= 0 {
-		return
-	}
-	steps := len(eqGlyphs) - 1
-	for x := range c.w {
-		t := 0.0
-		if c.w > 1 {
-			t = float64(x) / float64(c.w-1)
-		}
-		level := min(max(sampleAt(v.ridge, t), 0), 1)
-		eighths := int(level*synthRidgeH*float64(horizon*steps) + 0.5)
-		for row := 0; eighths > 0; row++ {
-			y := horizon - 1 - row
-			fill := min(eighths, steps)
-			k := inkMagentaDim
-			if eighths <= steps {
-				k = inkMagenta // the crest
-			}
-			c.set(x, y, eqGlyphs[fill], k)
-			eighths -= fill
-		}
-	}
+	return min(max(sampleAt(v.ridge, t), 0), 1)
 }
 
 // grid draws the floor under the horizon: lines across it, closer
-// together toward the horizon and moving down with the phase, and lines
-// running to the vanishing point in the middle.
+// together toward the horizon, moving down with the phase and lit by the
+// bass, and dim lines running to the vanishing point in the middle.
 func (v synthViz) grid(c canvas, horizon, rows int) {
 	if rows <= 0 {
 		return
+	}
+	lit := inkDim
+	switch {
+	case v.bass >= 0.6:
+		lit = inkRed
+	case v.bass >= 0.3:
+		lit = inkMuted
 	}
 	cx := float64(c.w) / 2
 	spacing := max(float64(c.w)/5, 4)
@@ -130,12 +135,8 @@ func (v synthViz) grid(c canvas, horizon, rows int) {
 		// every whole depth plus the phase.
 		near, far := float64(rows)/(float64(j)+0.5), float64(rows)/(float64(j)-0.5)
 		if math.Floor(far+v.phase) > math.Floor(near+v.phase) {
-			k := inkMagentaDim
-			if j > rows/2 {
-				k = inkMagenta
-			}
 			for x := range c.w {
-				c.set(x, y, '─', k)
+				c.set(x, y, '─', lit)
 			}
 		}
 		p := float64(j) / float64(rows)
@@ -148,7 +149,7 @@ func (v synthViz) grid(c canvas, horizon, rows int) {
 			case n > 0:
 				glyph = '╲'
 			}
-			c.set(x, y, glyph, inkCyanDim)
+			c.set(x, y, glyph, inkDim)
 		}
 	}
 }

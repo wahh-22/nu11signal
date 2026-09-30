@@ -252,8 +252,10 @@ type Model struct {
 	// dropped so rescheduling never doubles the frame rate.
 	tickGen  uint64
 	tickFast bool
-	// fx schedules the signal effects (see glitch.go).
-	fx effects
+	// fx schedules the signal effects (see glitch.go); intro is the
+	// latest content intro (see intro.go).
+	fx    effects
+	intro intro
 }
 
 // New returns a radio Model driving p.
@@ -435,7 +437,7 @@ func (m *Model) scheduleTick() tea.Cmd {
 
 // tickInterval is the time to the next frame: fastTick while something
 // moves, else idleTick, paced by the signal effects while they run (see
-// effects.interval).
+// effects.interval) and at most introTick during an intro.
 func (m Model) tickInterval() time.Duration {
 	d := idleTick
 	if m.tickFast {
@@ -443,6 +445,10 @@ func (m Model) tickInterval() time.Duration {
 	}
 	if m.fxActive() {
 		d = m.fx.interval(m.now(), d)
+	}
+	if m.introAnimating() {
+		end := m.intro.start.Add(introDur)
+		d = min(d, max(min(introTick, end.Sub(m.now())), minWake))
 	}
 	return d
 }
@@ -452,7 +458,7 @@ func tickAfter(d time.Duration, gen uint64) tea.Cmd {
 }
 
 func (m Model) animating() bool {
-	return m.isPlaying() || !m.bars.flat() || !m.viz.Idle() || m.glitch > 0
+	return m.isPlaying() || !m.bars.flat() || !m.viz.Idle() || m.glitch > 0 || m.introAnimating()
 }
 
 func (m Model) isPlaying() bool {

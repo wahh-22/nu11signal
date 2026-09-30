@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/wahh-22/nu11signal/internal/config"
@@ -26,7 +28,7 @@ func TestParseVisualizer(t *testing.T) {
 		{"", vizMode{kind: vizBars}, true},
 		{"bars", vizMode{kind: vizBars}, true},
 		{"oscilloscope", vizMode{kind: vizScope}, true},
-		{"Waterfall", vizMode{kind: vizWaterfall}, true},
+		{"waterfall", vizMode{kind: vizBars}, false}, // retired
 		{" RAIN ", vizMode{kind: vizRain}, true},
 		{"synthWave", vizMode{kind: vizSynthwave}, true},
 		{"Random", vizMode{random: true}, true},
@@ -90,10 +92,11 @@ func TestConfigSelectsTheVisualizer(t *testing.T) {
 		wantStatus string
 	}{
 		{"missing file", configSource{}, vizBars, false, ""},
-		{"a visualizer", configSource{cfg: config.Config{Visualizer: "waterfall"}}, vizWaterfall, false, ""},
+		{"a visualizer", configSource{cfg: config.Config{Visualizer: "rain"}}, vizRain, false, ""},
 		{"any case", configSource{cfg: config.Config{Visualizer: "SynthWave"}}, vizSynthwave, false, ""},
 		{"random", configSource{cfg: config.Config{Visualizer: "random"}}, randomVisualizer("", vizNone), true, ""},
 		{"unknown name", configSource{cfg: config.Config{Visualizer: "lasers"}}, vizBars, false, `UNKNOWN VISUALIZER "lasers" // BARS`},
+		{"retired waterfall", configSource{cfg: config.Config{Visualizer: "waterfall"}}, vizBars, false, `UNKNOWN VISUALIZER "waterfall" // BARS`},
 		{"invalid file", configSource{err: errors.New("invalid character 'v'")}, vizBars, false, "CONFIG UNREADABLE // VISUALIZER BARS // invalid character 'v'"},
 	}
 	for _, tt := range tests {
@@ -152,7 +155,7 @@ func TestAFixedVisualizerStaysAcrossSongs(t *testing.T) {
 
 func TestTheVisualizerKeyCycles(t *testing.T) {
 	m, _, _ := playingWithLevels(t)
-	for _, want := range []vizKind{vizScope, vizWaterfall, vizRain, vizSynthwave, vizBars} {
+	for _, want := range []vizKind{vizScope, vizRain, vizSynthwave, vizBars} {
 		m, _ = press(t, m, "v")
 		if m.vizKind != want {
 			t.Fatalf("visualizer %v; want %v", m.vizKind, want)
@@ -192,7 +195,7 @@ func TestInRandomModeTheKeyCyclesAndTheNextSongPicksAgain(t *testing.T) {
 	}
 }
 
-// loudInput is a playing frame with every band at level and a waveform.
+// vizFrame is a playing frame with every band at level and a waveform.
 func vizFrame(level float64, frame uint64, w, h int, real bool) vizInput {
 	bands := make([]float64, 24)
 	for i := range bands {
@@ -429,29 +432,6 @@ func TestRainDrizzlesWithoutReadings(t *testing.T) {
 	}
 }
 
-func TestWaterfallScrollsDown(t *testing.T) {
-	v := newVisualizer(vizWaterfall)
-	v = v.Step(vizFrame(1, 1, 10, 3, true))
-	v = v.Step(vizFrame(0, 2, 10, 3, true))
-	rows := v.Render(10, 3)
-	if strings.TrimSpace(ansi.Strip(rows[0])) != "" || ansi.Strip(rows[1]) != strings.Repeat("█", 10) || strings.TrimSpace(ansi.Strip(rows[2])) != "" {
-		t.Fatalf("loud then silent frame:\n%s", ansi.Strip(strings.Join(rows, "\n")))
-	}
-	// Quieter bands draw lighter shades.
-	shades := ""
-	for _, level := range []float64{0.1, 0.3, 0.55, 0.8, 1} {
-		shades += string([]rune(ansi.Strip(newVisualizer(vizWaterfall).Step(vizFrame(level, 1, 1, 1, true)).Render(1, 1)[0])))
-	}
-	if shades != " ░▒▓█" {
-		t.Fatalf("shades %q; want \" ░▒▓█\"", shades)
-	}
-	// It keeps no more rows than the area can show.
-	v = stepped(v, 40, 0.5, 10, 3, true)
-	if n := len(v.(waterfallViz).rows); n != waterfallRows {
-		t.Fatalf("kept %d rows; want %d", n, waterfallRows)
-	}
-}
-
 func TestSynthwaveGridScrollsWithTheMusic(t *testing.T) {
 	quiet := synthViz{}.Step(vizFrame(0, 1, 40, 10, true)).(synthViz)
 	loud := synthViz{}.Step(vizFrame(1, 1, 40, 10, true)).(synthViz)
@@ -544,7 +524,7 @@ func TestVisualizersFitEveryLayout(t *testing.T) {
 func TestVizSizeMatchesTheDrawnArea(t *testing.T) {
 	for _, h := range []int{16, 17, 18, 19, 20, 24, 30, 60} {
 		for _, expanded := range []bool{false, true} {
-			m, _ := vizModel(t, vizWaterfall, 80, h, 0, expanded)
+			m, _ := vizModel(t, vizScope, 80, h, 0, expanded)
 			w, rows := m.vizSize()
 			m.viz = fillViz{}
 			out := ansi.Strip(m.render())
@@ -608,5 +588,161 @@ func TestTextWavesSpareTheScopeTrace(t *testing.T) {
 	}
 	if words := textWords([]string{"AB ⠁⠂ CD"}, -1); len(words) != 2 {
 		t.Fatalf("text around braille: %d words; want 2", len(words))
+	}
+}
+
+// barsPalette are the escape codes the bars color with, and the theme's
+// dim reds the visualizers may use for trails, axes and reflections.
+var barsPalette = func() map[string]bool {
+	ok := map[string]bool{}
+	for _, st := range []lipgloss.Style{stRed, stRedBold, stYellow, stMuted, stDim} {
+		k := inkOf(st)
+		ok[k.pre], ok[k.post] = true, true
+	}
+	return ok
+}()
+
+var sgrPattern = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
+
+func TestVisualizersUseTheBarsPalette(t *testing.T) {
+	bright := []string{inkOf(stYellow).pre, inkOf(stRedBold).pre, inkOf(stRed).pre}
+	for k := range vizCount {
+		for _, real := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/real=%v", vizNames[k], real), func(t *testing.T) {
+				var out strings.Builder
+				for _, level := range []float64{0.2, 0.6, 1} {
+					v := stepped(newVisualizer(k), 30, level, 40, 12, real)
+					out.WriteString(strings.Join(v.Render(40, 12), "\n"))
+				}
+				for _, seq := range sgrPattern.FindAllString(out.String(), -1) {
+					if !barsPalette[seq] {
+						t.Fatalf("escape %q is not in the bars' palette", seq)
+					}
+				}
+				if !real {
+					return
+				}
+				for _, seq := range bright {
+					if !strings.Contains(out.String(), seq) {
+						t.Errorf("never draws the bars' %q", seq)
+					}
+				}
+			})
+		}
+	}
+}
+
+// traceRows counts the rows the scope's trace reaches (bright dots, not
+// the dim axis).
+func traceRows(v visualizer, w, h int) int {
+	n := 0
+	for _, row := range v.Render(w, h) {
+		if strings.Contains(row, inkOf(stRed).pre) || strings.Contains(row, inkOf(stRedBold).pre) || strings.Contains(row, inkOf(stYellow).pre) {
+			n++
+		}
+	}
+	return n
+}
+
+func TestScopeSwingsWithTheLoudness(t *testing.T) {
+	quiet := stepped(newVisualizer(vizScope), 40, 0.1, 40, 12, true)
+	loud := stepped(newVisualizer(vizScope), 40, 0.9, 40, 12, true)
+	if q, l := traceRows(quiet, 40, 12), traceRows(loud, 40, 12); l <= q+3 {
+		t.Fatalf("loud music reaches %d rows, quiet %d", l, q)
+	}
+	// A loud passage after a quiet one swings wider at once, and the gain
+	// does not blow a quiet passage up to full scale.
+	burst := stepped(quiet, 2, 0.9, 40, 12, true)
+	if b, q := traceRows(burst, 40, 12), traceRows(quiet, 40, 12); b <= q+3 {
+		t.Fatalf("a loud burst reaches %d rows, the quiet before it %d", b, q)
+	}
+	if q := traceRows(quiet, 40, 12); q >= 12 {
+		t.Fatalf("quiet music fills all %d rows", q)
+	}
+}
+
+func TestRainFollowsEachBand(t *testing.T) {
+	silent := stepped(newVisualizer(vizRain), 40, 0, 40, 10, true).(rainViz)
+	if len(silent.drops) != 0 {
+		t.Fatalf("%d drops in silence", len(silent.drops))
+	}
+	// Loud bass, silent treble: the rain falls on the left only.
+	var v visualizer = rainViz{}
+	for i := range 40 {
+		in := vizFrame(0, uint64(i+1), 40, 10, true)
+		for b := range in.Bands[:len(in.Bands)/2] {
+			in.Bands[b] = 0.9
+		}
+		v = v.Step(in)
+	}
+	drops := v.(rainViz).drops
+	if len(drops) < 5 {
+		t.Fatalf("%d drops under loud bands", len(drops))
+	}
+	for _, d := range drops {
+		if d.x >= 20 {
+			t.Fatalf("a drop at column %d, under a silent band", d.x)
+		}
+	}
+	// Louder bands fall faster.
+	slow := stepped(newVisualizer(vizRain), 40, 0.3, 40, 10, true).(rainViz)
+	fast := stepped(newVisualizer(vizRain), 40, 1, 40, 10, true).(rainViz)
+	if len(slow.drops) == 0 || fast.drops[0].speed <= slow.drops[0].speed {
+		t.Fatal("louder bands do not fall faster")
+	}
+}
+
+func TestSynthwaveReadsAsASpectrum(t *testing.T) {
+	const w, h = 30, 11
+	in := vizFrame(0, 1, w, h, true)
+	for b := range in.Bands {
+		in.Bands[b] = 0.1 + 0.8*float64(b)/float64(len(in.Bands)-1)
+	}
+	var v visualizer = synthViz{}
+	for i := range 20 {
+		in.Frame = uint64(i + 1)
+		v = v.Step(in)
+	}
+	rows := v.Render(w, h)
+	plainRows := make([]string, h)
+	for i, r := range rows {
+		plainRows[i] = ansi.Strip(r)
+	}
+	horizon := h / 2
+	if plainRows[horizon] != strings.Repeat("━", w) {
+		t.Fatalf("no horizon across the middle:\n%s", strings.Join(plainRows, "\n"))
+	}
+	// Above it a solid range: every column filled from the horizon up, as
+	// high as its band, taller to the right here.
+	heights := make([]int, w)
+	for x := range w {
+		for y := horizon - 1; y >= 0 && []rune(plainRows[y])[x] != ' '; y-- {
+			heights[x]++
+		}
+		if heights[x] == 0 {
+			t.Fatalf("column %d is empty:\n%s", x, strings.Join(plainRows, "\n"))
+		}
+	}
+	if heights[w-1] <= heights[0] {
+		t.Fatalf("the range does not follow the bands: heights %v", heights)
+	}
+	// Below it the reflection, dim, never the bars' bright colors.
+	for y := horizon + 1; y < h; y++ {
+		for _, seq := range []string{inkOf(stYellow).pre, inkOf(stRedBold).pre} {
+			if strings.Contains(rows[y], seq) {
+				t.Fatalf("row %d under the horizon is bright: %q", y, plainRows[y])
+			}
+		}
+	}
+	if filled(rows[horizon+1:]) == 0 {
+		t.Fatal("nothing under the horizon")
+	}
+}
+
+func TestSynthwaveGridPulsesWithTheBass(t *testing.T) {
+	quiet := stepped(newVisualizer(vizSynthwave), 1, 0.05, 40, 12, true).(synthViz)
+	loud := stepped(newVisualizer(vizSynthwave), 1, 1, 40, 12, true).(synthViz)
+	if loud.bass <= quiet.bass || loud.phase <= quiet.phase {
+		t.Fatalf("bass %v / %v, grid moved %v / %v", quiet.bass, loud.bass, quiet.phase, loud.phase)
 	}
 }

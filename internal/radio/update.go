@@ -12,6 +12,21 @@ import (
 
 // Update handles one message.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	nm, ok := next.(Model)
+	if !ok {
+		return next, cmd
+	}
+	// Text msg brought scrambles in (see intro.go), the tick raised for it.
+	nm = nm.withIntro(m, msg)
+	if nm.intro.seq != m.intro.seq && !nm.tickFast {
+		tick := nm.scheduleTick()
+		return nm, tea.Batch(cmd, tick)
+	}
+	return nm, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height

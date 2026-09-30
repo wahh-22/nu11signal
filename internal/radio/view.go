@@ -37,10 +37,14 @@ func (m Model) render() string {
 	return strings.Join(lines, "\n")
 }
 
-// layout lays out the frame, with the signal effects drawn over it while
-// they run (see glitch.go); they never move the zones.
+// layout lays out the frame, with the content intro and the signal
+// effects drawn over it while they run (see intro.go and glitch.go); they
+// never move the zones.
 func (m Model) layout() ([]string, zones) {
 	lines, zs := m.baseLayout()
+	if m.introOn() {
+		m.drawIntro(lines)
+	}
 	if m.fxActive() {
 		lines = m.decorate(lines)
 	}

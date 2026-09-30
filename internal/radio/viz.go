@@ -1,7 +1,6 @@
 package radio
 
 import (
-	"fmt"
 	"hash/fnv"
 	"strings"
 
@@ -53,14 +52,13 @@ type vizKind int
 const (
 	vizBars vizKind = iota
 	vizScope
-	vizWaterfall
 	vizRain
 	vizSynthwave
 	vizCount
 )
 
 // vizNames are the visualizers' config names, in cycling order.
-var vizNames = [vizCount]string{"bars", "oscilloscope", "waterfall", "rain", "synthwave"}
+var vizNames = [vizCount]string{"bars", "oscilloscope", "rain", "synthwave"}
 
 // vizRandom is the config name that picks a visualizer per song.
 const vizRandom = "random"
@@ -72,8 +70,6 @@ func newVisualizer(k vizKind) visualizer {
 	switch k {
 	case vizScope:
 		return scopeViz{}
-	case vizWaterfall:
-		return waterfallViz{}
 	case vizRain:
 		return rainViz{}
 	case vizSynthwave:
@@ -123,16 +119,6 @@ func randomVisualizer(song string, prev vizKind) vizKind {
 	return k
 }
 
-// Visualizer colors beyond the theme: neon magenta for the waterfall and
-// the synthwave horizon, and dim tones for trails and grids.
-var (
-	colMagenta    = lipgloss.Color("#FF2E97")
-	colMagentaDim = lipgloss.Color("#5C1A45")
-	colCyanDim    = lipgloss.Color("#1D5C63")
-	colCyanDeep   = lipgloss.Color("#123A3F")
-	colPale       = lipgloss.Color("#DFFFFF")
-)
-
 // ink is a style as the escape codes around a run of cells: the
 // visualizers color cell by cell, and styling each run through lipgloss
 // would cost more than drawing it.
@@ -144,60 +130,50 @@ func inkOf(st lipgloss.Style) ink {
 	return ink{pre: s[:i], post: s[i+1:]}
 }
 
-// Inks of the visualizers' palette; inkNone draws unstyled.
+// Inks of the visualizers' palette, the bars' own (see barsViz): yellow
+// tips, bold red, red, and the theme's dim reds for what sits behind the
+// music (trails, axes, grids, reflections), in that order from bright to
+// dim, so a trail can step down them. inkNone draws unstyled.
 const (
 	inkNone uint8 = iota
-	inkRed
-	inkRedBold
 	inkYellow
-	inkCyan
-	inkCyanBold
-	inkCyanDim
-	inkCyanDeep
-	inkPale
-	inkMagenta
-	inkMagentaBold
-	inkMagentaDim
-	inkGradient // gradientSteps inks from cyan through magenta to yellow
+	inkRedBold
+	inkRed
+	inkMuted
+	inkDim
 )
 
-// gradientSteps is the number of waterfall intensity colors.
-const gradientSteps = 8
+var vizInks = []ink{
+	inkNone:    {},
+	inkYellow:  inkOf(stYellow),
+	inkRedBold: inkOf(stRedBold),
+	inkRed:     inkOf(stRed),
+	inkMuted:   inkOf(stMuted),
+	inkDim:     inkOf(stDim),
+}
 
-var vizInks = func() []ink {
-	inks := []ink{
-		inkNone:        {},
-		inkRed:         inkOf(stRed),
-		inkRedBold:     inkOf(stRedBold),
-		inkYellow:      inkOf(stYellow),
-		inkCyan:        inkOf(stCyan),
-		inkCyanBold:    inkOf(stCyanBold),
-		inkCyanDim:     inkOf(lipgloss.NewStyle().Foreground(colCyanDim)),
-		inkCyanDeep:    inkOf(lipgloss.NewStyle().Foreground(colCyanDeep)),
-		inkPale:        inkOf(lipgloss.NewStyle().Foreground(colPale).Bold(true)),
-		inkMagenta:     inkOf(lipgloss.NewStyle().Foreground(colMagenta)),
-		inkMagentaBold: inkOf(lipgloss.NewStyle().Foreground(colMagenta).Bold(true)),
-		inkMagentaDim:  inkOf(lipgloss.NewStyle().Foreground(colMagentaDim)),
+// barInk is the bars' ink for row y of h, top first: the yellow tips on
+// the top row, bold red over the upper half, red below.
+func barInk(y, h int) uint8 {
+	switch {
+	case y == 0:
+		return inkYellow
+	case y < h/2:
+		return inkRedBold
 	}
-	for i := range gradientSteps {
-		inks = append(inks, inkOf(lipgloss.NewStyle().Foreground(lipgloss.Color(gradientHex(float64(i)/(gradientSteps-1))))))
-	}
-	return inks
-}()
+	return inkRed
+}
 
-// gradientHex is the color at t (0 to 1) of the neon gradient: cyan,
-// magenta halfway, yellow.
-func gradientHex(t float64) string {
-	stops := [3][3]float64{{0x5E, 0xF6, 0xFF}, {0xFF, 0x2E, 0x97}, {0xFC, 0xEE, 0x0A}}
-	a, b, k := stops[0], stops[1], t*2
-	if t > 0.5 {
-		a, b, k = stops[1], stops[2], t*2-1
+// levelInk is the bars' ink for a level, 0 to 1: the ink of the row a bar
+// that high tops out in, on a 12-row panel.
+func levelInk(level float64) uint8 {
+	switch {
+	case level >= 0.9:
+		return inkYellow
+	case level >= 0.5:
+		return inkRedBold
 	}
-	var c [3]int
-	for i := range c {
-		c[i] = int(a[i] + (b[i]-a[i])*k + 0.5)
-	}
-	return fmt.Sprintf("#%02X%02X%02X", c[0], c[1], c[2])
+	return inkRed
 }
 
 // canvas is a w x h grid of one-cell glyphs, each with an ink, that

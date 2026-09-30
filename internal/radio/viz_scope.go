@@ -3,15 +3,19 @@ package radio
 import "math"
 
 // scopeViz is an oscilloscope: the waveform traced in braille dots across
-// the width (each cell holds 2 x 4 dots), around a dim center axis. It
-// draws the player's waveform when it sends one, else a smooth synthetic
-// wave as loud as the bars; paused, the trace flattens onto the axis.
+// the width (each cell holds 2 x 4 dots), around a dim center axis, in the
+// bars' colors by height: red near the axis, bold red further out, yellow
+// at the edges. It draws the player's waveform when it sends one, else a
+// smooth synthetic wave as loud as the bars; paused, the trace flattens
+// onto the axis.
 type scopeViz struct {
 	// wave is the trace, scopePoints points of -1 to 1 once stepped.
 	wave []float64
-	// peak follows the loudest recent point, so quiet music still fills
-	// the screen: the trace is drawn relative to it (never below
-	// scopeMinPeak, so silence stays flat).
+	// peak is the auto-gain: it jumps to the loudest point at once and
+	// falls back slowly (scopeRelease), and the trace is drawn relative to
+	// it, never more than 1/scopeMinPeak times larger. A loud passage
+	// swings to the edges, a quiet one after it stays small for a few
+	// seconds and then grows only so far; silence stays flat.
 	peak float64
 	// phase advances the synthetic wave.
 	phase float64
@@ -20,7 +24,7 @@ type scopeViz struct {
 const (
 	scopePoints  = 64
 	scopeMinPeak = 0.25
-	scopeRelease = 0.9 // per frame, of peak
+	scopeRelease = 0.985 // per frame, of peak: halved in about 5 s
 )
 
 func (scopeViz) Name() string { return vizNames[vizScope] }
@@ -48,7 +52,7 @@ func (v scopeViz) Step(in vizInput) visualizer {
 		loudest = max(loudest, math.Abs(p))
 	}
 	if in.Playing {
-		v.peak = max(v.peak*scopeRelease, loudest, scopeMinPeak)
+		v.peak = max(v.peak*scopeRelease, loudest)
 	}
 	v.wave = next
 	return v
@@ -118,11 +122,14 @@ func (v scopeViz) Render(w, h int) []string {
 		}
 	}
 	for y := range h {
+		// The row's distance from the axis, 0 to 1, colors it as a bar
+		// reaching that high.
+		k := levelInk(math.Abs(float64(4*y+2-2*h)) / float64(2*h))
 		for x := range w {
 			if bits := g.bits(x, y); bits != 0 {
-				c.set(x, y, brailleRune(bits|axis.bits(x, y)), inkCyanBold)
+				c.set(x, y, brailleRune(bits|axis.bits(x, y)), k)
 			} else if bits := axis.bits(x, y); bits != 0 {
-				c.set(x, y, brailleRune(bits), inkCyanDeep)
+				c.set(x, y, brailleRune(bits), inkDim)
 			}
 		}
 	}

@@ -23,7 +23,7 @@ func TestLoad(t *testing.T) {
 		want    Config
 		wantErr bool
 	}{
-		{"a visualizer", `{"visualizer": "waterfall"}`, Config{Visualizer: "waterfall"}, false},
+		{"a visualizer", `{"visualizer": "synthwave"}`, Config{Visualizer: "synthwave"}, false},
 		{"the name as written", `{"visualizer": "SynthWave"}`, Config{Visualizer: "SynthWave"}, false},
 		{"unknown fields are ignored", `{"visualizer": "rain", "theme": "neon"}`, Config{Visualizer: "rain"}, false},
 		{"no visualizer", `{}`, Config{}, false},

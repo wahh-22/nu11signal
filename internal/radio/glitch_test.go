@@ -23,12 +23,19 @@ func fxModel(t *testing.T, c *clock) Model {
 	m := New(f, Options{Now: c.now, Seed: 2077, Effects: true})
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m, cmd := step(t, m, run(t, m.authorizeCmd()))
-	m, _ = step(t, m, run(t, cmd))
+	// The playlists, without the tick the intro of the new rows raised.
+	for _, msg := range runAll(t, cmd) {
+		if _, ok := msg.(tickMsg); !ok {
+			m, _ = step(t, m, msg)
+		}
+	}
 	m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 225*time.Second)})
-	// Let the title's song-change glitch settle.
+	// Let the title's song-change glitch settle, and forget the intro of
+	// the first frames: the clock stands still here (see introModel).
 	for range glitchFrames + 1 {
 		m = tick(t, m)
 	}
+	m.intro = intro{}
 	return m
 }
 
