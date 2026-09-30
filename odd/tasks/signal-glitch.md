@@ -79,3 +79,9 @@ Effects feel too fast, like the app is failing. Make them smoother and a bit lon
 
 - [x] G7 — Final values: bursts 0.6–1 s; text wave 1–2 s scrambling 40% of the letters (route: inline, constants + pinned test values + goldens + README). `go test -race ./...` ok, vet/gofmt clean; goldens `no_signal_80x24` and `text_wave_80x24` regenerated.
 - G7 review: commit `cca31a4`, lineage `review-c63af848460e44c4`, reliability lens, APPROVED with no findings, acknowledged (burned).
+
+## Round 8 (user feedback, 2026-09-30)
+
+With the content intro in place the text wave is redundant.
+
+- [ ] G8 — Smoother content intro (~650 ms, glyph change ~90 ms, eased left-to-right resolve); remove the text wave entirely; bursts more frequent (every 10–22 s), keeping 0.6–1 s and NO SIGNAL 1 in 4. Branch `feat/intro-smooth`. Route: delegated.
