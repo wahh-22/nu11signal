@@ -76,10 +76,10 @@ func nowPlayingControlRows(iw, ih int) int {
 	return rows
 }
 
-// vizRows is the height of the spectrum area under used rows of ih, at
-// most eqMaxRows; 0 when fewer than 2 rows are left.
+// vizRows is the height of the spectrum area: every row of ih under the
+// used ones; 0 when fewer than 2 rows are left.
 func vizRows(ih, used int) int {
-	if rows := min(ih-used, eqMaxRows); rows >= 2 {
+	if rows := ih - used; rows >= 2 {
 		return rows
 	}
 	return 0

@@ -18,7 +18,6 @@ const (
 	fullMinHeight = 16
 	tinyMinWidth  = 20
 	tinyMinHeight = 5
-	eqMaxRows     = 12
 )
 
 // View renders the radio in the alternate screen.

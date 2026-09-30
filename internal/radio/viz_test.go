@@ -740,3 +740,17 @@ func TestRainUsesTheBarsPalette(t *testing.T) {
 		})
 	}
 }
+
+func TestRainFillsTheRoomUnderTheControls(t *testing.T) {
+	// However tall the panel, the rain takes every row under the controls.
+	for _, h := range []int{24, 40, 60} {
+		for _, expanded := range []bool{false, true} {
+			m, _ := vizModel(t, 120, h, 0, expanded)
+			ih := h - 6
+			used := nowPlayingControlRows(m.playerPanelWidth()-2, ih)
+			if _, rows := m.vizSize(); rows != ih-used {
+				t.Fatalf("h=%d expanded=%v: rain %d rows; want the %d left under the controls", h, expanded, rows, ih-used)
+			}
+		}
+	}
+}
