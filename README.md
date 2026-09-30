@@ -440,7 +440,8 @@ starts with them off. They pause while the SEARCH input or a NEW PLAYLIST
 name takes the keys, and on the tiny layout. They add no timer: the
 animation tick sleeps until the next effect is due; a text wave runs at
 10 fps (while a song plays it rides the 10 fps animation), a burst at
-15 fps.
+15 fps. The terminal is redrawn at most 20 times a second, not Bubble
+Tea's default 60, to keep the process's wakeups (and battery use) low.
 
 ## Mouse
 

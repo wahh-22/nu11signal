@@ -116,7 +116,7 @@ func openRecents(demoMode bool) history.Recents {
 
 func runUI(player playback.Player, recents history.Recents, calm bool) error {
 	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano()), Recents: recents, Effects: !calm})
-	_, err := tea.NewProgram(model).Run()
+	_, err := tea.NewProgram(model, tea.WithFPS(radio.RenderFPS)).Run()
 	return err
 }
 

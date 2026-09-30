@@ -97,6 +97,9 @@ func panel(label, code string, body []string, w, h int, focused bool) []string {
 	}
 	foot := frame.Render("└"+strings.Repeat("─", iw-ansi.StringWidth(tail))) + stMuted.Render(tail) + frame.Render("╱")
 
+	// The side is styled once, not twice per row: panels are drawn on
+	// every frame.
+	side := frame.Render("│")
 	out := make([]string, 0, h)
 	out = append(out, head)
 	for i := range ih {
@@ -104,7 +107,7 @@ func panel(label, code string, body []string, w, h int, focused bool) []string {
 		if i < len(body) {
 			line = body[i]
 		}
-		out = append(out, frame.Render("│")+fit(line, iw)+frame.Render("│"))
+		out = append(out, side+fit(line, iw)+side)
 	}
 	return append(out, foot)
 }

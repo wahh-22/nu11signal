@@ -604,6 +604,42 @@ func TestStationsFooterKeepsTheEssentialHintsAt80Columns(t *testing.T) {
 	}
 }
 
+// TestFitHintsMatchesRestylingEveryCandidate pins fitHints, which styles
+// each hint once, to the plain algorithm that restyles every candidate
+// line, at every width and for every hint set.
+func TestFitHintsMatchesRestylingEveryCandidate(t *testing.T) {
+	join := func(hs []hint) string {
+		parts := make([]string, len(hs))
+		for i, h := range hs {
+			parts[i] = keyCap(h.key) + " " + stRed.Render(h.label)
+		}
+		return strings.Join(parts, "  ")
+	}
+	reference := func(hints []hint, w int) string {
+		if ansi.StringWidth(join(hints)) > w {
+			hints = shortHints(hints)
+		}
+		shown := append([]hint(nil), hints...)
+		for len(shown) > 1 && ansi.StringWidth(join(shown)) > w {
+			shown = append(shown[:len(shown)-2], shown[len(shown)-1])
+		}
+		return join(shown)
+	}
+	sets := map[string][]hint{
+		"player": playerHints, "artist": artistHints, "results": resultsHints,
+		"track": trackHints, "picker": pickerHints, "name": nameHints,
+		"searchSong": searchSongHints, "search": searchHints, "recent": recentHints,
+		"tabs": tabsFocusHints(false), "playerFocus": playerFocusHints(true, true),
+	}
+	for name, hs := range sets {
+		for w := 0; w <= 160; w++ {
+			if got, want := fitHints(hs, w), reference(hs, w); got != want {
+				t.Fatalf("%s at %d cells:\n got %q\nwant %q", name, w, got, want)
+			}
+		}
+	}
+}
+
 func TestPlayerFocusHintsFollowTheExpandedStateAndTheInput(t *testing.T) {
 	tests := []struct {
 		expanded, typing bool

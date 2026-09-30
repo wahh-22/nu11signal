@@ -211,6 +211,24 @@ func TestBurstGlitchesAndFlashesNoSignal(t *testing.T) {
 	}
 }
 
+// TestRenderFPSShowsEveryAnimationFrame guards the renderer frame rate:
+// its frame period must not exceed any animation step, or a step would
+// share a flush with the next and never reach the screen.
+func TestRenderFPSShowsEveryAnimationFrame(t *testing.T) {
+	period := time.Second / RenderFPS
+	for name, step := range map[string]time.Duration{
+		"fastTick": fastTick, "waveTick": waveTick, "burstTick": burstTick, "alertBlink": alertBlink,
+	} {
+		if period > step {
+			t.Errorf("frame period %v exceeds %s %v", period, name, step)
+		}
+	}
+	// Bubble Tea's default is 60; the point is to run slower than that.
+	if RenderFPS >= 60 {
+		t.Errorf("RenderFPS = %d, want fewer than the default 60 frames a second", RenderFPS)
+	}
+}
+
 func TestTickRateRisesOnlyDuringBursts(t *testing.T) {
 	c := newClock()
 	m := fxModel(t, c)

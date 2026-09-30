@@ -553,21 +553,53 @@ func (m Model) hintLine(w int) string {
 	case kind == viewAlbum, kind == viewPlaylist:
 		hints = trackHints
 	}
-	render := func(hs []hint) string {
-		parts := make([]string, len(hs))
-		for i, h := range hs {
-			parts[i] = keyCap(h.key) + " " + stRed.Render(h.label)
+	return fitHints(hints, w)
+}
+
+// fitHints joins hints into a line of at most w cells, shortening their
+// keys and then dropping lower-priority ones (never the last) until it
+// fits. Each hint is styled once: the View runs on every frame, and
+// styling every candidate line anew made the hints most of its cost.
+func fitHints(hints []hint, w int) string {
+	parts, width := renderHints(hints)
+	if width > w {
+		parts, width = renderHints(shortHints(hints))
+	}
+	for len(parts) > 1 && width > w {
+		drop := len(parts) - 2
+		width -= parts[drop].width + len(hintGap)
+		parts = append(parts[:drop], parts[drop+1:]...)
+	}
+	cells := make([]string, len(parts))
+	for i, p := range parts {
+		cells[i] = p.text
+	}
+	return strings.Join(cells, hintGap)
+}
+
+// hintGap separates two key hints.
+const hintGap = "  "
+
+// renderedHint is a styled key hint and its width in cells.
+type renderedHint struct {
+	text  string
+	width int
+}
+
+// renderHints styles each hint once and returns them with the width of
+// the whole line they make, joined by hintGap.
+func renderHints(hs []hint) ([]renderedHint, int) {
+	parts := make([]renderedHint, len(hs))
+	width := 0
+	for i, h := range hs {
+		text := keyCap(h.key) + " " + stRed.Render(h.label)
+		parts[i] = renderedHint{text: text, width: ansi.StringWidth(text)}
+		if i > 0 {
+			width += len(hintGap)
 		}
-		return strings.Join(parts, "  ")
+		width += parts[i].width
 	}
-	if ansi.StringWidth(render(hints)) > w {
-		hints = shortHints(hints)
-	}
-	shown := append([]hint(nil), hints...)
-	for len(shown) > 1 && ansi.StringWidth(render(shown)) > w {
-		shown = append(shown[:len(shown)-2], shown[len(shown)-1])
-	}
-	return render(shown)
+	return parts, width
 }
 
 // shortHints names only DEL of the recent delete keys.
