@@ -16,8 +16,9 @@ import (
 // noSignalOdds also flashes NO SIGNAL. Between bursts, the text on screen
 // keeps glitching like the title on a song change: every
 // microGapMin..microGapMax one to microMaxN spans of existing text, on any
-// line, scramble and resolve back over microMin..microMax. Night City
-// alerts take the empty status line now and then.
+// line, scramble and resolve back over microMin..microMax, each cell
+// keeping its own style. Night City alerts take the empty status line now
+// and then.
 //
 // Everything is drawn over the finished frame (see Model.decorate), cell
 // for cell, so no line changes width and the clickable zones, laid out
@@ -25,7 +26,7 @@ import (
 // from the seed, the injected clock and the frame counter: tests replay
 // them exactly. No timer is added: the animation tick sleeps until the
 // next effect is due, and runs fast only while one animates (see
-// effects.interval).
+// effects.interval): idle, a micro-glitch takes three frames at most.
 const (
 	burstGapMin  = 20 * time.Second
 	burstGapMax  = 45 * time.Second
@@ -38,18 +39,19 @@ const (
 	alertBlink   = 500 * time.Millisecond
 	// A micro-glitch scrambles microSpanMin..microSpanMax text cells;
 	// microHold is the share of its time before its cells start to
-	// resolve, left to right.
-	microGapMin  = 500 * time.Millisecond
-	microGapMax  = 2 * time.Second
+	// resolve, left to right. The next one starts microGapMin..microGapMax
+	// after it started, never before it resolved.
+	microGapMin  = 200 * time.Millisecond
+	microGapMax  = 800 * time.Millisecond
 	microMin     = 150 * time.Millisecond
 	microMax     = 300 * time.Millisecond
 	microMaxN    = 3
 	microSpanMin = 3
 	microSpanMax = 12
 	microHold    = 0.3
-	// burstTick is the frame time during a burst (about 15 fps), microTick
-	// while a micro-glitch resolves; minWake keeps a late tick from
-	// spinning.
+	// burstTick is the frame time during a burst (about 15 fps);
+	// microTick is how often the noise of a micro-glitch changes on the
+	// frames that run anyway; minWake keeps a late tick from spinning.
 	burstTick = 66 * time.Millisecond
 	microTick = 100 * time.Millisecond
 	minWake   = 10 * time.Millisecond
@@ -114,7 +116,8 @@ func (e effects) advance(now time.Time, seed uint64, active bool) effects {
 				e.microEnd = end
 			}
 		}
-		e.nextMicro = now.Add(span(mix(seed, saltMicroGap, e.microSeq), microGapMin, microGapMax))
+		next := now.Add(span(mix(seed, saltMicroGap, e.microSeq), microGapMin, microGapMax))
+		e.nextMicro = later(next, e.microEnd)
 	}
 	if e.nextBurst.IsZero() {
 		e.nextBurst = now.Add(span(mix(seed, saltBurstGap, e.burstSeq), burstGapMin, burstGapMax))
@@ -151,8 +154,9 @@ func (e effects) micro(now time.Time) bool {
 
 // interval is the time to the next frame, d without the effects:
 // burstTick during a burst; d itself when it is no slower than microTick;
-// else microTick while a micro-glitch resolves (its last frame on its
-// end), and d cut short so that the ▲ of an alert blinks and the next
+// else, while a micro-glitch resolves, the time to its middle (partly
+// resolved) and then to its end (whole again), so that it takes three
+// frames; and d cut short so that the ▲ of an alert blinks and the next
 // burst or micro-glitch starts on time.
 func (e effects) interval(now time.Time, d time.Duration) time.Duration {
 	if e.bursting(now) {
@@ -164,7 +168,11 @@ func (e effects) interval(now time.Time, d time.Duration) time.Duration {
 		return d
 	}
 	if e.micro(now) {
-		return max(min(microTick, e.microEnd.Sub(now)), minWake)
+		next := e.microEnd
+		if mid := e.microStart.Add(e.microEnd.Sub(e.microStart) / 2); now.Before(mid) {
+			next = mid
+		}
+		return max(next.Sub(now), minWake)
 	}
 	if e.alerting(now) {
 		d = min(d, alertBlink)
@@ -192,6 +200,14 @@ func microCount(h uint64) int {
 // microDuration is how long span i of micro-glitch seq takes to resolve.
 func microDuration(seed, seq uint64, i int) time.Duration {
 	return span(mix(seed, saltMicroLen, seq, uint64(i)), microMin, microMax)
+}
+
+// later is the later of a and b.
+func later(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }
 
 // span maps a hash to a duration in [lo, hi).
@@ -351,21 +367,20 @@ func textRune(r rune) bool {
 	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F)
 }
 
-// microStyles color the scrambled cells.
-var microStyles = []lipgloss.Style{stCyanBold, stRedBold, stYellowB}
-
 // microGlitch scrambles the spans of the live micro-glitch in lines, but
 // on line spared. Each span is microSpanMin..microSpanMax cells of one
 // text run, picked from the seed; its cells hold noise glyphs or letters,
 // changing every microTick, and after microHold of its time they resolve
 // left to right back to the text, like the title on a song change. Only
-// scrambled cells change; the others keep their text and style.
+// the characters of the scrambled cells change: every cell keeps its
+// style, and the others their text too.
 func (m Model) microGlitch(lines []string, spared int, now time.Time) {
 	runs := textRuns(lines, spared)
 	if len(runs) == 0 {
 		return
 	}
 	elapsed := now.Sub(m.fx.microStart)
+	repl := map[int]map[int]rune{}
 	for i := range m.fx.microN {
 		d := microDuration(m.seed, m.fx.microSeq, i)
 		if elapsed >= d {
@@ -385,14 +400,40 @@ func (m Model) microGlitch(lines []string, spared int, now time.Time) {
 			if j > resolved && unit(c) >= 0.75 {
 				continue // the first unresolved cell always flickers
 			}
-			glyph := string(glitchGlyphs[c>>16%uint64(len(glitchGlyphs))])
+			glyph := glitchGlyphs[c>>16%uint64(len(glitchGlyphs))]
 			if c>>8%3 == 0 {
-				glyph = string(rune('A' + c>>24%26))
+				glyph = rune('A' + c>>24%26)
 			}
-			style := microStyles[c>>40%uint64(len(microStyles))]
-			lines[r.y] = overlay(lines[r.y], xs[j], style.Render(glyph))
+			if repl[r.y] == nil {
+				repl[r.y] = map[int]rune{}
+			}
+			repl[r.y][xs[j]] = glyph
 		}
 	}
+	for y, cells := range repl {
+		lines[y] = setCells(lines[y], cells)
+	}
+}
+
+// setCells replaces the characters of the one cell wide cells of line at
+// the keys of cells with their one cell wide runes, keeping every escape
+// sequence where it is: each cell keeps the style it had.
+func setCells(line string, cells map[int]rune) string {
+	var b strings.Builder
+	b.Grow(len(line))
+	var state byte
+	x := 0
+	for rest := line; len(rest) > 0; {
+		seq, w, n, next := ansi.DecodeSequence(rest, state, nil)
+		if r, ok := cells[x]; ok && w == 1 {
+			b.WriteRune(r)
+		} else {
+			b.WriteString(seq)
+		}
+		x += w
+		rest, state = rest[n:], next
+	}
+	return b.String()
 }
 
 // noiseGlyphs replace cells during a burst.
