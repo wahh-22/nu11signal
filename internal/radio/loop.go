@@ -1,21 +1,20 @@
 package radio
 
 import (
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
 )
 
 // The LOOP control cycles the player's repeat mode: OFF, ALL (the queue
-// starts over), ONE (the song starts over). The change is optimistic: the
-// button shows the mode asked for at once, and keeps showing it until a
-// state reports it (states sent before the change still carry the old
-// one), the player refuses it or loopHold passes; then the player's
-// reports rule again.
+// starts over), ONE (the song starts over); its button, on the transport
+// row, names the mode shown: [↻ OFF], [↻ ALL], [↻ ONE]. The change is
+// optimistic: the button shows the mode asked for at once, and keeps
+// showing it until a state reports it (states sent before the change
+// still carry the old one), the player refuses it or loopHold passes;
+// then the player's reports rule again.
 
 // loopHold is how long the mode asked for is shown without a state
 // reporting it: then the player's reports rule again, so a change the
@@ -88,52 +87,13 @@ func (m *Model) confirmLoop() {
 	}
 }
 
-// loopLabels are the LOOP button's labels for mode, widest first.
-func loopLabels(mode playback.RepeatMode) []string {
-	name := map[playback.RepeatMode]string{playback.RepeatAll: "ALL", playback.RepeatOne: "ONE"}[mode]
-	if name == "" {
-		name = "OFF"
+// loopName is the LOOP button's name for mode: OFF, ALL or ONE.
+func loopName(mode playback.RepeatMode) string {
+	switch mode {
+	case playback.RepeatAll:
+		return "ALL"
+	case playback.RepeatOne:
+		return "ONE"
 	}
-	return []string{"↻ LOOP " + name, "↻ " + name, "↻"}
-}
-
-// loopButton is the widest LOOP button that fits in w cells: lit while a
-// mode other than OFF is on; ok is false when none fits.
-func (m Model) loopButton(w int) (b button, ok bool) {
-	mode := m.loopMode()
-	for _, label := range loopLabels(mode) {
-		b = button{id: zoneLoop, label: label, tone: stCyan, active: mode != playback.RepeatOff, focused: m.focused(ctlLoop)}
-		if b.width() <= w {
-			return b, true
-		}
-	}
-	return button{}, false
-}
-
-// loopBar lays out the LOOP button in at most w cells, with its zone;
-// empty when it does not fit.
-func (m Model) loopBar(w int) (string, zones) {
-	b, ok := m.loopButton(w)
-	if !ok {
-		return "", nil
-	}
-	var zs zones
-	zs.add(b.id, 0, 0, b.width())
-	return b.render(), zs
-}
-
-// loopTail ends line, w cells, with the LOOP button, as the compact layout
-// draws it at the end of the artist line, while there is room for it and
-// heartTitleMinRoom cells of the line; the zones are in the line's
-// coordinates.
-func (m Model) loopTail(line string, w int) (string, zones) {
-	b, ok := m.loopButton(w - heartTitleMinRoom - 1)
-	if !ok {
-		return line, nil
-	}
-	room := w - b.width() - 1
-	line = ansi.Truncate(line, room, "…")
-	var zs zones
-	zs.add(b.id, room+1, 0, b.width())
-	return line + strings.Repeat(" ", room-ansi.StringWidth(line)+1) + b.render(), zs
+	return "OFF"
 }

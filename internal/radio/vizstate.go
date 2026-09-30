@@ -65,13 +65,13 @@ func (m Model) vizSize() (w, h int) {
 }
 
 // nowPlayingControlRows is how many rows NOW PLAYING draws over the
-// spectrum area in ih rows: head to LOOP, with the gap over the buttons
-// once there is room for it.
+// spectrum area in ih rows: head to the volume row, with the gap over the
+// buttons once there is room for it.
 func nowPlayingControlRows(ih int) int {
 	if ih > 10 {
-		return 12
+		return 11
 	}
-	return 11
+	return 10
 }
 
 // vizRows is the height of the spectrum area under used rows of ih, at

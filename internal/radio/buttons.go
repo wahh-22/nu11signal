@@ -1,16 +1,17 @@
 package radio
 
 import (
-	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
-// button is one clickable control drawn as a slanted neon plate:
+// button is one clickable control drawn as a slanted neon plate, or, on
+// the player (bracket), as a bracketed HUD key:
 //
 //	╱ PLAYLISTS ╱  (the active one fills in yellow: ╱█SEARCH█╱)
+//	[◀◀]           (the active one fills in yellow: █[ ❚❚ PAUSE ]█)
 type button struct {
 	id    string
 	label string
@@ -18,13 +19,31 @@ type button struct {
 	tone   lipgloss.Style
 	active bool
 	// focused marks the button the keyboard is on: filled in yellow, with
-	// a ▸ before its label.
+	// a ▸ before its label (on a HUD key, in its leading space or else in
+	// place of its opening bracket: [▸❚❚ PAUSE ], ▸◀◀]).
 	focused bool
+	bracket bool
 }
 
-func (b button) width() int { return ansi.StringWidth(b.label) + 4 }
+func (b button) width() int {
+	if b.bracket {
+		return ansi.StringWidth(b.label) + 2
+	}
+	return ansi.StringWidth(b.label) + 4
+}
 
 func (b button) render() string {
+	if b.bracket {
+		switch {
+		case b.focused && strings.HasPrefix(b.label, " "):
+			return stButtonOn.Render("[▸" + b.label[1:] + "]")
+		case b.focused:
+			return stButtonOn.Render("▸" + b.label + "]")
+		case b.active:
+			return stButtonOn.Render("[" + b.label + "]")
+		}
+		return b.tone.Render("[" + b.label + "]")
+	}
 	if b.focused {
 		return stYellow.Render("╱") + stButtonOn.Render("▸"+b.label+" ") + stYellow.Render("╱")
 	}
@@ -77,40 +96,110 @@ func (m Model) navButtons() []button {
 	return bs
 }
 
-// transportBar lays out PREV, PLAY or PAUSE, NEXT and EXPAND or RESTORE in
-// at most w cells: labelled while they fit, else EXPAND as a glyph, else
-// glyphs only, else as many as fit. The button the keyboard is on is marked.
-func (m Model) transportBar(w int) (string, zones) {
-	full := []string{"◀◀ PREV", "▶ PLAY", "NEXT ▶▶", "⤢ EXPAND"}
-	short := []string{"◀◀", "▶", "▶▶", "⤢"}
-	if m.isPlaying() {
-		full[ctlPlay], short[ctlPlay] = "❚❚ PAUSE", "❚❚"
-	}
-	if m.expanded {
-		full[ctlExpand], short[ctlExpand] = "⤡ RESTORE", "⤡"
-	}
-	// EXPAND gives up its label first.
-	mixed := append(slices.Clone(full[:ctlExpand]), short[ctlExpand])
-	for _, labels := range [][]string{full, mixed} {
-		if bar, zs := buttonBar(m.transportButtons(labels), w); len(zs) == len(labels) {
-			return bar, zs
-		}
-	}
-	return buttonBar(m.transportButtons(short), w)
+// hudLayout is one way to lay out the transport row: how PLAY or PAUSE
+// is labelled, the gaps between PREV, PLAY and NEXT (near) and before LOOP
+// (loop), the least gap before EXPAND, and whether LOOP names its mode.
+type hudLayout struct {
+	play               hudPlay
+	near, loop, expand int
+	loopMode           bool
 }
 
-// transportButtons are the player buttons with labels, in playerControl
-// order.
-func (m Model) transportButtons(labels []string) []button {
-	bs := make([]button, len(labels))
-	for i, l := range labels {
-		c := playerControl(i)
-		tone := stCyan
-		if c == ctlExpand {
-			// EXPAND stands apart from the transport controls.
-			tone = stYellow
+// hudPlay is how PLAY or PAUSE is labelled: [ ❚❚ PAUSE ], [ ❚❚ ] or [❚❚].
+type hudPlay int
+
+const (
+	playLabelled hudPlay = iota
+	playSpaced
+	playBare
+)
+
+// hudLayouts are the transport row's layouts, widest first: the PLAY
+// label goes first, then the room around the buttons, then LOOP's mode;
+// past the last one, the buttons at the end give way.
+var hudLayouts = []hudLayout{
+	{playLabelled, 2, 6, 2, true},
+	{playSpaced, 2, 6, 2, true},
+	{playSpaced, 1, 3, 1, true},
+	{playBare, 1, 1, 1, true},
+	{playBare, 1, 1, 1, false},
+}
+
+// transportBar lays out the transport row in at most w cells, with its
+// zones: PREV, PLAY or PAUSE and NEXT close together, LOOP after a wider
+// gap, and EXPAND or RESTORE at the right edge (right after LOOP when
+// packed, as the compact layout draws it with more beside it). It takes
+// the widest of hudLayouts that fits, else the narrowest with as many
+// buttons as fit; a button is always drawn whole. The button the keyboard
+// is on is marked.
+//
+//	[◀◀]  [ ❚❚ PAUSE ]  [▶▶]      [↻ OFF]              [⤢]
+func (m Model) transportBar(w int, packed bool) (string, zones) {
+	for _, l := range hudLayouts {
+		bs, gaps := m.transportButtons(l)
+		if hudWidth(bs, gaps) <= w {
+			if !packed {
+				// EXPAND takes the room left.
+				last := len(gaps) - 1
+				gaps[last] += w - hudWidth(bs, gaps)
+			}
+			return hudRow(bs, gaps)
 		}
-		bs[i] = button{id: controlZone(c), label: l, tone: tone, focused: m.focused(c)}
 	}
-	return bs
+	bs, gaps := m.transportButtons(hudLayouts[len(hudLayouts)-1])
+	for len(bs) > 0 && hudWidth(bs, gaps) > w {
+		bs, gaps = bs[:len(bs)-1], gaps[:len(gaps)-1]
+	}
+	return hudRow(bs, gaps)
+}
+
+// transportButtons are the transport row's buttons in playerControl
+// order, PREV to EXPAND, labelled as l says, and the gap before each.
+func (m Model) transportButtons(l hudLayout) ([]button, []int) {
+	plays := [...]string{playLabelled: " ▶ PLAY ", playSpaced: " ▶ ", playBare: "▶"}
+	if m.isPlaying() {
+		plays = [...]string{playLabelled: " ❚❚ PAUSE ", playSpaced: " ❚❚ ", playBare: "❚❚"}
+	}
+	loop := "↻"
+	if l.loopMode {
+		loop += " " + loopName(m.loopMode())
+	}
+	expand := "⤢"
+	if m.expanded {
+		expand = "⤡"
+	}
+	labels := [...]string{ctlPrev: "◀◀", ctlPlay: plays[l.play], ctlNext: "▶▶", ctlLoop: loop, ctlExpand: expand}
+	bs := make([]button, len(labels))
+	for i, label := range labels {
+		c := playerControl(i)
+		bs[i] = button{id: controlZone(c), label: label, tone: stCyan, bracket: true, focused: m.focused(c)}
+	}
+	// PLAY or PAUSE is the primary action, always filled; EXPAND stands
+	// apart from the transport controls.
+	bs[ctlPlay].active = true
+	bs[ctlExpand].tone = stYellow
+	return bs, []int{0, l.near, l.near, l.loop, l.expand}
+}
+
+// hudWidth is the width of buttons bs laid out after gaps.
+func hudWidth(bs []button, gaps []int) int {
+	w := 0
+	for i, b := range bs {
+		w += gaps[i] + b.width()
+	}
+	return w
+}
+
+// hudRow draws buttons bs, each after its gap, with their zones in the
+// row's coordinates.
+func hudRow(bs []button, gaps []int) (string, zones) {
+	var out strings.Builder
+	var zs zones
+	x := 0
+	for i, b := range bs {
+		out.WriteString(strings.Repeat(" ", gaps[i]) + b.render())
+		zs.add(b.id, x+gaps[i], 0, b.width())
+		x += gaps[i] + b.width()
+	}
+	return out.String(), zs
 }

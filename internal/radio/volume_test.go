@@ -68,8 +68,8 @@ func TestStartupReadsTheVolume(t *testing.T) {
 
 func TestVolumeReadoutShowsTheLevel(t *testing.T) {
 	m := loaded(t, playbacktest.New(), newClock())
-	if got := volumeRow(t, m); !strings.Contains(got, "VOL --") {
-		t.Fatalf("readout before the read %q; want VOL --", got)
+	if got := volumeRow(t, m); !strings.Contains(got, "VOL [−] --") {
+		t.Fatalf("readout before the read %q; want VOL [−] --", got)
 	}
 	m = withVolume(t, m, 0.6)
 	got := volumeRow(t, m)
@@ -242,8 +242,8 @@ func TestRefusedVolumeShowsOnTheStatusLine(t *testing.T) {
 	if view := plain(m); !strings.Contains(view, "VOLUME FAILED // OUTPUT DEVICE HAS NO SETTABLE VOLUME") {
 		t.Fatalf("status line lacks the refusal:\n%s", view)
 	}
-	if got := volumeRow(t, m); !strings.Contains(got, "VOL --") {
-		t.Fatalf("readout %q; want VOL --", got)
+	if got := volumeRow(t, m); !strings.Contains(got, "VOL [−] --") {
+		t.Fatalf("readout %q; want VOL [−] --", got)
 	}
 
 	// The next press reads the level again before stepping from it.
@@ -266,15 +266,15 @@ func TestUnreadableVolumeStaysQuietAtStartup(t *testing.T) {
 	if m.status != "" {
 		t.Fatalf("status %q; want the startup read to fail quietly", m.status)
 	}
-	if got := volumeRow(t, m); !strings.Contains(got, "VOL --") {
-		t.Fatalf("readout %q; want VOL --", got)
+	if got := volumeRow(t, m); !strings.Contains(got, "VOL [−] --") {
+		t.Fatalf("readout %q; want VOL [−] --", got)
 	}
 }
 
 func TestVolumeButtons(t *testing.T) {
 	f := playbacktest.New()
 	m := withVolume(t, playingModel(t, f), 0.5)
-	if got := textAt(m, zoneOf(t, m, zoneVolDown)); !strings.Contains(got, "-") {
+	if got := textAt(m, zoneOf(t, m, zoneVolDown)); !strings.Contains(got, "−") {
 		t.Fatalf("VOL- zone covers %q", got)
 	}
 	if got := textAt(m, zoneOf(t, m, zoneVolUp)); !strings.Contains(got, "+") {
@@ -302,12 +302,11 @@ func TestArrowsReachTheVolumeRow(t *testing.T) {
 	}{
 		{"right", areaPlayer, ctlPlay},
 		{"down", areaPlayer, ctlVolDown},
-		{"down", areaPlayer, ctlLoop},
-		{"down", areaPlayer, ctlLoop}, // the bottom row stays
-		{"up", areaPlayer, ctlVolDown},
+		{"down", areaPlayer, ctlVolDown}, // the bottom row stays
 		{"right", areaPlayer, ctlVolUp},
 		{"right", areaPlayer, ctlVolUp}, // the last button stays
 		{"up", areaPlayer, ctlNext},
+		{"right", areaPlayer, ctlLoop},
 		{"right", areaPlayer, ctlExpand},
 		{"down", areaPlayer, ctlVolUp},
 		{"left", areaPlayer, ctlVolDown},

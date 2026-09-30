@@ -25,19 +25,19 @@ const (
 
 // playerControl is a button of the player. The buttons sit in rows, each
 // in the order ← and → walk it: the ♥ of the song playing alone over the
-// progress bar, the transport row under the bar, PREV to EXPAND, the
-// volume row under it, VOL- and VOL+, and LOOP alone under that. ↑ and ↓
-// cross between them.
+// progress bar, the transport row under the bar, PREV, PLAY, NEXT, LOOP
+// and EXPAND, and the volume row under it, VOL- and VOL+. ↑ and ↓ cross
+// between them.
 type playerControl int
 
 const (
 	ctlPrev playerControl = iota
 	ctlPlay
 	ctlNext
+	ctlLoop
 	ctlExpand
 	ctlVolDown
 	ctlVolUp
-	ctlLoop
 	ctlFav
 )
 
@@ -47,7 +47,7 @@ func (c playerControl) onVolumeRow() bool { return c == ctlVolDown || c == ctlVo
 // rowEnds are the first and last buttons of c's row.
 func (c playerControl) rowEnds() (first, last playerControl) {
 	switch {
-	case c == ctlLoop || c == ctlFav:
+	case c == ctlFav:
 		return c, c
 	case c.onVolumeRow():
 		return ctlVolDown, ctlVolUp
@@ -55,9 +55,9 @@ func (c playerControl) rowEnds() (first, last playerControl) {
 	return ctlPrev, ctlExpand
 }
 
-// below is the volume button under transport button c: VOL- under the
-// left half (PREV, PLAY), VOL+ under the right one. above goes back up,
-// VOL- to PREV and VOL+ to NEXT.
+// below is the volume button under transport button c: VOL- under PREV
+// and PLAY, VOL+ under NEXT, LOOP and EXPAND. above goes back up, VOL- to
+// PREV and VOL+ to NEXT.
 func (c playerControl) below() playerControl {
 	if c <= ctlPlay {
 		return ctlVolDown
@@ -238,27 +238,24 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 			next, cmd = m.seek(seekStep)
 			return next, cmd, true
 		}
-		_, last := m.control.rowEnds()
-		m.control = min(m.control+1, last)
+		// The row stops at its last button drawn: a narrow row leaves the
+		// last ones out.
+		if _, last := m.control.rowEnds(); m.control < last && m.drawn(controlZone(m.control+1)) {
+			m.control++
+		}
 	case keyUp:
-		// Up from LOOP reaches the volume row (VOL-); from there, the
-		// transport row; from there, the bar, if there is one to seek in;
-		// from there, the ♥ of the song playing, if there is one; from
-		// there, the tabs.
+		// Up from the volume row reaches the transport row; from there, the
+		// bar, if there is one to seek in; from there, the ♥ of the song
+		// playing, if there is one; from there, the tabs.
 		switch {
 		case m.control == ctlFav:
 			m.focusTabs()
-		case (m.onBar || (!m.control.onVolumeRow() && m.control != ctlLoop && !m.seekable())) && m.drawn(zoneFavPlaying):
+		case (m.onBar || (!m.control.onVolumeRow() && !m.seekable())) && m.drawn(zoneFavPlaying):
 			// From the bar, or from the transport row with no bar.
 			m.favFrom = m.control
 			m.control, m.onBar = ctlFav, false
 		case m.onBar:
 			m.focusTabs()
-		case m.control == ctlLoop && m.drawn(zoneVolDown):
-			m.control = ctlVolDown
-		case m.control == ctlLoop:
-			// A narrow compact layout leaves the volume row out.
-			m.control = ctlPlay
 		case m.control.onVolumeRow():
 			m.control = m.control.above()
 		case m.seekable():
@@ -274,14 +271,10 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 			m.control, m.onBar = m.favFrom, m.seekable()
 		case m.onBar:
 			m.onBar = false
-		case m.control == ctlLoop:
-			// The bottom row.
 		case !m.control.onVolumeRow() && m.drawn(zoneVolDown):
+			// The volume row is the bottom one; a narrow compact layout
+			// leaves it out.
 			m.control = m.control.below()
-		case m.drawn(zoneLoop):
-			// From the volume row, or from the transport row when a
-			// narrow compact layout leaves the volume row out.
-			m.control = ctlLoop
 		}
 	case keyEnter:
 		if m.onBar {
@@ -336,7 +329,7 @@ func (m Model) pressControl(c playerControl) (Model, tea.Cmd) {
 
 // controlZone is the zone ID of a player button.
 func controlZone(c playerControl) string {
-	return [...]string{zonePrev, zonePlay, zoneNext, zoneExpand, zoneVolDown, zoneVolUp, zoneLoop, zoneFavPlaying}[c]
+	return [...]string{zonePrev, zonePlay, zoneNext, zoneLoop, zoneExpand, zoneVolDown, zoneVolUp, zoneFavPlaying}[c]
 }
 
 // controlOf is the player button with zone ID id.

@@ -23,7 +23,7 @@ import (
 // laid out at the same instant, so the clock, the progress and the visualizer read the same in
 // both, and only the intro regions are compared: the list panel's inside
 // and the artist, album and feed rows of NOW PLAYING (the title glitches
-// on its own; the progress, buttons, volume, LOOP and visualizer rows are
+// on its own; the progress, transport, volume and visualizer rows are
 // left out). A row of a region is new when its text, its text cells
 // without the selection marks and borders, is on no row of that region
 // before: a row that only moved (a scroll) or changed its marks or its

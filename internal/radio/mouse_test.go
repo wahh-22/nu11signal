@@ -217,8 +217,8 @@ func TestTransportButtonsDriveThePlayer(t *testing.T) {
 	}{
 		{"pause", playback.StatusPlaying, zonePlay, "PAUSE", "Pause"},
 		{"resume", playback.StatusPaused, zonePlay, "PLAY", "Resume"},
-		{"next", playback.StatusPlaying, zoneNext, "NEXT", "Next"},
-		{"previous", playback.StatusPlaying, zonePrev, "PREV", "Previous"},
+		{"next", playback.StatusPlaying, zoneNext, "▶▶", "Next"},
+		{"previous", playback.StatusPlaying, zonePrev, "◀◀", "Previous"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

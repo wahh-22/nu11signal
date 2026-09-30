@@ -135,14 +135,14 @@ func (m Model) eqBarCount() int {
 
 // compactVolumeWidth is the widest volume row beside the transport
 // buttons in the compact layout, and compactVolumeMin the narrowest, with
-// its buttons and a bare percentage.
+// its buttons and the narrowest meter.
 const (
-	compactVolumeWidth = 26
-	compactVolumeMin   = 21
+	compactVolumeWidth = 27
+	compactVolumeMin   = 20
 )
 
 // playerMinWidth is the narrowest NOW PLAYING panel beside the list: room
-// for the four transport buttons as glyphs.
+// for the five transport buttons, tightly packed.
 const playerMinWidth = 30
 
 // listPanelWidthFor is the width of the list panel in the full layout, the
@@ -162,9 +162,9 @@ func (m Model) listBodyWidth() int {
 }
 
 // renderCompact stacks the screen in one column: the nav bar takes the
-// header rule, the title and artist lines end in the ♥ and LOOP buttons,
-// then the transport buttons, the volume row while it fits and the rule
-// over the list, which the expanded player leaves out.
+// header rule, the title line ends in the ♥ button, then the artist line,
+// the transport row (packed), the volume row beside it while it fits and
+// the rule over the list, which the expanded player leaves out.
 func (m Model) renderCompact() ([]string, zones) {
 	w := m.width
 	nav, zs := m.navLine(w)
@@ -177,20 +177,18 @@ func (m Model) renderCompact() ([]string, zones) {
 	title, artist := m.titleLines()
 	title, hz := m.heartTitle(title, w-1)
 	zs.addAt(0, len(lines), hz)
-	artist, lz := m.loopTail(artist, w-1)
-	zs.addAt(0, len(lines)+1, lz)
-	lines = append(lines, title, artist)
+	lines = append(lines, title, ansi.Truncate(artist, w-1, "…"))
 	progress, barW := m.progressLine(w - 1)
 	if m.seekable() {
 		zs.add(zoneSeek, 1, len(lines), barW)
 	}
 	lines = append(lines, m.barMark()+progress)
-	// The volume row takes the room of the transport labels when it can
-	// fit beside all four buttons that way.
-	transport, tz := m.transportBar(w - 3 - compactVolumeMin)
+	// The volume row takes the room of the PLAY label and the gaps when it
+	// can fit beside all five buttons that way.
+	transport, tz := m.transportBar(w-3-compactVolumeMin, true)
 	withVolume := len(tz) == int(ctlExpand)+1
 	if !withVolume {
-		transport, tz = m.transportBar(w - 1)
+		transport, tz = m.transportBar(w-1, true)
 	}
 	zs.addAt(1, len(lines), tz)
 	controls := " " + transport + " "
@@ -355,8 +353,8 @@ func (m Model) progressLine(w int) (line string, barW int) {
 const nowPlayingMargin = 1
 
 // The rows of the NOW PLAYING inside from the head down to the feed, the
-// others blank; the rows under them (the buttons, the volume, LOOP and the
-// visualizer) depend on the height. The content intro compares the
+// others blank; the rows under them (the transport row, the volume row and
+// the visualizer) depend on the height. The content intro compares the
 // artist, album and feed rows (see introFieldRows).
 const (
 	npHeadRow = iota
@@ -370,8 +368,8 @@ const (
 )
 
 // nowPlaying renders the inside of the NOW PLAYING panel, iw x ih cells,
-// with its zones: the progress bar (click to seek), the transport buttons
-// under the feed, the volume row under them and LOOP under that.
+// with its zones: the progress bar (click to seek), the transport row
+// (LOOP and EXPAND included) under the feed and the volume row under it.
 func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	title, artist := m.titleLines()
 	album := ""
@@ -405,15 +403,12 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 		// for the volume row.
 		lines = append(lines, "")
 	}
-	transport, tz := m.transportBar(inner)
+	transport, tz := m.transportBar(inner, false)
 	zs.addAt(nowPlayingMargin, len(lines), tz)
 	lines = append(lines, " "+transport)
 	volume, vz := m.volumeBar(inner)
 	zs.addAt(nowPlayingMargin, len(lines), vz)
 	lines = append(lines, " "+volume)
-	loop, lz := m.loopBar(inner)
-	zs.addAt(nowPlayingMargin, len(lines), lz)
-	lines = append(lines, " "+loop)
 
 	if eqRows := vizRows(ih, len(lines)); eqRows > 0 {
 		// Sit the rain on the bottom edge of the panel.

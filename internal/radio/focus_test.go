@@ -90,7 +90,7 @@ func TestExpandKeysToggleTheFullWidthPlayer(t *testing.T) {
 			if strings.Contains(view, "NIGHT DRIVE") || !strings.Contains(view, "PLAYLISTS") {
 				t.Fatalf("list still shown, or the nav bar is gone:\n%s", view)
 			}
-			if !strings.Contains(textAt(m, zoneOf(t, m, zoneExpand)), "RESTORE") {
+			if !strings.Contains(textAt(m, zoneOf(t, m, zoneExpand)), "⤡") {
 				t.Fatalf("the expand button does not offer RESTORE:\n%s", view)
 			}
 			m, _ = press(t, m, k)
@@ -167,8 +167,10 @@ func TestArrowsWalkFromTheListThroughTheButtons(t *testing.T) {
 	}{
 		{"right", areaPlayer, ctlPlay},
 		{"right", areaPlayer, ctlNext},
+		{"right", areaPlayer, ctlLoop},
 		{"right", areaPlayer, ctlExpand},
 		{"right", areaPlayer, ctlExpand}, // the last button stays
+		{"left", areaPlayer, ctlLoop},
 		{"left", areaPlayer, ctlNext},
 		{"left", areaPlayer, ctlPlay},
 		{"left", areaPlayer, ctlPrev},
@@ -262,7 +264,7 @@ func TestEnterActivatesTheFocusedButton(t *testing.T) {
 	}
 	t.Run("expand", func(t *testing.T) {
 		m := playingModel(t, playbacktest.New())
-		m, _ = press(t, m, "right", "right", "right", "enter")
+		m, _ = press(t, m, "right", "right", "right", "right", "enter")
 		if !m.expanded || m.control != ctlExpand {
 			t.Fatalf("expanded %v control %v; want expanded, still on the button", m.expanded, m.control)
 		}
@@ -501,7 +503,7 @@ func TestExpandKeepsTheFocusedControl(t *testing.T) {
 			return m
 		}, ctlPlay},
 		{"enter on EXPAND", func(t *testing.T, m Model) Model {
-			m, _ = press(t, m, "right", "right", "right", "enter")
+			m, _ = press(t, m, "right", "right", "right", "right", "enter")
 			return m
 		}, ctlExpand},
 		{"button from the list", func(t *testing.T, m Model) Model {

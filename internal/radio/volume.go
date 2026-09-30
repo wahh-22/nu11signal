@@ -173,49 +173,59 @@ func (m Model) onSetVolume(msg setVolumeMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// volumeMeterMax is the widest meter of the volume readout.
-const volumeMeterMax = 10
+// volumeMeterMax is the widest meter of the volume row, and
+// volumeMeterMin the narrowest it keeps.
+const (
+	volumeMeterMax = 20
+	volumeMeterMin = 3
+)
 
-// volumeTextWidth is the room the readout takes besides its meter; the
-// SYS label is as wide as VOL, so the layout does not move.
-var volumeTextWidth = ansi.StringWidth("VOL  100%")
+// volumePctWidth is the room of the percentage ending the volume row,
+// "100%" at the widest.
+const volumePctWidth = 4
 
-// volumeBar lays out VOL- and VOL+ around the volume readout in at most w
-// cells, with its zones. The readout keeps one width whatever the level,
-// so the buttons never move; its meter shrinks to fit, and below the room
-// for the buttons only the readout is left:
+// volumeBar lays out the volume row in at most w cells, with its zones:
+// the label (SYS instead of VOL when the level is the system volume),
+// [−], the meter as wide as fits (up to volumeMeterMax), [+] and the
+// percentage. The row keeps its layout whatever the level, so the buttons
+// never move; while the level is unknown the meter's room reads --.
+// Without room for volumeMeterMin cells the meter is left out, and without
+// room for the buttons only the readout is left:
 //
-//	╱ - ╱ VOL ▮▮▮▮▮▮▯▯▯▯  60% ╱ + ╱
+//	VOL [−] ▮▮▮▮▮▮▮▮▮▮▮▮▯▯▯▯▯▯▯▯ [+] 60%
 func (m Model) volumeBar(w int) (string, zones) {
-	down := button{id: zoneVolDown, label: "-", tone: stCyan, focused: m.focused(ctlVolDown)}
-	up := button{id: zoneVolUp, label: "+", tone: stCyan, focused: m.focused(ctlVolUp)}
-	room := min(w-down.width()-up.width()-2, volumeTextWidth+volumeMeterMax)
-	if room < volumeTextWidth {
-		return m.volumeReadout(w), nil
-	}
-	var zs zones
-	zs.add(down.id, 0, 0, down.width())
-	zs.add(up.id, down.width()+1+room+1, 0, up.width())
-	return down.render() + " " + m.volumeReadout(room) + " " + up.render(), zs
-}
-
-// volumeReadout renders "VOL ▮▮▮▯▯  60%" in exactly w cells, the meter as
-// wide as fits (up to volumeMeterMax), or "VOL --" while the level is
-// unknown; SYS instead of VOL when the level is the system volume.
-func (m Model) volumeReadout(w int) string {
-	label := stMuted.Render("VOL ")
+	label := "VOL "
 	if m.volumeMode == playback.VolumeSystem {
-		label = stMuted.Render("SYS ")
+		label = "SYS "
 	}
-	if !m.volumeKnown {
-		return fit(label+stDim.Render("--"), w)
+	pct := fmt.Sprintf("%d%%", int(math.Round(m.volume*100)))
+	down := button{id: zoneVolDown, label: "−", tone: stCyan, bracket: true, focused: m.focused(ctlVolDown)}
+	up := button{id: zoneVolUp, label: "+", tone: stCyan, bracket: true, focused: m.focused(ctlVolUp)}
+	lead := len(label) + down.width() + 1
+	bare := lead + up.width() + 1 + volumePctWidth
+	if w < bare {
+		if !m.volumeKnown {
+			return fit(stMuted.Render(label)+stDim.Render("--"), w), nil
+		}
+		return fit(stMuted.Render(label)+stRed.Render(pct), w), nil
 	}
-	pct := fmt.Sprintf("%3d%%", int(math.Round(m.volume*100)))
-	meter := min(w-volumeTextWidth, volumeMeterMax)
-	if meter < 3 {
-		return fit(label+stRed.Render(strings.TrimSpace(pct)), w)
+	meter := min(w-bare-1, volumeMeterMax)
+	var gauge, tail string
+	switch {
+	case meter < volumeMeterMin && !m.volumeKnown:
+		meter, tail = 0, stDim.Render("--")
+	case meter < volumeMeterMin:
+		meter, tail = 0, stRed.Render(pct)
+	case !m.volumeKnown:
+		gauge = fit(stDim.Render("--"), meter) + " "
+	default:
+		filled := int(math.Round(m.volume * float64(meter)))
+		gauge = stCyan.Render(strings.Repeat("▮", filled)) + stDim.Render(strings.Repeat("▯", meter-filled)) + " "
+		tail = stRed.Render(pct)
 	}
-	filled := int(math.Round(m.volume * float64(meter)))
-	return fit(label+stCyan.Render(strings.Repeat("▮", filled))+stDim.Render(strings.Repeat("▯", meter-filled))+
-		" "+stRed.Render(pct), w)
+	upX := lead + ansi.StringWidth(gauge)
+	var zs zones
+	zs.add(down.id, len(label), 0, down.width())
+	zs.add(up.id, upX, 0, up.width())
+	return stMuted.Render(label) + down.render() + " " + gauge + up.render() + " " + fit(tail, volumePctWidth), zs
 }
