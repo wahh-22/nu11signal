@@ -254,10 +254,10 @@ func (m Model) hudControls(w int) ([]string, zones) {
 	volW := min(w-volX-hudGap-hudExpandWidth, hudVolumeBare+1+volumeMeterMax)
 	volume, vz := m.volumeBar(volW)
 	zs.addAt(volX, 0, vz)
-	row += strings.Repeat(" ", volX-ansi.StringWidth(row)) + volume
+	row += strings.Repeat(" ", max(volX-ansi.StringWidth(row), 0)) + volume
 	expand := bs[ctlExpand]
 	expandX := w - expand.width()
 	zs.add(expand.id, expandX, 0, expand.width())
-	row += strings.Repeat(" ", expandX-ansi.StringWidth(row)) + expand.render()
+	row += strings.Repeat(" ", max(expandX-ansi.StringWidth(row), 0)) + expand.render()
 	return []string{row}, zs
 }
