@@ -37,10 +37,20 @@ func (m Model) render() string {
 	return strings.Join(lines, "\n")
 }
 
-// layout lays out the frame: its lines, at most width x height, and the
-// clickable zones drawn on them. The tiny layout and the auth error screen
-// have no zones: there is no room for buttons, or nothing to click.
+// layout lays out the frame, with the signal effects drawn over it while
+// they run (see glitch.go); they never move the zones.
 func (m Model) layout() ([]string, zones) {
+	lines, zs := m.baseLayout()
+	if m.fxActive() {
+		lines = m.decorate(lines)
+	}
+	return lines, zs
+}
+
+// baseLayout lays out the frame: its lines, at most width x height, and
+// the clickable zones drawn on them. The tiny layout and the auth error
+// screen have no zones: there is no room for buttons, or nothing to click.
+func (m Model) baseLayout() ([]string, zones) {
 	w, h := m.width, m.height
 	if w <= 0 || h <= 0 {
 		return nil, nil
@@ -507,6 +517,9 @@ func (m Model) stationRow(i int, selected bool, w int) string {
 func (m Model) statusLine(w int) string {
 	if m.status != "" {
 		return stYellow.Render("▲ " + strings.ToUpper(m.status))
+	}
+	if alert, ok := m.alertLine(w); ok {
+		return alert
 	}
 	return stDim.Render(fit("░▒▓ SYS NOMINAL // BUF 0x5EF6", w))
 }

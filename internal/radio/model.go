@@ -20,6 +20,10 @@ type Options struct {
 	Now func() time.Time
 	// Seed drives the decorative EQ and glitch animations.
 	Seed uint64
+	// Effects starts the signal effects on: glitch bursts, data rain and
+	// alerts (see glitch.go). Off by default, and in tests, so frames stay
+	// fixed; keyEffects toggles them.
+	Effects bool
 	// CallTimeout bounds every Player call (default 8s).
 	CallTimeout time.Duration
 	// CloseTimeout bounds how long quitting waits for Player.Close before
@@ -219,6 +223,8 @@ type Model struct {
 	// dropped so rescheduling never doubles the frame rate.
 	tickGen  uint64
 	tickFast bool
+	// fx schedules the signal effects (see glitch.go).
+	fx effects
 }
 
 // New returns a radio Model driving p.
@@ -253,6 +259,7 @@ func New(p playback.Player, opts Options) Model {
 		closeTimeout: opts.CloseTimeout,
 		stack:        []frame{{kind: viewStations}},
 		volumeBusy:   true, // Init reads the volume
+		fx:           effects{on: opts.Effects},
 
 		input:         in,
 		nameInput:     name,
@@ -387,11 +394,24 @@ func (m Model) waitErrors() tea.Cmd {
 func (m *Model) scheduleTick() tea.Cmd {
 	m.tickGen++
 	m.tickFast = m.animating()
+	return tickAfter(m.tickInterval(), m.tickGen)
+}
+
+// tickInterval is the time to the next frame: burstTick during a glitch
+// burst, else fastTick while something moves, else idleTick, but at most
+// rainTick while the signal effects run.
+func (m Model) tickInterval() time.Duration {
 	d := idleTick
 	if m.tickFast {
 		d = fastTick
 	}
-	return tickAfter(d, m.tickGen)
+	if m.fxActive() {
+		if m.fx.bursting(m.now()) {
+			return burstTick
+		}
+		d = min(d, rainTick)
+	}
+	return d
 }
 
 func tickAfter(d time.Duration, gen uint64) tea.Cmd {
