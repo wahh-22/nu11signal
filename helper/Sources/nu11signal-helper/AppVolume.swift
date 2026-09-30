@@ -38,6 +38,9 @@ import Nu11SignalProtocol
 /// the system volume: if the music was playing quieter than the system
 /// volume, the player is paused first, so it is never suddenly louder; it
 /// resumes at the system volume when the user plays again.
+///
+/// While the IOProc runs it also hands the tapped audio, before the gain,
+/// to the LevelMeter (macOS 15+), which emits the spectrum as `levels`.
 @MainActor
 final class AppVolume {
     static let shared = AppVolume()
@@ -77,6 +80,9 @@ final class AppVolume {
     /// Bumped to cancel a scheduled retry.
     private var retryGeneration = 0
     private var listening = false
+    /// The LevelMeter (macOS 15+) that turns the rendered audio into
+    /// `levels` events while the IOProc runs; nil before macOS 15.
+    private let meter: AnyObject?
 
     private init() {
         let environment = ProcessInfo.processInfo.environment
@@ -87,6 +93,7 @@ final class AppVolume {
         permission = policy.mode(.authorized) == .app ? CaptureAuthorization.preflight() : .unavailable
         level = AppGain.stored(UserDefaults.standard.object(forKey: AppGain.defaultsKey))
         target.initialize(to: AppGain.amplitude(level: level))
+        if #available(macOS 15.0, *) { meter = LevelMeter() } else { meter = nil }
         updateMode()
         log("volume mode \(mode.rawValue) (responsible for itself: \(policy.disclaimed), capture permission: \(permission))")
     }
@@ -263,6 +270,8 @@ final class AppVolume {
         var processObject: AudioObjectID
         /// The output device the aggregate renders to.
         var outputDevice: AudioObjectID
+        /// The aggregate's sample rate, which its IOProc's input runs at.
+        var sampleRate: Double
         /// This IOProc's own render state (only its IO thread touches it
         /// once started), so an old and a new tap never share one.
         var render: UnsafeMutablePointer<RenderState>
@@ -338,10 +347,13 @@ final class AppVolume {
             current: target.pointee, increment: GainRamp.increment(sampleRate: outputFormat.mSampleRate),
             tapChannels: Int(max(tapFormat.mChannelsPerFrame, 1))))
         let target = self.target
+        var ring: UnsafeMutableRawPointer?
+        if #available(macOS 15.0, *) { ring = levelMeter?.ringPointer }
         var procID: AudioDeviceIOProcID?
         // No dispatch queue: the block runs on the real-time IO thread.
         result = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, nil) { _, input, _, output, _ in
             AppVolume.renderGain(input: input, output: output, target: target, state: render)
+            if let ring { AppVolume.capture(input: input, ring: ring, state: render) }
         }
         guard result == noErr, let procID else {
             AudioHardwareDestroyAggregateDevice(aggregateID)
@@ -355,7 +367,7 @@ final class AppVolume {
         if let replaced { destroy(replaced) }
         replaced = tap
         tap = Tap(tapID: tapID, aggregateID: aggregateID, procID: procID, processObject: process.objectID,
-                  outputDevice: output, render: render)
+                  outputDevice: output, sampleRate: outputFormat.mSampleRate, render: render)
         log("app volume: tapping RemotePlayerService pid \(process.pid) (responsible: this helper) on \(outputUID) "
             + "(\(Int(outputFormat.mSampleRate)) Hz, \(tapFormat.mChannelsPerFrame) channels, gain \(target.pointee))")
         return .built
@@ -365,13 +377,17 @@ final class AppVolume {
     private func start() -> TapFailure? {
         guard let tap else { return .transient("no tap to start") }
         guard !running else { return nil }
+        // No IOProc runs yet: the ring may be emptied of the last tap's audio.
+        if #available(macOS 15.0, *) { levelMeter?.ring.reset() }
         let result = AudioDeviceStart(tap.aggregateID, tap.procID)
         guard result == noErr else { return .transient("could not start the aggregate device, OSStatus \(result)") }
         running = true
+        if #available(macOS 15.0, *) { levelMeter?.start(sampleRate: tap.sampleRate) }
         return nil
     }
 
     private func stop() {
+        if #available(macOS 15.0, *) { levelMeter?.stop() }
         guard let tap, running else { return }
         AudioDeviceStop(tap.aggregateID, tap.procID)
         running = false
@@ -395,6 +411,9 @@ final class AppVolume {
         tap.render.deinitialize(count: 1)
         tap.render.deallocate()
     }
+
+    @available(macOS 15.0, *)
+    private var levelMeter: LevelMeter? { meter as? LevelMeter }
 
     private func selectProcess() -> AudioProcessRecord? {
         let records = HAL.processes().map { record -> AudioProcessRecord in
@@ -504,6 +523,39 @@ final class AppVolume {
             rendered = max(rendered, frames)
         }
         state.pointee.current = GainRamp.gain(atFrame: rendered, start: start, target: goal, increment: increment)
+    }
+}
+
+extension AppVolume {
+    /// Appends the tap's input, mixed to mono, to the level meter's ring
+    /// (see LevelMeter). It reads the input, before the gain, so the bars
+    /// do not follow the volume. Real-time safe like renderGain: the ring
+    /// comes as a raw pointer and is used without reference counting.
+    nonisolated static func capture(input: UnsafePointer<AudioBufferList>, ring: UnsafeMutableRawPointer,
+                                    state: UnsafeMutablePointer<RenderState>) {
+        guard #available(macOS 15.0, *) else { return }
+        let inputs = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
+        var inputChannels = 0
+        for buffer in inputs { inputChannels += Int(buffer.mNumberChannels) }
+        let tapChannels = min(state.pointee.tapChannels, inputChannels)
+        guard tapChannels > 0 else { return }
+        // The tap's channels are the aggregate's last ones; mix those that
+        // share the first one's buffer (all of them, when interleaved).
+        var first = inputChannels - tapChannels
+        for buffer in inputs {
+            let count = Int(buffer.mNumberChannels)
+            guard first < count else {
+                first -= count
+                continue
+            }
+            guard let data = buffer.mData else { return }
+            let frames = Int(buffer.mDataByteSize) / (MemoryLayout<Float>.size * count)
+            let source = UnsafePointer(data.assumingMemoryBound(to: Float.self)) + first
+            Unmanaged<SampleRing>.fromOpaque(ring)._withUnsafeGuaranteedRef {
+                $0.write(source: source, stride: count, channels: min(tapChannels, count - first), frames: frames)
+            }
+            return
+        }
     }
 }
 

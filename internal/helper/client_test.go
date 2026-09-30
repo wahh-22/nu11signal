@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -250,6 +251,34 @@ func TestStateEventsAreDecoded(t *testing.T) {
 	}
 }
 
+func TestClientIsALevelSource(t *testing.T) {
+	var _ playback.LevelSource = (*Client)(nil)
+}
+
+func TestLevelsEventsKeepTheLatestReading(t *testing.T) {
+	c := startFake(t, "standard", Options{})
+
+	// The fake emits two levels events, then a malformed one, before it
+	// answers: only the latest well-formed reading is kept, scaled to 0...1.
+	if err := c.Pause(t.Context()); err != nil {
+		t.Fatalf("Pause: %v", err)
+	}
+	select {
+	case got := <-c.Levels():
+		want := []float64{0, 0.5, 1, 1, 0}
+		if !slices.Equal(got, want) {
+			t.Fatalf("levels = %v; want %v", got, want)
+		}
+	default:
+		t.Fatal("no levels reading")
+	}
+	select {
+	case got := <-c.Levels():
+		t.Fatalf("a second reading %v; want only the latest", got)
+	default:
+	}
+}
+
 func TestAsyncErrorsAreDelivered(t *testing.T) {
 	c := startFake(t, "standard", Options{})
 	ctx := t.Context()
@@ -305,6 +334,8 @@ func TestCrashFailsPendingCallsAndClosesChannels(t *testing.T) {
 	for range c.States() {
 	}
 	for range c.Errors() {
+	}
+	for range c.Levels() {
 	}
 	if err := c.Pause(t.Context()); !errors.Is(err, ErrHelperExited) {
 		t.Fatalf("Pause after crash = %v; want ErrHelperExited", err)

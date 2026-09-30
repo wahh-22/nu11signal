@@ -195,6 +195,20 @@ const (
 	VolumeSystem VolumeMode = "system"
 )
 
+// LevelSource is implemented by players that can measure what they play.
+// It is separate from Player, and from State, because only some backends
+// measure (the helper, in app-volume mode) and readings arrive about 15
+// times a second: a UI polls the latest one on its own frame clock instead
+// of handling each as a state change.
+type LevelSource interface {
+	// Levels delivers spectrum readings while the player measures: one
+	// level per band, 0 (silent) to 1 (loud), bands log-spaced from low to
+	// high frequencies. No readings arrive while paused, stopped, or when
+	// the player cannot measure. The channel keeps only the latest reading
+	// and is closed when the player shuts down.
+	Levels() <-chan []float64
+}
+
 // AuthStatus is the outcome of a music library authorization request.
 type AuthStatus string
 

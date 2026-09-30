@@ -6,9 +6,11 @@ import "strings"
 // prefix of them.
 const eqBands = 48
 
-// eq is the decorative spectrum display. MusicKit exposes no audio samples,
-// so the bars are driven by playback state and a seeded pseudo-random walk.
-// It is a value type: stepping returns a new eq and never shares memory.
+// eq is the spectrum display. When the player measures what it plays (the
+// helper in app-volume mode, see playback.LevelSource) the bars follow its
+// readings; otherwise they are decorative, driven by playback state and a
+// seeded pseudo-random walk. It is a value type: stepping returns a new eq
+// and never shares memory.
 type eq [eqBands]float64
 
 // eqDecay is the per-frame multiplier applied to every bar when not playing.
@@ -30,6 +32,21 @@ func (e eq) step(playing bool, seed, frame uint64) eq {
 		// A gentle envelope makes low bands louder, like a real mix.
 		target := 0.1 + 0.85*r*(1-0.45*float64(i)/eqBands)
 		e[i] += (target - e[i]) * 0.55
+	}
+	return e
+}
+
+// follow draws a spectrum reading on the first n bars, the ones the panel
+// shows, resampled to them; the hidden bars are cleared. Pausing then
+// lets step decay the bars from the reading.
+func (e eq) follow(levels []float64, n int) eq {
+	n = min(max(n, 0), eqBands)
+	shown := resampleLevels(levels, n)
+	for i := range e {
+		e[i] = 0
+		if i < n {
+			e[i] = shown[i]
+		}
 	}
 	return e
 }

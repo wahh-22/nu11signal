@@ -67,6 +67,7 @@ type Options struct {
 
 const (
 	stateBuffer  = 8
+	levelsBuffer = 1
 	errorBuffer  = 16
 	stderrTail   = 4 << 10
 	maxLineBytes = 4 << 20
@@ -100,6 +101,7 @@ type Client struct {
 	done      chan struct{} // closed after the process is reaped
 	waitErr   error         // written before done is closed
 	states    chan playback.State
+	levels    chan []float64
 	errs      chan error
 
 	closeOnce sync.Once
@@ -148,6 +150,7 @@ func Start(ctx context.Context, opts Options) (*Client, error) {
 		ready:        make(chan struct{}),
 		done:         make(chan struct{}),
 		states:       make(chan playback.State, stateBuffer),
+		levels:       make(chan []float64, levelsBuffer),
 		errs:         make(chan error, errorBuffer),
 	}
 	go c.readLoop(stdout)
@@ -171,6 +174,10 @@ func Start(ctx context.Context, opts Options) (*Client, error) {
 // States delivers state snapshots. When the consumer falls behind, the
 // oldest snapshots are dropped so the latest one is always available.
 func (c *Client) States() <-chan playback.State { return c.states }
+
+// Levels delivers the spectrum readings the helper measures in app-volume
+// mode (see playback.LevelSource); only the latest one is kept.
+func (c *Client) Levels() <-chan []float64 { return c.levels }
 
 // Errors delivers asynchronous helper failures (error events and responses
 // to requests the helper could not parse).
@@ -314,8 +321,8 @@ func (c *Client) forget(id string) {
 	c.mu.Unlock()
 }
 
-// readLoop is the only reader of stdout and the only sender on the states
-// and errors channels, which it closes once the process is reaped.
+// readLoop is the only reader of stdout and the only sender on the states,
+// levels and errors channels, which it closes once the process is reaped.
 func (c *Client) readLoop(stdout io.Reader) {
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 64<<10), maxLineBytes)
@@ -345,6 +352,7 @@ func (c *Client) readLoop(stdout io.Reader) {
 		ch <- reply{err: exitErr}
 	}
 	close(c.states)
+	close(c.levels)
 	close(c.errs)
 	close(c.done)
 }
@@ -364,6 +372,10 @@ func (c *Client) dispatch(line []byte) {
 	case m.Event == "state":
 		if m.State != nil {
 			offer(c.states, m.State.toDomain())
+		}
+	case m.Event == "levels":
+		if m.Bands != nil {
+			offer(c.levels, levels(m.Bands))
 		}
 	case m.Event == "error":
 		offer(c.errs, fmt.Errorf("helper: %s", m.Message))
