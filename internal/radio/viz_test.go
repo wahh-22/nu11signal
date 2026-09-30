@@ -661,6 +661,40 @@ func TestScopeSwingsWithTheLoudness(t *testing.T) {
 	}
 }
 
+func TestScopeGainNeverBlowsUpSilence(t *testing.T) {
+	// Near silence, a hiss at 2% of full scale, stays by the axis however
+	// long it plays; a loud wave fills the height.
+	hiss := stepped(newVisualizer(vizScope), 400, 0.02, 40, 12, true)
+	if n := traceRows(hiss, 40, 12); n > 2 {
+		t.Fatalf("a hiss reaches %d of 12 rows", n)
+	}
+	if peak := hiss.(scopeViz).peak; peak < scopeMinPeak {
+		t.Fatalf("the gain rose to %.1fx on a hiss; at most %.1fx", 1/peak, 1/scopeMinPeak)
+	}
+	loud := stepped(newVisualizer(vizScope), 40, 0.95, 40, 12, true)
+	if n := traceRows(loud, 40, 12); n < 11 {
+		t.Fatalf("a loud wave reaches %d of 12 rows", n)
+	}
+}
+
+// The trail ink steps down the ramp from the head, whatever the order the
+// inks are declared in.
+func TestRainTrailStepsDownTheRamp(t *testing.T) {
+	for i, k := range rainRamp[:len(rainRamp)-1] {
+		if got := trailInk(k, 1, 40); got != rainRamp[i+1] {
+			t.Errorf("one step down from ink %d: %d; want %d", k, got, rainRamp[i+1])
+		}
+	}
+	// Four steps at most: a red head's trail ends dim, a yellow one's
+	// muted.
+	if got := trailInk(inkRed, 39, 40); got != inkDim {
+		t.Errorf("far down a red trail: ink %d; want dim", got)
+	}
+	if got := trailInk(inkYellow, 39, 40); got != inkMuted {
+		t.Errorf("far down a yellow trail: ink %d; want muted", got)
+	}
+}
+
 func TestRainFollowsEachBand(t *testing.T) {
 	silent := stepped(newVisualizer(vizRain), 40, 0, 40, 10, true).(rainViz)
 	if len(silent.drops) != 0 {

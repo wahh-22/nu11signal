@@ -132,8 +132,8 @@ func inkOf(st lipgloss.Style) ink {
 
 // Inks of the visualizers' palette, the bars' own (see barsViz): yellow
 // tips, bold red, red, and the theme's dim reds for what sits behind the
-// music (trails, axes, grids, reflections), in that order from bright to
-// dim, so a trail can step down them. inkNone draws unstyled.
+// music (trails, axes, grids, reflections). The rain's trail steps down
+// them in rainRamp's order, not in their numbers'. inkNone draws unstyled.
 const (
 	inkNone uint8 = iota
 	inkYellow

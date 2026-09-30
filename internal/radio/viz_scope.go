@@ -13,9 +13,12 @@ type scopeViz struct {
 	wave []float64
 	// peak is the auto-gain: it jumps to the loudest point at once and
 	// falls back slowly (scopeRelease), and the trace is drawn relative to
-	// it, never more than 1/scopeMinPeak times larger. A loud passage
-	// swings to the edges, a quiet one after it stays small for a few
-	// seconds and then grows only so far; silence stays flat.
+	// it. It never falls under scopeMinPeak, so the trace is never drawn
+	// more than 1/scopeMinPeak times larger: a loud passage swings to the
+	// edges, a quiet one after it stays small for a few seconds and then
+	// grows only so far, and silence or a hiss stays by the axis instead of
+	// being blown up to full scale. (Render applies the same floor to a
+	// scope never stepped.)
 	peak float64
 	// phase advances the synthetic wave.
 	phase float64
@@ -52,7 +55,7 @@ func (v scopeViz) Step(in vizInput) visualizer {
 		loudest = max(loudest, math.Abs(p))
 	}
 	if in.Playing {
-		v.peak = max(v.peak*scopeRelease, loudest)
+		v.peak = max(v.peak*scopeRelease, loudest, scopeMinPeak)
 	}
 	v.wave = next
 	return v

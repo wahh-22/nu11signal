@@ -1,7 +1,9 @@
 package radio
 
 import (
+	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -44,6 +46,7 @@ func TestATabSwitchIntrosTheNewText(t *testing.T) {
 	if m.intro.seq == seq {
 		t.Fatal("opening SEARCH started no intro")
 	}
+	start := m.intro.start
 	base, zs := m.baseLayout()
 	lines, got := m.layout()
 	if !reflect.DeepEqual(zs, got) {
@@ -75,7 +78,7 @@ func TestATabSwitchIntrosTheNewText(t *testing.T) {
 	}
 	// Left to right: late in the intro the left cells have resolved and
 	// some on the right still scramble.
-	c.advance(introDur * 7 / 10)
+	c.t = start.Add(introDur * 7 / 10)
 	late := scrambledAt(base, first(m.layout()))
 	lo, hi := listW, 0
 	for _, xs := range late {
@@ -87,7 +90,7 @@ func TestATabSwitchIntrosTheNewText(t *testing.T) {
 		t.Fatalf("at 70%% the scrambled cells span columns %d..%d", lo, hi)
 	}
 	// Resolved at the end, to the very frame.
-	c.advance(introDur * 3 / 10)
+	c.t = start.Add(introDur)
 	if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
 		t.Fatal("the intro did not resolve to the frame")
 	}
@@ -143,25 +146,16 @@ func TestANewArtistIntrosInNowPlaying(t *testing.T) {
 	panelTop := 2
 	for y := range scrambled {
 		row := y - panelTop - 1
-		if !slicesContains(nowPlayingFieldRows, row) {
-			t.Errorf("row %d (panel row %d) scrambled; only the field rows %v may", y, row, nowPlayingFieldRows)
+		if !slices.Contains(introFieldRows, row) {
+			t.Errorf("row %d (panel row %d) scrambled; only the field rows %v may", y, row, introFieldRows)
 		}
 	}
 	plainLines := strings.Split(ansi.Strip(strings.Join(base, "\n")), "\n")
 	for i, want := range []string{"OTHER ARTIST", "OTHER ALBUM", "CATALOG FEED"} {
-		if !strings.Contains(plainLines[panelTop+1+nowPlayingFieldRows[i]], want) {
-			t.Errorf("field row %d does not show %q", nowPlayingFieldRows[i], want)
+		if !strings.Contains(plainLines[panelTop+1+introFieldRows[i]], want) {
+			t.Errorf("field row %d does not show %q", introFieldRows[i], want)
 		}
 	}
-}
-
-func slicesContains(s []int, v int) bool {
-	for _, x := range s {
-		if x == v {
-			return true
-		}
-	}
-	return false
 }
 
 func TestTypingNeverScramblesTheInput(t *testing.T) {
@@ -187,8 +181,9 @@ func TestTypingNeverScramblesTheInput(t *testing.T) {
 	}
 	base, zs := m.baseLayout()
 	input, _ := zs.find(zoneInput)
+	start := c.t
 	for _, d := range []time.Duration{0, introDur / 4, introDur / 2} {
-		c.advance(d)
+		c.t = start.Add(d) // d into the intro
 		lines, _ := m.layout()
 		if lines[input.y] != base[input.y] {
 			t.Fatalf("the input scrambled: %q", lines[input.y])
@@ -242,5 +237,258 @@ func TestAnIntroRaisesTheTickOnlyWhileItRuns(t *testing.T) {
 	}
 	if m.intro.running(c.t) {
 		t.Fatal("slowed down during the intro")
+	}
+}
+
+// introModelSized is introModel at w x h with lists playlists.
+func introModelSized(t *testing.T, c *clock, w, h int, lists []playback.Playlist) Model {
+	t.Helper()
+	f := playbacktest.New()
+	f.PlaylistsResult = lists
+	m := New(f, Options{Now: c.now, Seed: 2077, Effects: true})
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: w, Height: h})
+	m, cmd := step(t, m, run(t, m.authorizeCmd()))
+	for _, msg := range runAll(t, cmd) {
+		if _, ok := msg.(tickMsg); !ok {
+			m, _ = step(t, m, msg)
+		}
+	}
+	m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 225*time.Second)})
+	for range glitchFrames + 1 {
+		m = tick(t, m)
+	}
+	m.intro = intro{}
+	c.advance(introDur)
+	return m
+}
+
+func manyStations(n int) []playback.Playlist {
+	out := make([]playback.Playlist, n)
+	for i := range out {
+		out[i] = playback.Playlist{ID: fmt.Sprintf("pl-%d", i), Name: fmt.Sprintf("Station %c%c", 'A'+i%26, 'a'+i*7%26)}
+	}
+	return out
+}
+
+// regionRows are the rows of the intro regions of m's frame.
+func regionRows(m Model) (list, fields []int) {
+	_, zs := m.baseLayout()
+	regions := m.introRegions(zs)
+	for _, r := range regions[0] {
+		list = append(list, r.y)
+	}
+	if len(regions) > 1 {
+		for _, r := range regions[1] {
+			fields = append(fields, r.y)
+		}
+	}
+	return list, fields
+}
+
+func TestTheNameInputRowIsFoundFromItsZone(t *testing.T) {
+	c := newClock()
+	m := introModel(t, c)
+	m, _ = m.openName(playback.Song{}, false)
+	m = typeText(t, m, "Mix")
+	for _, size := range []struct{ w, h int }{{80, 24}, {50, 20}} {
+		m.width, m.height = size.w, size.h
+		base, zs := m.baseLayout()
+		name, ok := zs.find(zoneNameInput)
+		if !ok {
+			t.Fatalf("%dx%d: no zone for the name input", size.w, size.h)
+		}
+		if got := cells(base[name.y]); !slices.Contains(got, "M") {
+			t.Fatalf("%dx%d: the name zone's row %d does not show the name: %q", size.w, size.h, name.y, base[name.y])
+		}
+		list, _ := regionRows(m)
+		if slices.Contains(list, name.y) {
+			t.Errorf("%dx%d: the name row %d is compared", size.w, size.h, name.y)
+		}
+	}
+	// Wherever the name is drawn: here on the third row of the list.
+	m.width, m.height = 80, 24
+	_, zs := m.baseLayout()
+	var moved zones
+	third := -1
+	listRows := 0
+	for _, z := range zs {
+		switch z.id {
+		case zoneNameInput:
+			continue
+		case zonePanelList:
+			if listRows++; listRows == 4 {
+				third = z.y
+			}
+		}
+		moved = append(moved, z)
+	}
+	moved = append(moved, zone{id: zoneNameInput, x: 1, y: third, w: 10})
+	var rows []int
+	for _, r := range m.introRegions(moved)[0] {
+		rows = append(rows, r.y)
+	}
+	if slices.Contains(rows, third) || !slices.Contains(rows, third-2) {
+		t.Fatalf("with the name on row %d, the compared rows are %v", third, rows)
+	}
+}
+
+func TestIntroFieldRowsAreNowPlayingsFields(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		w, h     int
+		expanded bool
+	}{
+		{"full", 80, 24, false},
+		{"full tall", 120, 40, false},
+		{"expanded", 80, 24, true},
+		{"compact", 50, 20, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newClock()
+			m := introModel(t, c)
+			m.width, m.height, m.expanded = tt.w, tt.h, tt.expanded
+			base, zs := m.baseLayout()
+			_, fields := regionRows(m)
+			if tt.name == "compact" {
+				if len(fields) != 0 {
+					t.Fatalf("compact compares NOW PLAYING rows %v", fields)
+				}
+				return
+			}
+			want := []string{"SAMURAI", "NEVER FADE AWAY", "CATALOG FEED"}
+			if len(fields) != len(want) {
+				t.Fatalf("field rows %v", fields)
+			}
+			for i, y := range fields {
+				if text := ansi.Strip(base[y]); !strings.Contains(text, want[i]) {
+					t.Errorf("field row %d reads %q; want %q", y, text, want[i])
+				}
+			}
+			for _, id := range []string{zoneSeek, zonePlay, zoneVolUp, zoneLoop} {
+				if z, ok := zs.find(id); ok && slices.Contains(fields, z.y) {
+					t.Errorf("the %s row %d is compared", id, z.y)
+				}
+			}
+		})
+	}
+}
+
+func TestSameRowComparesRunes(t *testing.T) {
+	for _, tt := range []struct {
+		a, b string
+		want bool
+	}{
+		{"SAME", "SAME", true},
+		{"NIGHT DRIVE", "NIGHT DRIVE ♥ +", true},
+		// Six of nine runes shared: most of the start, the same row.
+		{"ABCDEFÑÑÑ", "ABCDEFÉÉÉ", true},
+		// Five of nine: another row, however many bytes the Ñ share.
+		{"ÑÑÑÑÑABCD", "ÑÑÑÑÑWXYZ", false},
+		{"ÁB", "ÁC", false},
+	} {
+		if got := sameRow(tt.a, tt.b); got != tt.want {
+			t.Errorf("sameRow(%q, %q) = %v; want %v", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
+func TestAScrollDropsTheIntroCellsOfMovedText(t *testing.T) {
+	c := newClock()
+	m := introModelSized(t, c, 80, 16, manyStations(30))
+	// An intro of the whole list, as when it arrived.
+	base, zs := m.baseLayout()
+	running := map[int][]int{}
+	for _, r := range m.introRegions(zs)[0] {
+		row := cellRunes(base[r.y])
+		for x := r.x0; x < min(r.x1, len(row)); x++ {
+			if row[x] != 0 {
+				running[r.y] = append(running[r.y], x)
+			}
+		}
+	}
+	m.intro = intro{seq: 1, start: c.t, cells: running}
+	c.advance(introDur / 10)
+	scrolled := false
+	for range 20 {
+		prev := m
+		m, _ = press(t, m, "down")
+		before, _ := prev.baseLayout()
+		after, _ := m.baseLayout()
+		fresh := map[int][]int{}
+		for _, region := range m.introRegions(zs) {
+			newCells(before, after, region, fresh)
+		}
+		for y, xs := range m.intro.cells {
+			if len(slices.Compact(slices.Sorted(slices.Values(xs)))) != len(xs) {
+				t.Fatalf("row %d holds a cell twice: %v", y, xs)
+			}
+			b, a := cellRunes(before[y]), cellRunes(after[y])
+			for _, x := range xs {
+				if slices.Contains(fresh[y], x) {
+					continue
+				}
+				if x >= len(b) || x >= len(a) || b[x] != a[x] {
+					t.Fatalf("cell %d,%d scrambles on moved text", x, y)
+				}
+			}
+		}
+		if !reflect.DeepEqual(before, after) && len(fresh) > 0 {
+			scrolled = true
+		}
+	}
+	if !scrolled {
+		t.Fatal("the list never scrolled")
+	}
+}
+
+func TestPlayerControlMessagesNeverStartAnIntro(t *testing.T) {
+	c := newClock()
+	prev := introModel(t, c)
+	m, _ := press(t, prev, "/")
+	m.intro = prev.intro
+	for _, msg := range []tea.Msg{
+		volumeMsg{level: 0.3, epoch: m.volumeEpoch},
+		setVolumeMsg{level: 0.3, epoch: m.volumeEpoch},
+		seekMsg{},
+		loopMsg{},
+		tickMsg{gen: m.tickGen},
+		tea.WindowSizeMsg{Width: 80, Height: 24},
+	} {
+		// Even with new text on screen, these are not compared.
+		if got := m.withIntro(prev, msg); got.intro.seq != prev.intro.seq {
+			t.Errorf("%T started an intro", msg)
+		}
+	}
+}
+
+func TestIntrosStayOffOnTheTinyLayoutAndTheAuthScreen(t *testing.T) {
+	c := newClock()
+	tiny := introModel(t, c)
+	tiny, _ = step(t, tiny, tea.WindowSizeMsg{Width: 15, Height: 4})
+	seq := tiny.intro.seq
+	tiny, _ = press(t, tiny, "/")
+	tiny, _ = step(t, tiny, stateMsg{state: playing(0, 200*time.Second)})
+	if tiny.intro.seq != seq || tiny.introAnimating() {
+		t.Fatal("an intro started on the tiny layout")
+	}
+	if lines, _ := tiny.layout(); !reflect.DeepEqual(lines, first(tiny.baseLayout())) {
+		t.Fatal("an intro was drawn on the tiny layout")
+	}
+
+	f := playbacktest.New()
+	f.AuthStatus = playback.AuthDenied
+	m := New(f, Options{Now: c.now, Seed: 2077, Effects: true})
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	prev := m
+	m, _ = step(t, m, run(t, m.authorizeCmd()))
+	if m.auth != authFailed {
+		t.Fatalf("auth %v; want the error screen", m.auth)
+	}
+	if m.intro.seq != prev.intro.seq || m.introAnimating() {
+		t.Fatal("the auth error screen intro'd")
+	}
+	m, _ = press(t, m, "/")
+	if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
+		t.Fatal("an intro was drawn on the auth error screen")
 	}
 }

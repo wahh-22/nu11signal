@@ -354,6 +354,21 @@ func (m Model) progressLine(w int) (line string, barW int) {
 // lines under its head.
 const nowPlayingMargin = 1
 
+// The rows of the NOW PLAYING inside from the head down to the feed, the
+// others blank; the rows under them (the buttons, the volume, LOOP and the
+// visualizer) depend on the height. The content intro compares the
+// artist, album and feed rows (see introFieldRows).
+const (
+	npHeadRow = iota
+	_
+	npTitleRow
+	npArtistRow
+	npAlbumRow
+	_
+	npProgressRow
+	npFeedRow
+)
+
 // nowPlaying renders the inside of the NOW PLAYING panel, iw x ih cells,
 // with its zones: the progress bar (click to seek), the transport buttons
 // under the feed, the volume row under them and LOOP under that.
@@ -374,21 +389,17 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	// The lines under the head sit nowPlayingMargin cells in from each
 	// side, and so do their zones.
 	inner := iw - 2*nowPlayingMargin
-	lines := []string{" " + head, ""}
+	lines := make([]string, npFeedRow+1)
+	lines[npHeadRow] = " " + head
 	title, hz := m.heartTitle(title, inner)
 	var zs zones
-	zs.addAt(nowPlayingMargin, len(lines), hz)
-	lines = append(lines,
-		" "+title,
-		" "+artist,
-		" "+album,
-		"",
-	)
+	zs.addAt(nowPlayingMargin, npTitleRow, hz)
+	lines[npTitleRow], lines[npArtistRow], lines[npAlbumRow] = " "+title, " "+artist, " "+album
 	progress, barW := m.progressLine(inner)
 	if m.seekable() {
-		zs.add(zoneSeek, nowPlayingMargin, len(lines), barW)
+		zs.add(zoneSeek, nowPlayingMargin, npProgressRow, barW)
 	}
-	lines = append(lines, m.barMark()+progress, " "+m.feedLine())
+	lines[npProgressRow], lines[npFeedRow] = m.barMark()+progress, " "+m.feedLine()
 	if ih > len(lines)+2 {
 		// The buttons keep their gap from the feed while it leaves room
 		// for the volume row.

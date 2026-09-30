@@ -14,7 +14,9 @@ import (
 
 // Zone IDs. Rows of the list panel use rowZone.
 const (
-	zoneInput       = "input"
+	zoneInput = "input"
+	// zoneNameInput is the NEW PLAYLIST name input.
+	zoneNameInput   = "input:name"
 	zoneRetry       = "retry"
 	zoneTabStations = "tab:stations"
 	zoneTabSearch   = "tab:search"

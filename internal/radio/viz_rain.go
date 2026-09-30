@@ -1,6 +1,9 @@
 package radio
 
-import "math"
+import (
+	"math"
+	"slices"
+)
 
 // rainViz is data rain: hex digits and half-width katakana fall down the
 // columns (every other one), a bright head over a trail that dims, in the
@@ -120,7 +123,7 @@ func (v rainViz) Render(w, h int) []string {
 			}
 			// A trail cell keeps its glyph; the head flickers.
 			g := rainGlyphs[mix(d.seed, uint64(y))%n]
-			k := min(head+uint8(1+i*3/max(d.length, 1)), inkDim)
+			k := trailInk(head, i, d.length)
 			if i == 0 {
 				g, k = rainGlyphs[mix(d.seed, v.tick)%n], head
 			}
@@ -128,4 +131,15 @@ func (v rainViz) Render(w, h int) []string {
 		}
 	}
 	return c.lines()
+}
+
+// rainRamp is the palette a trail steps down, brightest first.
+var rainRamp = []uint8{inkYellow, inkRedBold, inkRed, inkMuted, inkDim}
+
+// trailInk is the ink of cell i of a trail length long under a head in
+// ink head: one step down the ramp from it next to the head, then down to
+// three more along the trail, never past the dimmest.
+func trailInk(head uint8, i, length int) uint8 {
+	at := max(slices.Index(rainRamp, head), 0)
+	return rainRamp[min(at+1+i*3/max(length, 1), len(rainRamp)-1)]
 }

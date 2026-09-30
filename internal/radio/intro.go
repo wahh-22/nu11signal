@@ -17,19 +17,22 @@ import (
 //
 // What is new is found by comparing frames, but only where content lives
 // and only when a message could have brought some. After every message
-// but the animation tick and a resize (which animate or reflow and bring
-// no content), the frames before and after it are laid out at the same
-// instant, so the clock, the progress and the visualizer read the same in
+// but those of introQuiet (see there), the frames before and after it are
+// laid out at the same instant, so the clock, the progress and the visualizer read the same in
 // both, and only the intro regions are compared: the list panel's inside
 // and the artist, album and feed rows of NOW PLAYING (the title glitches
 // on its own; the progress, buttons, volume, LOOP and visualizer rows are
 // left out). A row of a region is new when its text, its text cells
 // without the selection marks and borders, is on no row of that region
 // before: a row that only moved (a scroll) or changed its marks or its
-// end (the cursor, see sameRow) is not. The cells of a new row that changed scramble.
+// end (the cursor, see sameRow) is not. The cells of a new row that
+// changed scramble. The cells of an intro still running carry into the
+// next frame only where they still hold the same text: a cell whose text
+// moved away (a scroll, the cursor) stops scrambling.
 //
-// The SEARCH input and the NEW PLAYLIST name never scramble, and a key
-// typed into them is not compared at all: live results intro once, as
+// The SEARCH input and the NEW PLAYLIST name, found by their zones
+// wherever they are drawn, never scramble, and a key typed into them is
+// not compared at all: live results intro once, as
 // they arrive. Intros follow the signal effects' switch (off with x or
 // --calm) and skip the tiny layout and the auth error screen but, off the
 // input line, they also run while typing. Like the other effects they
@@ -48,13 +51,21 @@ const (
 
 const saltIntro uint64 = 401
 
-// nowPlayingFieldRows are the rows of the NOW PLAYING inside that intro:
-// the artist, the album and the feed (see nowPlaying).
-var nowPlayingFieldRows = []int{3, 4, 7}
+// introFieldRows are the rows of the NOW PLAYING inside that intro: the
+// artist, the album and the feed, as nowPlaying lays them out.
+var introFieldRows = []int{npArtistRow, npAlbumRow, npFeedRow}
+
+// A row reading b is the row that read a (see sameRow) when they share at
+// least sameRowMinShared runes of their start, and at least sameRowShare
+// of the shorter one.
+const (
+	sameRowMinShared = 4
+	sameRowShare     = 0.6
+)
 
 // intro is the latest content intro, number seq, from start: the cells
-// that scramble, as columns by row. It is a value: cells is never changed
-// once made.
+// that scramble, as columns by row, each once. It is a value: cells is
+// never changed once made, only replaced.
 type intro struct {
 	seq   uint64
 	start time.Time
@@ -74,17 +85,30 @@ func (m Model) introOn() bool {
 // introAnimating reports whether an intro draws now.
 func (m Model) introAnimating() bool { return m.introOn() && m.intro.running(m.now()) }
 
+// introQuiet reports whether msg cannot bring intro content, so the
+// frames are not laid out twice for it: the animation tick and a resize
+// (which animate or reflow), and the replies of the player's controls,
+// which change only the volume, the progress, LOOP or the status line,
+// none of them compared. Any other message may, a state (a new artist,
+// album or feed) included, and is compared.
+func introQuiet(msg tea.Msg) bool {
+	switch msg.(type) {
+	case tickMsg, tea.WindowSizeMsg, volumeMsg, setVolumeMsg, seekMsg, loopMsg:
+		return true
+	}
+	return false
+}
+
 // withIntro starts an intro for the text m shows that prev, the Model
 // before msg, did not (see the top of this file). The cells of an intro
-// still running go on scrambling in the new one.
+// still running go on scrambling where their text stayed, in the new one
+// or, with nothing new, in the same one.
 func (m Model) withIntro(prev Model, msg tea.Msg) Model {
-	switch msg.(type) {
-	case tickMsg, tea.WindowSizeMsg:
+	if introQuiet(msg) {
 		return m
-	case tea.KeyPressMsg:
-		if prev.typing() && m.typing() {
-			return m
-		}
+	}
+	if _, ok := msg.(tea.KeyPressMsg); ok && prev.typing() && m.typing() {
+		return m
 	}
 	if !m.introOn() || prev.width != m.width || prev.height != m.height {
 		return m
@@ -96,16 +120,43 @@ func (m Model) withIntro(prev Model, msg tea.Msg) Model {
 	for _, region := range m.introRegions(zs) {
 		newCells(before, after, region, cells)
 	}
+	carried, dropped := m.intro.carried(now, before, after)
 	if len(cells) == 0 {
+		if dropped {
+			// Same seq and start: what is left resolves on time.
+			m.intro.cells = carried
+		}
 		return m
 	}
-	if m.intro.running(now) {
-		for y, xs := range m.intro.cells {
-			cells[y] = append(cells[y], xs...)
-		}
+	for y, xs := range carried {
+		cells[y] = slices.Compact(slices.Sorted(slices.Values(append(cells[y], xs...))))
 	}
 	m.intro = intro{seq: m.intro.seq + 1, start: now, cells: cells}
 	return m
+}
+
+// carried are the cells of in, if it runs at now, that still hold the
+// text they held from before to after; dropped reports whether any did
+// not (moved text, a scroll or the cursor), which must stop scrambling.
+func (in intro) carried(now time.Time, before, after []string) (cells map[int][]int, dropped bool) {
+	if !in.running(now) {
+		return nil, false
+	}
+	cells = map[int][]int{}
+	for y, xs := range in.cells {
+		var b, a []rune
+		if y < len(before) && y < len(after) {
+			b, a = cellRunes(before[y]), cellRunes(after[y])
+		}
+		for _, x := range xs {
+			if x < len(b) && x < len(a) && a[x] != 0 && a[x] == b[x] {
+				cells[y] = append(cells[y], x)
+			} else {
+				dropped = true
+			}
+		}
+	}
+	return cells, dropped
 }
 
 // rowSpan is the cells x0 to x1 (excluded) of row y.
@@ -113,7 +164,8 @@ type rowSpan struct{ y, x0, x1 int }
 
 // introRegions are the rows compared for new content: the list panel's
 // inside, and the NOW PLAYING field rows in the full layout; never the
-// SEARCH input or the NEW PLAYLIST name.
+// rows of the SEARCH input or the NEW PLAYLIST name, where their zones
+// put them.
 func (m Model) introRegions(zs zones) [][]rowSpan {
 	full := m.width >= fullMinWidth && m.height >= fullMinHeight
 	var list, player []zone
@@ -125,7 +177,12 @@ func (m Model) introRegions(zs zones) [][]rowSpan {
 			player = append(player, z)
 		}
 	}
-	input, typing := zs.find(zoneInput)
+	var inputs []int
+	for _, id := range []string{zoneInput, zoneNameInput} {
+		if z, ok := zs.find(id); ok {
+			inputs = append(inputs, z.y)
+		}
+	}
 	var rows []rowSpan
 	if full && len(list) > 2 {
 		list = list[1 : len(list)-1] // the frame
@@ -137,22 +194,12 @@ func (m Model) introRegions(zs zones) [][]rowSpan {
 			rows = append(rows, rowSpan{z.y, z.x, z.x + z.w})
 		}
 	}
-	if m.editor.mode == editName && len(rows) > 0 {
-		input, typing = zone{y: rows[0].y}, true
-	}
-	if typing {
-		for i, r := range rows {
-			if r.y == input.y {
-				rows = append(rows[:i:i], rows[i+1:]...)
-				break
-			}
-		}
-	}
+	rows = slices.DeleteFunc(rows, func(r rowSpan) bool { return slices.Contains(inputs, r.y) })
 	regions := [][]rowSpan{rows}
 	if full && len(player) > 0 {
 		var fields []rowSpan
 		z := player[0]
-		for _, r := range nowPlayingFieldRows {
+		for _, r := range introFieldRows {
 			fields = append(fields, rowSpan{z.y + 1 + r, z.x + 1 + nowPlayingMargin, z.x + z.w - 1})
 		}
 		regions = append(regions, fields)
@@ -212,17 +259,21 @@ func cellRunes(line string) []rune {
 }
 
 // sameRow reports whether a row reading b is the row that read a, moved
-// or marked: the same text, or text that shares most of its start (the
-// selected row's truncated title and trailing ♥ +).
+// or marked: the same text, or text that shares most of its start, in
+// runes (the selected row's truncated title and trailing ♥ +). The
+// trade-off: two different rows that share most of their start (a
+// "PART 1" and a "PART 2") count as one that moved, and do not intro.
 func sameRow(a, b string) bool {
 	if a == b {
 		return true
 	}
+	ra, rb := []rune(a), []rune(b)
+	short := min(len(ra), len(rb))
 	n := 0
-	for n < min(len(a), len(b)) && a[n] == b[n] {
+	for n < short && ra[n] == rb[n] {
 		n++
 	}
-	return n >= 4 && float64(n) >= 0.6*float64(min(len(a), len(b)))
+	return n >= sameRowMinShared && float64(n) >= sameRowShare*float64(short)
 }
 
 // rowText is the text of the cells of r, its words joined by spaces,
