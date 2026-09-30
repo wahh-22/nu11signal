@@ -14,13 +14,16 @@ import (
 )
 
 // Signal effects: the screen now and then seems to lose the signal. Every
-// burstGapMin..burstGapMax a burst of burstMin..burstMax tears a few rows
-// sideways, corrupts a few cells and may run a static bar; one burst in
-// noSignalOdds also flashes NO SIGNAL. Midway between two bursts a text
+// burstGapMin..burstGapMax a gentle burst of burstMin..burstMax tears a
+// row or two one cell sideways for a moment, sprinkles a few noise cells,
+// now and then runs a short static bar; one burst in noSignalOdds also
+// fades a NO SIGNAL sign in and out. Midway between two bursts a text
 // wave runs: for waveMin..waveMax about waveShare of the words on screen
-// scramble at once, like the title on a song change, each cell keeping its
-// own style, and resolve back word by word. Night City alerts take the
-// empty status line now and then.
+// sweep into scrambled glyphs, like the title on a song change, each cell
+// keeping its own style, hold, and type themselves back in one by one.
+// Everything moves slowly on purpose: it should read as an effect, not
+// as the app failing. Night City alerts take the empty status line now
+// and then.
 //
 // Everything is drawn over the finished frame (see Model.decorate), cell
 // for cell, so no line changes width and the clickable zones, laid out
@@ -32,24 +35,41 @@ import (
 const (
 	burstGapMin  = 20 * time.Second
 	burstGapMax  = 45 * time.Second
-	burstMin     = 200 * time.Millisecond
-	burstMax     = 600 * time.Millisecond
-	noSignalOdds = 4
+	burstMin     = 500 * time.Millisecond
+	burstMax     = 900 * time.Millisecond
+	noSignalOdds = 6
 	alertGapMin  = 30 * time.Second
 	alertGapMax  = 60 * time.Second
 	alertShow    = 4 * time.Second
 	alertBlink   = 500 * time.Millisecond
-	// A text wave scrambles waveShare of the words for waveMin..waveMax;
-	// all of them hold for waveHold of its time, then each resolves at
-	// its own moment, the ones on the left somewhat sooner.
-	waveMin   = 600 * time.Millisecond
-	waveMax   = 1000 * time.Millisecond
-	waveShare = 0.75
-	waveHold  = 0.3
-	// burstTick is the frame time during a burst (about 15 fps), waveTick
-	// during a text wave (10 fps); minWake keeps a late tick from
-	// spinning.
-	burstTick = 66 * time.Millisecond
+	// A text wave scrambles waveShare of the words for waveMin..waveMax.
+	// Each word starts at its own moment before waveRamp of the wave,
+	// sooner on the left so the wave sweeps across, holds, and resolves
+	// at its own moment from waveResolve on, most early, a few lingering.
+	// A word's letters turn one after another, left to right, over
+	// waveLetters of the wave; a scrambled cell shows a new glyph every
+	// waveGlyph, each cell at its own phase.
+	waveMin     = 1600 * time.Millisecond
+	waveMax     = 2400 * time.Millisecond
+	waveShare   = 0.75
+	waveRamp    = 0.35
+	waveResolve = 0.5
+	waveLetters = 0.1
+	waveGlyph   = 160 * time.Millisecond
+	// A burst tears at most burstTears rows, one cell each, for part of
+	// it; sprinkles noiseMin..noiseMax noise cells (twice as many with
+	// NO SIGNAL) that move every burstGlyph; and one in staticOdds runs
+	// a static bar for staticShow.
+	burstTears = 2
+	noiseMin   = 3
+	noiseMax   = 6
+	burstGlyph = 125 * time.Millisecond
+	staticOdds = 4
+	staticShow = 250 * time.Millisecond
+	// burstTick is the idle frame time during a burst (8 fps), waveTick
+	// during a text wave (10 fps); while a song plays both ride its
+	// 10 fps tick. minWake keeps a late tick from spinning.
+	burstTick = 125 * time.Millisecond
 	waveTick  = 100 * time.Millisecond
 	minWake   = 10 * time.Millisecond
 )
@@ -141,20 +161,24 @@ func (e effects) waving(now time.Time) bool {
 	return !now.Before(e.waveStart) && now.Before(e.waveEnd)
 }
 
-// interval is the time to the next frame, d without the effects:
-// burstTick during a burst; during a text wave d when it is already as
-// fast as waveTick (the playing tick), else waveTick, cut short at the
-// wave's end; and otherwise d cut short so that the ▲ of an alert blinks
-// and the next wave or burst starts on time.
+// interval is the time to the next frame, d without the effects: during
+// a burst or a text wave d when it is already as fast as its tick (the
+// playing tick), else burstTick or waveTick, cut short at its end; and
+// otherwise d cut short so that the ▲ of an alert blinks and the next
+// wave or burst starts on time.
 func (e effects) interval(now time.Time, d time.Duration) time.Duration {
-	if e.bursting(now) {
-		return burstTick
-	}
-	if e.waving(now) {
-		if d <= waveTick {
+	for _, fx := range []struct {
+		on   bool
+		tick time.Duration
+		end  time.Time
+	}{{e.bursting(now), burstTick, e.burstEnd}, {e.waving(now), waveTick, e.waveEnd}} {
+		if !fx.on {
+			continue
+		}
+		if d <= fx.tick {
 			return d
 		}
-		return max(min(waveTick, e.waveEnd.Sub(now)), minWake)
+		return max(min(fx.tick, fx.end.Sub(now)), minWake)
 	}
 	if e.alerting(now) {
 		d = min(d, alertBlink)
@@ -256,7 +280,7 @@ func (m Model) decorate(lines []string) []string {
 		m.textWave(out, spared, now)
 	}
 	if m.fx.bursting(now) {
-		m.burst(frame)
+		m.burst(frame, now)
 	}
 	return out
 }
@@ -324,11 +348,11 @@ func textRune(r rune) bool {
 
 // textWave scrambles the words of the live text wave in lines, but on
 // line spared. The words are ranked by a hash of the wave and their place
-// and the first waveShare of them scramble: their cells hold noise glyphs
-// or letters, new ones every waveTick, until the word's own moment to
-// resolve, after waveHold of the wave and before its end, somewhat sooner
-// on the left. Only the characters of the scrambled cells change: every
-// cell keeps its style, and the others their text too.
+// and the first waveShare of them scramble, each in its own window (see
+// waveWindow), letter by letter; a scrambled cell holds a noise glyph or
+// a letter, a new one every waveGlyph. Only the characters of the
+// scrambled cells change: every cell keeps its style, and the others
+// their text too.
 func (m Model) textWave(lines []string, spared int, now time.Time) {
 	words := textWords(lines, spared)
 	if len(words) == 0 {
@@ -345,19 +369,23 @@ func (m Model) textWave(lines []string, spared int, now time.Time) {
 	slices.SortFunc(picks, func(a, b pick) int { return cmp.Compare(a.h, b.h) })
 	picks = picks[:int(math.Ceil(waveShare*float64(len(picks))))]
 
-	d := m.fx.waveEnd.Sub(m.fx.waveStart)
-	p := float64(now.Sub(m.fx.waveStart)) / float64(d)
-	bucket := uint64(now.Sub(m.fx.waveStart) / waveTick)
+	elapsed := now.Sub(m.fx.waveStart)
+	p := float64(elapsed) / float64(m.fx.waveEnd.Sub(m.fx.waveStart))
 	width := float64(max(m.width, 1))
 	repl := map[int]map[int]rune{}
 	for _, pk := range picks {
-		// Resolve somewhere in [waveHold, 1): 60% chance, 40% the column.
-		at := 0.6*unit(mix(pk.h, 1)) + 0.4*min(float64(pk.w.xs[0])/width, 1)
-		if p >= waveHold+(1-waveHold)*at {
-			continue
-		}
+		on, off := waveWindow(pk.h, min(float64(pk.w.xs[0])/width, 1))
+		n := float64(len(pk.w.xs))
 		for j, x := range pk.w.xs {
-			c := mix(pk.h, bucket, uint64(j))
+			// The letters turn in, and back, one after another.
+			lag := waveLetters * float64(j) / n
+			if p < on+lag || p >= off+lag {
+				continue
+			}
+			// Each cell changes glyph every waveGlyph at its own phase,
+			// so the flicker ripples instead of jumping all at once.
+			phase := time.Duration(mix(pk.h, 2, uint64(j)) % uint64(waveGlyph))
+			c := mix(pk.h, uint64((elapsed+phase)/waveGlyph), uint64(j))
 			glyph := glitchGlyphs[c>>16%uint64(len(glitchGlyphs))]
 			if c>>8%3 == 0 {
 				glyph = rune('A' + c>>24%26)
@@ -371,6 +399,20 @@ func (m Model) textWave(lines []string, spared int, now time.Time) {
 	for y, cells := range repl {
 		lines[y] = setCells(lines[y], cells)
 	}
+}
+
+// waveWindow is when, as shares of the wave, the first letter of a word
+// with hash h starting at column share col scrambles and resolves. The
+// start falls before waveRamp (less the letters' lag), mostly by column
+// so the wave sweeps from the left, a few words at once. The resolve falls
+// in [waveResolve, 1) (less the lag), eased: a power of the draw bunches
+// most words early in the window and leaves a few to linger.
+func waveWindow(h uint64, col float64) (on, off float64) {
+	sweep := min(max(0.75*col+0.35*unit(mix(h, 3))-0.1, 0), 1)
+	on = (waveRamp - waveLetters) * sweep
+	u := 0.7*unit(mix(h, 1)) + 0.3*col
+	off = waveResolve + (1-waveResolve-waveLetters)*math.Pow(u, 1.6)
+	return on, off
 }
 
 // setCells replaces the characters of the one cell wide cells of line at
@@ -399,38 +441,99 @@ var noiseGlyphs = []string{"░", "▒", "▓", "█", "▚", "▞", "0", "1", "
 
 var noiseStyles = []lipgloss.Style{stRed, stCyan, stYellow, stFrameDim}
 
-// burst tears a few rows sideways by 1..3 cells, corrupts a handful of
-// cells, may run a static bar across one row and, on a NO SIGNAL burst,
-// flashes the sign in the middle. It changes every frame.
-func (m Model) burst(lines []string) {
-	if len(lines) == 0 {
-		return
+// signPhase is how strongly a NO SIGNAL burst shows its sign.
+type signPhase int
+
+const (
+	signOff   signPhase = iota
+	signEntry           // the sign alone, dim: the first part of the burst
+	signFull            // framed in red static
+	signFade            // framed in dim static, dim: the last part
+)
+
+// tear is row y torn k cells sideways.
+type tear struct {
+	y, k  int
+	right bool
+}
+
+// burstLook is what the burst draws at one moment: torn rows, a static
+// bar on row bar (-1 for none) with its own noise barSeed, one hash per
+// noise cell (its row, column, glyph and style) and the NO SIGNAL phase.
+type burstLook struct {
+	tears   []tear
+	bar     int
+	barSeed uint64
+	noise   []uint64
+	sign    signPhase
+}
+
+// look is what the latest burst draws at now on a frame of n lines,
+// nothing outside it. Its tears and bar come and go in windows fixed for
+// the burst, and its noise moves every burstGlyph, so a burst drifts
+// rather than jitters, whatever the frame rate.
+func (e effects) look(seed uint64, now time.Time, n int) burstLook {
+	l := burstLook{bar: -1}
+	if !e.bursting(now) || n <= 0 {
+		return l
 	}
-	r := mix(m.seed, saltBurst, m.fx.burstSeq, m.frame)
-	n := uint64(len(lines))
-	for i := range 2 + r%3 {
-		h := mix(r, 1, i)
-		y := h % n
-		lines[y] = shift(lines[y], int(h>>8%3)+1, h>>16%2 == 0)
+	b := mix(seed, saltBurst, e.burstSeq)
+	elapsed, d := now.Sub(e.burstStart), e.burstEnd.Sub(e.burstStart)
+	q := float64(elapsed) / float64(d)
+	bucket := uint64(elapsed / burstGlyph)
+	rows := uint64(n)
+	for i := range 1 + b%burstTears {
+		// Each tear shows for 30..60% of the burst, then settles back.
+		h := mix(b, 1, i)
+		from := 0.4 * unit(mix(h, 2))
+		if to := from + 0.3 + 0.3*unit(mix(h, 3)); q >= from && q < to {
+			l.tears = append(l.tears, tear{y: int(h % rows), k: 1, right: h>>8%2 == 0})
+		}
 	}
-	if r>>8%2 == 0 {
-		y := mix(r, 2) % n
-		lines[y] = staticBar(ansi.StringWidth(lines[y]), mix(r, 3))
+	if mix(b, 2)%staticOdds == 0 {
+		at := time.Duration(unit(mix(b, 4)) * float64(max(d-staticShow, 0)))
+		if elapsed >= at && elapsed < at+staticShow {
+			l.bar, l.barSeed = int(mix(b, 3)%rows), mix(b, 5, bucket)
+		}
 	}
-	noise := 6 + r>>16%9
-	if m.fx.noSignal {
-		noise *= 3
+	noise := noiseMin + mix(b, 6, bucket)%(noiseMax-noiseMin+1)
+	if e.noSignal {
+		noise *= 2
 	}
 	for i := range noise {
-		h := mix(r, 4, i)
-		y := h % n
+		l.noise = append(l.noise, mix(b, 7, bucket, i))
+	}
+	if e.noSignal {
+		switch {
+		case q < 0.2:
+			l.sign = signEntry
+		case q < 0.75:
+			l.sign = signFull
+		default:
+			l.sign = signFade
+		}
+	}
+	return l
+}
+
+// burst draws the look of the live burst over lines (see look).
+func (m Model) burst(lines []string, now time.Time) {
+	l := m.fx.look(m.seed, now, len(lines))
+	for _, tr := range l.tears {
+		lines[tr.y] = shift(lines[tr.y], tr.k, tr.right)
+	}
+	if l.bar >= 0 {
+		lines[l.bar] = staticBar(ansi.StringWidth(lines[l.bar]), l.barSeed)
+	}
+	for _, h := range l.noise {
+		y := h % uint64(len(lines))
 		if w := ansi.StringWidth(lines[y]); w > 0 {
 			glyph := noiseGlyphs[h>>32%uint64(len(noiseGlyphs))]
 			lines[y] = overlay(lines[y], int(h>>8%uint64(w)), noiseStyles[h>>48%uint64(len(noiseStyles))].Render(glyph))
 		}
 	}
-	if m.fx.noSignal {
-		m.noSignalFlash(lines, r)
+	if l.sign != signOff {
+		m.noSignalFlash(lines, l.sign, mix(m.seed, saltBurst, m.fx.burstSeq, uint64(now.Sub(m.fx.burstStart)/burstGlyph)))
 	}
 }
 
@@ -440,18 +543,28 @@ func (m Model) burst(lines []string) {
 //	▓▒░▒▓░▒▓▒░▓▒░▒▓░▒▓▒░▓▒░▒▓
 //	▒▓   N O   S I G N A L  ▓▒
 //	▓▒░▒▓░▒▓▒░▓▒░▒▓░▒▓▒░▓▒░▒▓
-func (m Model) noSignalFlash(lines []string, r uint64) {
+//
+// On its entry only the sign shows, dim; on its fade the frame and sign
+// are dim.
+func (m Model) noSignalFlash(lines []string, phase signPhase, r uint64) {
 	sign := "  " + spaced("NO SIGNAL") + "  "
 	signW := ansi.StringWidth(sign) + 4
 	x := max((m.width-signW)/2, 0)
 	y := max(len(lines)/2-1, 0)
+	frame, text := stRed, stRedBold
+	if phase != signFull {
+		frame, text = stFrameDim, stFrameDim
+	}
 	rows := []string{
-		stRed.Render(static(signW, mix(r, 5))),
-		stRed.Render("▒▓") + stRedBold.Render(sign) + stRed.Render("▓▒"),
-		stRed.Render(static(signW, mix(r, 6))),
+		frame.Render(static(signW, mix(r, 5))),
+		frame.Render("▒▓") + text.Render(sign) + frame.Render("▓▒"),
+		frame.Render(static(signW, mix(r, 6))),
+	}
+	if phase == signEntry {
+		rows = []string{"", text.Render("  " + sign + "  "), ""}
 	}
 	for i, row := range rows {
-		if y+i < len(lines) {
+		if row != "" && y+i < len(lines) {
 			lines[y+i] = overlay(lines[y+i], x, row)
 		}
 	}
