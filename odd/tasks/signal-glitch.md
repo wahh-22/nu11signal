@@ -86,3 +86,4 @@ With the content intro in place the text wave is redundant.
 
 - [x] G8 — Smoother content intro (~650 ms, glyph change ~90 ms, eased left-to-right resolve); remove the text wave entirely; bursts more frequent (every 10–22 s), keeping 0.6–1 s and NO SIGNAL 1 in 4. Branch `feat/intro-smooth`. Route: delegated.
 - G8 done (route: delegated writer). Intro 650 ms: 20% hold, ease-out left-to-right resolve (front covers 1-(1-t)² of the columns, 10% jitter), per-cell 90 ms glyph phase, 50 ms tick. Text wave removed entirely (golden deleted); burst salts pinned by `TestBurstSaltsStayPut`; bursts every 10–22 s (0.6–1 s, NO SIGNAL 1 in 4). RED: 5 failing tests; GREEN: `go test -race ./...` ok, vet/gofmt clean; burst goldens changed only in clock/progress text.
+- G8 review: commit `10c2985`, RDD medium, 925 lines, consent granted, lineage `review-b440520d68ac7046`, reliability lens, APPROVED with no findings, acknowledged (burned).
