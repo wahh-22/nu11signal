@@ -64,3 +64,11 @@ Effects feel too fast, like the app is failing. Make them smoother and a bit lon
 - [x] G5 — Smooth wave (1.6–2.4 s, staggered ramp-in and eased staggered resolve, slower glyph flicker ~160 ms) and gentler bursts (longer, fewer/shorter tears, sparser noise, slower flicker, rarer and softer NO SIGNAL); cadence unchanged; measure CPU. Branch `feat/glitch-smooth`. Route: delegated.
 - G5 done (route: delegated writer). Wave 1.6–2.4 s: column-biased ramp-in before 35%, hold to 50%, eased resolve 0.5+0.4·u^1.6, letters turn left to right over ~10% of the wave, per-cell glyph phase on a 160 ms period (shimmer). Bursts 0.5–0.9 s: 1–2 rows shifted 1 cell settling back, 3–6 noise cells moving every 125 ms, static bar 1 in 4 (≤250 ms), NO SIGNAL 1 in 6 with dim→full→dim; idle burst tick 125 ms. Cadence unchanged. RED: 8 failing tests with a stub; GREEN: `go test -race ./...` 734 passed, vet/gofmt clean. CPU (demo, 60 s ×2): idle effects 0.58–0.60% vs base 0.40–0.49%; playing within noise; wakeups unchanged.
 - G5 review: commit `6de4d14`, RDD medium, 674 lines, consent granted, lineage `review-02ce5717b6d18931`, reliability lens, APPROVED, acknowledged (burned). Suggestion (not scheduled): while playing, the last burst frame can linger up to one playing tick past burstEnd.
+
+## Round 6 (user feedback, 2026-09-30)
+
+- Real EQ bars jump on the first play (decorative → empty → real).
+- The NO SIGNAL bursts (with and without the sign) were the best; G5 made them too rare and dim — restore the G4 burst look (2–4 tears, more noise, static bar, red NO SIGNAL 1 in 4).
+- The text wave is too strong (whole words): scramble ~65% of the letters instead.
+
+- [ ] G6 — EQ start without the decorative jump (app mode starts from zero, decorative only after 1.5 s without levels); restore G4 bursts (keep the smooth text wave); wave scrambles ~65% of eligible letters. Branch `feat/glitch-eq-tune`. Route: delegated.
