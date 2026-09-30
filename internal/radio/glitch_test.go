@@ -568,13 +568,16 @@ func TestMicroTickRisesOnlyWhileAGlitchResolves(t *testing.T) {
 		t.Fatal("tick still fast while paused")
 	}
 	m = forceMicro(t, m, c)
-	if got := m.tickInterval(); got != microTick {
-		t.Fatalf("micro-glitch tick = %v, want %v", got, microTick)
+	// Idle, a glitch takes three frames: scrambled on its start, partly
+	// resolved halfway, whole again on its end.
+	mid := m.fx.microStart.Add(m.fx.microEnd.Sub(m.fx.microStart) / 2)
+	if got, want := m.tickInterval(), mid.Sub(c.t); got != want {
+		t.Fatalf("micro-glitch tick = %v, want %v (to its middle)", got, want)
 	}
-	// The last frame lands on the glitch's end, which resolves it.
-	c.t = m.fx.microEnd.Add(-microTick / 2)
-	if got := m.tickInterval(); got != microTick/2 {
-		t.Fatalf("last micro-glitch tick = %v, want %v", got, microTick/2)
+	c.t = mid
+	m = tick(t, m)
+	if got, want := m.tickInterval(), m.fx.microEnd.Sub(c.t); got != want {
+		t.Fatalf("second micro-glitch tick = %v, want %v (to its end)", got, want)
 	}
 	c.t = m.fx.microEnd
 	m = tick(t, m)
@@ -589,6 +592,102 @@ func TestPausedEffectsNeverMicroGlitch(t *testing.T) {
 	for now := start; now.Before(start.Add(5 * time.Minute)); now = now.Add(50 * time.Millisecond) {
 		if e = e.advance(now, 3, false); e.micro(now) {
 			t.Fatalf("paused effects micro-glitched at %v", now.Sub(start))
+		}
+	}
+}
+
+// skeleton is line with every printable cell replaced by a dot: its escape
+// sequences, where they are, and its cell count.
+func skeleton(line string) string {
+	var b strings.Builder
+	var state byte
+	for len(line) > 0 {
+		seq, w, n, next := ansi.DecodeSequence(line, state, nil)
+		if w > 0 {
+			b.WriteString(strings.Repeat("·", w))
+		} else {
+			b.WriteString(seq)
+		}
+		line, state = line[n:], next
+	}
+	return b.String()
+}
+
+func TestMicroGlitchKeepsTheCellStyles(t *testing.T) {
+	c := newClock()
+	m := fxModel(t, c)
+	scrambled := 0
+	for range 100 {
+		m = forceMicro(t, m, c)
+		for c.t.Before(m.fx.microEnd) && !m.fx.bursting(c.t) {
+			base, _ := m.baseLayout()
+			lines, _ := m.layout()
+			for y := range lines {
+				if lines[y] == base[y] {
+					continue
+				}
+				scrambled++
+				if got, want := skeleton(lines[y]), skeleton(base[y]); got != want {
+					t.Fatalf("micro-glitch changed the styles of line %d:\n got %q\nwant %q", y, lines[y], base[y])
+				}
+			}
+			c.advance(fastTick)
+			m = tick(t, m)
+		}
+	}
+	if scrambled == 0 {
+		t.Fatal("no micro-glitch scrambled a line")
+	}
+}
+
+func TestMicroGlitchesComeOften(t *testing.T) {
+	const stepDur = 10 * time.Millisecond
+	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
+	for seed := uint64(1); seed <= 10; seed++ {
+		e := effects{on: true}
+		seq := uint64(0)
+		var lastStart, lastEnd time.Time
+		for now := start; now.Before(start.Add(5 * time.Minute)); now = now.Add(stepDur) {
+			e = e.advance(now, seed, true)
+			if e.microSeq == seq {
+				continue
+			}
+			seq = e.microSeq
+			if !lastStart.IsZero() {
+				if gap := e.microStart.Sub(lastStart); gap < 200*time.Millisecond || gap > 800*time.Millisecond+stepDur {
+					t.Errorf("seed %d micro %d comes %v after the last, want 0.2..0.8s", seed, seq, gap)
+				}
+				if e.microStart.Before(lastEnd) {
+					t.Errorf("seed %d micro %d starts before the last one resolved", seed, seq)
+				}
+			}
+			lastStart, lastEnd = e.microStart, e.microEnd
+		}
+		if seq < uint64(5*time.Minute/(800*time.Millisecond)) {
+			t.Fatalf("seed %d: only %d micro-glitches in 5 minutes", seed, seq)
+		}
+	}
+}
+
+func TestIdleMicroGlitchTakesAtMostThreeFrames(t *testing.T) {
+	c := newClock()
+	m := fxModel(t, c)
+	still := playing(90*time.Second, 225*time.Second)
+	still.Status = playback.StatusPaused
+	m, _ = step(t, m, stateMsg{state: still})
+	for range 20 {
+		m = tick(t, m) // let the EQ settle flat
+	}
+	for range 50 {
+		m = forceMicro(t, m, c)
+		seq, frames := m.fx.microSeq, 1
+		for m.fx.micro(c.t) && m.fx.microSeq == seq && !m.fx.bursting(c.t) {
+			c.advance(m.tickInterval())
+			m = tick(t, m)
+			frames++
+		}
+		if frames > 3 {
+			t.Fatalf("micro-glitch %d took %d idle frames, want at most 3", seq, frames)
 		}
 	}
 }

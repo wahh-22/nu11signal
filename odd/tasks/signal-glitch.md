@@ -45,4 +45,5 @@ The user did not want new letters/codes in the background. They want the song-ti
 
 ## Round 3 (user feedback, 2026-09-30)
 
-- [ ] G3 — Scrambled cells keep the original cell's color/style (no cyan/yellow glitch style); micro-glitches more frequent (new one every ~0.2–0.8 s) with fewer animation frames per glitch to limit CPU; measure CPU. Branch `feat/glitch-tune`. Route: delegated.
+- [x] G3 — Scrambled cells keep the original cell's color/style (no cyan/yellow glitch style); micro-glitches more frequent (new one every ~0.2–0.8 s) with fewer animation frames per glitch to limit CPU; measure CPU. Branch `feat/glitch-tune`. Route: delegated.
+- G3 done (route: delegated writer). `setCells` swaps only printable runes via `ansi.DecodeSequence`, so scrambled cells keep their original SGR (bursts keep their neon noise by design); micro-glitch gap 0.2–0.8 s, never overlapping the previous one's resolve; idle glitches take 3 frames (start, midpoint, end). RED: 4 failing tests (style skeleton, frequency, frame count, tick). GREEN: `go test -race ./...` 724 passed, `go vet`/`gofmt` clean. CPU (60 s demo, 80x24): idle 1.80% effects vs 0.83% calm; playing 3.70% vs 2.74%.
