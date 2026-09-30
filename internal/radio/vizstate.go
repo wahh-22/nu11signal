@@ -61,17 +61,19 @@ func (m Model) vizSize() (w, h int) {
 		return 0, 0
 	}
 	ih := m.height - 6 // the panel's inside: the body less its frame
-	return m.playerPanelWidth() - 2 - 2*nowPlayingMargin, vizRows(ih, nowPlayingControlRows(ih))
+	return m.playerPanelWidth() - 2 - 2*nowPlayingMargin, vizRows(ih, nowPlayingControlRows(m.playerPanelWidth()-2, ih))
 }
 
-// nowPlayingControlRows is how many rows NOW PLAYING draws over the
-// spectrum area in ih rows: head to the volume row, with the gap over the
-// buttons once there is room for it.
-func nowPlayingControlRows(ih int) int {
-	if ih > 10 {
-		return 11
+// nowPlayingControlRows is how many rows NOW PLAYING, iw x ih inside,
+// draws over the spectrum area: head to the controls (one row or two, as
+// hudRowCount says for the width inside the margins), with the gap over
+// them once there is room for it.
+func nowPlayingControlRows(iw, ih int) int {
+	rows := npFeedRow + 1 + hudRowCount(iw-2*nowPlayingMargin)
+	if ih > rows {
+		rows++
 	}
-	return 10
+	return rows
 }
 
 // vizRows is the height of the spectrum area under used rows of ih, at

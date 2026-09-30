@@ -29,8 +29,9 @@ const (
 	zoneVolDown     = "vol:down"
 	zoneVolUp       = "vol:up"
 	zoneLoop        = "loop"
-	// zoneRowFavorite and zoneRowAdd are the ♥ and + ending the selected
-	// song row; zoneFavPlaying the ♥ button of the song playing.
+	// zoneRowFavorite and zoneRowAdd are the favorite mark and + ending
+	// the selected song row; zoneFavPlaying the [<3] button of the song
+	// playing.
 	zoneRowFavorite = "fav:row"
 	zoneRowAdd      = "add:row"
 	zoneFavPlaying  = "fav:playing"

@@ -200,7 +200,7 @@ func (m Model) onState(s playback.State) Model {
 	m.confirmLoop()
 	m = m.trackPlay()
 	// With nothing left to seek in, the bar focus falls back to the
-	// button below it; with no song, the ♥ focus to PLAY.
+	// button below it; with no song, the favorite focus to PLAY.
 	m.onBar = m.onBar && m.seekable()
 	if _, ok := m.playingSong(); !ok && m.control == ctlFav {
 		m.control = ctlPlay

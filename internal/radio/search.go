@@ -460,7 +460,7 @@ func (m Model) inputWidth() int {
 // searchBody renders the search view in w x h cells: the input, a rule and
 // the rows, scrolled so the cursor stays on screen. Every line is exactly w
 // cells wide. Its zones are the input and the rows shown, with the ✕ of
-// each recent term and the ♥ and + of the selected song.
+// each recent term and the favorite mark and + of the selected song.
 func (m Model) searchBody(w, h int) ([]string, zones) {
 	if h <= 0 || w <= 0 {
 		return nil, nil

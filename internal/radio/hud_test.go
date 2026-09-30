@@ -113,7 +113,9 @@ func TestTransportRowDegradesWithoutOverflow(t *testing.T) {
 }
 
 func TestLoopSharesTheTransportRowAndVolumeSitsUnderIt(t *testing.T) {
-	for _, keys := range [][]string{nil, {"f"}} {
+	// Beside the list, the controls take two rows; expanded, they fit one
+	// (see TestHUDTakesOneRowWhenItFits).
+	for _, keys := range [][]string{nil} {
 		m := withVolume(t, playingModel(t, playbacktest.New()), 0.9)
 		m, _ = press(t, m, keys...)
 		play := zoneOf(t, m, zonePlay)
@@ -269,5 +271,183 @@ func TestCompactTransportRowHoldsLoop(t *testing.T) {
 	settle(t, m, cmd)
 	if got := setRepeatCalls(f); !reflect.DeepEqual(got, []any{playback.RepeatAll}) {
 		t.Fatalf("compact: SetRepeat calls %v; want [all]", got)
+	}
+}
+
+// hudIDs are the zones of the player's controls in the one-row layout,
+// left to right.
+var hudIDs = []string{zonePrev, zonePlay, zoneNext, zoneLoop, zoneVolDown, zoneVolUp, zoneExpand}
+
+func TestHUDTakesOneRowWhenItFits(t *testing.T) {
+	m := withVolume(t, playingModel(t, playbacktest.New()), 0.9)
+	rows, zs := m.hudControls(76)
+	if len(rows) != 1 || hudRowCount(76) != 1 {
+		t.Fatalf("76 cells: %d rows (count %d); want one:\n%s", len(rows), hudRowCount(76), ansi.Strip(strings.Join(rows, "\n")))
+	}
+	got := ansi.Strip(rows[0])
+	const lead = "[◀◀]  [ ❚❚ PAUSE ]  [▶▶]  [↻ OFF]  VOL [−] ▮"
+	if !strings.HasPrefix(got, lead) || !strings.Contains(got, "[+] 90%") || !strings.HasSuffix(got, "[⤢]") || ansi.StringWidth(got) != 76 {
+		t.Fatalf("one row %q; want %q…[+] 90%%…[⤢] in 76 cells", got, lead)
+	}
+	want := map[string]string{
+		zonePrev: "[◀◀]", zonePlay: "[ ❚❚ PAUSE ]", zoneNext: "[▶▶]", zoneLoop: "[↻ OFF]",
+		zoneVolDown: "[−]", zoneVolUp: "[+]", zoneExpand: "[⤢]",
+	}
+	if texts := barText(rows[0], zs); !reflect.DeepEqual(texts, want) {
+		t.Fatalf("zones cover %v; want %v", texts, want)
+	}
+	for i, id := range hudIDs {
+		if zs[i].id != id || zs[i].y != 0 {
+			t.Fatalf("zone %d is %s on row %d; want %s on row 0", i, zs[i].id, zs[i].y, id)
+		}
+	}
+	if z, _ := zs.find(zoneExpand); z.x+z.w != 76 {
+		t.Fatalf("EXPAND ends at %d; want the right edge, 76", z.x+z.w)
+	}
+	// The narrowest one row keeps a meter of hudMeterMin cells; one
+	// cell less falls back to two rows. Paused, the row is laid out alike.
+	narrow, _ := m.hudControls(hudOneRowMin)
+	if len(narrow) != 1 || strings.Count(ansi.Strip(narrow[0]), "▮")+strings.Count(ansi.Strip(narrow[0]), "▯") != hudMeterMin {
+		t.Fatalf("%d cells: %q; want one row with a %d-cell meter", hudOneRowMin, ansi.Strip(strings.Join(narrow, "\n")), hudMeterMin)
+	}
+	if two, _ := m.hudControls(hudOneRowMin - 1); len(two) != 2 {
+		t.Fatalf("%d cells: %d rows; want two", hudOneRowMin-1, len(two))
+	}
+	s := playing(time.Minute, 3*time.Minute)
+	s.Status = playback.StatusPaused
+	paused, _ := step(t, m, stateMsg{state: s})
+	_, pz := paused.hudControls(76)
+	for _, id := range []string{zoneVolDown, zoneVolUp, zoneExpand} {
+		a, _ := zs.find(id)
+		b, _ := pz.find(id)
+		if a != b {
+			t.Fatalf("paused: %s at %v; want where playing puts it, %v", id, b, a)
+		}
+	}
+}
+
+func TestHUDFallsBackToTwoRows(t *testing.T) {
+	m := withVolume(t, playingModel(t, playbacktest.New()), 0.9)
+	rows, zs := m.hudControls(27)
+	if len(rows) != 2 || hudRowCount(27) != 2 {
+		t.Fatalf("27 cells: %d rows; want two", len(rows))
+	}
+	for _, id := range transportIDs {
+		if z, ok := zs.find(id); !ok || z.y != 0 {
+			t.Fatalf("27 cells: %s zone %v; want it on the transport row", id, z)
+		}
+	}
+	for _, id := range []string{zoneVolDown, zoneVolUp} {
+		if z, ok := zs.find(id); !ok || z.y != 1 {
+			t.Fatalf("27 cells: %s zone %v; want it on the volume row", id, z)
+		}
+	}
+	for w := 0; w <= 90; w++ {
+		rows, zs := m.hudControls(w)
+		for y, row := range rows {
+			var rz zones
+			for _, z := range zs {
+				if z.y == y {
+					rz = append(rz, z)
+				}
+			}
+			if y == 0 || len(rows) == 1 {
+				assertWholeButtons(t, row, rz, w)
+			} else if got := ansi.StringWidth(row); got > w {
+				t.Fatalf("width %d: volume row is %d cells", w, got)
+			}
+		}
+	}
+}
+
+func TestControlRowsFollowTheHUDLayout(t *testing.T) {
+	for _, keys := range [][]string{nil, {"f"}} {
+		m := withVolume(t, playingModel(t, playbacktest.New()), 0.9)
+		m, _ = press(t, m, keys...)
+		iw, ih := m.playerPanelWidth()-2, m.height-6
+		lines, zs := m.nowPlaying(iw, ih)
+		last := 0
+		for _, z := range zs {
+			if _, ok := controlOf(z.id); ok && z.id != zoneFavPlaying {
+				last = max(last, z.y)
+			}
+		}
+		want := 11
+		if keys != nil {
+			want = 10 // one control row
+		}
+		if got := nowPlayingControlRows(iw, ih); got != last+1 || got != want {
+			t.Fatalf("keys %v: %d control rows counted, last control on row %d; want %d", keys, got, last, want)
+		}
+		if _, h := m.vizSize(); h != vizRows(ih, want) || len(lines) != ih {
+			t.Fatalf("keys %v: visualizer %d rows, panel %d lines; want %d rows in %d", keys, h, len(lines), vizRows(ih, want), ih)
+		}
+	}
+}
+
+func TestArrowsWalkTheOneRowHUD(t *testing.T) {
+	m := withVolume(t, playingModel(t, playbacktest.New()), 0.5)
+	m, _ = press(t, m, "f", "left") // expanded: PREV
+	steps := []struct {
+		key string
+		ctl playerControl
+		bar bool
+	}{
+		{"right", ctlPlay, false},
+		{"right", ctlNext, false},
+		{"right", ctlLoop, false},
+		{"right", ctlVolDown, false},
+		{"right", ctlVolUp, false},
+		{"right", ctlExpand, false},
+		{"right", ctlExpand, false}, // the last button stays
+		{"down", ctlExpand, false},  // no row below
+		{"left", ctlVolUp, false},
+		{"left", ctlVolDown, false},
+		{"up", ctlVolDown, true}, // the progress bar
+		{"down", ctlVolDown, false},
+		{"left", ctlLoop, false},
+	}
+	for i, s := range steps {
+		m, _ = press(t, m, s.key)
+		if m.focus != areaPlayer || m.control != s.ctl || m.onBar != s.bar {
+			t.Fatalf("step %d (%s): focus %v control %v bar %v; want %v bar %v",
+				i, s.key, m.focus, m.control, m.onBar, s.ctl, s.bar)
+		}
+	}
+}
+
+func TestHUDZonesDriveThePlayerInBothLayouts(t *testing.T) {
+	for _, keys := range [][]string{nil, {"f"}} {
+		for _, tt := range []struct {
+			id     string
+			method string
+		}{
+			{zonePrev, "Previous"},
+			{zonePlay, "Pause"},
+			{zoneNext, "Next"},
+			{zoneLoop, "SetRepeat"},
+			{zoneVolUp, "SetVolume"},
+			{zoneVolDown, "SetVolume"},
+		} {
+			f := playbacktest.New()
+			m := withVolume(t, playingModel(t, f), 0.5)
+			m, _ = press(t, m, keys...)
+			z := zoneOf(t, m, tt.id)
+			for _, x := range []int{z.x, z.x + z.w - 1} {
+				m, cmd := step(t, m, tea.MouseClickMsg{X: x, Y: z.y, Button: tea.MouseLeft})
+				settle(t, m, cmd)
+			}
+			if n := len(callsOf(f, tt.method)); n != 2 {
+				t.Fatalf("keys %v: two clicks on %s: calls %v; want two %s", keys, tt.id, f.Calls(), tt.method)
+			}
+		}
+		m := playingModel(t, playbacktest.New())
+		m, _ = press(t, m, keys...)
+		expanded := m.expanded
+		z := zoneOf(t, m, zoneExpand)
+		m, _ = step(t, m, tea.MouseClickMsg{X: z.x + z.w - 1, Y: z.y, Button: tea.MouseLeft})
+		if m.expanded == expanded {
+			t.Fatalf("keys %v: a click on EXPAND's last cell left expanded %v", keys, m.expanded)
+		}
 	}
 }

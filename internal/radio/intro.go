@@ -276,7 +276,7 @@ func cellRunes(line string) []rune {
 
 // sameRow reports whether a row reading b is the row that read a, moved
 // or marked: the same text, or text that shares most of its start, in
-// runes (the selected row's truncated title and trailing ♥ +). The
+// runes (the selected row's truncated title and trailing <3 +). The
 // trade-off: two different rows that share most of their start (a
 // "PART 1" and a "PART 2") count as one that moved, and do not intro.
 func sameRow(a, b string) bool {

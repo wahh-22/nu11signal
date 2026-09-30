@@ -162,9 +162,11 @@ func (m Model) listBodyWidth() int {
 }
 
 // renderCompact stacks the screen in one column: the nav bar takes the
-// header rule, the title line ends in the ♥ button, then the artist line,
-// the transport row (packed), the volume row beside it while it fits and
-// the rule over the list, which the expanded player leaves out.
+// header rule, the title line ends in the [<3] button, then the artist
+// line, the transport row (packed), the volume row beside it while it fits
+// and the rule over the list, which the expanded player leaves out. The
+// one-row HUD of the full layout (hudRowCount) never fits here, narrower
+// than fullMinWidth; the focus follows the zones drawn either way.
 func (m Model) renderCompact() ([]string, zones) {
 	w := m.width
 	nav, zs := m.navLine(w)
@@ -353,8 +355,8 @@ func (m Model) progressLine(w int) (line string, barW int) {
 const nowPlayingMargin = 1
 
 // The rows of the NOW PLAYING inside from the head down to the feed, the
-// others blank; the rows under them (the transport row, the volume row and
-// the visualizer) depend on the height. The content intro compares the
+// others blank; the rows under them (the controls and the visualizer)
+// depend on the width and the height. The content intro compares the
 // artist, album and feed rows (see introFieldRows).
 const (
 	npHeadRow = iota
@@ -368,8 +370,9 @@ const (
 )
 
 // nowPlaying renders the inside of the NOW PLAYING panel, iw x ih cells,
-// with its zones: the progress bar (click to seek), the transport row
-// (LOOP and EXPAND included) under the feed and the volume row under it.
+// with its zones: the progress bar (click to seek) and, under the feed,
+// the controls: one row when the width holds them all, else the transport
+// row (LOOP and EXPAND included) over the volume row (see hudControls).
 func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	title, artist := m.titleLines()
 	album := ""
@@ -398,17 +401,16 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 		zs.add(zoneSeek, nowPlayingMargin, npProgressRow, barW)
 	}
 	lines[npProgressRow], lines[npFeedRow] = m.barMark()+progress, " "+m.feedLine()
-	if ih > len(lines)+2 {
+	controls, cz := m.hudControls(inner)
+	if ih > len(lines)+len(controls) {
 		// The buttons keep their gap from the feed while it leaves room
-		// for the volume row.
+		// for them all.
 		lines = append(lines, "")
 	}
-	transport, tz := m.transportBar(inner, false)
-	zs.addAt(nowPlayingMargin, len(lines), tz)
-	lines = append(lines, " "+transport)
-	volume, vz := m.volumeBar(inner)
-	zs.addAt(nowPlayingMargin, len(lines), vz)
-	lines = append(lines, " "+volume)
+	zs.addAt(nowPlayingMargin, len(lines), cz)
+	for _, row := range controls {
+		lines = append(lines, " "+row)
+	}
 
 	if eqRows := vizRows(ih, len(lines)); eqRows > 0 {
 		// Sit the rain on the bottom edge of the panel.

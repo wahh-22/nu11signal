@@ -285,11 +285,11 @@ Limitations:
 - **Love** a song (Apple Music's favorite): `l` on a song row (a track, a
   top song, a song among the results or the search rows), or with no song
   row selected (the playlists, the player), the song playing. The selected
-  song row ends in `♡ +` (`♥` once loved); a loved song keeps its `♥` on any
-  row, and NOW PLAYING shows a `╱ ♡ ╱` button beside the title. A page
-  reads the state of all its songs in one `favorites` call as it loads
-  (album, song, playlist, artist top songs, results, search rows), so its
-  hearts show at once; states are cached per song. The song playing, when
+  song row ends in `-- +` (`<3 +` once loved, the `<3` lit); a loved song
+  keeps its `<3` on any row, and NOW PLAYING shows a `[--]` / `[<3]` button
+  beside the title. A page reads the state of all its songs in one
+  `favorites` call as it loads (album, song, playlist, artist top songs,
+  results, search rows), so its marks show at once; states are cached per song. The song playing, when
   it is not on the page, and the selected song, when the page read failed,
   are read on their own when the selection rests (on the next animation
   tick). A change shows at once: a refused one is reported on the status
@@ -388,8 +388,8 @@ panel frame shows which side has the focus):
 
 | Key | Action |
 |-----|--------|
-| `←` / `→` | Walk a row of buttons: `PREV`, `PLAY`/`PAUSE`, `NEXT`, `EXPAND`, or `VOL-`, `VOL+` below them; `LOOP` and the `♡` of the song playing are alone on their rows; `←` from the first button of a row goes back to the list |
-| `↑` / `↓` | Move between the `♡` of the song playing (while there is one), the progress bar (when the song can seek), the transport row, the volume row (`VOL-` under `PREV`/`PLAY`, `VOL+` under `NEXT`/`EXPAND`), and `LOOP` under it; `↑` from the `♡` (or from what is under it, with no song) moves the focus to the nav tabs |
+| `←` / `→` | Walk a row of buttons as drawn: `PREV`, `PLAY`/`PAUSE`, `NEXT`, `LOOP`, `VOL-`, `VOL+`, `EXPAND` when the player is wide enough for one row, else `PREV` to `EXPAND` on the transport row and `VOL-`, `VOL+` on the volume row below; the `[<3]` of the song playing is alone on its row; `←` from the first button of a row goes back to the list |
+| `↑` / `↓` | Move between the `[<3]` of the song playing (while there is one), the progress bar (when the song can seek), the transport row and, with two rows, the volume row (`VOL-` under `PREV`/`PLAY`, `VOL+` under `NEXT`, `LOOP` and `EXPAND`); `↑` from the `[<3]` (or from what is under it, with no song) moves the focus to the nav tabs |
 | `←` / `→` on the progress bar | Seek -10 s / +10 s |
 | `enter` | Press the focused button (as a click) |
 | `l` / `a` | Love / add to a playlist the song playing |
@@ -495,28 +495,35 @@ reaches too (or, for the controls ending a row, the row's own keys: `l`,
 | A row (playlist, search row, page row, `▶ PLAY`, MORE/LESS) | Select it and act as `enter` |
 | The SEARCH input | Select the input |
 | `✕` at the end of a recent term | Delete that term (as `ctrl+d` / `delete`) |
-| `♡` / `♥` and `+` at the end of the selected song row | Love or unlove it (as `l`); add it to a playlist (as `a`) |
-| `╱ ♡ ╱` beside the title (NOW PLAYING) | Love or unlove the song playing; the focus moves to the button |
+| `--` / `<3` and `+` at the end of the selected song row | Love or unlove it (as `l`); add it to a playlist (as `a`) |
+| `[--]` / `[<3]` beside the title (NOW PLAYING) | Love or unlove the song playing; the focus moves to the button |
 | `+ NEW PLAYLIST` (row over the playlists) | Name a new playlist |
 | A picker row, `CREATE`, `CANCEL` | As `enter` on the row; create; cancel |
 | A `[R] RETRY` notice | Retry, as `r` |
 | `PLAYLISTS` / `SEARCH` tabs (header rule) | `PLAYLISTS` as `tab` (from a library playlist page, back to the list); `SEARCH` as `/`; the lit tab is the branch shown |
 | `◀ BACK` (on RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST, and over ADD TO PLAYLIST and NEW PLAYLIST) | As `esc` |
-| `◀◀ PREV`, `▶ PLAY` / `❚❚ PAUSE`, `NEXT ▶▶` (NOW PLAYING) | As `p`, `space`, `n`; the focus moves to the button |
-| `⤢ EXPAND` / `⤡ RESTORE` (NOW PLAYING) | Expand the player to the full width, or restore it |
-| `-` / `+` around the `VOL` readout (NOW PLAYING) | Volume down / up by 5%, as `j` / `k`; the focus moves to the button |
-| `↻ LOOP OFF` / `ALL` / `ONE` (NOW PLAYING, under the volume row; lit while on) | Cycle the loop mode, as `o`; the focus moves to the button |
+| `[◀◀]`, `[ ▶ PLAY ]` / `[ ❚❚ PAUSE ]`, `[▶▶]` (NOW PLAYING) | As `p`, `space`, `n`; the focus moves to the button |
+| `[⤢]` EXPAND / `[⤡]` RESTORE (NOW PLAYING, at the right edge) | Expand the player to the full width, or restore it |
+| `[−]` / `[+]` around the `VOL` meter (NOW PLAYING) | Volume down / up by 5%, as `j` / `k`; the focus moves to the button |
+| `[↻ OFF]` / `[↻ ALL]` / `[↻ ONE]` (NOW PLAYING, after `NEXT`) | Cycle the loop mode, as `o`; the focus moves to the button |
 | Anywhere else in a panel (its frame and empty space included) | The panel takes the focus: the list keeps its cursor (nothing opens); NOW PLAYING focuses `PLAY`, or keeps the button it had |
 | The progress bar | Seek to that point of the song; the focus moves to the bar |
 
 Other clicks on the nav bar or the header do nothing. The wheel moves the
 cursor like `↑`/`↓`, stopping at the top of the list (it never reaches the
-nav tabs; nothing while the player is expanded). Narrow layouts
-shorten the transport buttons to their glyphs (`EXPAND` first) and leave
-out buttons that do not fit; the tiny layout has none. The compact layout
-puts the volume row beside the transport buttons when it fits (the buttons
-as glyphs), and leaves it out otherwise; `LOOP` ends the artist line. In the
-compact layout, expanding hides the list under the player.
+nav tabs; nothing while the player is expanded). When NOW PLAYING is wide
+enough (the expanded player, for one), every control takes one row:
+
+```
+[◀◀]  [ ❚❚ PAUSE ]  [▶▶]  [↻ OFF]  VOL [−] ▮▮▮▮▮▮▮▮ [+] 90%  [⤢]
+```
+
+with the meter as wide as fits; narrower, the volume row goes under the
+transport row. Narrow layouts shorten `PLAY`/`PAUSE` to its glyph, tighten
+the gaps and leave out buttons that do not fit; the tiny layout has none.
+The compact layout puts the volume row beside the transport buttons when it
+fits (the buttons as glyphs), and leaves it out otherwise. In the compact
+layout, expanding hides the list under the player.
 
 `LOOP` shows the mode asked for at once and keeps it until the player
 reports it (for at most 3 seconds); a refused change is reported on the status line and the button
@@ -680,7 +687,7 @@ once it plays, the songs after it are appended to the queue, so the list
 still plays on (a failed append is only logged: the song plays alone); if
 even the song alone fails, the error names the song. These steps are logged
 to the helper's stderr. `state` events name a song queued as its library
-copy by the catalog id asked for, so the UI's `▶` and hearts match.
+copy by the catalog id asked for, so the UI's `▶` and favorite marks match.
 
 ## Troubleshooting
 

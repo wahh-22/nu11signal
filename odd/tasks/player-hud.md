@@ -21,6 +21,9 @@ Keep: clickable zones, keyboard focus (focused button filled yellow with ▸), f
 ## Tasks
 - [x] H1 — Implement the HUD layout (buttons, transport row with LOOP and right-aligned EXPAND, volume row), focus/zones/mouse updated, goldens regenerated. Route: delegated writer (several non-trivial radio files).
 
+- [ ] H2 — Favorite mark: user chose ASCII "pulse" `<3` (favorite) / `--` (not favorite), two cells, everywhere a heart appears (player title line as a bracket button `[<3]`/`[--]`, track lists, any other ♥/♡ use). Route: delegated writer (with H3).
+- [ ] H3 — Volume on the transport row when it fits: `[◀◀]  [ ❚❚ PAUSE ]  [▶▶]  [↻ OFF]  VOL [−] ▮▮▮▮ [+] 90%  [⤢]`, responsive: one row when wide enough, else the current two rows. Route: delegated writer (with H2).
+
 ## Acceptance criteria
 - Layout matches the target at ~60 cells; degrades cleanly at narrow widths without overflow.
 - Every control still works by mouse and keyboard; focus moves sensibly between the two rows.

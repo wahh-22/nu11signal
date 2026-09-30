@@ -53,12 +53,12 @@ func selectedRow(t *testing.T, m Model) string {
 func TestLoveTogglesTheSelectedTrackOptimistically(t *testing.T) {
 	f := playbacktest.New()
 	m := openSong(t, f, 1) // DIGITAL LOVE (s2), selected
-	if row := selectedRow(t, m); !strings.Contains(row, "♡") || !strings.Contains(row, "+") {
-		t.Fatalf("selected track %q; want its ♡ and + controls", row)
+	if row := selectedRow(t, m); !strings.Contains(row, "-- +") {
+		t.Fatalf("selected track %q; want its -- and + controls", row)
 	}
 	m, cmd := press(t, m, "l")
-	if row := selectedRow(t, m); !strings.Contains(row, "♥") {
-		t.Fatalf("after l the row shows %q; want ♥ at once", row)
+	if row := selectedRow(t, m); !strings.Contains(row, "<3") {
+		t.Fatalf("after l the row shows %q; want <3 at once", row)
 	}
 	m = settle(t, m, cmd)
 	assertCall(t, f, "SetFavorite", "s2", true)
@@ -68,7 +68,7 @@ func TestLoveTogglesTheSelectedTrackOptimistically(t *testing.T) {
 	m, cmd = press(t, m, "l")
 	m = settle(t, m, cmd)
 	assertCall(t, f, "SetFavorite", "s2", false)
-	if row := selectedRow(t, m); strings.Contains(row, "♥") {
+	if row := selectedRow(t, m); strings.Contains(row, "<3") {
 		t.Fatalf("after unloving the row shows %q", row)
 	}
 }
@@ -106,16 +106,16 @@ func TestFavoritesAreReadLazilyAndCached(t *testing.T) {
 	if calls := callsOf(f, "Favorite"); len(calls) != 1 || !reflect.DeepEqual(calls[0].Args, []any{"s2"}) {
 		t.Fatalf("Favorite calls = %v; want one for s2", calls)
 	}
-	if row := selectedRow(t, m); !strings.Contains(row, "♥") {
-		t.Fatalf("loved song shows %q; want ♥", row)
+	if row := selectedRow(t, m); !strings.Contains(row, "<3") {
+		t.Fatalf("loved song shows %q; want <3", row)
 	}
 	if _, cmd = m.readFavorites(); cmd != nil {
 		t.Fatal("a cached state was read again")
 	}
-	// A loved song keeps its ♥ when the cursor leaves it.
+	// A loved song keeps its <3 when the cursor leaves it.
 	m, _ = press(t, m, "up")
-	if !strings.Contains(trackRows(m), "♥") {
-		t.Fatalf("the loved track lost its ♥ off the cursor:\n%s", trackRows(m))
+	if !strings.Contains(trackRows(m), "<3") {
+		t.Fatalf("the loved track lost its <3 off the cursor:\n%s", trackRows(m))
 	}
 	m, cmd = m.readFavorites()
 	settle(t, m, cmd)
@@ -150,7 +150,7 @@ func TestLoveFailureRevertsAndReportsIt(t *testing.T) {
 	if _, known := m.favoriteOf("s2"); known {
 		t.Fatal("a failed change kept its optimistic state; want it read again")
 	}
-	if row := selectedRow(t, m); strings.Contains(row, "♥") {
+	if row := selectedRow(t, m); strings.Contains(row, "<3") {
 		t.Fatalf("failed love still shows %q", row)
 	}
 }
@@ -189,8 +189,8 @@ func TestLoveActsOnTheSongPlaying(t *testing.T) {
 	m, cmd := press(t, m, "l")
 	m = settle(t, m, cmd)
 	assertCall(t, f, "SetFavorite", "c1", true)
-	if got := textAt(m, zoneOf(t, m, zoneFavPlaying)); !strings.Contains(got, "♥") {
-		t.Fatalf("NOW PLAYING heart shows %q; want ♥", got)
+	if got := textAt(m, zoneOf(t, m, zoneFavPlaying)); !strings.Contains(got, "<3") {
+		t.Fatalf("NOW PLAYING favorite shows %q; want <3", got)
 	}
 	m, cmd = click(t, m, zoneFavPlaying)
 	m = settle(t, m, cmd) // one change in flight at a time: let it answer
@@ -797,5 +797,70 @@ func TestReturningFromThePickerGivesTheSearchInputItsKeysBack(t *testing.T) {
 	m, _ = press(t, m, "esc")
 	if m.editor.mode != editClosed || !m.input.Focused() {
 		t.Fatalf("editor %v input focused %v; want the SEARCH input typing again", m.editor.mode, m.input.Focused())
+	}
+}
+
+func TestFavoriteMarkIsATwoCellPulse(t *testing.T) {
+	f := playbacktest.New()
+	m := openSong(t, f, 1) // DIGITAL LOVE (s2), selected
+	w := m.listBodyWidth()
+	assertMark := func(when, mark string) {
+		t.Helper()
+		row := selectedRow(t, m)
+		if !strings.HasSuffix(row, " "+mark+" + ") {
+			t.Fatalf("%s: selected row %q; want it to end in %q", when, row, " "+mark+" + ")
+		}
+		if got := textAt(m, zoneOf(t, m, zoneRowFavorite)); strings.TrimSpace(got) != mark {
+			t.Fatalf("%s: favorite zone covers %q; want %q", when, got, mark)
+		}
+		if got := textAt(m, zoneOf(t, m, zoneRowAdd)); strings.TrimSpace(got) != "+" {
+			t.Fatalf("%s: add zone covers %q; want +", when, got)
+		}
+		for i, l := range linesOf(m.trackBody(w, 30)) {
+			if got := ansi.StringWidth(l); got != w {
+				t.Fatalf("%s: track row %d is %d cells in %d: %q", when, i, got, w, ansi.Strip(l))
+			}
+		}
+		if view := plain(m); strings.ContainsAny(view, "♥♡") {
+			t.Fatalf("%s: a heart glyph is still drawn:\n%s", when, view)
+		}
+	}
+	assertMark("not loved", "--")
+	m, cmd := press(t, m, "l")
+	assertMark("loved at once", "<3")
+	m = settle(t, m, cmd)
+	if view := plain(m); !strings.Contains(view, "<3 LOVED // DIGITAL LOVE") {
+		t.Fatalf("no <3 LOVED notice:\n%s", view)
+	}
+	// Off the cursor the loved song keeps its lit mark, the rows aligned.
+	m, _ = press(t, m, "up")
+	if !strings.Contains(trackRows(m), " <3 ") {
+		t.Fatalf("the loved track lost its <3 off the cursor:\n%s", trackRows(m))
+	}
+	for i, l := range linesOf(m.trackBody(w, 30)) {
+		if got := ansi.StringWidth(l); got != w {
+			t.Fatalf("off the cursor: track row %d is %d cells in %d: %q", i, got, w, ansi.Strip(l))
+		}
+	}
+}
+
+func TestPlayingFavoriteIsABracketButton(t *testing.T) {
+	f := playbacktest.New()
+	m := playingModel(t, f)
+	if got := textAt(m, zoneOf(t, m, zoneFavPlaying)); got != "[--]" {
+		t.Fatalf("NOW PLAYING favorite shows %q; want [--]", got)
+	}
+	m, cmd := press(t, m, "l")
+	if got := textAt(m, zoneOf(t, m, zoneFavPlaying)); got != "[<3]" {
+		t.Fatalf("loved: NOW PLAYING favorite shows %q; want [<3]", got)
+	}
+	m = settle(t, m, cmd)
+	// Focused: filled with the ▸ marker, the same width.
+	m, _ = press(t, m, "right", "up", "up")
+	if got := textAt(m, zoneOf(t, m, zoneFavPlaying)); got != "▸<3]" {
+		t.Fatalf("focused: NOW PLAYING favorite shows %q; want ▸<3]", got)
+	}
+	if view := plain(m); strings.ContainsAny(view, "♥♡") {
+		t.Fatalf("a heart glyph is still drawn:\n%s", view)
 	}
 }

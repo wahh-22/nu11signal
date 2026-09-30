@@ -23,11 +23,13 @@ const (
 	areaTabs
 )
 
-// playerControl is a button of the player. The buttons sit in rows, each
-// in the order ← and → walk it: the ♥ of the song playing alone over the
-// progress bar, the transport row under the bar, PREV, PLAY, NEXT, LOOP
-// and EXPAND, and the volume row under it, VOL- and VOL+. ↑ and ↓ cross
-// between them.
+// playerControl is a button of the player. The buttons sit in rows, as
+// the frame draws them (see hudControls): the favorite button of the song
+// playing alone over the progress bar, then, under the bar, PREV, PLAY,
+// NEXT, LOOP, VOL-, VOL+ and EXPAND on one row when the width holds them,
+// else the transport row, PREV to EXPAND, over the volume row, VOL- and
+// VOL+. ← and → walk the buttons of a row as drawn, left to right; ↑ and ↓
+// cross between rows.
 type playerControl int
 
 const (
@@ -41,19 +43,8 @@ const (
 	ctlFav
 )
 
-// onVolumeRow reports whether c is a button of the volume row.
+// onVolumeRow reports whether c is a volume button.
 func (c playerControl) onVolumeRow() bool { return c == ctlVolDown || c == ctlVolUp }
-
-// rowEnds are the first and last buttons of c's row.
-func (c playerControl) rowEnds() (first, last playerControl) {
-	switch {
-	case c == ctlFav:
-		return c, c
-	case c.onVolumeRow():
-		return ctlVolDown, ctlVolUp
-	}
-	return ctlPrev, ctlExpand
-}
 
 // below is the volume button under transport button c: VOL- under PREV
 // and PLAY, VOL+ under NEXT, LOOP and EXPAND. above goes back up, VOL- to
@@ -70,6 +61,37 @@ func (c playerControl) above() playerControl {
 		return ctlPrev
 	}
 	return ctlNext
+}
+
+// besideControl is the player button drawn next to c on its row: the
+// nearest one to its left (dx -1) or right (dx +1). ok is false at the end
+// of the row, or when c is not drawn.
+func (m Model) besideControl(c playerControl, dx int) (next playerControl, ok bool) {
+	_, zs := m.layout()
+	at, drawn := zs.find(controlZone(c))
+	if !drawn {
+		return c, false
+	}
+	nearX := 0
+	for _, z := range zs {
+		n, isControl := controlOf(z.id)
+		if !isControl || z.y != at.y || (z.x-at.x)*dx <= 0 {
+			continue
+		}
+		if !ok || (z.x-nearX)*dx < 0 {
+			next, nearX, ok = n, z.x, true
+		}
+	}
+	return next, ok
+}
+
+// volumeBelow reports whether the volume buttons are drawn on a row of
+// their own under the transport row (not beside it, as one row).
+func (m Model) volumeBelow() bool {
+	_, zs := m.layout()
+	down, ok := zs.find(zoneVolDown)
+	prev, okPrev := zs.find(zonePrev)
+	return ok && okPrev && down.y > prev.y
 }
 
 // focusPlayer moves the focus to control on the player. Coming from the
@@ -227,9 +249,9 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 			next, cmd = m.seek(-seekStep)
 			return next, cmd, true
 		}
-		switch first, _ := m.control.rowEnds(); {
-		case m.control > first:
-			m.control--
+		switch prev, ok := m.besideControl(m.control, -1); {
+		case ok:
+			m.control = prev
 		case !m.expanded:
 			cmd = m.focusList()
 		}
@@ -240,23 +262,25 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 		}
 		// The row stops at its last button drawn: a narrow row leaves the
 		// last ones out.
-		if _, last := m.control.rowEnds(); m.control < last && m.drawn(controlZone(m.control+1)) {
-			m.control++
+		if next, ok := m.besideControl(m.control, 1); ok {
+			m.control = next
 		}
 	case keyUp:
-		// Up from the volume row reaches the transport row; from there, the
-		// bar, if there is one to seek in; from there, the ♥ of the song
-		// playing, if there is one; from there, the tabs.
+		// Up from the volume row reaches the transport row; from there (or
+		// from the one row of controls), the bar, if there is one to seek
+		// in; from there, the favorite of the song playing, if there is
+		// one; from there, the tabs.
+		lower := m.control.onVolumeRow() && m.volumeBelow()
 		switch {
 		case m.control == ctlFav:
 			m.focusTabs()
-		case (m.onBar || (!m.control.onVolumeRow() && !m.seekable())) && m.drawn(zoneFavPlaying):
+		case (m.onBar || (!lower && !m.seekable())) && m.drawn(zoneFavPlaying):
 			// From the bar, or from the transport row with no bar.
 			m.favFrom = m.control
 			m.control, m.onBar = ctlFav, false
 		case m.onBar:
 			m.focusTabs()
-		case m.control.onVolumeRow():
+		case lower:
 			m.control = m.control.above()
 		case m.seekable():
 			m.onBar = true
@@ -267,13 +291,13 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 		switch {
 		case m.control == ctlFav:
 			// Down to the bar, or with nothing to seek to the transport
-			// button ↑ left (PLAY after a click on the ♥).
+			// button ↑ left (PLAY after a click on the favorite).
 			m.control, m.onBar = m.favFrom, m.seekable()
 		case m.onBar:
 			m.onBar = false
-		case !m.control.onVolumeRow() && m.drawn(zoneVolDown):
-			// The volume row is the bottom one; a narrow compact layout
-			// leaves it out.
+		case !m.control.onVolumeRow() && m.volumeBelow():
+			// The volume row is the bottom one; one row of controls has
+			// none under it, and a narrow compact layout leaves it out.
 			m.control = m.control.below()
 		}
 	case keyEnter:
@@ -305,7 +329,7 @@ func (m Model) handlePlayerKey(k string) (next tea.Model, cmd tea.Cmd, ok bool) 
 // it (or on the list, when restoring the player).
 func (m Model) pressControl(c playerControl) (Model, tea.Cmd) {
 	if c == ctlFav && !m.focused(ctlFav) {
-		m.favFrom = ctlPlay // what ↓ from the ♥ reaches
+		m.favFrom = ctlPlay // what ↓ from the favorite reaches
 	}
 	m.focusPlayer(c)
 	switch c {

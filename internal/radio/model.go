@@ -174,10 +174,10 @@ type Model struct {
 	// selected button, or onBar the progress bar above them. The expanded
 	// player takes the full width and keeps the focus, but for the nav
 	// tabs (see focus.go). favFrom is the transport button ↑ left for the
-	// ♥ of the song playing, which ↓ goes back to. inputHadFocus keeps,
-	// while the list does not have the focus, whether the search input had
-	// the keys before. On the nav tabs, tab is the selected one and
-	// tabsFrom the area ↓ returns to.
+	// favorite of the song playing, which ↓ goes back to. inputHadFocus
+	// keeps, while the list does not have the focus, whether the search
+	// input had the keys before. On the nav tabs, tab is the selected one
+	// and tabsFrom the area ↓ returns to.
 	focus         focusArea
 	control       playerControl
 	favFrom       playerControl

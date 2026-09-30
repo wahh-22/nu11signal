@@ -379,7 +379,7 @@ func TestSameRowComparesRunes(t *testing.T) {
 		want bool
 	}{
 		{"SAME", "SAME", true},
-		{"NIGHT DRIVE", "NIGHT DRIVE ♥ +", true},
+		{"NIGHT DRIVE", "NIGHT DRIVE <3 +", true},
 		// Six of nine runes shared: most of the start, the same row.
 		{"ABCDEFÑÑÑ", "ABCDEFÉÉÉ", true},
 		// Five of nine: another row, however many bytes the Ñ share.

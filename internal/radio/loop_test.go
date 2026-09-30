@@ -155,35 +155,35 @@ func TestLoopKeyWorksFromThePlayerAndPages(t *testing.T) {
 func TestThePlayingHeartIsInTheFocusOrder(t *testing.T) {
 	f := playbacktest.New()
 	m := playingModel(t, f) // Chippin' In, c1, seekable
-	// PLAY, up to the bar, up to the ♥ over it.
+	// PLAY, up to the bar, up to the favorite over it.
 	m, _ = press(t, m, "right", "up", "up")
 	if !m.focused(ctlFav) {
-		t.Fatalf("focus %v control %v bar %v; want the ♥ above the bar", m.focus, m.control, m.onBar)
+		t.Fatalf("focus %v control %v bar %v; want the favorite above the bar", m.focus, m.control, m.onBar)
 	}
 	if got := textAt(m, zoneOf(t, m, zoneFavPlaying)); !strings.Contains(got, "▸") {
-		t.Fatalf("focused ♥ shows %q; want the ▸ marker", got)
+		t.Fatalf("focused favorite shows %q; want the ▸ marker", got)
 	}
 	m, cmd := press(t, m, "enter")
 	m = settle(t, m, cmd)
 	assertCall(t, f, "SetFavorite", "c1", true)
 	if !m.focused(ctlFav) {
-		t.Fatal("enter moved the focus off the ♥")
+		t.Fatal("enter moved the focus off the favorite")
 	}
 	// Up again reaches the tabs; down goes back to the bar.
 	m, _ = press(t, m, "down")
 	if !m.barFocused() {
-		t.Fatal("down from the ♥ did not reach the bar")
+		t.Fatal("down from the favorite did not reach the bar")
 	}
 	m, _ = press(t, m, "up", "up")
 	if m.focus != areaTabs {
-		t.Fatalf("up from the ♥: focus %v; want the tabs", m.focus)
+		t.Fatalf("up from the favorite: focus %v; want the tabs", m.focus)
 	}
 	// A click focuses it too.
 	m, _ = press(t, m, "down")
 	m, cmd = click(t, m, zoneFavPlaying)
 	m = settle(t, m, cmd)
 	if !m.focused(ctlFav) {
-		t.Fatal("a click on the ♥ did not focus it")
+		t.Fatal("a click on the favorite did not focus it")
 	}
 	assertCall(t, f, "SetFavorite", "c1", false)
 }

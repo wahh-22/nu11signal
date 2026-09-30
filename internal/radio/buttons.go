@@ -203,3 +203,61 @@ func hudRow(bs []button, gaps []int) (string, zones) {
 	}
 	return out.String(), zs
 }
+
+// The player's controls take one row when it holds them all, the volume
+// between LOOP and EXPAND with a meter of at least hudMeterMin cells:
+//
+//	[◀◀]  [ ❚❚ PAUSE ]  [▶▶]  [↻ OFF]  VOL [−] ▮▮▮▮▮▮▮▮ [+] 90%  [⤢]
+//
+// and else two, the transport row over the volume row. hudRowCount alone
+// decides it for a width, so the drawing (hudControls), the rows NOW
+// PLAYING counts (nowPlayingControlRows) and the zones the focus walks
+// always agree. The row is laid out for PAUSE, the wider label, so the
+// volume and EXPAND stay put when the song pauses.
+const (
+	hudMeterMin = 4
+	hudGap      = 2
+	// hudTransportMax is PREV, PAUSE, NEXT and LOOP, hudGap apart.
+	hudTransportMax = 4 + hudGap + 12 + hudGap + 4 + hudGap + 7
+	// hudVolumeBare is the volume row without its meter: the label, [−],
+	// [+], the percentage and the spaces between them (see volumeBar).
+	hudVolumeBare = 4 + 3 + 1 + 1 + 3 + 1 + volumePctWidth
+	// hudExpandWidth is EXPAND or RESTORE.
+	hudExpandWidth = 3
+	// hudOneRowMin is the narrowest row that holds every control.
+	hudOneRowMin = hudTransportMax + hudGap + hudVolumeBare + hudMeterMin + hudGap + hudExpandWidth
+)
+
+// hudRowCount is how many rows the player's controls take in w cells: 1
+// from hudOneRowMin on, else 2.
+func hudRowCount(w int) int {
+	if w >= hudOneRowMin {
+		return 1
+	}
+	return 2
+}
+
+// hudControls draws the player's controls in w cells, one row or two as
+// hudRowCount says, with their zones (y the row among them). In one row
+// the zones are in walking order: PREV, PLAY, NEXT, LOOP, VOL−, VOL+ and
+// EXPAND at the right edge.
+func (m Model) hudControls(w int) ([]string, zones) {
+	if hudRowCount(w) == 2 {
+		transport, zs := m.transportBar(w, false)
+		volume, vz := m.volumeBar(w)
+		zs = append(zs, vz.shifted(0, 1)...)
+		return []string{transport, volume}, zs
+	}
+	bs, gaps := m.transportButtons(hudLayout{play: playLabelled, near: hudGap, loop: hudGap, loopMode: true})
+	row, zs := hudRow(bs[:ctlExpand], gaps[:ctlExpand])
+	volX := hudTransportMax + hudGap
+	volW := min(w-volX-hudGap-hudExpandWidth, hudVolumeBare+1+volumeMeterMax)
+	volume, vz := m.volumeBar(volW)
+	zs.addAt(volX, 0, vz)
+	row += strings.Repeat(" ", volX-ansi.StringWidth(row)) + volume
+	expand := bs[ctlExpand]
+	expandX := w - expand.width()
+	zs.add(expand.id, expandX, 0, expand.width())
+	row += strings.Repeat(" ", expandX-ansi.StringWidth(row)) + expand.render()
+	return []string{row}, zs
+}

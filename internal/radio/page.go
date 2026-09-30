@@ -22,7 +22,7 @@ func isPage(kind viewKind) bool {
 
 // pageLine is one line of a page body below its head; item is the
 // selectable row it shows, or -1. actions marks the selected song row,
-// which ends in its ♥ and + controls.
+// which ends in its favorite mark and + controls.
 type pageLine struct {
 	text    string
 	item    int
