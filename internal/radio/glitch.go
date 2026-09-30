@@ -2,7 +2,6 @@ package radio
 
 import (
 	"cmp"
-	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -21,7 +20,6 @@ import (
 // about waveShare of the letters on screen sweep into scrambled glyphs,
 // like the title on a song change, each cell keeping its own style, hold,
 // and type themselves back in one by one; the words stay partly readable.
-// Night City alerts take the empty status line now and then.
 //
 // Everything is drawn over the finished frame (see Model.decorate), cell
 // for cell, so no line changes width and the clickable zones, laid out
@@ -36,10 +34,6 @@ const (
 	burstMin     = 600 * time.Millisecond
 	burstMax     = 1000 * time.Millisecond
 	noSignalOdds = 4
-	alertGapMin  = 30 * time.Second
-	alertGapMax  = 60 * time.Second
-	alertShow    = 4 * time.Second
-	alertBlink   = 500 * time.Millisecond
 	// A text wave scrambles waveShare of the letters for waveMin..waveMax.
 	// Each word starts at its own moment before waveRamp of the wave,
 	// sooner on the left so the wave sweeps across, holds, and resolves
@@ -67,9 +61,9 @@ const (
 	saltBurstGap uint64 = iota + 101
 	saltBurstLen
 	saltNoSignal
-	saltAlertGap
-	saltAlert
-	saltBurst
+	// 104 and 105 belonged to the retired status line alerts; skipping
+	// them keeps the streams below, and so every frame, as they were.
+	saltBurst uint64 = iota + 103
 	saltWaveLen
 	saltWave
 )
@@ -87,9 +81,6 @@ type effects struct {
 	nextBurst            time.Time
 	burstStart, burstEnd time.Time
 	noSignal             bool
-	alertSeq             uint64
-	nextAlert            time.Time
-	alertStart, alertEnd time.Time
 	// waveSeq numbers the text waves; the latest runs from waveStart to
 	// waveEnd. nextWave, midway between the last burst (or the start)
 	// and the next, is zero once that wave ran.
@@ -103,7 +94,7 @@ type effects struct {
 // so becoming active again never fires what was missed at once.
 func (e effects) advance(now time.Time, seed uint64, active bool) effects {
 	if !active {
-		e.nextBurst, e.burstEnd, e.nextAlert, e.alertEnd = time.Time{}, time.Time{}, time.Time{}, time.Time{}
+		e.nextBurst, e.burstEnd = time.Time{}, time.Time{}
 		e.nextWave, e.waveEnd = time.Time{}, time.Time{}
 		return e
 	}
@@ -126,23 +117,11 @@ func (e effects) advance(now time.Time, seed uint64, active bool) effects {
 		e.waveEnd = now.Add(span(mix(seed, saltWaveLen, e.waveSeq), waveMin, waveMax))
 		e.nextWave = time.Time{}
 	}
-	if e.nextAlert.IsZero() {
-		e.nextAlert = now.Add(span(mix(seed, saltAlertGap, e.alertSeq), alertGapMin, alertGapMax))
-	}
-	if !now.Before(e.nextAlert) {
-		e.alertSeq++
-		e.alertStart, e.alertEnd = now, now.Add(alertShow)
-		e.nextAlert = e.alertEnd.Add(span(mix(seed, saltAlertGap, e.alertSeq), alertGapMin, alertGapMax))
-	}
 	return e
 }
 
 func (e effects) bursting(now time.Time) bool {
 	return !now.Before(e.burstStart) && now.Before(e.burstEnd)
-}
-
-func (e effects) alerting(now time.Time) bool {
-	return !now.Before(e.alertStart) && now.Before(e.alertEnd)
 }
 
 func (e effects) waving(now time.Time) bool {
@@ -152,8 +131,8 @@ func (e effects) waving(now time.Time) bool {
 // interval is the time to the next frame, d without the effects:
 // burstTick during a burst; during a text wave d when it is already as
 // fast as waveTick (the playing tick), else waveTick; either cut short at
-// the effect's end. Otherwise d cut short so that the ▲ of an alert
-// blinks and the next wave or burst starts on time.
+// the effect's end. Otherwise d cut short so that the next wave or burst
+// starts on time.
 func (e effects) interval(now time.Time, d time.Duration) time.Duration {
 	if e.bursting(now) {
 		return max(min(burstTick, e.burstEnd.Sub(now)), minWake)
@@ -163,9 +142,6 @@ func (e effects) interval(now time.Time, d time.Duration) time.Duration {
 			return d
 		}
 		return max(min(waveTick, e.waveEnd.Sub(now)), minWake)
-	}
-	if e.alerting(now) {
-		d = min(d, alertBlink)
 	}
 	for _, next := range []time.Time{e.nextWave, e.nextBurst} {
 		if !next.IsZero() {
@@ -205,46 +181,6 @@ func (m Model) toggleEffects() Model {
 		m.setStatus("SIGNAL FX OFF // CALM")
 	}
 	return m
-}
-
-// alert is one status line alert; a %d in text takes a number in lo..hi.
-type alert struct {
-	text   string
-	lo, hi int
-}
-
-var alerts = []alert{
-	{text: "SIGNAL DEGRADED // RETUNING"},
-	{text: "ICE TRACE DETECTED"},
-	{text: "PACKET LOSS %d%%", lo: 12, hi: 79},
-	{text: "NETWATCH PING"},
-	{text: "CARRIER DRIFT +0.%d MHZ", lo: 1, hi: 9},
-	{text: "BLACKWALL NOISE // FILTERING"},
-	{text: "DAEMON SWEEP // PORT %d", lo: 1024, hi: 9999},
-	{text: "UPLINK JITTER %dMS", lo: 40, hi: 400},
-}
-
-// alertText is the text of alert number seq.
-func alertText(seq, seed uint64) string {
-	h := mix(seed, saltAlert, seq)
-	a := alerts[h%uint64(len(alerts))]
-	if a.hi == 0 {
-		return a.text
-	}
-	return fmt.Sprintf(a.text, a.lo+int(mix(h, 1)%uint64(a.hi-a.lo+1)))
-}
-
-// alertLine is the status line while an alert shows, its ▲ blinking.
-func (m Model) alertLine(w int) (string, bool) {
-	now := m.now()
-	if !m.fxActive() || !m.fx.alerting(now) {
-		return "", false
-	}
-	mark := stYellowB.Render("▲")
-	if now.Sub(m.fx.alertStart)/alertBlink%2 == 1 {
-		mark = " "
-	}
-	return fit(mark+" "+stRed.Render(alertText(m.fx.alertSeq, m.seed)), w), true
 }
 
 // decorate draws the active effects over the finished frame, keeping every

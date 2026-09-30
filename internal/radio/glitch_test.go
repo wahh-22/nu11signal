@@ -119,43 +119,13 @@ func TestBurstScheduleStaysInRange(t *testing.T) {
 	}
 }
 
-func TestAlertScheduleStaysInRange(t *testing.T) {
-	const stepDur = 50 * time.Millisecond
-	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
-	e := effects{on: true}
-	var lastEnd time.Time
-	seq, alerts := uint64(0), 0
-	for now := start; now.Before(start.Add(time.Hour)); now = now.Add(stepDur) {
-		e = e.advance(now, 7, true)
-		if e.alertSeq == seq {
-			continue
-		}
-		seq = e.alertSeq
-		alerts++
-		if d := e.alertEnd.Sub(e.alertStart); d != alertShow {
-			t.Errorf("alert %d shows %v, want %v", seq, d, alertShow)
-		}
-		from := lastEnd
-		if from.IsZero() {
-			from = start
-		}
-		if gap := e.alertStart.Sub(from); gap < alertGapMin || gap > alertGapMax+stepDur {
-			t.Errorf("alert %d comes %v after the last, want %v..%v", seq, gap, alertGapMin, alertGapMax)
-		}
-		lastEnd = e.alertEnd
-	}
-	if alerts < 50 {
-		t.Fatalf("only %d alerts in an hour", alerts)
-	}
-}
-
 func TestPausedEffectsNeverBurst(t *testing.T) {
 	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
 	e := effects{on: true}
 	for now := start; now.Before(start.Add(10 * time.Minute)); now = now.Add(100 * time.Millisecond) {
 		e = e.advance(now, 3, false)
-		if e.bursting(now) || e.alerting(now) {
-			t.Fatalf("paused effects burst or alert at %v", now.Sub(start))
+		if e.bursting(now) || e.waving(now) {
+			t.Fatalf("paused effects burst or wave at %v", now.Sub(start))
 		}
 	}
 	// Resuming does not fire the bursts missed while paused at once.
@@ -218,7 +188,7 @@ func TestBurstGlitchesAndFlashesNoSignal(t *testing.T) {
 func TestRenderFPSShowsEveryAnimationFrame(t *testing.T) {
 	period := time.Second / RenderFPS
 	for name, step := range map[string]time.Duration{
-		"fastTick": fastTick, "waveTick": waveTick, "burstTick": burstTick, "alertBlink": alertBlink,
+		"fastTick": fastTick, "waveTick": waveTick, "burstTick": burstTick,
 	} {
 		if period > step {
 			t.Errorf("frame period %v exceeds %s %v", period, name, step)
@@ -250,11 +220,9 @@ func TestTickRateRisesOnlyDuringBursts(t *testing.T) {
 		m = tick(t, m) // let the EQ settle flat
 	}
 	// Between the effects the tick sleeps until the next one is due.
-	if !m.fx.alerting(c.t) {
-		want := min(idleTick, m.fx.nextWave.Sub(c.t), m.fx.nextBurst.Sub(c.t))
-		if got := m.tickInterval(); got != want {
-			t.Fatalf("idle tick with effects = %v, want %v (to the next effect)", got, want)
-		}
+	want := min(idleTick, m.fx.nextWave.Sub(c.t), m.fx.nextBurst.Sub(c.t))
+	if got := m.tickInterval(); got != want {
+		t.Fatalf("idle tick with effects = %v, want %v (to the next effect)", got, want)
 	}
 	m, _ = press(t, m, keyEffects)
 	if got := m.tickInterval(); got != idleTick {
@@ -329,49 +297,6 @@ func TestEffectsOffLeaveFrameUntouched(t *testing.T) {
 }
 
 func first(lines []string, _ zones) []string { return lines }
-
-func TestAlertsYieldToRealStatus(t *testing.T) {
-	c := newClock()
-	m := fxModel(t, c)
-	c.t = m.fx.nextAlert
-	m = tick(t, m)
-	if !m.fx.alerting(c.t) {
-		t.Fatal("no alert at its scheduled time")
-	}
-	want := alertText(m.fx.alertSeq, m.seed)
-	if got := ansi.Strip(m.statusLine(80)); !strings.Contains(got, want) || !strings.Contains(got, "▲") {
-		t.Fatalf("status line = %q, want the alert %q with its ▲", got, want)
-	}
-	// The ▲ blinks.
-	c.advance(alertBlink)
-	if got := ansi.Strip(m.statusLine(80)); strings.Contains(got, "▲") || !strings.Contains(got, want) {
-		t.Fatalf("status line = %q, want the alert with its ▲ blinked off", got)
-	}
-	m.setStatus("PLAY FAILED // TIMEOUT")
-	if got := ansi.Strip(m.statusLine(80)); !strings.Contains(got, "PLAY FAILED") || strings.Contains(got, want) {
-		t.Fatalf("status line = %q, want the real status over the alert", got)
-	}
-	c.t = m.fx.alertEnd
-	m = tick(t, m)
-	m.status = ""
-	if got := ansi.Strip(m.statusLine(80)); strings.Contains(got, want) {
-		t.Fatalf("status line = %q, want the alert gone after its time", got)
-	}
-}
-
-func TestAlertTextsVary(t *testing.T) {
-	seen := map[string]bool{}
-	for seq := uint64(1); seq <= 40; seq++ {
-		s := alertText(seq, 2077)
-		if s == "" || ansi.StringWidth(s) > 40 {
-			t.Fatalf("alert %d = %q", seq, s)
-		}
-		seen[s] = true
-	}
-	if len(seen) < 5 {
-		t.Fatalf("only %d distinct alerts in 40", len(seen))
-	}
-}
 
 func TestGlitchGolden80x24(t *testing.T) {
 	for _, tt := range []struct {
@@ -721,7 +646,7 @@ func TestWaveTickRisesOnlyDuringTheWave(t *testing.T) {
 	m = tick(t, m)
 	c.t = m.fx.burstEnd
 	m = tick(t, m)
-	if got, want := m.tickInterval(), min(idleTick, m.fx.nextWave.Sub(c.t)); got != want && !m.fx.alerting(c.t) {
+	if got, want := m.tickInterval(), min(idleTick, m.fx.nextWave.Sub(c.t)); got != want {
 		t.Fatalf("idle tick = %v, want %v (to the next effect)", got, want)
 	}
 	m = forceWave(t, m, c)

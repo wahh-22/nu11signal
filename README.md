@@ -438,9 +438,7 @@ flicker every ~160 ms, each cell at its own moment, so the screen shimmers
 instead of jumping. So the screen alternates burst, wave, burst, something
 every 10–23 s. The wave touches only existing text, and only its
 characters: every altered character keeps its color, and blank space stays
-blank. Every 30–60 s an alert
-such as `▲ ICE TRACE DETECTED` takes the status line for 4 s, never over a
-real message, and a real message is never glitched. The effects are drawn
+blank. A real message on the status line is never glitched. The effects are drawn
 over the frame, so clicks and keys work during a burst.
 
 `x` turns them off or on; `nu11signal --calm` (or `NU11SIGNAL_CALM=1`)

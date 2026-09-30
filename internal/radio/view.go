@@ -535,9 +535,6 @@ func (m Model) statusLine(w int) string {
 	if m.status != "" {
 		return stYellow.Render("▲ " + strings.ToUpper(m.status))
 	}
-	if alert, ok := m.alertLine(w); ok {
-		return alert
-	}
 	return stDim.Render(fit("░▒▓ SYS NOMINAL // BUF 0x5EF6", w))
 }
 

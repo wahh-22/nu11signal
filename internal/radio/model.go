@@ -20,9 +20,9 @@ type Options struct {
 	Now func() time.Time
 	// Seed drives the decorative EQ and glitch animations.
 	Seed uint64
-	// Effects starts the signal effects on: glitch bursts, text waves
-	// and alerts (see glitch.go). Off by default, and in tests, so frames
-	// stay fixed; keyEffects toggles them.
+	// Effects starts the signal effects on: glitch bursts and text waves
+	// (see glitch.go). Off by default, and in tests, so frames stay fixed;
+	// keyEffects toggles them.
 	Effects bool
 	// CallTimeout bounds every Player call (default 8s).
 	CallTimeout time.Duration
@@ -54,7 +54,7 @@ const (
 // (tea.WithFPS). Bubble Tea's default, 60, wakes the process 60 times a
 // second even when nothing changed, most of its idle cost; 20 frames a
 // second is a frame period (50 ms) no longer than any animation step
-// (fastTick, waveTick, burstTick, alertBlink), so no animation frame is
+// (fastTick, waveTick, burstTick), so no animation frame is
 // skipped, and it keeps a key press on screen within 50 ms.
 const RenderFPS = 20
 
