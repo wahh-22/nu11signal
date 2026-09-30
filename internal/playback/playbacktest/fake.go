@@ -35,6 +35,8 @@ type Fake struct {
 	// VolumeResult answers Volume; a successful SetVolume stores its
 	// level there, clamped.
 	VolumeResult float64
+	// PlaySongsReport answers a successful PlaySongs.
+	PlaySongsReport playback.QueueReport
 	// CreatePlaylistResult answers CreatePlaylist.
 	CreatePlaylistResult playback.Playlist
 	// Loved answers Favorite and Favorites (absent means false); a
@@ -168,8 +170,13 @@ func (f *Fake) LibraryPlaylist(_ context.Context, playlistID string) (playback.P
 	return f.LibraryPlaylistResult, nil
 }
 
-func (f *Fake) PlaySongs(_ context.Context, ids []string, start int) error {
-	return f.record("PlaySongs", append([]string(nil), ids...), start)
+func (f *Fake) PlaySongs(_ context.Context, ids []string, start int) (playback.QueueReport, error) {
+	if err := f.record("PlaySongs", append([]string(nil), ids...), start); err != nil {
+		return playback.QueueReport{}, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.PlaySongsReport, nil
 }
 
 func (f *Fake) PlayPlaylist(_ context.Context, id string) error {

@@ -304,9 +304,10 @@ func (p *Player) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	return out, err
 }
 
-// PlaySongs queues the given catalog songs and plays from start.
-func (p *Player) PlaySongs(ctx context.Context, ids []string, start int) error {
-	return p.do(ctx, true, func() error {
+// PlaySongs queues the given catalog songs and plays from start. The demo
+// queues every song it knows, so its report is always clean.
+func (p *Player) PlaySongs(ctx context.Context, ids []string, start int) (playback.QueueReport, error) {
+	return playback.QueueReport{}, p.do(ctx, true, func() error {
 		queue := make([]playback.Song, 0, len(ids))
 		for _, id := range ids {
 			s, ok := songByID(id)

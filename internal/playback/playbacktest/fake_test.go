@@ -26,7 +26,7 @@ func TestFakeRecordsCallsAndReturnsCannedResults(t *testing.T) {
 	if lists, _ := f.Playlists(ctx); len(lists) != 1 {
 		t.Fatalf("Playlists = %v", lists)
 	}
-	_ = f.PlaySongs(ctx, []string{"s1"}, 0)
+	_, _ = f.PlaySongs(ctx, []string{"s1"}, 0)
 	_ = f.Seek(ctx, 3*time.Second)
 
 	want := []Call{
@@ -44,7 +44,7 @@ func TestFakeRecordsCallsAndReturnsCannedResults(t *testing.T) {
 func TestFakeCallsAreSnapshots(t *testing.T) {
 	f := New()
 	ids := []string{"s1", "s2"}
-	_ = f.PlaySongs(t.Context(), ids, 1)
+	_, _ = f.PlaySongs(t.Context(), ids, 1)
 	ids[0] = "mutated"
 	calls := f.Calls()
 	calls[0].Method = "mutated"

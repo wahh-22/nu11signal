@@ -237,6 +237,24 @@ func ClampVolume(level float64) float64 {
 	return min(max(level, 0), 1)
 }
 
+// QueueReport is what a play left out of the queue it started. The zero
+// value is a clean play: every requested song was queued.
+type QueueReport struct {
+	// Missing are the requested ids the catalog did not return.
+	Missing []string
+	// Skipped are the ids found but left out because the player cannot
+	// queue them with the start song (songs of the local library).
+	Skipped []string
+	// StartedAlone reports that only the start song plays: the player
+	// refused the rest of the queue.
+	StartedAlone bool
+}
+
+// Clean reports whether nothing was left out.
+func (r QueueReport) Clean() bool {
+	return len(r.Missing) == 0 && len(r.Skipped) == 0 && !r.StartedAlone
+}
+
 // Player is the port through which the application drives playback.
 //
 // Methods are safe for concurrent use. States delivers snapshots as they
@@ -255,7 +273,9 @@ type Player interface {
 	Playlists(ctx context.Context) ([]Playlist, error)
 	// LibraryPlaylist loads a library playlist page: its songs, in order.
 	LibraryPlaylist(ctx context.Context, playlistID string) (PlaylistDetail, error)
-	PlaySongs(ctx context.Context, ids []string, start int) error
+	// PlaySongs queues the catalog songs and plays from ids[start]; the
+	// report lists the songs the player left out of that queue.
+	PlaySongs(ctx context.Context, ids []string, start int) (QueueReport, error)
 	// PlayPlaylist plays a library playlist from its first song. Songs
 	// that are LibraryOnly are skipped.
 	PlayPlaylist(ctx context.Context, id string) error

@@ -673,3 +673,45 @@ func TestQuitDoesNotHangOnAStuckPlayer(t *testing.T) {
 		t.Fatal("quit did not produce tea.QuitMsg")
 	}
 }
+
+// TestPlayReportsSongsLeftOut pins the status line after a play the
+// player confirmed: songs it left out of the queue are reported, a clean
+// queue says nothing, and a superseded play's report is not shown.
+func TestPlayReportsSongsLeftOut(t *testing.T) {
+	tests := []struct {
+		name   string
+		report playback.QueueReport
+		want   string
+	}{
+		{"clean", playback.QueueReport{}, ""},
+		{"one skipped", playback.QueueReport{Skipped: []string{"s3"}}, "1 SONG SKIPPED // NOT IN QUEUE"},
+		{"missing and skipped", playback.QueueReport{Missing: []string{"s8"}, Skipped: []string{"s3"}}, "2 SONGS SKIPPED // NOT IN QUEUE"},
+		{"started alone", playback.QueueReport{Skipped: []string{"s3"}, StartedAlone: true}, "PLAYING ALONE // QUEUE REFUSED"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := playbacktest.New()
+			m := loaded(t, f, newClock())
+			m, cmd := tune(t, m, 0)
+			m.status = ""
+			f.PlaySongsReport = tt.report
+			m, _ = step(t, m, run(t, cmd))
+			if m.status != tt.want {
+				t.Fatalf("status = %q; want %q", m.status, tt.want)
+			}
+		})
+	}
+	t.Run("superseded play", func(t *testing.T) {
+		f := playbacktest.New()
+		m := loaded(t, f, newClock())
+		m, first := tune(t, m, 0)
+		m, second := tune(t, m, 1)
+		m, _ = step(t, m, run(t, second))
+		m.status = ""
+		f.PlaySongsReport = playback.QueueReport{Skipped: []string{"s3"}}
+		m, _ = step(t, m, run(t, first))
+		if m.status != "" {
+			t.Fatalf("status = %q after a superseded play; want none", m.status)
+		}
+	})
+}

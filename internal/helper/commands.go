@@ -96,8 +96,14 @@ func (c *Client) LibraryPlaylist(ctx context.Context, playlistID string) (playba
 }
 
 // PlaySongs queues the catalog songs and starts playing at index start.
-func (c *Client) PlaySongs(ctx context.Context, ids []string, start int) error {
-	return c.call(ctx, "playSongs", map[string]any{"ids": ids, "startIndex": start}, nil)
+// The result names the songs the helper left out of the queue (see
+// queueResult); an empty one is a clean play.
+func (c *Client) PlaySongs(ctx context.Context, ids []string, start int) (playback.QueueReport, error) {
+	var res queueResult
+	if err := c.call(ctx, "playSongs", map[string]any{"ids": ids, "startIndex": start}, &res); err != nil {
+		return playback.QueueReport{}, err
+	}
+	return res.toDomain(), nil
 }
 
 // PlayPlaylist queues a library playlist and starts playing it.

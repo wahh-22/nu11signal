@@ -289,7 +289,7 @@ func (m Model) tracksEnter() (Model, tea.Cmd) {
 			return m, nil
 		}
 		m.playSeq++
-		return m, m.playCmd(m.playSeq, "PLAY", page.playlist.ID, func(ctx context.Context) error {
+		return m, m.playCmd(m.playSeq, "PLAY", page.playlist.ID, func(ctx context.Context) (playback.QueueReport, error) {
 			return m.player.PlaySongs(ctx, ids, from)
 		})
 	}
@@ -300,7 +300,7 @@ func (m Model) tracksEnter() (Model, tea.Cmd) {
 // around it: a song picked from a list plays on into that list.
 func (m Model) playSongs(ids []string, start int) (Model, tea.Cmd) {
 	m.playSeq++
-	return m, m.playCmd(m.playSeq, "PLAY", "", func(ctx context.Context) error {
+	return m, m.playCmd(m.playSeq, "PLAY", "", func(ctx context.Context) (playback.QueueReport, error) {
 		return m.player.PlaySongs(ctx, ids, start)
 	})
 }

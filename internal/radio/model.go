@@ -331,11 +331,13 @@ type (
 		err error
 	}
 	// playMsg reports play request number seq; station is the tuned
-	// playlist, or empty when songs were played.
+	// playlist, or empty when songs were played. report lists the songs
+	// the player left out of the queue.
 	playMsg struct {
 		seq     uint64
 		op      string
 		station string
+		report  playback.QueueReport
 		err     error
 	}
 	// seekMsg reports the outcome of seek number seq.

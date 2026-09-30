@@ -38,7 +38,13 @@ func TestRoundTrip(t *testing.T) {
 		name string
 		call func() error
 	}{
-		{"playSongs", func() error { return c.PlaySongs(ctx, []string{"s1", "s2"}, 1) }},
+		{"playSongs", func() error {
+			report, err := c.PlaySongs(ctx, []string{"s1", "s2"}, 1)
+			if err == nil && !report.Clean() {
+				t.Errorf("PlaySongs report = %+v; want clean for an empty result", report)
+			}
+			return err
+		}},
 		{"playPlaylist", func() error { return c.PlayPlaylist(ctx, "p1") }},
 		{"playPlaylistFrom", func() error { return c.PlayPlaylistFrom(ctx, "p1", 2) }},
 		{"pause", func() error { return c.Pause(ctx) }},
@@ -50,6 +56,21 @@ func TestRoundTrip(t *testing.T) {
 				t.Fatalf("%s: %v", tt.name, err)
 			}
 		})
+	}
+}
+
+// TestPlaySongsReportsLeftOutSongs pins the decoding of the playSongs
+// result: the songs the helper could not queue reach the caller.
+func TestPlaySongsReportsLeftOutSongs(t *testing.T) {
+	c := startFake(t, "leftOut", Options{})
+
+	got, err := c.PlaySongs(t.Context(), []string{"s1", "s2", "s3", "s8", "s9"}, 0)
+	if err != nil {
+		t.Fatalf("PlaySongs: %v", err)
+	}
+	want := playback.QueueReport{Missing: []string{"s8", "s9"}, Skipped: []string{"s3"}, StartedAlone: true}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("PlaySongs report = %+v; want %+v", got, want)
 	}
 }
 

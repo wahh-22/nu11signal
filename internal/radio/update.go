@@ -389,17 +389,19 @@ func (m Model) openSelection() (tea.Model, tea.Cmd) {
 
 // playCmd runs play request number seq; the on-air station changes only
 // once the player confirms it (see onPlay).
-func (m Model) playCmd(seq uint64, op, station string, request func(context.Context) error) tea.Cmd {
+func (m Model) playCmd(seq uint64, op, station string, request func(context.Context) (playback.QueueReport, error)) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := m.ctx()
 		defer cancel()
-		return playMsg{seq: seq, op: op, station: station, err: request(ctx)}
+		report, err := request(ctx)
+		return playMsg{seq: seq, op: op, station: station, report: report, err: err}
 	}
 }
 
 // onPlay settles a play request. Failures are always reported, but only
-// the latest request may set the on-air station: a superseded tune that
-// confirms late must not overwrite a newer one.
+// the latest request may set the on-air station or report the songs left
+// out of its queue: a superseded tune that confirms late must not
+// overwrite a newer one.
 func (m Model) onPlay(msg playMsg) Model {
 	if msg.err != nil {
 		m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
@@ -407,8 +409,26 @@ func (m Model) onPlay(msg playMsg) Model {
 	}
 	if msg.seq == m.playSeq {
 		m.playingStation = msg.station
+		if s := queueNotice(msg.report); s != "" {
+			m.setStatus(s)
+		}
 	}
 	return m
+}
+
+// queueNotice is the status line for a play that left songs out of its
+// queue: only the start song playing, or how many songs were left out;
+// empty for a clean play.
+func queueNotice(r playback.QueueReport) string {
+	switch left := len(r.Missing) + len(r.Skipped); {
+	case r.StartedAlone:
+		return "PLAYING ALONE // QUEUE REFUSED"
+	case left == 1:
+		return "1 SONG SKIPPED // NOT IN QUEUE"
+	case left > 1:
+		return fmt.Sprintf("%d SONGS SKIPPED // NOT IN QUEUE", left)
+	}
+	return ""
 }
 
 // seekable reports whether the song playing has a known length to seek
