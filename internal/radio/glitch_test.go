@@ -590,8 +590,8 @@ func TestWaveScramblesMostLettersAcrossTheScreen(t *testing.T) {
 				t.Fatalf("keys %v: only %d words on the frame", keys, len(words))
 			}
 			total := textCells(words)
-			if share := float64(n) / float64(total); share < 0.6 || share > 0.7 {
-				t.Fatalf("keys %v wave %d: %d of %d letters scrambled (%.2f), want about 65%%:\n%s", keys, wave, n, total, share, ansi.Strip(strings.Join(lines, "\n")))
+			if share := float64(n) / float64(total); share < 0.35 || share > 0.45 {
+				t.Fatalf("keys %v wave %d: %d of %d letters scrambled (%.2f), want about 40%%:\n%s", keys, wave, n, total, share, ansi.Strip(strings.Join(lines, "\n")))
 			}
 			// Letters, not whole words: many words stay partly readable.
 			if partial < long/3 {
@@ -762,12 +762,12 @@ func TestEffectTimings(t *testing.T) {
 		got, want time.Duration
 	}{
 		// Bursts are short and sharp, a real loss of signal.
-		{"burstMin", burstMin, 200 * time.Millisecond},
-		{"burstMax", burstMax, 600 * time.Millisecond},
+		{"burstMin", burstMin, 600 * time.Millisecond},
+		{"burstMax", burstMax, 1000 * time.Millisecond},
 		{"burstTick", burstTick, 66 * time.Millisecond},
 		// The text wave is slow and smooth.
-		{"waveMin", waveMin, 1600 * time.Millisecond},
-		{"waveMax", waveMax, 2400 * time.Millisecond},
+		{"waveMin", waveMin, 1000 * time.Millisecond},
+		{"waveMax", waveMax, 2000 * time.Millisecond},
 		{"waveGlyph", waveGlyph, 160 * time.Millisecond},
 		{"waveTick", waveTick, 100 * time.Millisecond},
 		{"burstGap", burstGapMin, 20 * time.Second},
@@ -780,8 +780,8 @@ func TestEffectTimings(t *testing.T) {
 	if noSignalOdds != 4 {
 		t.Errorf("noSignalOdds = %d, want 4", noSignalOdds)
 	}
-	if waveShare != 0.65 {
-		t.Errorf("waveShare = %v, want 0.65 of the letters", waveShare)
+	if waveShare != 0.40 {
+		t.Errorf("waveShare = %v, want 0.40 of the letters", waveShare)
 	}
 }
 
