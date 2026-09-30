@@ -201,12 +201,21 @@ const (
 // times a second: a UI polls the latest one on its own frame clock instead
 // of handling each as a state change.
 type LevelSource interface {
-	// Levels delivers spectrum readings while the player measures: one
-	// level per band, 0 (silent) to 1 (loud), bands log-spaced from low to
-	// high frequencies. No readings arrive while paused, stopped, or when
-	// the player cannot measure. The channel keeps only the latest reading
-	// and is closed when the player shuts down.
-	Levels() <-chan []float64
+	// Levels delivers readings while the player measures (see Spectrum).
+	// No readings arrive while paused, stopped, or when the player cannot
+	// measure. The channel keeps only the latest reading and is closed
+	// when the player shuts down.
+	Levels() <-chan Spectrum
+}
+
+// Spectrum is one reading of a LevelSource.
+type Spectrum struct {
+	// Bands are one level per band, 0 (silent) to 1 (loud), bands
+	// log-spaced from low to high frequencies.
+	Bands []float64
+	// Wave is the waveform of the samples measured, oldest first, each
+	// point -1 to 1 (full scale); empty when the player sends none.
+	Wave []float64
 }
 
 // AuthStatus is the outcome of a music library authorization request.

@@ -888,6 +888,8 @@ func (m Model) pickerBody(w, h int) ([]string, zones) {
 // playlist will hold, if any, and the CREATE and CANCEL buttons.
 func (m Model) nameBody(w, h int) ([]string, zones) {
 	lines := []string{fit(stYellow.Render("+ ")+m.nameInput.View(), w)}
+	var zs zones
+	zs.add(zoneNameInput, 0, 0, w)
 	add := func(l string) {
 		if len(lines) < h {
 			lines = append(lines, fit(l, w))
@@ -899,7 +901,6 @@ func (m Model) nameBody(w, h int) ([]string, zones) {
 		add(songHead(s, w))
 	}
 	add("")
-	var zs zones
 	if len(lines) < h {
 		bar, bz := buttonBar([]button{
 			{id: zoneEditCreate, label: "CREATE", tone: stYellow},

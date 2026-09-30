@@ -50,7 +50,7 @@ type Fake struct {
 	calls  []Call
 	closed bool
 	states chan playback.State
-	levels chan []float64
+	levels chan playback.Spectrum
 	errs   chan error
 }
 
@@ -59,7 +59,7 @@ func New() *Fake {
 	return &Fake{
 		AuthStatus: playback.AuthAuthorized,
 		states:     make(chan playback.State, ChannelBuffer),
-		levels:     make(chan []float64, 1),
+		levels:     make(chan playback.Spectrum, 1),
 		errs:       make(chan error, ChannelBuffer),
 	}
 }
@@ -84,7 +84,7 @@ func (f *Fake) PushState(s playback.State) { f.states <- s }
 
 // PushLevels delivers a spectrum reading on Levels, replacing one still
 // unread, as the helper does. Call it from one goroutine at a time.
-func (f *Fake) PushLevels(levels []float64) {
+func (f *Fake) PushLevels(levels playback.Spectrum) {
 	for {
 		select {
 		case f.levels <- levels:
@@ -283,7 +283,7 @@ func (f *Fake) States() <-chan playback.State { return f.states }
 func (f *Fake) Errors() <-chan error          { return f.errs }
 
 // Levels delivers what PushLevels pushes (see playback.LevelSource).
-func (f *Fake) Levels() <-chan []float64 { return f.levels }
+func (f *Fake) Levels() <-chan playback.Spectrum { return f.levels }
 
 // Close closes the States, Levels and Errors channels. It is idempotent; pushing
 // after Close panics, as sending on a closed channel does.

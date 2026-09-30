@@ -37,10 +37,14 @@ func (m Model) render() string {
 	return strings.Join(lines, "\n")
 }
 
-// layout lays out the frame, with the signal effects drawn over it while
-// they run (see glitch.go); they never move the zones.
+// layout lays out the frame, with the content intro and the signal
+// effects drawn over it while they run (see intro.go and glitch.go); they
+// never move the zones.
 func (m Model) layout() ([]string, zones) {
 	lines, zs := m.baseLayout()
+	if m.introOn() {
+		m.drawIntro(lines)
+	}
 	if m.fxActive() {
 		lines = m.decorate(lines)
 	}
@@ -350,6 +354,21 @@ func (m Model) progressLine(w int) (line string, barW int) {
 // lines under its head.
 const nowPlayingMargin = 1
 
+// The rows of the NOW PLAYING inside from the head down to the feed, the
+// others blank; the rows under them (the buttons, the volume, LOOP and the
+// visualizer) depend on the height. The content intro compares the
+// artist, album and feed rows (see introFieldRows).
+const (
+	npHeadRow = iota
+	_
+	npTitleRow
+	npArtistRow
+	npAlbumRow
+	_
+	npProgressRow
+	npFeedRow
+)
+
 // nowPlaying renders the inside of the NOW PLAYING panel, iw x ih cells,
 // with its zones: the progress bar (click to seek), the transport buttons
 // under the feed, the volume row under them and LOOP under that.
@@ -370,21 +389,17 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	// The lines under the head sit nowPlayingMargin cells in from each
 	// side, and so do their zones.
 	inner := iw - 2*nowPlayingMargin
-	lines := []string{" " + head, ""}
+	lines := make([]string, npFeedRow+1)
+	lines[npHeadRow] = " " + head
 	title, hz := m.heartTitle(title, inner)
 	var zs zones
-	zs.addAt(nowPlayingMargin, len(lines), hz)
-	lines = append(lines,
-		" "+title,
-		" "+artist,
-		" "+album,
-		"",
-	)
+	zs.addAt(nowPlayingMargin, npTitleRow, hz)
+	lines[npTitleRow], lines[npArtistRow], lines[npAlbumRow] = " "+title, " "+artist, " "+album
 	progress, barW := m.progressLine(inner)
 	if m.seekable() {
-		zs.add(zoneSeek, nowPlayingMargin, len(lines), barW)
+		zs.add(zoneSeek, nowPlayingMargin, npProgressRow, barW)
 	}
-	lines = append(lines, m.barMark()+progress, " "+m.feedLine())
+	lines[npProgressRow], lines[npFeedRow] = m.barMark()+progress, " "+m.feedLine()
 	if ih > len(lines)+2 {
 		// The buttons keep their gap from the feed while it leaves room
 		// for the volume row.
@@ -400,21 +415,13 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	zs.addAt(nowPlayingMargin, len(lines), lz)
 	lines = append(lines, " "+loop)
 
-	eqRows := min(ih-len(lines), eqMaxRows)
-	if eqRows >= 2 {
-		// Sit the spectrum on the bottom edge of the panel.
+	if eqRows := vizRows(ih, len(lines)); eqRows > 0 {
+		// Sit the visualizer on the bottom edge of the panel.
 		for len(lines)+eqRows < ih {
 			lines = append(lines, "")
 		}
-		for i, row := range m.bars.render(inner, eqRows) {
-			style := stRed
-			switch {
-			case i == 0:
-				style = stYellow
-			case i < eqRows/2:
-				style = stRedBold
-			}
-			lines = append(lines, " "+style.Render(row))
+		for _, row := range m.activeViz().Render(inner, eqRows) {
+			lines = append(lines, " "+row)
 		}
 	}
 	return lines, zs
@@ -534,9 +541,6 @@ func (m Model) stationRow(i int, selected bool, w int) string {
 func (m Model) statusLine(w int) string {
 	if m.status != "" {
 		return stYellow.Render("▲ " + strings.ToUpper(m.status))
-	}
-	if alert, ok := m.alertLine(w); ok {
-		return alert
 	}
 	return stDim.Render(fit("░▒▓ SYS NOMINAL // BUF 0x5EF6", w))
 }

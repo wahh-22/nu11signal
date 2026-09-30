@@ -4,8 +4,9 @@ import Nu11SignalProtocol
 /// Emits `levels` events (the spectrum the TUI's equalizer draws) while the
 /// app-volume tap renders the music: AppVolume's IOProc writes each buffer,
 /// before its gain, into `ring`; a timer on a utility queue reads the newest
-/// window LevelsEvent.interval apart, analyzes it and emits the bands.
-/// Measuring before the gain keeps the bars independent of the volume.
+/// window LevelsEvent.interval apart, analyzes it and emits the bands with
+/// the window's waveform. Measuring before the gain keeps the bars and the
+/// waveform independent of the volume.
 ///
 /// AppVolume starts the timer with its IOProc (so only while playing in app
 /// mode) and stops it with the IOProc: on pause, stop, rebuild or fallback.
@@ -61,6 +62,10 @@ final class LevelMeter: @unchecked Sendable {
     private func measure() {
         guard let analyzer, ring.readLatest(into: window, count: LevelsEvent.fftSize) else { return }
         let levels = smoother.update(analyzer.levels(window))
-        Output.shared.event(LevelsEvent.name, ["bands": LevelScale.quantized(levels)])
+        let wave = Waveform.decimated(window, count: LevelsEvent.fftSize, points: LevelsEvent.wavePoints)
+        Output.shared.event(LevelsEvent.name, [
+            "bands": LevelScale.quantized(levels),
+            "wave": Waveform.quantized(wave),
+        ])
     }
 }

@@ -50,9 +50,12 @@ const (
 	// keyLoop cycles the repeat mode, OFF, ALL, ONE, as the LOOP button
 	// does, wherever the player keys act.
 	keyLoop = "o"
-	// keyEffects toggles the signal effects (glitch bursts, text waves and
-	// alerts) on the playlists and the pages, not where typing takes it.
+	// keyEffects toggles the signal effects (glitch bursts and text waves)
+	// on the playlists and the pages, not where typing takes it.
 	keyEffects = "x"
+	// keyVisualizer shows the next visualizer (see viz.go) for the
+	// session, wherever the player keys act.
+	keyVisualizer = "v"
 	// keyDelete and keyDeleteAlt delete the selected recent search.
 	keyDelete    = "delete"
 	keyDeleteAlt = "ctrl+d"
@@ -77,6 +80,7 @@ var playerHints = []hint{
 	{"O", "LOOP"},
 	{"↑↓", "MOVE"},
 	{"X", "FX"},
+	{"V", "VIZ"},
 	{"Q", "QUIT"},
 }
 

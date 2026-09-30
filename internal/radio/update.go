@@ -12,6 +12,21 @@ import (
 
 // Update handles one message.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	nm, ok := next.(Model)
+	if !ok {
+		return next, cmd
+	}
+	// Text msg brought scrambles in (see intro.go), the tick raised for it.
+	nm = nm.withIntro(m, msg)
+	if nm.intro.seq != m.intro.seq && !nm.tickFast {
+		tick := nm.scheduleTick()
+		return nm, tea.Batch(cmd, tick)
+	}
+	return nm, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -40,6 +55,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p.Name = cleanLine(p.Name)
 			return p
 		})), nil
+	case configMsg:
+		return m.onConfig(msg), nil
 	case recentsMsg:
 		return m.onRecents(msg), nil
 	case recentSavedMsg:
@@ -176,6 +193,7 @@ func (m Model) onAuth(msg authMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) onState(s playback.State) Model {
 	if s.SongID != m.state.SongID || s.Title != m.state.Title {
+		m = m.pickForSong(s)
 		m.glitch = glitchFrames
 		m.seekPending = false // the pending target belonged to another song
 	}
@@ -194,7 +212,7 @@ func (m Model) onState(s playback.State) Model {
 func (m Model) onTick() (tea.Model, tea.Cmd) {
 	m.frame++
 	m.fx = m.fx.advance(m.now(), m.seed, m.fxActive())
-	m = m.trackPlay().pollLevels().stepBars()
+	m = m.trackPlay().pollLevels().stepBars().stepViz()
 	if m.glitch > 0 {
 		m.glitch--
 	}

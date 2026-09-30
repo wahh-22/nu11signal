@@ -20,6 +20,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wahh-22/nu11signal/internal/config"
 	"github.com/wahh-22/nu11signal/internal/helper"
 	"github.com/wahh-22/nu11signal/internal/history"
 	"github.com/wahh-22/nu11signal/internal/playback"
@@ -54,9 +55,10 @@ type deps struct {
 	// startHelper launches the helper at path; ctx bounds only startup.
 	startHelper func(ctx context.Context, path string) (playback.Player, error)
 	// runUI runs the radio UI against player until the user quits; recents
-	// stores recent searches (nil keeps them in memory only); calm starts
-	// the signal effects off.
-	runUI func(player playback.Player, recents history.Recents, calm bool) error
+	// stores recent searches (nil keeps them in memory only); settings is
+	// the settings file (nil keeps the defaults); calm starts the signal
+	// effects off.
+	runUI func(player playback.Player, recents history.Recents, settings config.Source, calm bool) error
 }
 
 // run executes the command with args (without the program name) and
@@ -94,7 +96,7 @@ func play(demoMode, calm bool, d deps) error {
 	// shutdown and kills a helper that does not exit.
 	defer player.Close()
 
-	if err := d.runUI(player, openRecents(demoMode), calm); err != nil && !errors.Is(err, tea.ErrInterrupted) {
+	if err := d.runUI(player, openRecents(demoMode), openConfig(), calm); err != nil && !errors.Is(err, tea.ErrInterrupted) {
 		return err
 	}
 	return nil
@@ -114,8 +116,19 @@ func openRecents(demoMode bool) history.Recents {
 	return history.NewFile(path)
 }
 
-func runUI(player playback.Player, recents history.Recents, calm bool) error {
-	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano()), Recents: recents, Effects: !calm})
+// openConfig returns the settings file in the user's config directory,
+// read by the demo too (it only chooses how the UI looks); nil, the
+// defaults, on a system without a config directory.
+func openConfig() config.Source {
+	path, err := config.DefaultPath()
+	if err != nil {
+		return nil
+	}
+	return config.NewFile(path)
+}
+
+func runUI(player playback.Player, recents history.Recents, settings config.Source, calm bool) error {
+	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano()), Recents: recents, Config: settings, Effects: !calm})
 	_, err := tea.NewProgram(model, tea.WithFPS(radio.RenderFPS)).Run()
 	return err
 }
