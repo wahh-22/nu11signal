@@ -20,9 +20,9 @@ type Options struct {
 	Now func() time.Time
 	// Seed drives the decorative EQ and glitch animations.
 	Seed uint64
-	// Effects starts the signal effects on: glitch bursts, text
-	// micro-glitches and alerts (see glitch.go). Off by default, and in tests, so frames stay
-	// fixed; keyEffects toggles them.
+	// Effects starts the signal effects on: glitch bursts, text waves
+	// and alerts (see glitch.go). Off by default, and in tests, so frames
+	// stay fixed; keyEffects toggles them.
 	Effects bool
 	// CallTimeout bounds every Player call (default 8s).
 	CallTimeout time.Duration

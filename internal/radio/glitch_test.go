@@ -230,20 +230,11 @@ func TestTickRateRisesOnlyDuringBursts(t *testing.T) {
 		m = tick(t, m) // let the EQ settle flat
 	}
 	// Between the effects the tick sleeps until the next one is due.
-	for range 50 {
-		c.t = m.fx.microEnd
-		m = tick(t, m)
-		if m.fx.bursting(c.t) || m.fx.alerting(c.t) || m.fx.micro(c.t) {
-			continue
-		}
-		want := min(idleTick, m.fx.nextMicro.Sub(c.t), m.fx.nextBurst.Sub(c.t))
+	if !m.fx.alerting(c.t) {
+		want := min(idleTick, m.fx.nextWave.Sub(c.t), m.fx.nextBurst.Sub(c.t))
 		if got := m.tickInterval(); got != want {
 			t.Fatalf("idle tick with effects = %v, want %v (to the next effect)", got, want)
 		}
-		if want > microGapMax {
-			t.Fatalf("idle tick %v sleeps past the longest micro-glitch gap", want)
-		}
-		break
 	}
 	m, _ = press(t, m, keyEffects)
 	if got := m.tickInterval(); got != idleTick {
@@ -375,99 +366,7 @@ func TestGlitchGolden80x24(t *testing.T) {
 	}
 }
 
-func TestBurstsSpareARealStatus(t *testing.T) {
-	c := newClock()
-	m := fxModel(t, c)
-	for _, noSignal := range []bool{false, true, false, true} {
-		m = forceBurst(t, m, c, noSignal)
-		m.setStatus("PLAY FAILED // HELPER GONE")
-		if !m.fx.bursting(c.t) {
-			t.Fatalf("setting a status ended the burst (noSignal=%v)", noSignal)
-		}
-		base, _ := m.baseLayout()
-		lines, _ := m.layout()
-		n := len(lines)
-		if reflect.DeepEqual(lines[:n-2], base[:n-2]) {
-			t.Fatalf("burst (noSignal=%v) drew nothing while a status showed", noSignal)
-		}
-		spared := lines[n-2:]
-		if m.fx.micro(c.t) {
-			spared = spared[:1] // a micro-glitch may scramble the hints
-		}
-		if !reflect.DeepEqual(spared, base[n-2:n-2+len(spared)]) {
-			t.Fatalf("burst (noSignal=%v) touched the status or hint line:\n%q\n%q", noSignal, ansi.Strip(lines[n-2]), ansi.Strip(lines[n-1]))
-		}
-	}
-}
-
-func TestMicroScheduleStaysInRange(t *testing.T) {
-	const stepDur = 20 * time.Millisecond
-	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
-	for seed := uint64(1); seed <= 10; seed++ {
-		e := effects{on: true}
-		seq, glitches, overlaps := uint64(0), 0, 0
-		var lastStart time.Time
-		for now := start; now.Before(start.Add(10 * time.Minute)); now = now.Add(stepDur) {
-			e = e.advance(now, seed, true)
-			if e.microSeq == seq {
-				continue
-			}
-			seq = e.microSeq
-			if e.microN < 1 || e.microN > microMaxN {
-				t.Fatalf("seed %d micro %d has %d glitches, want 1..%d", seed, seq, e.microN, microMaxN)
-			}
-			glitches += e.microN
-			if e.microN > 1 {
-				overlaps++
-			}
-			var longest time.Duration
-			for i := range e.microN {
-				d := microDuration(seed, seq, i)
-				if d < microMin || d > microMax {
-					t.Errorf("seed %d micro %d.%d lasts %v, want %v..%v", seed, seq, i, d, microMin, microMax)
-				}
-				longest = max(longest, d)
-			}
-			if got := e.microEnd.Sub(e.microStart); got != longest {
-				t.Errorf("seed %d micro %d ends after %v, want its longest glitch %v", seed, seq, got, longest)
-			}
-			from := lastStart
-			if from.IsZero() {
-				from = start
-			}
-			if gap := e.microStart.Sub(from); gap < microGapMin || gap > microGapMax+stepDur {
-				t.Errorf("seed %d micro %d comes %v after the last, want %v..%v", seed, seq, gap, microGapMin, microGapMax)
-			}
-			lastStart = e.microStart
-		}
-		if seq < uint64(10*time.Minute/microGapMax) {
-			t.Fatalf("seed %d: only %d micro-glitches in 10 minutes", seed, seq)
-		}
-		if overlaps == 0 || glitches <= int(seq) {
-			t.Fatalf("seed %d: micro-glitches never overlap", seed)
-		}
-	}
-}
-
-// forceMicro moves the clock to the next micro-glitch that starts outside
-// a burst and returns the model on its first frame.
-func forceMicro(t *testing.T, m Model, c *clock) Model {
-	t.Helper()
-	for range 200 {
-		c.t = m.fx.nextMicro
-		m = tick(t, m)
-		if !m.fx.micro(c.t) {
-			t.Fatalf("no micro-glitch at the scheduled time %v", c.t)
-		}
-		if !m.fx.bursting(c.t) && !m.fx.bursting(m.fx.microEnd) {
-			return m
-		}
-	}
-	t.Fatal("every micro-glitch fell into a burst")
-	return m
-}
-
-// textCell reports whether a base cell holds text a micro-glitch may
+// textCell reports whether a base cell holds text a text glitch may
 // scramble: not blank, not a border or a shade.
 func textCell(s string) bool {
 	if s == "" || s == " " {
@@ -475,125 +374,6 @@ func textCell(s string) bool {
 	}
 	r := []rune(s)[0]
 	return r < 0x2500 || r > 0x259F
-}
-
-func TestMicroGlitchScramblesOnlyExistingText(t *testing.T) {
-	for _, keys := range [][]string{nil, {"f"}, {"enter"}} {
-		c := newClock()
-		m := fxModel(t, c)
-		m, _ = press(t, m, keys...)
-		touched := map[int]bool{}
-		left, right := false, false
-		for range 150 {
-			m = forceMicro(t, m, c)
-			for frame := 0; c.t.Before(m.fx.microEnd); frame++ {
-				base, baseZones := m.baseLayout()
-				lines, zs := m.layout()
-				if !reflect.DeepEqual(zs, baseZones) {
-					t.Fatalf("keys %v: a micro-glitch changed the zones", keys)
-				}
-				if len(lines) != len(base) {
-					t.Fatalf("keys %v: %d lines, want %d", keys, len(lines), len(base))
-				}
-				changed := false
-				for y := range lines {
-					if got, want := ansi.StringWidth(lines[y]), ansi.StringWidth(base[y]); got != want {
-						t.Fatalf("keys %v line %d is %d cells, want %d", keys, y, got, want)
-					}
-					got, want := cells(lines[y]), cells(base[y])
-					for x := range got {
-						if got[x] == want[x] {
-							continue
-						}
-						if !textCell(want[x]) {
-							t.Fatalf("keys %v: micro-glitch over %q at (%d,%d), not text:\n%s", keys, want[x], x, y, ansi.Strip(strings.Join(lines, "\n")))
-						}
-						changed = true
-						touched[y] = true
-						if x < 40 {
-							left = true
-						} else {
-							right = true
-						}
-					}
-				}
-				if frame == 0 && !changed {
-					t.Fatalf("keys %v: micro-glitch %d left its first frame untouched", keys, m.fx.microSeq)
-				}
-				c.advance(microTick)
-			}
-			// Once over, the text is whole again.
-			c.t = m.fx.microEnd
-			if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
-				t.Fatalf("keys %v: micro-glitch %d did not resolve by its end", keys, m.fx.microSeq)
-			}
-		}
-		// All over the frame, not in one region.
-		if len(touched) < 12 || !left || !right {
-			t.Fatalf("keys %v: micro-glitches touched only lines %v (left %v, right %v)", keys, touched, left, right)
-		}
-	}
-}
-
-func TestMicroGlitchSparesARealStatus(t *testing.T) {
-	c := newClock()
-	m := fxModel(t, c)
-	for range 100 {
-		m = forceMicro(t, m, c)
-		m.setStatus("PLAY FAILED // HELPER GONE")
-		base, _ := m.baseLayout()
-		lines, _ := m.layout()
-		n := len(lines)
-		if lines[n-2] != base[n-2] {
-			t.Fatalf("micro-glitch touched the status line: %q", ansi.Strip(lines[n-2]))
-		}
-	}
-}
-
-func TestMicroTickRisesOnlyWhileAGlitchResolves(t *testing.T) {
-	c := newClock()
-	m := fxModel(t, c)
-	// While playing, micro-glitches ride the frames that run anyway.
-	m = forceMicro(t, m, c)
-	if got := m.tickInterval(); got != fastTick {
-		t.Fatalf("playing micro-glitch tick = %v, want %v", got, fastTick)
-	}
-	still := playing(90*time.Second, 225*time.Second)
-	still.Status = playback.StatusPaused
-	m, _ = step(t, m, stateMsg{state: still})
-	for range 20 {
-		m = tick(t, m) // let the EQ settle flat
-	}
-	if m.tickFast {
-		t.Fatal("tick still fast while paused")
-	}
-	m = forceMicro(t, m, c)
-	// Idle, a glitch takes three frames: scrambled on its start, partly
-	// resolved halfway, whole again on its end.
-	mid := m.fx.microStart.Add(m.fx.microEnd.Sub(m.fx.microStart) / 2)
-	if got, want := m.tickInterval(), mid.Sub(c.t); got != want {
-		t.Fatalf("micro-glitch tick = %v, want %v (to its middle)", got, want)
-	}
-	c.t = mid
-	m = tick(t, m)
-	if got, want := m.tickInterval(), m.fx.microEnd.Sub(c.t); got != want {
-		t.Fatalf("second micro-glitch tick = %v, want %v (to its end)", got, want)
-	}
-	c.t = m.fx.microEnd
-	m = tick(t, m)
-	if got := m.tickInterval(); got == microTick || got == burstTick {
-		t.Fatalf("tick stayed fast after the micro-glitch: %v", got)
-	}
-}
-
-func TestPausedEffectsNeverMicroGlitch(t *testing.T) {
-	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
-	e := effects{on: true}
-	for now := start; now.Before(start.Add(5 * time.Minute)); now = now.Add(50 * time.Millisecond) {
-		if e = e.advance(now, 3, false); e.micro(now) {
-			t.Fatalf("paused effects micro-glitched at %v", now.Sub(start))
-		}
-	}
 }
 
 // skeleton is line with every printable cell replaced by a dot: its escape
@@ -613,81 +393,311 @@ func skeleton(line string) string {
 	return b.String()
 }
 
-func TestMicroGlitchKeepsTheCellStyles(t *testing.T) {
+func TestBurstsSpareARealStatus(t *testing.T) {
 	c := newClock()
 	m := fxModel(t, c)
-	scrambled := 0
-	for range 100 {
-		m = forceMicro(t, m, c)
-		for c.t.Before(m.fx.microEnd) && !m.fx.bursting(c.t) {
-			base, _ := m.baseLayout()
-			lines, _ := m.layout()
-			for y := range lines {
-				if lines[y] == base[y] {
-					continue
-				}
-				scrambled++
-				if got, want := skeleton(lines[y]), skeleton(base[y]); got != want {
-					t.Fatalf("micro-glitch changed the styles of line %d:\n got %q\nwant %q", y, lines[y], base[y])
-				}
-			}
-			c.advance(fastTick)
-			m = tick(t, m)
+	for _, noSignal := range []bool{false, true, false, true} {
+		m = forceBurst(t, m, c, noSignal)
+		m.setStatus("PLAY FAILED // HELPER GONE")
+		if !m.fx.bursting(c.t) {
+			t.Fatalf("setting a status ended the burst (noSignal=%v)", noSignal)
 		}
-	}
-	if scrambled == 0 {
-		t.Fatal("no micro-glitch scrambled a line")
+		if m.fx.waving(c.t) {
+			t.Fatalf("a text wave runs during the burst (noSignal=%v)", noSignal)
+		}
+		base, _ := m.baseLayout()
+		lines, _ := m.layout()
+		n := len(lines)
+		if reflect.DeepEqual(lines[:n-2], base[:n-2]) {
+			t.Fatalf("burst (noSignal=%v) drew nothing while a status showed", noSignal)
+		}
+		if !reflect.DeepEqual(lines[n-2:], base[n-2:]) {
+			t.Fatalf("burst (noSignal=%v) touched the status or hint line:\n%q\n%q", noSignal, ansi.Strip(lines[n-2]), ansi.Strip(lines[n-1]))
+		}
 	}
 }
 
-func TestMicroGlitchesComeOften(t *testing.T) {
+func TestWaveComesMidwayBetweenBursts(t *testing.T) {
 	const stepDur = 10 * time.Millisecond
 	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
 	for seed := uint64(1); seed <= 10; seed++ {
-		e := effects{on: true}
-		seq := uint64(0)
-		var lastStart, lastEnd time.Time
-		for now := start; now.Before(start.Add(5 * time.Minute)); now = now.Add(stepDur) {
-			e = e.advance(now, seed, true)
-			if e.microSeq == seq {
-				continue
-			}
-			seq = e.microSeq
-			if !lastStart.IsZero() {
-				if gap := e.microStart.Sub(lastStart); gap < 200*time.Millisecond || gap > 800*time.Millisecond+stepDur {
-					t.Errorf("seed %d micro %d comes %v after the last, want 0.2..0.8s", seed, seq, gap)
-				}
-				if e.microStart.Before(lastEnd) {
-					t.Errorf("seed %d micro %d starts before the last one resolved", seed, seq)
-				}
-			}
-			lastStart, lastEnd = e.microStart, e.microEnd
+		e := effects{on: true}.advance(start, seed, true)
+		// The first wave comes halfway to the first burst.
+		midpoint := start.Add(e.nextBurst.Sub(start) / 2)
+		if e.nextWave != midpoint {
+			t.Fatalf("seed %d: first wave at %v, want %v (halfway to the first burst)", seed, e.nextWave.Sub(start), midpoint.Sub(start))
 		}
-		if seq < uint64(5*time.Minute/(800*time.Millisecond)) {
-			t.Fatalf("seed %d: only %d micro-glitches in 5 minutes", seed, seq)
+		var waveSeq, burstSeq uint64
+		waves, bursts := 0, 0
+		for now := start; now.Before(start.Add(30 * time.Minute)); now = now.Add(stepDur) {
+			e = e.advance(now, seed, true)
+			if e.waveSeq != waveSeq {
+				waveSeq = e.waveSeq
+				waves++
+				if waves != bursts+1 {
+					t.Fatalf("seed %d: wave %d after %d bursts, want one wave between two bursts", seed, waves, bursts)
+				}
+				if d := e.waveStart.Sub(midpoint); d < 0 || d > stepDur {
+					t.Errorf("seed %d wave %d starts %v off the midpoint between the bursts", seed, waves, d)
+				}
+				if d := e.waveEnd.Sub(e.waveStart); d < waveMin || d > waveMax {
+					t.Errorf("seed %d wave %d lasts %v, want %v..%v", seed, waves, d, waveMin, waveMax)
+				}
+				if !e.waveEnd.Before(e.nextBurst) {
+					t.Errorf("seed %d wave %d runs into the next burst", seed, waves)
+				}
+			}
+			if e.burstSeq != burstSeq {
+				burstSeq = e.burstSeq
+				bursts++
+				if bursts != waves {
+					t.Fatalf("seed %d: burst %d after %d waves, want bursts and waves to alternate", seed, bursts, waves)
+				}
+				if e.waving(now) {
+					t.Errorf("seed %d: burst %d starts during a wave", seed, bursts)
+				}
+				midpoint = e.burstEnd.Add(e.nextBurst.Sub(e.burstEnd) / 2)
+				if e.nextWave != midpoint {
+					t.Errorf("seed %d: wave after burst %d due at %v, want the midpoint %v", seed, bursts, e.nextWave, midpoint)
+				}
+			}
+		}
+		if waves < 30*60/45 {
+			t.Fatalf("seed %d: only %d waves in half an hour", seed, waves)
 		}
 	}
 }
 
-func TestIdleMicroGlitchTakesAtMostThreeFrames(t *testing.T) {
+func TestPausedEffectsNeverWave(t *testing.T) {
+	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
+	e := effects{on: true}
+	for now := start; now.Before(start.Add(5 * time.Minute)); now = now.Add(50 * time.Millisecond) {
+		if e = e.advance(now, 3, false); e.waving(now) || !e.nextWave.IsZero() {
+			t.Fatalf("paused effects waved at %v", now.Sub(start))
+		}
+	}
+}
+
+// forceWave moves the clock to the next text wave and returns the model on
+// its first frame.
+func forceWave(t *testing.T, m Model, c *clock) Model {
+	t.Helper()
+	if m.fx.nextWave.IsZero() {
+		t.Fatal("no text wave scheduled")
+	}
+	c.t = m.fx.nextWave
+	m = tick(t, m)
+	if !m.fx.waving(c.t) {
+		t.Fatalf("no text wave at the scheduled time %v", c.t)
+	}
+	if m.fx.bursting(c.t) {
+		t.Fatal("the text wave fell into a burst")
+	}
+	return m
+}
+
+// nextWave lets the wave on screen end, then the burst after it, and
+// returns the model on the first frame of the wave that follows.
+func nextWave(t *testing.T, m Model, c *clock) Model {
+	t.Helper()
+	c.t = m.fx.waveEnd
+	m = tick(t, m)
+	c.t = m.fx.nextBurst
+	m = tick(t, m)
+	c.t = m.fx.burstEnd
+	m = tick(t, m)
+	return forceWave(t, m, c)
+}
+
+// scrambledWords counts the words of base that differ in lines, and the
+// lines they are on.
+func scrambledWords(base, lines []string, words []textRun) (int, map[int]bool) {
+	n, rows := 0, map[int]bool{}
+	for _, w := range words {
+		got, want := cells(lines[w.y]), cells(base[w.y])
+		for _, x := range w.xs {
+			if got[x] != want[x] {
+				n++
+				rows[w.y] = true
+				break
+			}
+		}
+	}
+	return n, rows
+}
+
+func TestWaveScramblesMostWordsAcrossTheScreen(t *testing.T) {
+	for _, keys := range [][]string{nil, {"f"}, {"enter"}} {
+		c := newClock()
+		m := fxModel(t, c)
+		m, _ = press(t, m, keys...)
+		m = forceWave(t, m, c)
+		for wave := range 4 {
+			if wave > 0 {
+				m = nextWave(t, m, c)
+			}
+			base, _ := m.baseLayout()
+			lines, _ := m.layout()
+			words := textWords(base, -1)
+			wordRows := map[int]bool{}
+			for _, w := range words {
+				wordRows[w.y] = true
+			}
+			n, rows := scrambledWords(base, lines, words)
+			if len(words) < 20 {
+				t.Fatalf("keys %v: only %d words on the frame", keys, len(words))
+			}
+			if share := float64(n) / float64(len(words)); share < 0.7 || share > 0.85 {
+				t.Fatalf("keys %v wave %d: %d of %d words scrambled (%.2f), want about three quarters:\n%s", keys, wave, n, len(words), share, ansi.Strip(strings.Join(lines, "\n")))
+			}
+			if len(rows) < len(wordRows)*2/3 {
+				t.Fatalf("keys %v wave %d: scrambled words on %d of the %d lines with words", keys, wave, len(rows), len(wordRows))
+			}
+			// The words resolve at their own moments: fewer and fewer stay
+			// scrambled, and none by the end.
+			initial, staggered := n, false
+			for c.t.Before(m.fx.waveEnd) {
+				base, baseZones := m.baseLayout()
+				lines, zs := m.layout()
+				if !reflect.DeepEqual(zs, baseZones) {
+					t.Fatalf("keys %v: the wave changed the zones", keys)
+				}
+				if len(lines) != len(base) {
+					t.Fatalf("keys %v: %d lines, want %d", keys, len(lines), len(base))
+				}
+				for y := range lines {
+					if got, want := ansi.StringWidth(lines[y]), ansi.StringWidth(base[y]); got != want {
+						t.Fatalf("keys %v line %d is %d cells, want %d", keys, y, got, want)
+					}
+					if lines[y] == base[y] {
+						continue
+					}
+					if got, want := skeleton(lines[y]), skeleton(base[y]); got != want {
+						t.Fatalf("keys %v: the wave changed the styles of line %d:\n got %q\nwant %q", keys, y, lines[y], base[y])
+					}
+					got, want := cells(lines[y]), cells(base[y])
+					for x := range got {
+						if got[x] != want[x] && !textCell(want[x]) {
+							t.Fatalf("keys %v: the wave drew over %q at (%d,%d), not text", keys, want[x], x, y)
+						}
+					}
+				}
+				if n, _ := scrambledWords(base, lines, textWords(base, -1)); n > 0 && n < initial*2/3 {
+					staggered = true
+				}
+				c.advance(waveTick)
+				m = tick(t, m)
+			}
+			if !staggered {
+				t.Fatalf("keys %v wave %d: the words never resolved one by one", keys, wave)
+			}
+			c.t = m.fx.waveEnd
+			m = tick(t, m)
+			if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
+				t.Fatalf("keys %v wave %d: text not whole again after the wave", keys, wave)
+			}
+		}
+	}
+}
+
+func TestWaveSparesARealStatus(t *testing.T) {
 	c := newClock()
 	m := fxModel(t, c)
+	m = forceWave(t, m, c)
+	for wave := range 5 {
+		if wave > 0 {
+			m = nextWave(t, m, c)
+		}
+		m.setStatus("PLAY FAILED // HELPER GONE")
+		base, _ := m.baseLayout()
+		lines, _ := m.layout()
+		n := len(lines)
+		if lines[n-2] != base[n-2] {
+			t.Fatalf("the wave touched the status line: %q", ansi.Strip(lines[n-2]))
+		}
+		if reflect.DeepEqual(lines[:n-2], base[:n-2]) {
+			t.Fatal("the wave drew nothing while a status showed")
+		}
+		m.status = ""
+	}
+}
+
+func TestNoWaveWhileTyping(t *testing.T) {
+	t.Run("SEARCH input", func(t *testing.T) {
+		c := newClock()
+		m := fxModel(t, c)
+		next := m.fx.nextWave
+		m, _ = press(t, m, "/")
+		c.t = next
+		m = tick(t, m)
+		if m.fx.waving(c.t) {
+			t.Fatal("a text wave started while typing")
+		}
+		if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
+			t.Fatal("the SEARCH input scrambled while typing")
+		}
+	})
+	t.Run("toggled off mid-wave", func(t *testing.T) {
+		c := newClock()
+		m := forceWave(t, fxModel(t, c), c)
+		m, _ = press(t, m, keyEffects)
+		if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
+			t.Fatal("the wave still drawn after the toggle")
+		}
+	})
+}
+
+func TestWaveTickRisesOnlyDuringTheWave(t *testing.T) {
+	c := newClock()
+	m := fxModel(t, c)
+	// While playing, the wave rides the frames that run anyway.
+	m = forceWave(t, m, c)
+	if got := m.tickInterval(); got != fastTick {
+		t.Fatalf("playing wave tick = %v, want %v", got, fastTick)
+	}
+	c.t = m.fx.waveEnd
+	m = tick(t, m)
 	still := playing(90*time.Second, 225*time.Second)
 	still.Status = playback.StatusPaused
 	m, _ = step(t, m, stateMsg{state: still})
 	for range 20 {
 		m = tick(t, m) // let the EQ settle flat
 	}
-	for range 50 {
-		m = forceMicro(t, m, c)
-		seq, frames := m.fx.microSeq, 1
-		for m.fx.micro(c.t) && m.fx.microSeq == seq && !m.fx.bursting(c.t) {
-			c.advance(m.tickInterval())
-			m = tick(t, m)
-			frames++
-		}
-		if frames > 3 {
-			t.Fatalf("micro-glitch %d took %d idle frames, want at most 3", seq, frames)
-		}
+	if m.tickFast {
+		t.Fatal("tick still fast while paused")
 	}
+	// Idle, the tick sleeps until the next effect is due.
+	c.t = m.fx.nextBurst
+	m = tick(t, m)
+	c.t = m.fx.burstEnd
+	m = tick(t, m)
+	if got, want := m.tickInterval(), min(idleTick, m.fx.nextWave.Sub(c.t)); got != want && !m.fx.alerting(c.t) {
+		t.Fatalf("idle tick = %v, want %v (to the next effect)", got, want)
+	}
+	m = forceWave(t, m, c)
+	frames := 1
+	for m.fx.waving(c.t) {
+		if got := m.tickInterval(); got > waveTick {
+			t.Fatalf("idle wave tick = %v, want at most %v", got, waveTick)
+		}
+		c.advance(m.tickInterval())
+		m = tick(t, m)
+		frames++
+	}
+	if lo, hi := int(waveMin/waveTick), int(waveMax/waveTick)+2; frames < lo || frames > hi {
+		t.Fatalf("idle wave took %d frames, want %d..%d (about 10 fps)", frames, lo, hi)
+	}
+	if got := m.tickInterval(); got <= waveTick {
+		t.Fatalf("tick stayed fast after the wave: %v", got)
+	}
+}
+
+func TestWaveGolden80x24(t *testing.T) {
+	c := newClock()
+	m := forceWave(t, fxModel(t, c), c)
+	for range 4 {
+		c.advance(waveTick)
+		m = tick(t, m)
+	}
+	assertGolden(t, "text_wave_80x24.golden", ansi.Strip(m.View().Content))
 }
