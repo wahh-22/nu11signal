@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -12,16 +13,19 @@ import (
 // Signal effects: the screen now and then seems to lose the signal. Every
 // burstGapMin..burstGapMax a burst of burstMin..burstMax tears a few rows
 // sideways, corrupts a few cells and may run a static bar; one burst in
-// noSignalOdds also flashes NO SIGNAL. Between bursts, data rain (changing
-// codes) runs in the free space only, and Night City alerts take the empty
-// status line now and then.
+// noSignalOdds also flashes NO SIGNAL. Between bursts, the text on screen
+// keeps glitching like the title on a song change: every
+// microGapMin..microGapMax one to microMaxN spans of existing text, on any
+// line, scramble and resolve back over microMin..microMax. Night City
+// alerts take the empty status line now and then.
 //
 // Everything is drawn over the finished frame (see Model.decorate), cell
 // for cell, so no line changes width and the clickable zones, laid out
 // from the undecorated frame, stay where they are. Timings and glyphs come
 // from the seed, the injected clock and the frame counter: tests replay
-// them exactly. No timer is added: the animation tick runs at rainTick
-// while the effects are on, and at burstTick during a burst only.
+// them exactly. No timer is added: the animation tick sleeps until the
+// next effect is due, and runs fast only while one animates (see
+// effects.interval).
 const (
 	burstGapMin  = 20 * time.Second
 	burstGapMax  = 45 * time.Second
@@ -32,12 +36,23 @@ const (
 	alertGapMax  = 60 * time.Second
 	alertShow    = 4 * time.Second
 	alertBlink   = 500 * time.Millisecond
-	// burstTick is the frame time during a burst (about 15 fps), rainTick
-	// the slowest one while the effects are on, which steps the data rain.
+	// A micro-glitch scrambles microSpanMin..microSpanMax text cells;
+	// microHold is the share of its time before its cells start to
+	// resolve, left to right.
+	microGapMin  = 500 * time.Millisecond
+	microGapMax  = 2 * time.Second
+	microMin     = 150 * time.Millisecond
+	microMax     = 300 * time.Millisecond
+	microMaxN    = 3
+	microSpanMin = 3
+	microSpanMax = 12
+	microHold    = 0.3
+	// burstTick is the frame time during a burst (about 15 fps), microTick
+	// while a micro-glitch resolves; minWake keeps a late tick from
+	// spinning.
 	burstTick = 66 * time.Millisecond
-	rainTick  = 500 * time.Millisecond
-	// rainMinRun is the shortest run of free cells that takes a code.
-	rainMinRun = 12
+	microTick = 100 * time.Millisecond
+	minWake   = 10 * time.Millisecond
 )
 
 // Salts keep the pseudo-random streams of the effects apart.
@@ -48,7 +63,10 @@ const (
 	saltAlertGap
 	saltAlert
 	saltBurst
-	saltRain
+	saltMicroGap
+	saltMicroN
+	saltMicroLen
+	saltMicro
 )
 
 // effects is the schedule of the signal effects. It is a value type:
@@ -67,6 +85,12 @@ type effects struct {
 	alertSeq             uint64
 	nextAlert            time.Time
 	alertStart, alertEnd time.Time
+	// microSeq numbers the micro-glitches; the latest runs microN spans
+	// from microStart until microEnd, the end of its longest one.
+	microSeq             uint64
+	microN               int
+	nextMicro            time.Time
+	microStart, microEnd time.Time
 }
 
 // advance moves the schedule to now. While the effects are not active
@@ -75,7 +99,22 @@ type effects struct {
 func (e effects) advance(now time.Time, seed uint64, active bool) effects {
 	if !active {
 		e.nextBurst, e.burstEnd, e.nextAlert, e.alertEnd = time.Time{}, time.Time{}, time.Time{}, time.Time{}
+		e.nextMicro, e.microEnd = time.Time{}, time.Time{}
 		return e
+	}
+	if e.nextMicro.IsZero() {
+		e.nextMicro = now.Add(span(mix(seed, saltMicroGap, e.microSeq), microGapMin, microGapMax))
+	}
+	if !now.Before(e.nextMicro) {
+		e.microSeq++
+		e.microStart, e.microEnd = now, now
+		e.microN = microCount(mix(seed, saltMicroN, e.microSeq))
+		for i := range e.microN {
+			if end := now.Add(microDuration(seed, e.microSeq, i)); end.After(e.microEnd) {
+				e.microEnd = end
+			}
+		}
+		e.nextMicro = now.Add(span(mix(seed, saltMicroGap, e.microSeq), microGapMin, microGapMax))
 	}
 	if e.nextBurst.IsZero() {
 		e.nextBurst = now.Add(span(mix(seed, saltBurstGap, e.burstSeq), burstGapMin, burstGapMax))
@@ -104,6 +143,55 @@ func (e effects) bursting(now time.Time) bool {
 
 func (e effects) alerting(now time.Time) bool {
 	return !now.Before(e.alertStart) && now.Before(e.alertEnd)
+}
+
+func (e effects) micro(now time.Time) bool {
+	return !now.Before(e.microStart) && now.Before(e.microEnd)
+}
+
+// interval is the time to the next frame, d without the effects:
+// burstTick during a burst; d itself when it is no slower than microTick;
+// else microTick while a micro-glitch resolves (its last frame on its
+// end), and d cut short so that the ▲ of an alert blinks and the next
+// burst or micro-glitch starts on time.
+func (e effects) interval(now time.Time, d time.Duration) time.Duration {
+	if e.bursting(now) {
+		return burstTick
+	}
+	if d <= microTick {
+		// Already as fast as a micro-glitch needs: it rides the frames
+		// that run anyway, a few milliseconds late at most.
+		return d
+	}
+	if e.micro(now) {
+		return max(min(microTick, e.microEnd.Sub(now)), minWake)
+	}
+	if e.alerting(now) {
+		d = min(d, alertBlink)
+	}
+	for _, next := range []time.Time{e.nextMicro, e.nextBurst} {
+		if !next.IsZero() {
+			d = min(d, max(next.Sub(now), minWake))
+		}
+	}
+	return d
+}
+
+// microCount is how many spans a micro-glitch scrambles at once: mostly
+// one, now and then two or three.
+func microCount(h uint64) int {
+	switch h % 8 {
+	case 0:
+		return 3
+	case 1, 2:
+		return 2
+	}
+	return 1
+}
+
+// microDuration is how long span i of micro-glitch seq takes to resolve.
+func microDuration(seed, seq uint64, i int) time.Duration {
+	return span(mix(seed, saltMicroLen, seq, uint64(i)), microMin, microMax)
 }
 
 // span maps a hash to a duration in [lo, hi).
@@ -180,101 +268,131 @@ func (m Model) alertLine(w int) (string, bool) {
 func (m Model) decorate(lines []string) []string {
 	now := m.now()
 	out := append([]string(nil), lines...)
-	m.rain(out, now)
+	spared := -1
+	frame := out
+	if m.status != "" && len(out) > 2 {
+		// A real status stays readable: micro-glitches spare the status
+		// line and bursts the status and hint lines while one is showing.
+		spared = len(out) - 2
+		frame = out[:len(out)-2]
+	}
+	if m.fx.micro(now) {
+		m.microGlitch(out, spared, now)
+	}
 	if m.fx.bursting(now) {
-		frame := out
-		if m.status != "" && len(out) > 2 {
-			// A real status stays readable: the burst spares the status
-			// and hint lines while one is showing.
-			frame = out[:len(out)-2]
-		}
 		m.burst(frame)
 	}
 	return out
 }
 
-// rain writes changing codes into the free space of the frame: long runs
-// of the border and rule lines, the gap in the header, and, in the full
-// layout, the blank rows of NOW PLAYING and the empty rows under the
-// list. The status and hint lines, and every cell with text, stay as they
-// are.
-func (m Model) rain(lines []string, now time.Time) {
-	bucket := uint64(now.UnixMilli() / rainTick.Milliseconds())
-	last := len(lines) - 2 // the status and hint lines take no rain
-	for y := 0; y < last; y++ {
-		for _, r := range runsOf(lines[y], '─', 0, -1) {
-			if mix(m.seed, saltRain, uint64(y), uint64(r[0]), bucket/8)%2 == 0 {
-				lines[y] = m.rainCode(lines[y], y, r, bucket, stFrameDim)
-			}
-		}
-	}
-	if last > 0 {
-		// The header gap, between the wordmark and the clock.
-		for _, r := range runsOf(lines[0], ' ', 0, -1) {
-			lines[0] = m.rainCode(lines[0], 0, r, bucket, stMuted)
-		}
-	}
-	if m.width < fullMinWidth || m.height < fullMinHeight {
-		return
-	}
-	top, bodyH := 2, m.height-4
-	rows := func(x0, x1 int, trailingOnly bool) {
-		first := top + 1
-		if trailingOnly {
-			for y := min(top+bodyH-2, last-1); y > top; y-- {
-				if !blank(lines[y], x0, x1) {
-					first = y + 1
-					break
-				}
-			}
-		}
-		for y := first; y < top+bodyH-1 && y < last; y++ {
-			if blank(lines[y], x0, x1) && mix(m.seed, saltRain, uint64(y), uint64(x0), bucket/8)%4 == 0 {
-				lines[y] = m.rainCode(lines[y], y, [2]int{x0, x1}, bucket, stFrameDim)
-			}
-		}
-	}
-	if m.expanded {
-		rows(1, m.width-1, false)
-		return
-	}
-	leftW := listPanelWidthFor(m.width)
-	rows(1, leftW-1, true)
-	rows(leftW+2, m.width-1, false)
+// textRun is a run of text cells on line y: the cells of xs, in order,
+// with at most one space between two of them.
+type textRun struct {
+	y  int
+	xs []int
 }
 
-// rainCode writes one code into the run r of line y, two cells in from
-// its ends, where it moves every few seconds; its text changes every
-// rainTick.
-func (m Model) rainCode(line string, y int, r [2]int, bucket uint64, style lipgloss.Style) string {
-	room := r[1] - r[0] - 4
-	h := mix(m.seed, saltRain, uint64(y), uint64(r[0]), bucket)
-	code := rainText(h)
-	if len(code) > room {
-		code = fmt.Sprintf("%04X", h>>48)
+// textRuns finds the runs of at least microSpanMin text cells in lines,
+// but on line spared. A text cell is one printable, one cell wide
+// character that is not a space, a border or a shade; a wide or combined
+// character ends a run, so it is never split. A line whose characters do
+// not add up to its width is left out.
+func textRuns(lines []string, spared int) []textRun {
+	var runs []textRun
+	for y, line := range lines {
+		if y == spared {
+			continue
+		}
+		var found []textRun
+		cur := textRun{y: y}
+		flush := func() {
+			if len(cur.xs) >= microSpanMin {
+				found = append(found, cur)
+			}
+			cur = textRun{y: y}
+		}
+		rs := []rune(ansi.Strip(line))
+		x, gap := 0, false
+		for i, r := range rs {
+			w := runeWidth(r)
+			combined := i+1 < len(rs) && runeWidth(rs[i+1]) == 0
+			switch {
+			case w == 0:
+			case w == 1 && textRune(r) && !combined:
+				cur.xs = append(cur.xs, x)
+				gap = false
+			case r == ' ' && !gap && len(cur.xs) > 0:
+				gap = true
+			default:
+				flush()
+				gap = false
+			}
+			x += w
+		}
+		flush()
+		if x == ansi.StringWidth(line) {
+			runs = append(runs, found...)
+		}
 	}
-	if len(code) > room {
-		return line
-	}
-	x := r[0] + 2 + int(mix(m.seed, uint64(y), uint64(r[0]), bucket/8)%uint64(room-len(code)+1))
-	return overlay(line, x, style.Render(code))
+	return runs
 }
 
-// rainText is a code for the data rain: hex, coordinates or a frequency.
-func rainText(h uint64) string {
-	switch h % 6 {
-	case 0:
-		return fmt.Sprintf("0x%04X", h>>48)
-	case 1:
-		return fmt.Sprintf("%02X:%02X:%02X", h>>56, h>>48&0xFF, h>>40&0xFF)
-	case 2:
-		return fmt.Sprintf("%02d.%02dN %03d.%02dW", h>>8%90, h>>16%100, h>>24%180, h>>32%100)
-	case 3:
-		return fmt.Sprintf("NC-%03X", h>>52)
-	case 4:
-		return fmt.Sprintf("%03d.%d MHZ", 88+h>>8%20, h>>16%10)
+// runeWidth is the cell width of r, printable ASCII without a lookup.
+func runeWidth(r rune) int {
+	if r >= ' ' && r < 0x7F {
+		return 1
 	}
-	return fmt.Sprintf("%08b", h>>56)
+	return ansi.StringWidth(string(r))
+}
+
+// textRune reports whether r is text: printable, not a space, not a box
+// drawing border or a block shade.
+func textRune(r rune) bool {
+	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F)
+}
+
+// microStyles color the scrambled cells.
+var microStyles = []lipgloss.Style{stCyanBold, stRedBold, stYellowB}
+
+// microGlitch scrambles the spans of the live micro-glitch in lines, but
+// on line spared. Each span is microSpanMin..microSpanMax cells of one
+// text run, picked from the seed; its cells hold noise glyphs or letters,
+// changing every microTick, and after microHold of its time they resolve
+// left to right back to the text, like the title on a song change. Only
+// scrambled cells change; the others keep their text and style.
+func (m Model) microGlitch(lines []string, spared int, now time.Time) {
+	runs := textRuns(lines, spared)
+	if len(runs) == 0 {
+		return
+	}
+	elapsed := now.Sub(m.fx.microStart)
+	for i := range m.fx.microN {
+		d := microDuration(m.seed, m.fx.microSeq, i)
+		if elapsed >= d {
+			continue
+		}
+		h := mix(m.seed, saltMicro, m.fx.microSeq, uint64(i))
+		r := runs[h%uint64(len(runs))]
+		n := min(microSpanMin+int(h>>8%(microSpanMax-microSpanMin+1)), len(r.xs))
+		xs := r.xs[int(h>>16%uint64(len(r.xs)-n+1)):][:n]
+		resolved := 0
+		if p := float64(elapsed) / float64(d); p > microHold {
+			resolved = int((p - microHold) / (1 - microHold) * float64(n))
+		}
+		bucket := uint64(elapsed / microTick)
+		for j := resolved; j < n; j++ {
+			c := mix(h, bucket, uint64(j))
+			if j > resolved && unit(c) >= 0.75 {
+				continue // the first unresolved cell always flickers
+			}
+			glyph := string(glitchGlyphs[c>>16%uint64(len(glitchGlyphs))])
+			if c>>8%3 == 0 {
+				glyph = string(rune('A' + c>>24%26))
+			}
+			style := microStyles[c>>40%uint64(len(microStyles))]
+			lines[r.y] = overlay(lines[r.y], xs[j], style.Render(glyph))
+		}
+	}
 }
 
 // noiseGlyphs replace cells during a burst.
@@ -389,45 +507,4 @@ func shift(line string, k int, right bool) string {
 		return line
 	}
 	return out
-}
-
-// blank reports whether the cells [x0, x1) of line are all spaces.
-func blank(line string, x0, x1 int) bool {
-	runs := runsOf(line, ' ', x0, x1)
-	return len(runs) == 1 && runs[0] == [2]int{x0, x1}
-}
-
-// runsOf returns the runs of at least rainMinRun cells of line equal to
-// fill within the cells [x0, x1) (x1 < 0 for the end of the line), as
-// [start, end) pairs.
-func runsOf(line string, fill rune, x0, x1 int) [][2]int {
-	var runs [][2]int
-	x, start := 0, -1
-	flush := func(end int) {
-		if start >= 0 && end-start >= rainMinRun {
-			runs = append(runs, [2]int{start, end})
-		}
-		start = -1
-	}
-	for _, c := range ansi.Strip(line) {
-		w := ansi.StringWidth(string(c))
-		if w == 0 {
-			continue
-		}
-		inside := x >= x0 && (x1 < 0 || x+w <= x1)
-		switch {
-		case inside && c == fill:
-			if start < 0 {
-				start = x
-			}
-		default:
-			flush(x)
-		}
-		x += w
-	}
-	if x1 >= 0 {
-		x = min(x, x1)
-	}
-	flush(x)
-	return runs
 }

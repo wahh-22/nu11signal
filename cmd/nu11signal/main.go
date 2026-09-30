@@ -134,7 +134,7 @@ func parseFlags(args []string, output io.Writer) (options, error) {
 	fs := flag.NewFlagSet("nu11signal", flag.ContinueOnError)
 	fs.SetOutput(output)
 	fs.BoolVar(&opts.demo, "demo", false, "run against a simulated player (no Apple Music, no sound)")
-	fs.BoolVar(&opts.calm, "calm", false, "start with the signal effects (glitches, data rain, alerts) off; also "+calmEnv+"=1")
+	fs.BoolVar(&opts.calm, "calm", false, "start with the signal effects (glitches, text glitches, alerts) off; also "+calmEnv+"=1")
 	fs.BoolVar(&opts.version, "version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err

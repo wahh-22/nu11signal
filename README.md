@@ -423,19 +423,21 @@ leaving NOW PLAYING at least 30 columns.
 
 The screen now and then loses the signal: every 20–45 s a glitch burst of
 0.2–0.6 s tears a few rows sideways, corrupts a few cells and may run a
-static bar; about one burst in four flashes `NO SIGNAL`. Between bursts,
-changing codes (hex, coordinates, frequencies) run in the free space only
-(the header gap, the panel borders and rules, the blank rows of NOW PLAYING
-and the empty rows under the list), and every 30–60 s an alert such as
-`▲ ICE TRACE DETECTED` takes the status line for 4 s, never over a real
-message. The effects are drawn over the frame, so clicks and keys work
-during a burst.
+static bar; about one burst in four flashes `NO SIGNAL`. In between, the
+text on screen keeps glitching the way the NOW PLAYING title does on a song
+change: every 0.5–2 s one to three spans of 3–12 characters, anywhere on
+the frame (header, tabs, panel titles, rows, the player, buttons, key
+hints), scramble into noise and resolve back within 0.15–0.3 s. Only
+existing text is touched; blank space stays blank. Every 30–60 s an alert
+such as `▲ ICE TRACE DETECTED` takes the status line for 4 s, never over a
+real message, and a real message is never glitched. The effects are drawn
+over the frame, so clicks and keys work during a burst.
 
 `x` turns them off or on; `nu11signal --calm` (or `NU11SIGNAL_CALM=1`)
 starts with them off. They pause while the SEARCH input or a NEW PLAYLIST
 name takes the keys, and on the tiny layout. They add no timer: the
-animation tick runs every 0.5 s while they are on (1 s when idle without
-them) and at about 15 fps during a burst only.
+animation tick sleeps until the next effect is due, and runs at about
+10 fps while a text glitch resolves and 15 fps during a burst only.
 
 ## Mouse
 
