@@ -354,6 +354,46 @@ func TestStateMessagesUpdateNowPlayingAndRearm(t *testing.T) {
 	}
 }
 
+// TestPausedEQFreezesAndTheTickSlowsDown checks that nothing animates,
+// and so nothing wakes the process ten times a second, once playback
+// stops: the bars decay flat within a few frames, the chain drops to the
+// idle tick, and further ticks leave the frame unchanged but for the
+// clock.
+func TestPausedEQFreezesAndTheTickSlowsDown(t *testing.T) {
+	c := newClock()
+	f := playbacktest.New()
+	m := loaded(t, f, c)
+	m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 225*time.Second)})
+	for range glitchFrames + 1 {
+		c.advance(fastTick)
+		m, _ = step(t, m, tickMsg{gen: m.tickGen})
+	}
+	if m.bars.flat() || !m.tickFast {
+		t.Fatal("playing: the EQ should move on the fast tick")
+	}
+	paused := playing(90*time.Second, 225*time.Second)
+	paused.Status = playback.StatusPaused
+	m, _ = step(t, m, stateMsg{state: paused})
+	// Every bar is at most 1 and decays by eqDecay per frame until it
+	// drops under 0.02: 0.6^8 < 0.02.
+	const settle = 8
+	for range settle {
+		c.advance(m.tickInterval())
+		m, _ = step(t, m, tickMsg{gen: m.tickGen})
+	}
+	if !m.bars.flat() {
+		t.Fatalf("EQ still moving %d frames after the pause: %v", settle, m.bars)
+	}
+	if m.tickFast || m.tickInterval() != idleTick {
+		t.Fatalf("paused tick = %v (fast %v), want %v", m.tickInterval(), m.tickFast, idleTick)
+	}
+	before := m.render()
+	m, _ = step(t, m, tickMsg{gen: m.tickGen})
+	if after := m.render(); after != before {
+		t.Fatalf("a paused tick at the same instant changed the frame:\n%s\n---\n%s", before, after)
+	}
+}
+
 func TestClosedChannelsShowSignalLost(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())

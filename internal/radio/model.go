@@ -50,6 +50,14 @@ const (
 	defaultCloseTimeout = 3 * time.Second
 )
 
+// RenderFPS is the frame rate the program's renderer should run at
+// (tea.WithFPS). Bubble Tea's default, 60, wakes the process 60 times a
+// second even when nothing changed, most of its idle cost; 20 frames a
+// second is a frame period (50 ms) no longer than any animation step
+// (fastTick, waveTick, burstTick, alertBlink), so no animation frame is
+// skipped, and it keeps a key press on screen within 50 ms.
+const RenderFPS = 20
+
 type authPhase int
 
 const (
