@@ -202,8 +202,9 @@ type burstLook struct {
 	sign    bool
 }
 
-// look is what the latest burst draws on animation frame frame of a frame
-// of n lines: 1..3 rows torn 1..2 cells sideways, a static bar on one
+// look is what the latest burst draws on tick frame (every redraw, not
+// the animation steps: see Model.animate) of a frame of n lines: 1..3
+// rows torn 1..2 cells sideways, a static bar on one
 // frame in three, 4..10 corrupted cells (twice as many with NO SIGNAL)
 // and, on a NO SIGNAL burst, the sign. It changes every frame.
 func (e effects) look(seed, frame uint64, n int) burstLook {

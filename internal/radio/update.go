@@ -41,7 +41,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen != m.tickGen {
 			return m, nil // superseded chain
 		}
-		return m.onTick()
+		return m.onTick(msg)
 	case authMsg:
 		return m.onAuth(msg)
 	case playlistsMsg:
@@ -208,12 +208,12 @@ func (m Model) onState(s playback.State) Model {
 	return m
 }
 
-func (m Model) onTick() (tea.Model, tea.Cmd) {
+func (m Model) onTick(msg tickMsg) (tea.Model, tea.Cmd) {
 	m.frame++
 	m.fx = m.fx.advance(m.now(), m.seed, m.fxActive())
-	m = m.trackPlay().pollLevels().stepBars().stepViz()
-	if m.glitch > 0 {
-		m.glitch--
+	m = m.trackPlay().pollLevels()
+	if m.animDue(msg) {
+		m = m.animate()
 	}
 	if m.status != "" && !m.now().Before(m.statusUntil) {
 		m.status = ""
@@ -222,6 +222,41 @@ func (m Model) onTick() (tea.Model, tea.Cmd) {
 	// so a held arrow key never floods the player.
 	m, read := m.readFavorites()
 	return m, tea.Batch(m.scheduleTick(), read)
+}
+
+// animDue reports whether tick msg steps the animation. A tick at the
+// animation's own interval always does (and sets its pace from now);
+// a redraw the effects brought early (an intro at introTick, a burst at
+// burstTick) only once the animation interval has passed since the
+// last step was due, so the effects never change how fast the bars,
+// the rain or the title glitch move. A step overdue by more than an
+// interval (the chain slept, or was rescheduled) starts the pace anew
+// instead of catching up.
+func (m *Model) animDue(msg tickMsg) bool {
+	now, d := m.now(), m.animInterval()
+	if !msg.redraw || m.animAt.IsZero() {
+		m.animAt = now
+		return true
+	}
+	if now.Sub(m.animAt) < d {
+		return false
+	}
+	m.animAt = m.animAt.Add(d)
+	if now.Sub(m.animAt) >= d {
+		m.animAt = now
+	}
+	return true
+}
+
+// animate takes one animation step: the bars, the rain after them, and
+// the title's song-change glitch.
+func (m Model) animate() Model {
+	m.animFrame++
+	m = m.stepBars().stepViz()
+	if m.glitch > 0 {
+		m.glitch--
+	}
+	return m
 }
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

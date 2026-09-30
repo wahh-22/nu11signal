@@ -329,7 +329,7 @@ func (m Model) titleLines() (string, string) {
 	case !m.hasState || m.state.Title == "":
 		return stMuted.Render("NO CARRIER"), stDim.Render("OPEN A PLAYLIST WITH [ENTER]")
 	}
-	title := glitchText(strings.ToUpper(m.state.Title), m.glitch, mix(m.seed, m.frame))
+	title := glitchText(strings.ToUpper(m.state.Title), m.glitch, mix(m.seed, m.animFrame))
 	return stCyanBold.Render(title), stRed.Render(strings.ToUpper(m.state.Artist))
 }
 
