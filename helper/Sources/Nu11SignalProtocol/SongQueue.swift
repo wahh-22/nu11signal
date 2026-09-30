@@ -202,15 +202,17 @@ public struct QueueSegments: Equatable {
         current.lowerBound > 0 ? QueueSegments(local: local, start: current.lowerBound - 1) : nil
     }
 
-    /// Where playing on past the queue's last entry goes (`next` on it, or
-    /// that song ending): the next segment or, with repeat all, the first
-    /// one. Nil leaves it to the player: `entry` (the current entry's
-    /// position among the queue's `entryCount`) is not the last, or the
-    /// list is played through, or is one segment the player wraps itself.
-    public func advance(entry: Int?, entryCount: Int, repeatAll: Bool) -> QueueSegments? {
+    /// Where playing on past the queue's last entry goes (`next` pressed
+    /// on it, or that song ending): the next segment or, after the last
+    /// one, the first one when NEXT was `pressed` (always: the player stops
+    /// at the end of its queue) or with repeat all. Nil leaves it to the
+    /// player: `entry` (the current entry's position among the queue's
+    /// `entryCount`) is not the last, or the list is played through, or is
+    /// one segment the player wraps itself with repeat all.
+    public func advance(entry: Int?, entryCount: Int, repeatAll: Bool, pressed: Bool) -> QueueSegments? {
         guard let entry, entry == entryCount - 1 else { return nil }
         if let next { return next }
-        guard repeatAll, !isWholeList else { return nil }
+        guard pressed || (repeatAll && !isWholeList) else { return nil }
         return QueueSegments(local: local, start: 0)
     }
 

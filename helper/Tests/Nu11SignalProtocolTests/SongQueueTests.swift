@@ -354,20 +354,34 @@ final class QueueSegmentsTests: XCTestCase {
 
     func testNextOnTheLastEntryMovesToTheNextSegment() throws {
         let s = segments("LLLC", start: 0)
-        XCTAssertEqual(try XCTUnwrap(s.advance(entry: 2, entryCount: 3, repeatAll: false)).current, 3..<4)
+        XCTAssertEqual(try XCTUnwrap(s.advance(entry: 2, entryCount: 3, repeatAll: false, pressed: false)).current, 3..<4)
         // Before the last entry, or with no current entry, the player skips.
-        XCTAssertNil(s.advance(entry: 1, entryCount: 3, repeatAll: false))
-        XCTAssertNil(s.advance(entry: nil, entryCount: 3, repeatAll: false))
+        XCTAssertNil(s.advance(entry: 1, entryCount: 3, repeatAll: false, pressed: false))
+        XCTAssertNil(s.advance(entry: nil, entryCount: 3, repeatAll: false, pressed: false))
     }
 
     func testTheLastSegmentWrapsToTheFirstOnlyWithRepeatAll() throws {
         let last = try XCTUnwrap(segments("LLLC", start: 0).next)
-        XCTAssertNil(last.advance(entry: 0, entryCount: 1, repeatAll: false))
-        let first = try XCTUnwrap(last.advance(entry: 0, entryCount: 1, repeatAll: true))
+        XCTAssertNil(last.advance(entry: 0, entryCount: 1, repeatAll: false, pressed: false))
+        let first = try XCTUnwrap(last.advance(entry: 0, entryCount: 1, repeatAll: true, pressed: false))
         XCTAssertEqual(first.current, 0..<3)
         XCTAssertEqual(first.start, 0)
         // A list played as one queue is wrapped by the player itself.
-        XCTAssertNil(segments("CLLL", start: 0).advance(entry: 3, entryCount: 4, repeatAll: true))
+        XCTAssertNil(segments("CLLL", start: 0).advance(entry: 3, entryCount: 4, repeatAll: true, pressed: false))
+    }
+
+    func testNextPressedOnTheLastSongOfTheListGoesBackToTheFirst() throws {
+        // Pressed on the last song, NEXT always wraps, with or without
+        // repeat all: from the last segment...
+        let last = try XCTUnwrap(segments("LLLC", start: 0).next)
+        let first = try XCTUnwrap(last.advance(entry: 0, entryCount: 1, repeatAll: false, pressed: true))
+        XCTAssertEqual(first.current, 0..<3)
+        XCTAssertEqual(first.start, 0)
+        // ...and from a list played as one queue, whose player stops there.
+        let whole = try XCTUnwrap(segments("CLLL", start: 2).advance(entry: 1, entryCount: 2, repeatAll: false, pressed: true))
+        XCTAssertEqual(whole.start, 0)
+        // Before the last entry it still leaves the skip to the player.
+        XCTAssertNil(segments("LLLL", start: 0).advance(entry: 2, entryCount: 4, repeatAll: false, pressed: true))
     }
 
     func testPreviousOnTheFirstEntryNearItsStartGoesBackASegment() throws {

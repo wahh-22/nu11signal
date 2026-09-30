@@ -464,13 +464,14 @@ final class CommandHandler {
     }
 
     /// Skips to the next entry or, on the queue's last entry, to the next
-    /// segment of the list (the first one with repeat all; see
+    /// segment of the list (after the last song, back to the first; see
     /// QueueSegments.advance).
     private func next() async throws {
         let at = queuePosition()
         guard let list,
               let segments = list.segments.advance(
-                entry: at.entry, entryCount: at.count, repeatAll: player.state.repeatMode == .all)
+                entry: at.entry, entryCount: at.count, repeatAll: player.state.repeatMode == .all,
+                pressed: true)
         else {
             try await player.skipToNextEntry()
             return
@@ -502,7 +503,7 @@ final class CommandHandler {
         guard generation == listGeneration, let list,
               let segments = list.segments.advance(
                 entry: list.segments.current.count - 1, entryCount: list.segments.current.count,
-                repeatAll: player.state.repeatMode == .all)
+                repeatAll: player.state.repeatMode == .all, pressed: false)
         else { return }
         emitter.suspendSegmentWatch()
         defer {
