@@ -65,13 +65,18 @@ public struct SongQueue<Item> {
 ///   copies but silently drops every catalog song, up front or inserted.
 ///   So it queues the local songs as their library copies and leaves the
 ///   catalog-only songs out (`skipped`).
+///
+/// `playSongs` plans one segment of the list at a time (see QueueSegments),
+/// so the songs a plan could not hold are played by another segment and
+/// `skipped` stays empty there.
 public struct QueuePlan<Item> {
     public enum Shape {
         /// Hand the player every item at once, starting at `start`.
         case upFront(items: [Item], start: Int)
         /// Queue `start` alone and, once it plays, insert `followers` at
         /// the tail. Songs before the start are not queued: the tail is
-        /// the only place songs can be added, and they would play last.
+        /// the only place songs can be added, and they would play last
+        /// (`playSongs` plays them as previous segments, see QueueSegments).
         case startThenAppend(start: Item, followers: [Item])
     }
 
@@ -130,6 +135,150 @@ public struct QueuePlan<Item> {
     }
 }
 
+/// A requested list split into segments the player can hold as one queue,
+/// so every song plays in list order (see QueuePlan for the queue kinds):
+/// - A segment starting with a local song is a library queue: the run of
+///   consecutive local songs up to the next catalog-only song, which a
+///   library queue would drop.
+/// - A segment starting with a catalog-only song is a catalog queue: it
+///   takes the local songs after it appended at its tail, so it runs to
+///   the end of the list (see `current` for the songs before its start).
+///
+/// Only the segment holding `start` is queued. The others are reached by
+/// moving on (`next`, `advance`) or back (`previous`, `back`), each a new
+/// QueueSegments of the same list whose start is the song to play: the
+/// first song after the current segment, or the last one before it.
+public struct QueueSegments: Equatable {
+    /// Whether each song of the list is in the Mac's local library.
+    public let local: [Bool]
+    /// The position in the list playback starts at.
+    public let start: Int
+    /// The positions of the songs queued now. A local start takes the local
+    /// songs right before it too, as a library queue can start at any
+    /// entry. A catalog start with local songs after it begins its segment:
+    /// it is queued alone and the rest appended at the tail, where earlier
+    /// songs would play last. Without local songs after it, it takes the
+    /// catalog-only songs right before it, all queued up front.
+    public let current: Range<Int>
+
+    /// How long into the first entry `previous` still goes back a segment:
+    /// past it the player's `skipToPreviousEntry` restarts the song (the
+    /// demo player models the same rule, see internal/playback/demo).
+    public static let restartThreshold: TimeInterval = 3
+
+    /// The caller guarantees `local.indices.contains(start)`.
+    public init(local: [Bool], start: Int) {
+        var lower = start
+        var upper = local.count
+        if local[start] {
+            while lower > 0, local[lower - 1] { lower -= 1 }
+            upper = start + 1
+            while upper < local.count, local[upper] { upper += 1 }
+        } else if !local[(start + 1)...].contains(true) {
+            while lower > 0, !local[lower - 1] { lower -= 1 }
+        }
+        self.local = local
+        self.start = start
+        self.current = lower..<upper
+    }
+
+    /// The start as a position in the current segment.
+    public var startInCurrent: Int { start - current.lowerBound }
+
+    /// Whether the current segment is the whole list, so the player alone
+    /// can play it through (and wrap it with repeat all).
+    public var isWholeList: Bool { current == local.indices }
+
+    /// The segment after the current one, from its first song; nil after
+    /// the last. It always starts with a catalog-only song: a catalog
+    /// segment runs to the end.
+    public var next: QueueSegments? {
+        current.upperBound < local.count ? QueueSegments(local: local, start: current.upperBound) : nil
+    }
+
+    /// The segment before the current one, from its last song; nil before
+    /// the first.
+    public var previous: QueueSegments? {
+        current.lowerBound > 0 ? QueueSegments(local: local, start: current.lowerBound - 1) : nil
+    }
+
+    /// Where playing on past the queue's last entry goes (`next` on it, or
+    /// that song ending): the next segment or, with repeat all, the first
+    /// one. Nil leaves it to the player: `entry` (the current entry's
+    /// position among the queue's `entryCount`) is not the last, or the
+    /// list is played through, or is one segment the player wraps itself.
+    public func advance(entry: Int?, entryCount: Int, repeatAll: Bool) -> QueueSegments? {
+        guard let entry, entry == entryCount - 1 else { return nil }
+        if let next { return next }
+        guard repeatAll, !isWholeList else { return nil }
+        return QueueSegments(local: local, start: 0)
+    }
+
+    /// Where `previous` goes: on the queue's first entry, before
+    /// `restartThreshold`, the previous segment; nil leaves it to the
+    /// player (going back within the queue, or restarting the song).
+    public func back(entry: Int?, playbackTime: TimeInterval) -> QueueSegments? {
+        guard entry == 0, playbackTime < Self.restartThreshold else { return nil }
+        return previous
+    }
+}
+
+/// Tells when the queue's last song ended by itself, from two consecutive
+/// observations of the player, so `playSongs` can play the next segment.
+///
+/// The player announces no end of queue, so it is inferred: the last
+/// observation had the last entry playing within `nearEnd` of its end,
+/// and now there is no current entry, another entry is current (the
+/// player went back to the first one, which repeat all plays and repeat
+/// off leaves paused), playback is not running at the very start or end
+/// of the song, or, with repeat all, a one-song queue restarted it. The
+/// helper stops watching while a command changes playback, so a command
+/// is never taken for an end.
+public enum SegmentEnd {
+    /// The player at one moment.
+    public struct Observation: Equatable {
+        /// The current entry's position in the queue; nil without one.
+        public var entry: Int?
+        public var entryCount: Int
+        /// Whether the playback status is playing.
+        public var playing: Bool
+        public var position: TimeInterval
+        /// The current song's duration in seconds; 0 when unknown.
+        public var duration: TimeInterval
+
+        public init(entry: Int?, entryCount: Int, playing: Bool, position: TimeInterval, duration: TimeInterval) {
+            self.entry = entry
+            self.entryCount = entryCount
+            self.playing = playing
+            self.position = position
+            self.duration = duration
+        }
+    }
+
+    /// How close to its end the last song must have been playing. State is
+    /// read at least every 500 ms while playing, so the last reading before
+    /// the end falls well within it.
+    public static let nearEnd: TimeInterval = 2.5
+
+    /// Whether the queue's last entry is playing its last seconds.
+    public static func isFinishing(_ o: Observation) -> Bool {
+        o.playing && o.entry != nil && o.entry == o.entryCount - 1
+            && o.duration > 0 && o.position >= o.duration - nearEnd
+    }
+
+    /// Whether the queue's last song ended between `before` and `now`.
+    /// With repeat "one" the player keeps playing that song: never.
+    public static func ended(before: Observation, now: Observation, repeatMode: String) -> Bool {
+        guard repeatMode != "one", isFinishing(before) else { return false }
+        guard let entry = now.entry else { return true }
+        if entry != before.entry { return true }
+        if !now.playing {
+            return now.position < 1 || now.position >= now.duration - nearEnd
+        }
+        return repeatMode == "all" && now.entryCount == 1 && now.position < before.position - 1
+    }
+}
+
 /// Finds the songs the player silently left out of a queue it accepted.
 public enum QueueCheck {
     /// The `submitted` item ids (the ids of the items handed to the player,
@@ -155,6 +304,14 @@ public enum QueueCheck {
         }
         guard counts.values.allSatisfy({ $0 == 0 }) else { return nil }
         return dropped
+    }
+
+    /// Whether a `dropped` result is worth reading the queue again for: the
+    /// queue may take a moment to show an insert, so a conclusive check
+    /// showing drops is. An inconclusive one is not: the entries name the
+    /// items by another form of id, which waiting does not change.
+    public static func readAgain(_ dropped: [String]?) -> Bool {
+        dropped.map { !$0.isEmpty } ?? false
     }
 }
 

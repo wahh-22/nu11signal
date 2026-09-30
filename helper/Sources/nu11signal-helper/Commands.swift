@@ -19,6 +19,28 @@ final class CommandHandler {
     /// playback commands run one at a time, so one is enough.
     private var playbackDeadline = Date.distantFuture
 
+    /// The list the last `playSongs` or `playPlaylist` asked for, and the
+    /// segment of it the player holds (see QueueSegments); nil once
+    /// playback stops or a play fails. `next`, `previous` and the end of
+    /// the segment's last song move to another segment of it.
+    private var list: PlayingList? {
+        didSet { listGeneration += 1 }
+    }
+
+    /// Counts the changes of `list`, so a segment end noticed before a
+    /// change is not acted on after it (see `segmentEnded`).
+    private(set) var listGeneration = 0
+
+    private struct PlayingList {
+        /// The found songs, in the requested order.
+        let songs: [Song]
+        /// The local library's copies of songs, keyed by catalog id.
+        let copies: [String: Song]
+        var segments: QueueSegments
+        /// The command that asked for the list, for the log.
+        let context: String
+    }
+
     init(emitter: StateEmitter) {
         self.emitter = emitter
     }
@@ -44,6 +66,10 @@ final class CommandHandler {
     /// Runs one request and sends exactly one response. With a timeout, a
     /// command that has not finished in time is answered with an error.
     func respond(to request: Request, timeout: TimeInterval? = nil) async {
+        // A playback command changes the player: while it runs, the change
+        // must not be taken for the end of the segment (see SegmentEnd).
+        if timeout != nil { emitter.suspendSegmentWatch() }
+        defer { if timeout != nil { emitter.resumeSegmentWatch() } }
         do {
             let result: JSONObject
             if let timeout {
@@ -85,9 +111,9 @@ final class CommandHandler {
         case "playPlaylist": return try await playPlaylist(request)
         case "pause": player.pause(); return [:]
         case "resume": try await startPlayback(); return [:]
-        case "next": try await player.skipToNextEntry(); return [:]
-        case "previous": try await player.skipToPreviousEntry(); return [:]
-        case "stop": player.stop(); emitter.catalogIDs = [:]; return [:]
+        case "next": try await next(); return [:]
+        case "previous": try await previous(); return [:]
+        case "stop": player.stop(); emitter.catalogIDs = [:]; list = nil; return [:]
         case "seek": return try seek(request)
         case "setRepeat": player.state.repeatMode = Self.repeatMode(try RepeatSetting.requested(request)); return [:]
         default: throw CommandError("unknown command: \(request.cmd)")
@@ -355,44 +381,142 @@ final class CommandHandler {
     }
 
     /// Looks up the catalog songs and plays them from `ids[startIndex]`
-    /// (see `playSongs`). The result lists the ids the catalog did not
-    /// return as `"missing"`; the songs left out of the queue as
-    /// `"skipped"`: those the player cannot hold with this start song (see
-    /// `QueuePlan`), those it would not take when appended after the start
-    /// and those it silently dropped (see `droppedSongs`); and
-    /// `"startedAlone": true` when the player refused the queue and only
-    /// the start song could be queued (see `play`).
+    /// (see `playSongs`), one segment at a time (see `playSegment`): the
+    /// songs of other segments play when the player reaches them, so they
+    /// are not left out. The result lists the ids the catalog did not
+    /// return as `"missing"`; the songs of the first segment left out of
+    /// the queue as `"skipped"`; and `"startedAlone": true` when the player
+    /// refused the queue and only the start song could be queued.
     private func playCatalogSongs(_ ids: [String], from startIndex: Int, context: String) async throws -> JSONObject {
         let found = try await Self.catalogSongs(ids)
         // The catalog may return songs in any order; SongQueue restores the
         // requested one and turns startIndex into a position in the queue.
         let queue = try SongQueue(ids: ids, found: found, id: \.id.rawValue, startIndex: startIndex)
+        let copies = await Self.libraryCopies(of: queue.items)
+        let segments = QueueSegments(local: queue.items.map { copies[$0.id.rawValue] != nil }, start: queue.start)
+        let report = try await playSegment(
+            PlayingList(songs: queue.items, copies: copies, segments: segments, context: context))
+        var result: JSONObject = [:]
+        if !queue.missing.isEmpty { result["missing"] = queue.missing }
+        if !report.skipped.isEmpty { result["skipped"] = report.skipped }
+        if report.startedAlone { result["startedAlone"] = true }
+        return result
+    }
+
+    /// Hands the player the current segment of list and plays it; list
+    /// becomes the one playing. Returns the segment's songs left out of the
+    /// queue, by catalog id: those the plan could not hold (see QueuePlan;
+    /// none for a segment), those the player would not take appended after
+    /// the start and those it silently dropped (see `droppedSongs`); and
+    /// whether only the start song could be queued (see `play`).
+    private func playSegment(_ list: PlayingList) async throws -> (skipped: [String], startedAlone: Bool) {
+        let segments = list.segments
         let plan = QueuePlan(
-            items: queue.items, start: queue.start, id: \.id.rawValue,
-            libraryCopies: await Self.libraryCopies(of: queue.items))
+            items: Array(list.songs[segments.current]), start: segments.startInCurrent,
+            id: \.id.rawValue, libraryCopies: list.copies)
+        if !segments.isWholeList {
+            log("\(list.context): queueing songs \(segments.current.lowerBound + 1)-\(segments.current.upperBound) "
+                + "of \(list.songs.count) from song \(segments.start + 1); the others play as their own queues "
+                + "(the player cannot hold local and catalog-only songs in one queue in this order)")
+        }
         if !plan.skipped.isEmpty {
-            log("\(context): left out \(plan.skipped.count) songs (\(plan.skipped.joined(separator: ", "))): "
-                + "the player cannot queue them with this start song")
+            log("\(list.context): left out \(plan.skipped.count) songs (\(plan.skipped.joined(separator: ", "))): "
+                + "the player cannot queue them in this segment")
         }
         // Set before the queue changes: the player announces the new entry
         // as soon as it is handed the queue. A failed start leaves no queue
-        // to name (the player is stopped), so the mapping goes with it.
+        // to name (the player is stopped), so the mapping and the list go
+        // with it.
         emitter.catalogIDs = plan.catalogIDs
+        self.list = list
         let outcome: QueueOutcome
         do {
-            outcome = try await play(plan, context: context)
+            outcome = try await play(plan, context: list.context)
         } catch {
             emitter.catalogIDs = [:]
+            self.list = nil
             throw error
         }
-        let dropped = await droppedSongs(outcome.submitted, context: context)
+        let dropped = await droppedSongs(outcome.submitted, context: list.context)
         // Library copies are reported by the catalog id that was asked for.
         let skipped = plan.skipped + (outcome.notQueued + dropped).map { plan.catalogIDs[$0] ?? $0 }
-        var result: JSONObject = [:]
-        if !queue.missing.isEmpty { result["missing"] = queue.missing }
-        if !skipped.isEmpty { result["skipped"] = skipped }
-        if outcome.startedAlone { result["startedAlone"] = true }
-        return result
+        return (skipped, outcome.startedAlone)
+    }
+
+    /// Plays another segment of the list playing now, from its start; the
+    /// songs it leaves out are only logged, no response carrying them.
+    private func move(_ list: PlayingList, to segments: QueueSegments, context: String) async throws {
+        var moved = list
+        moved.segments = segments
+        let report = try await playSegment(moved)
+        if !report.skipped.isEmpty {
+            log("\(list.context): \(context): \(report.skipped.count) songs of the segment were not queued "
+                + "(\(report.skipped.joined(separator: ", ")))")
+        }
+    }
+
+    /// The current entry's position in the player's queue (nil without
+    /// one) and the number of entries.
+    private func queuePosition() -> (entry: Int?, count: Int) {
+        let entries = player.queue.entries
+        guard let current = player.queue.currentEntry else { return (nil, entries.count) }
+        return (entries.firstIndex { $0.id == current.id }, entries.count)
+    }
+
+    /// Skips to the next entry or, on the queue's last entry, to the next
+    /// segment of the list (the first one with repeat all; see
+    /// QueueSegments.advance).
+    private func next() async throws {
+        let at = queuePosition()
+        guard let list,
+              let segments = list.segments.advance(
+                entry: at.entry, entryCount: at.count, repeatAll: player.state.repeatMode == .all)
+        else {
+            try await player.skipToNextEntry()
+            return
+        }
+        try await move(list, to: segments, context: "next")
+    }
+
+    /// Skips to the previous entry or, on the queue's first entry near its
+    /// start, to the last song of the previous segment (see
+    /// QueueSegments.back).
+    private func previous() async throws {
+        guard let list,
+              let segments = list.segments.back(entry: queuePosition().entry, playbackTime: player.playbackTime)
+        else {
+            try await player.skipToPreviousEntry()
+            return
+        }
+        try await move(list, to: segments, context: "previous")
+    }
+
+    /// Called through the playback chain when the queue's last song ended
+    /// by itself (see StateEmitter.onSegmentEnd): plays the next segment,
+    /// or the first with repeat all. Does nothing when the list changed
+    /// since the end was noticed (generation), when the player plays the
+    /// list through itself, or when a new play is under way. Bounded by
+    /// `playbackTimeout` like a command; a failure is logged.
+    func segmentEnded(generation: Int) async {
+        // The queue's last entry ended: ask as if on it.
+        guard generation == listGeneration, let list,
+              let segments = list.segments.advance(
+                entry: list.segments.current.count - 1, entryCount: list.segments.current.count,
+                repeatAll: player.state.repeatMode == .all)
+        else { return }
+        emitter.suspendSegmentWatch()
+        defer {
+            emitter.resumeSegmentWatch()
+            emitter.checkForChange()
+        }
+        playbackDeadline = Date().addingTimeInterval(Self.playbackTimeout)
+        do {
+            try await Deadline.run(seconds: Self.playbackTimeout) {
+                try await self.move(list, to: segments, context: "end of segment")
+            }
+        } catch {
+            log("\(list.context): could not play the next segment after the last song ended: \(error)")
+        }
     }
 
     /// What `play` handed the player, by item id (a library copy by its
@@ -411,8 +535,9 @@ final class CommandHandler {
     /// QueueCheck), in submitted order. The queue may take a moment to
     /// show an insert, so while songs look dropped it is read again every
     /// 100 ms, within `dropCheckWindow` and what is left of the command's
-    /// budget. Drops are logged; a check that cannot tell (entries that do
-    /// not name the submitted items) reports nothing and is logged.
+    /// budget. Drops are logged. A check that cannot tell (entries that do
+    /// not name the submitted items) is logged and reports nothing at once:
+    /// reading again would not tell either.
     private func droppedSongs(_ submitted: [String], context: String) async -> [String] {
         let until = min(playbackDeadline, Date().addingTimeInterval(Self.dropCheckWindow))
         while true {
@@ -423,14 +548,13 @@ final class CommandHandler {
                 default: return nil
                 }
             }
-            let dropped = QueueCheck.dropped(submitted: submitted, queued: queued)
-            if dropped?.isEmpty == true { return [] }
+            guard let dropped = QueueCheck.dropped(submitted: submitted, queued: queued) else {
+                log("\(context): could not check the queue: its \(queued.count) entries do not name "
+                    + "the \(submitted.count) songs handed to the player")
+                return []
+            }
+            if !QueueCheck.readAgain(dropped) { return [] }
             if Date() >= until {
-                guard let dropped else {
-                    log("\(context): could not check the queue: its \(queued.count) entries do not name "
-                        + "the \(submitted.count) songs handed to the player")
-                    return []
-                }
                 log("\(context): the player left \(dropped.count) of the \(submitted.count) songs out of its queue "
                     + "(\(dropped.joined(separator: ", ")))")
                 return dropped

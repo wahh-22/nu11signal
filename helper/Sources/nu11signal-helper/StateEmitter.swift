@@ -6,7 +6,8 @@ import Nu11SignalProtocol
 /// Publishes `state` events: every 500 ms while playing (or seeking), and immediately
 /// whenever the playback status, the current queue entry, the repeat mode
 /// or the volume mode changes. It also hands each status to AppVolume,
-/// which starts and stops its tap with playback.
+/// which starts and stops its tap with playback, and watches for the
+/// queue's last song ending by itself (see `onSegmentEnd`).
 @MainActor
 final class StateEmitter {
     private let player = ApplicationMusicPlayer.shared
@@ -23,6 +24,34 @@ final class StateEmitter {
     /// `playSongs` replaces it with each queue it hands the player, and
     /// clears it when that fails or playback stops.
     var catalogIDs: [String: String] = [:]
+
+    /// Called when the queue's last song ended by itself (see SegmentEnd),
+    /// so `playSongs` can play the next segment of its list. Each reading
+    /// of the player (on every change, and every 500 ms) is compared with
+    /// the one before it; none is compared while the watch is suspended.
+    var onSegmentEnd: (() -> Void)?
+    private var lastObservation: SegmentEnd.Observation?
+    private var segmentWatchSuspended = false
+    /// Readings before this moment are ignored: the player may still show
+    /// the state from before the last command for a moment.
+    private var segmentWatchResumes = Date.distantPast
+    /// How long after a playback command the watch ignores the player.
+    private static let segmentWatchGrace: TimeInterval = 1
+
+    /// Stops the watch while a playback command changes the player, so
+    /// the change is never taken for the end of the queue.
+    func suspendSegmentWatch() {
+        segmentWatchSuspended = true
+        lastObservation = nil
+    }
+
+    /// Resumes the watch after a playback command, from a fresh reading
+    /// taken after `segmentWatchGrace`.
+    func resumeSegmentWatch() {
+        segmentWatchSuspended = false
+        lastObservation = nil
+        segmentWatchResumes = Date().addingTimeInterval(Self.segmentWatchGrace)
+    }
 
     func start() {
         stateSubscription = player.state.objectWillChange
@@ -44,6 +73,7 @@ final class StateEmitter {
         if snapshot.signature != lastSignature {
             emit(snapshot)
         }
+        watchSegmentEnd(snapshot)
     }
 
     /// Emits a state event unconditionally (e.g. after a seek, whose new
@@ -67,6 +97,24 @@ final class StateEmitter {
             emit(snapshot)
         }
         observeQueue()
+        watchSegmentEnd(snapshot)
+    }
+
+    /// Compares this reading of the player with the last one and calls
+    /// `onSegmentEnd` once when the queue's last song ended by itself.
+    private func watchSegmentEnd(_ snapshot: Snapshot) {
+        guard !segmentWatchSuspended, Date() >= segmentWatchResumes else { return }
+        let entries = player.queue.entries
+        let current = player.queue.currentEntry
+        let now = SegmentEnd.Observation(
+            entry: current.flatMap { current in entries.firstIndex { $0.id == current.id } },
+            entryCount: entries.count, playing: snapshot.status == "playing",
+            position: snapshot.position, duration: snapshot.duration)
+        defer { lastObservation = now }
+        guard let before = lastObservation,
+              SegmentEnd.ended(before: before, now: now, repeatMode: snapshot.repeatMode)
+        else { return }
+        onSegmentEnd?()
     }
 
     private func emit(_ snapshot: Snapshot) {

@@ -18,6 +18,8 @@ No library writes in automated tests; no system volume changes; spike playback o
 - [x] Q2 — Spike: does MusicKit accept a queue mixing catalog songs with library-copy Song items (or all library items) without Code=6? Route: delegated, spike/ only, consented playback.
 - [x] Q3 — Fix per Q2 result: stop dropping local songs. Route: delegated writer.
 
+- [ ] Q4 — Device test on list "Tocayo": NEXT never reaches the last song. Log: local start, 1825270819 (catalog-only "Dos de Corazón") left out, 3 entries queued, drop check inconclusive (entry ids differ in form → 1 s wait every play). Likely the catalog-only song comes after local ones, which a library queue cannot hold. Fix: play the list as consecutive segments (a run starting with a local song = library queue; a catalog-only start = startThenAppend); when the current segment ends (NEXT on its last entry, or natural end of its last song) the helper plays the next segment, and PREV on a segment's first entry goes back to the previous segment's last song. Inconclusive drop check returns at once instead of polling. Route: delegated writer (helper Swift + tests).
+
 ## Acceptance criteria
 - Playing "Canciones favoritas" from PLAY queues all 6 songs; NEXT advances through all of them.
 - Any song still left out is reported on the status line and in the log.
