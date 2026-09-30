@@ -422,6 +422,167 @@ func TestSilenceDriesTheRain(t *testing.T) {
 	}
 }
 
+// flatFrame is a frame of a flat, heavily compressed track: every band at
+// 0.5, up to 0.6 on the peak of each rainTestPeriod frames.
+func flatFrame(i, w, h int) vizInput {
+	in := vizFrame(0.5, w, h, true)
+	if i%rainTestPeriod == 0 {
+		for b := range in.Bands {
+			in.Bands[b] = 0.6
+		}
+	}
+	return in
+}
+
+// rainTestPeriod is how many frames apart the test tracks peak or beat.
+const rainTestPeriod = 5
+
+// meanSpeed is the average speed of v's drops; 0 without any.
+func meanSpeed(v rainViz) float64 {
+	if len(v.drops) == 0 {
+		return 0
+	}
+	var s float64
+	for _, d := range v.drops {
+		s += d.speed
+	}
+	return s / float64(len(v.drops))
+}
+
+// A flat track, its levels swinging only between 0.5 and 0.6, still
+// drives the rain: the drops falling speed up on the peaks and brake in
+// the troughs, not only the new ones.
+func TestFlatMusicStillMovesTheRain(t *testing.T) {
+	const w, h = 48, 12
+	v := rainViz{}
+	var peak, trough float64
+	var nPeak, nTrough int
+	for i := range 80 {
+		v = v.Step(flatFrame(i, w, h))
+		if i < 20 {
+			continue
+		}
+		switch i % rainTestPeriod {
+		case 0:
+			peak += meanSpeed(v)
+			nPeak++
+		case rainTestPeriod - 1:
+			trough += meanSpeed(v)
+			nTrough++
+		}
+	}
+	peak, trough = peak/float64(nPeak), trough/float64(nTrough)
+	if trough == 0 || peak < 1.4*trough {
+		t.Fatalf("mean drop speed %.2f on the peaks, %.2f in the troughs; want at least 1.4 times", peak, trough)
+	}
+}
+
+// Levels at or under rainFloor stay dry however they jitter: the gain
+// that stretches a flat track never makes rain out of near-silence.
+func TestJitterUnderTheFloorStaysDry(t *testing.T) {
+	v := rainViz{}
+	for i := range 60 {
+		in := vizFrame(0, 40, 10, true)
+		for b := range in.Bands {
+			in.Bands[b] = rainFloor * float64((i+b)%3) / 2
+		}
+		v = v.Step(in)
+		if len(v.drops) != 0 {
+			t.Fatalf("frame %d: %d drops from levels under the floor", i, len(v.drops))
+		}
+	}
+}
+
+// beatFrame is frame i of a flat track with a beat: the bands drift
+// slowly between 0.5 and 0.6 and every rainTestPeriod frames a beat lifts
+// them 0.08, the bass more, fading over the next frames.
+func beatFrame(i, w, h int) vizInput {
+	in := vizFrame(0, w, h, true)
+	kick := 0.08 / float64(int(1)<<(i%rainTestPeriod))
+	if i%rainTestPeriod == rainTestPeriod-1 {
+		kick = 0
+	}
+	for b := range in.Bands {
+		lift := kick
+		if b < len(in.Bands)/4 {
+			lift *= 1.5
+		}
+		in.Bands[b] = 0.55 + 0.05*math.Sin(float64(i)*2*math.Pi/40) + lift
+	}
+	return in
+}
+
+// A beat on a flat track pulses the whole rain, on the beat and only
+// then: the drops fall further and the heads burn brighter.
+func TestABeatPulsesTheRain(t *testing.T) {
+	const w, h = 48, 12
+	v := rainViz{}
+	onBeat, beats := 0, 0
+	for i := range 100 {
+		before := v
+		v = v.Step(beatFrame(i, w, h))
+		if i < 20 {
+			continue
+		}
+		pulsed := v.pulse == 1
+		if i%rainTestPeriod != 0 {
+			if pulsed {
+				t.Fatalf("frame %d, between beats, pulsed", i)
+			}
+			continue
+		}
+		beats++
+		if !pulsed {
+			continue
+		}
+		onBeat++
+		// Every drop falls further than its speed on the pulse.
+		old := map[uint64]rainDrop{}
+		for _, d := range before.drops {
+			old[d.seed] = d
+		}
+		for _, d := range v.drops {
+			if o, ok := old[d.seed]; ok && d.y-o.y < d.speed+0.5 {
+				t.Fatalf("frame %d: a drop fell %.2f on the pulse at speed %.2f", i, d.y-o.y, d.speed)
+			}
+		}
+		if got := rainHeadInk(0.2, max(v.flash, rainPulseFlash*v.pulse)); got != rainHeadInk(0.2, 1) {
+			t.Fatalf("frame %d: a faint head burns ink %d on the pulse", i, got)
+		}
+	}
+	if onBeat < beats-1 {
+		t.Fatalf("pulsed on %d of %d beats", onBeat, beats)
+	}
+	// And the pulse is brief: gone a few frames after the last beat.
+	for i := range 4 {
+		v = v.Step(vizFrame(0.55, w, h, true))
+		if i == 3 && v.pulse > 0.1 {
+			t.Fatalf("the pulse lingers at %.2f four frames on", v.pulse)
+		}
+	}
+}
+
+func TestSteadyOrSilentMusicNeverPulses(t *testing.T) {
+	for _, level := range []float64{0, rainFloor, 0.7} {
+		v := rainViz{}
+		for i := range 60 {
+			v = v.Step(vizFrame(level, 40, 10, true))
+			if v.pulse > 0 {
+				t.Fatalf("level %.2f frame %d: pulse %.2f", level, i, v.pulse)
+			}
+		}
+	}
+	// Nor does the drizzle, whatever the decorative bands do.
+	v := rainViz{}
+	for i := range 40 {
+		in := beatFrame(i, 40, 10)
+		in.Real, in.Wave = false, nil
+		if v = v.Step(in); v.pulse > 0 {
+			t.Fatalf("drizzle frame %d: pulse %.2f", i, v.pulse)
+		}
+	}
+}
+
 // vizModel is a model playing with readings at w x h after frames
 // animation frames with a reading each.
 func vizModel(t *testing.T, w, h, frames int, expanded bool) (Model, *playbacktest.Fake) {
