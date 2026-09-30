@@ -20,8 +20,8 @@ type Options struct {
 	Now func() time.Time
 	// Seed drives the decorative EQ and glitch animations.
 	Seed uint64
-	// Effects starts the signal effects on: glitch bursts, data rain and
-	// alerts (see glitch.go). Off by default, and in tests, so frames stay
+	// Effects starts the signal effects on: glitch bursts, text
+	// micro-glitches and alerts (see glitch.go). Off by default, and in tests, so frames stay
 	// fixed; keyEffects toggles them.
 	Effects bool
 	// CallTimeout bounds every Player call (default 8s).
@@ -397,19 +397,16 @@ func (m *Model) scheduleTick() tea.Cmd {
 	return tickAfter(m.tickInterval(), m.tickGen)
 }
 
-// tickInterval is the time to the next frame: burstTick during a glitch
-// burst, else fastTick while something moves, else idleTick, but at most
-// rainTick while the signal effects run.
+// tickInterval is the time to the next frame: fastTick while something
+// moves, else idleTick, paced by the signal effects while they run (see
+// effects.interval).
 func (m Model) tickInterval() time.Duration {
 	d := idleTick
 	if m.tickFast {
 		d = fastTick
 	}
 	if m.fxActive() {
-		if m.fx.bursting(m.now()) {
-			return burstTick
-		}
-		d = min(d, rainTick)
+		d = m.fx.interval(m.now(), d)
 	}
 	return d
 }

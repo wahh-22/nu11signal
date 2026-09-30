@@ -229,8 +229,21 @@ func TestTickRateRisesOnlyDuringBursts(t *testing.T) {
 	for range 20 {
 		m = tick(t, m) // let the EQ settle flat
 	}
-	if got := m.tickInterval(); got != rainTick {
-		t.Fatalf("idle tick with effects = %v, want %v", got, rainTick)
+	// Between the effects the tick sleeps until the next one is due.
+	for range 50 {
+		c.t = m.fx.microEnd
+		m = tick(t, m)
+		if m.fx.bursting(c.t) || m.fx.alerting(c.t) || m.fx.micro(c.t) {
+			continue
+		}
+		want := min(idleTick, m.fx.nextMicro.Sub(c.t), m.fx.nextBurst.Sub(c.t))
+		if got := m.tickInterval(); got != want {
+			t.Fatalf("idle tick with effects = %v, want %v (to the next effect)", got, want)
+		}
+		if want > microGapMax {
+			t.Fatalf("idle tick %v sleeps past the longest micro-glitch gap", want)
+		}
+		break
 	}
 	m, _ = press(t, m, keyEffects)
 	if got := m.tickInterval(); got != idleTick {
@@ -349,54 +362,6 @@ func TestAlertTextsVary(t *testing.T) {
 	}
 }
 
-func TestDataRainOnlyFillsFreeSpace(t *testing.T) {
-	for _, keys := range [][]string{nil, {"f"}, {"enter"}} {
-		c := newClock()
-		m := fxModel(t, c)
-		m, _ = press(t, m, keys...)
-		drew := false
-		for range 40 {
-			c.advance(rainTick)
-			if m.fx.bursting(c.t) || m.fx.alerting(c.t) {
-				continue
-			}
-			base, _ := m.baseLayout()
-			lines, _ := m.layout()
-			for y := range lines {
-				got, want := cells(lines[y]), cells(base[y])
-				if len(got) != len(want) {
-					t.Fatalf("keys %v line %d: %d cells, want %d", keys, y, len(got), len(want))
-				}
-				for x := range got {
-					if got[x] == want[x] {
-						continue
-					}
-					drew = true
-					if want[x] != " " && want[x] != "─" {
-						t.Fatalf("keys %v: rain over %q at (%d,%d):\n%s", keys, want[x], x, y, ansi.Strip(strings.Join(lines, "\n")))
-					}
-				}
-			}
-			// Readable lines stay whole: the station rows, the title and
-			// the footer.
-			out := ansi.Strip(strings.Join(lines, "\n"))
-			for _, text := range []string{"NIGHT DRIVE", "CHIPPIN' IN", "QUIT", "SYS NOMINAL"} {
-				if strings.Contains(ansi.Strip(strings.Join(base, "\n")), text) && !strings.Contains(out, text) {
-					t.Fatalf("keys %v: rain hid %q:\n%s", keys, text, out)
-				}
-			}
-			for _, y := range []int{len(lines) - 2, len(lines) - 1} {
-				if lines[y] != base[y] {
-					t.Fatalf("keys %v: rain on the status or hint line %d: %q", keys, y, ansi.Strip(lines[y]))
-				}
-			}
-		}
-		if !drew {
-			t.Fatalf("keys %v: no data rain in 20s", keys)
-		}
-	}
-}
-
 func TestGlitchGolden80x24(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -425,16 +390,205 @@ func TestBurstsSpareARealStatus(t *testing.T) {
 		if reflect.DeepEqual(lines[:n-2], base[:n-2]) {
 			t.Fatalf("burst (noSignal=%v) drew nothing while a status showed", noSignal)
 		}
-		if !reflect.DeepEqual(lines[n-2:], base[n-2:]) {
+		spared := lines[n-2:]
+		if m.fx.micro(c.t) {
+			spared = spared[:1] // a micro-glitch may scramble the hints
+		}
+		if !reflect.DeepEqual(spared, base[n-2:n-2+len(spared)]) {
 			t.Fatalf("burst (noSignal=%v) touched the status or hint line:\n%q\n%q", noSignal, ansi.Strip(lines[n-2]), ansi.Strip(lines[n-1]))
 		}
 	}
 }
 
-func TestRainToleratesAShortFrame(t *testing.T) {
+func TestMicroScheduleStaysInRange(t *testing.T) {
+	const stepDur = 20 * time.Millisecond
+	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
+	for seed := uint64(1); seed <= 10; seed++ {
+		e := effects{on: true}
+		seq, glitches, overlaps := uint64(0), 0, 0
+		var lastStart time.Time
+		for now := start; now.Before(start.Add(10 * time.Minute)); now = now.Add(stepDur) {
+			e = e.advance(now, seed, true)
+			if e.microSeq == seq {
+				continue
+			}
+			seq = e.microSeq
+			if e.microN < 1 || e.microN > microMaxN {
+				t.Fatalf("seed %d micro %d has %d glitches, want 1..%d", seed, seq, e.microN, microMaxN)
+			}
+			glitches += e.microN
+			if e.microN > 1 {
+				overlaps++
+			}
+			var longest time.Duration
+			for i := range e.microN {
+				d := microDuration(seed, seq, i)
+				if d < microMin || d > microMax {
+					t.Errorf("seed %d micro %d.%d lasts %v, want %v..%v", seed, seq, i, d, microMin, microMax)
+				}
+				longest = max(longest, d)
+			}
+			if got := e.microEnd.Sub(e.microStart); got != longest {
+				t.Errorf("seed %d micro %d ends after %v, want its longest glitch %v", seed, seq, got, longest)
+			}
+			from := lastStart
+			if from.IsZero() {
+				from = start
+			}
+			if gap := e.microStart.Sub(from); gap < microGapMin || gap > microGapMax+stepDur {
+				t.Errorf("seed %d micro %d comes %v after the last, want %v..%v", seed, seq, gap, microGapMin, microGapMax)
+			}
+			lastStart = e.microStart
+		}
+		if seq < uint64(10*time.Minute/microGapMax) {
+			t.Fatalf("seed %d: only %d micro-glitches in 10 minutes", seed, seq)
+		}
+		if overlaps == 0 || glitches <= int(seq) {
+			t.Fatalf("seed %d: micro-glitches never overlap", seed)
+		}
+	}
+}
+
+// forceMicro moves the clock to the next micro-glitch that starts outside
+// a burst and returns the model on its first frame.
+func forceMicro(t *testing.T, m Model, c *clock) Model {
+	t.Helper()
+	for range 200 {
+		c.t = m.fx.nextMicro
+		m = tick(t, m)
+		if !m.fx.micro(c.t) {
+			t.Fatalf("no micro-glitch at the scheduled time %v", c.t)
+		}
+		if !m.fx.bursting(c.t) && !m.fx.bursting(m.fx.microEnd) {
+			return m
+		}
+	}
+	t.Fatal("every micro-glitch fell into a burst")
+	return m
+}
+
+// textCell reports whether a base cell holds text a micro-glitch may
+// scramble: not blank, not a border or a shade.
+func textCell(s string) bool {
+	if s == "" || s == " " {
+		return false
+	}
+	r := []rune(s)[0]
+	return r < 0x2500 || r > 0x259F
+}
+
+func TestMicroGlitchScramblesOnlyExistingText(t *testing.T) {
+	for _, keys := range [][]string{nil, {"f"}, {"enter"}} {
+		c := newClock()
+		m := fxModel(t, c)
+		m, _ = press(t, m, keys...)
+		touched := map[int]bool{}
+		left, right := false, false
+		for range 150 {
+			m = forceMicro(t, m, c)
+			for frame := 0; c.t.Before(m.fx.microEnd); frame++ {
+				base, baseZones := m.baseLayout()
+				lines, zs := m.layout()
+				if !reflect.DeepEqual(zs, baseZones) {
+					t.Fatalf("keys %v: a micro-glitch changed the zones", keys)
+				}
+				if len(lines) != len(base) {
+					t.Fatalf("keys %v: %d lines, want %d", keys, len(lines), len(base))
+				}
+				changed := false
+				for y := range lines {
+					if got, want := ansi.StringWidth(lines[y]), ansi.StringWidth(base[y]); got != want {
+						t.Fatalf("keys %v line %d is %d cells, want %d", keys, y, got, want)
+					}
+					got, want := cells(lines[y]), cells(base[y])
+					for x := range got {
+						if got[x] == want[x] {
+							continue
+						}
+						if !textCell(want[x]) {
+							t.Fatalf("keys %v: micro-glitch over %q at (%d,%d), not text:\n%s", keys, want[x], x, y, ansi.Strip(strings.Join(lines, "\n")))
+						}
+						changed = true
+						touched[y] = true
+						if x < 40 {
+							left = true
+						} else {
+							right = true
+						}
+					}
+				}
+				if frame == 0 && !changed {
+					t.Fatalf("keys %v: micro-glitch %d left its first frame untouched", keys, m.fx.microSeq)
+				}
+				c.advance(microTick)
+			}
+			// Once over, the text is whole again.
+			c.t = m.fx.microEnd
+			if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
+				t.Fatalf("keys %v: micro-glitch %d did not resolve by its end", keys, m.fx.microSeq)
+			}
+		}
+		// All over the frame, not in one region.
+		if len(touched) < 12 || !left || !right {
+			t.Fatalf("keys %v: micro-glitches touched only lines %v (left %v, right %v)", keys, touched, left, right)
+		}
+	}
+}
+
+func TestMicroGlitchSparesARealStatus(t *testing.T) {
 	c := newClock()
 	m := fxModel(t, c)
-	base, _ := m.baseLayout()
-	short := append([]string(nil), base[:len(base)/2]...)
-	m.rain(short, c.now()) // must not index past the frame
+	for range 100 {
+		m = forceMicro(t, m, c)
+		m.setStatus("PLAY FAILED // HELPER GONE")
+		base, _ := m.baseLayout()
+		lines, _ := m.layout()
+		n := len(lines)
+		if lines[n-2] != base[n-2] {
+			t.Fatalf("micro-glitch touched the status line: %q", ansi.Strip(lines[n-2]))
+		}
+	}
+}
+
+func TestMicroTickRisesOnlyWhileAGlitchResolves(t *testing.T) {
+	c := newClock()
+	m := fxModel(t, c)
+	// While playing, micro-glitches ride the frames that run anyway.
+	m = forceMicro(t, m, c)
+	if got := m.tickInterval(); got != fastTick {
+		t.Fatalf("playing micro-glitch tick = %v, want %v", got, fastTick)
+	}
+	still := playing(90*time.Second, 225*time.Second)
+	still.Status = playback.StatusPaused
+	m, _ = step(t, m, stateMsg{state: still})
+	for range 20 {
+		m = tick(t, m) // let the EQ settle flat
+	}
+	if m.tickFast {
+		t.Fatal("tick still fast while paused")
+	}
+	m = forceMicro(t, m, c)
+	if got := m.tickInterval(); got != microTick {
+		t.Fatalf("micro-glitch tick = %v, want %v", got, microTick)
+	}
+	// The last frame lands on the glitch's end, which resolves it.
+	c.t = m.fx.microEnd.Add(-microTick / 2)
+	if got := m.tickInterval(); got != microTick/2 {
+		t.Fatalf("last micro-glitch tick = %v, want %v", got, microTick/2)
+	}
+	c.t = m.fx.microEnd
+	m = tick(t, m)
+	if got := m.tickInterval(); got == microTick || got == burstTick {
+		t.Fatalf("tick stayed fast after the micro-glitch: %v", got)
+	}
+}
+
+func TestPausedEffectsNeverMicroGlitch(t *testing.T) {
+	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
+	e := effects{on: true}
+	for now := start; now.Before(start.Add(5 * time.Minute)); now = now.Add(50 * time.Millisecond) {
+		if e = e.advance(now, 3, false); e.micro(now) {
+			t.Fatalf("paused effects micro-glitched at %v", now.Sub(start))
+		}
+	}
 }
