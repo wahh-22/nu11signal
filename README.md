@@ -424,16 +424,16 @@ leaving NOW PLAYING at least 30 columns.
 ## Signal effects
 
 The screen now and then loses the signal: every 20–45 s a sharp glitch
-burst of 0.2–0.6 s tears two to four rows 1–3 cells sideways, corrupts a
+burst of 0.6–1 s tears two to four rows 1–3 cells sideways, corrupts a
 handful of cells and, on about half its frames, runs a static bar across a
 row, all changing every frame; about one burst in four also flashes a bold
 red `NO SIGNAL` framed in red static for its whole length. Midway between
-two bursts comes a slow text wave: about 65% of the letters on the frame
+two bursts comes a slow text wave: about 40% of the letters on the frame
 (header, tabs, panel titles, rows, the player, buttons, key hints) scramble
 the way the NOW PLAYING title does on a song change, chosen letter by
 letter, so the words stay partly readable. It sweeps in from the left over
 its first third, holds, then types the letters back one by one, most of
-them early and a few lingering, within 1.6–2.4 s; the scrambled glyphs
+them early and a few lingering, within 1–2 s; the scrambled glyphs
 flicker every ~160 ms, each cell at its own moment, so the screen shimmers
 instead of jumping. So the screen alternates burst, wave, burst, something
 every 10–23 s. The wave touches only existing text, and only its

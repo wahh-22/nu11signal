@@ -33,8 +33,8 @@ import (
 const (
 	burstGapMin  = 20 * time.Second
 	burstGapMax  = 45 * time.Second
-	burstMin     = 200 * time.Millisecond
-	burstMax     = 600 * time.Millisecond
+	burstMin     = 600 * time.Millisecond
+	burstMax     = 1000 * time.Millisecond
 	noSignalOdds = 4
 	alertGapMin  = 30 * time.Second
 	alertGapMax  = 60 * time.Second
@@ -47,9 +47,9 @@ const (
 	// A word's letters turn one after another, left to right, over
 	// waveLetters of the wave; a scrambled cell shows a new glyph every
 	// waveGlyph, each cell at its own phase.
-	waveMin     = 1600 * time.Millisecond
-	waveMax     = 2400 * time.Millisecond
-	waveShare   = 0.65
+	waveMin     = 1000 * time.Millisecond
+	waveMax     = 2000 * time.Millisecond
+	waveShare   = 0.40
 	waveRamp    = 0.35
 	waveResolve = 0.5
 	waveLetters = 0.1
