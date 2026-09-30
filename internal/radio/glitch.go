@@ -10,8 +10,9 @@ import (
 )
 
 // Signal effects: the screen now and then seems to lose the signal. Every
-// burstGapMin..burstGapMax a sharp burst of burstMin..burstMax tears a few
-// rows sideways, corrupts a handful of cells and may run a static bar;
+// burstGapMin..burstGapMax a short burst of burstMin..burstMax tears a
+// row or few sideways, corrupts a handful of cells and may run a static
+// bar;
 // one burst in noSignalOdds also flashes NO SIGNAL, framed in red static.
 //
 // Everything is drawn over the finished frame (see Model.decorate), cell
@@ -151,11 +152,10 @@ func runeWidth(r rune) int {
 	return ansi.StringWidth(string(r))
 }
 
-// textRune reports whether r is text: printable, not a space, not a box
-// drawing border or a block shade, and not braille (the oscilloscope's
-// trace, see scopeViz).
+// textRune reports whether r is text: printable, not a space, and not a
+// box drawing border or a block shade.
 func textRune(r rune) bool {
-	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F) && (r < 0x2800 || r > 0x28FF)
+	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F)
 }
 
 // setCells replaces the characters of the one cell wide cells of line at
@@ -203,8 +203,8 @@ type burstLook struct {
 }
 
 // look is what the latest burst draws on animation frame frame of a frame
-// of n lines: 2..4 rows torn 1..3 cells sideways, a static bar on half
-// the frames, 6..14 corrupted cells (three times as many with NO SIGNAL)
+// of n lines: 1..3 rows torn 1..2 cells sideways, a static bar on one
+// frame in three, 4..10 corrupted cells (twice as many with NO SIGNAL)
 // and, on a NO SIGNAL burst, the sign. It changes every frame.
 func (e effects) look(seed, frame uint64, n int) burstLook {
 	l := burstLook{bar: -1, sign: e.noSignal}
@@ -213,16 +213,16 @@ func (e effects) look(seed, frame uint64, n int) burstLook {
 	}
 	r := mix(seed, saltBurst, e.burstSeq, frame)
 	rows := uint64(n)
-	for i := range 2 + r%3 {
+	for i := range 1 + r%3 {
 		h := mix(r, 1, i)
-		l.tears = append(l.tears, tear{y: int(h % rows), k: int(h>>8%3) + 1, right: h>>16%2 == 0})
+		l.tears = append(l.tears, tear{y: int(h % rows), k: int(h>>8%2) + 1, right: h>>16%2 == 0})
 	}
-	if r>>8%2 == 0 {
+	if r>>8%3 == 0 {
 		l.bar, l.barSeed = int(mix(r, 2)%rows), mix(r, 3)
 	}
-	noise := 6 + r>>16%9
+	noise := 4 + r>>16%7
 	if e.noSignal {
-		noise *= 3
+		noise *= 2
 	}
 	for i := range noise {
 		l.noise = append(l.noise, mix(r, 4, i))

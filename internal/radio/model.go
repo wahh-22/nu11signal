@@ -32,8 +32,8 @@ type Options struct {
 	CloseTimeout time.Duration
 	// Recents keeps recent search terms; nil keeps them in memory only.
 	Recents history.Recents
-	// Config is the settings file, read once at startup (the visualizer,
-	// see viz.go); nil keeps the defaults.
+	// Config is the settings file, read once at startup (see onConfig);
+	// nil keeps the defaults.
 	Config config.Source
 }
 
@@ -242,11 +242,9 @@ type Model struct {
 	barsDecorative bool
 	barsHandover   int
 	glitch         int
-	// viz is the visualizer the spectrum area draws, vizKind which one;
-	// vizMode is the setting, from configSource (see vizstate.go).
-	viz          visualizer
-	vizKind      vizKind
-	vizMode      vizMode
+	// rain is the visualizer the spectrum area draws (see viz.go);
+	// configSource the settings file (see vizstate.go).
+	rain         rainViz
 	configSource config.Source
 	// tickGen identifies the live tick chain; ticks from older chains are
 	// dropped so rescheduling never doubles the frame rate.
@@ -296,7 +294,6 @@ func New(p playback.Player, opts Options) Model {
 		stack:        []frame{{kind: viewStations}},
 		volumeBusy:   true, // Init reads the volume
 		fx:           effects{on: opts.Effects},
-		viz:          barsViz{},
 		configSource: opts.Config,
 
 		input:         in,
@@ -458,7 +455,7 @@ func tickAfter(d time.Duration, gen uint64) tea.Cmd {
 }
 
 func (m Model) animating() bool {
-	return m.isPlaying() || !m.bars.flat() || !m.viz.Idle() || m.glitch > 0 || m.introAnimating()
+	return m.isPlaying() || !m.bars.flat() || m.glitch > 0 || m.introAnimating()
 }
 
 func (m Model) isPlaying() bool {

@@ -429,17 +429,17 @@ func TestBurstsTearAndCorruptLikeASignalLoss(t *testing.T) {
 			for frame := range uint64(8) {
 				l := e.look(seed, frame, 24)
 				frames++
-				if n := len(l.tears); n < 2 || n > 4 {
-					t.Fatalf("seed %d: %d torn rows, want 2..4", seed, n)
+				if n := len(l.tears); n < 1 || n > 3 {
+					t.Fatalf("seed %d: %d torn rows, want 1..3", seed, n)
 				}
 				for _, tr := range l.tears {
-					if tr.k < 1 || tr.k > 3 || tr.y < 0 || tr.y >= 24 {
-						t.Fatalf("seed %d: tear %+v, want 1..3 cells on one of 24 rows", seed, tr)
+					if tr.k < 1 || tr.k > 2 || tr.y < 0 || tr.y >= 24 {
+						t.Fatalf("seed %d: tear %+v, want 1..2 cells on one of 24 rows", seed, tr)
 					}
 				}
-				lo, hi := 6, 14
+				lo, hi := 4, 10
 				if e.noSignal {
-					lo, hi = 3*lo, 3*hi
+					lo, hi = 2*lo, 2*hi
 				}
 				if n := len(l.noise); n < lo || n > hi {
 					t.Fatalf("seed %d: %d noise cells, want %d..%d", seed, n, lo, hi)
@@ -457,8 +457,8 @@ func TestBurstsTearAndCorruptLikeASignalLoss(t *testing.T) {
 			}
 		}
 	}
-	if frac := float64(bars) / float64(frames); frac < 0.4 || frac > 0.6 {
-		t.Errorf("static bar on %.2f of the burst frames, want about half", frac)
+	if frac := float64(bars) / float64(frames); frac < 0.25 || frac > 0.42 {
+		t.Errorf("static bar on %.2f of the burst frames, want about one in three", frac)
 	}
 }
 

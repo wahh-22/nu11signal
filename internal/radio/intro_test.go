@@ -499,9 +499,9 @@ func TestIntroTimings(t *testing.T) {
 		got, want time.Duration
 	}{
 		// Long enough to read as a resolve, short enough not to wait on.
-		{"introDur", introDur, 650 * time.Millisecond},
-		// Glyphs shimmer rather than flash.
-		{"introGlyph", introGlyph, 90 * time.Millisecond},
+		{"introDur", introDur, 900 * time.Millisecond},
+		// Glyphs drift rather than flash.
+		{"introGlyph", introGlyph, 140 * time.Millisecond},
 	} {
 		if tt.got != tt.want {
 			t.Errorf("%s = %v, want %v", tt.name, tt.got, tt.want)
@@ -539,29 +539,39 @@ func TestAnIntroHoldsThenResolvesEasedOut(t *testing.T) {
 	if len(m.intro.cells) == 0 {
 		t.Fatal("opening SEARCH started no intro")
 	}
-	// The hold: every new cell scrambled.
+	// The hold: about half the new cells scrambled, the same ones
+	// throughout (a glyph may briefly match the text it hides).
+	hold := introScrambled(m, c, 0)
 	for _, p := range []float64{0, introHold / 2, introHold - 0.01} {
-		if got := introScrambled(m, c, p); got < 0.99 {
-			t.Fatalf("at %.2f of the intro only %.2f of the cells scramble, want all (the hold)", p, got)
+		if got := introScrambled(m, c, p); got < 0.35 || got > 0.65 {
+			t.Fatalf("at %.2f of the intro %.2f of the cells scramble, want about half (the hold)", p, got)
 		}
 	}
-	// Then fewer and fewer, never more.
-	prev := 1.0
+	// Then fewer and fewer, never more (give or take a glyph that
+	// matches its text).
+	prev := hold
 	for p := introHold; p < 1; p += 0.02 {
 		got := introScrambled(m, c, p)
-		if got > prev+1e-9 {
+		if got > prev+0.05 {
 			t.Fatalf("at %.2f of the intro %.2f scramble, up from %.2f", p, got, prev)
 		}
-		prev = got
+		prev = min(prev, got)
 	}
 	// Eased out: most cells resolve in the first half of the resolve,
 	// the rest trail in gently over the second.
 	mid := introHold + (1-introHold)/2
-	if resolved := 1 - introScrambled(m, c, mid); resolved < 0.65 {
+	if resolved := 1 - introScrambled(m, c, mid)/hold; resolved < 0.6 {
 		t.Fatalf("halfway through the resolve %.2f of the cells resolved, want most (ease out)", resolved)
 	}
-	if late := introScrambled(m, c, mid+(1-introHold)/4); late <= 0 || late > 0.25 {
+	if late := introScrambled(m, c, mid+(1-introHold)/4) / hold; late > 0.3 {
 		t.Fatalf("three quarters through the resolve %.2f of the cells scramble, want a few trailing", late)
+	}
+	trailing := false
+	for p := mid; p < 1; p += 0.02 {
+		trailing = trailing || introScrambled(m, c, p) > 0
+	}
+	if !trailing {
+		t.Fatal("nothing trails in over the second half of the resolve")
 	}
 	// Resolved at the end, to the very frame.
 	c.t = m.intro.start.Add(introDur)
@@ -607,5 +617,67 @@ func TestIntroGlyphsShimmer(t *testing.T) {
 	}
 	if len(moments) < 8 {
 		t.Fatalf("the glyphs changed at only %d moments", len(moments))
+	}
+}
+
+func TestAnIntroScramblesAboutHalfTheNewCells(t *testing.T) {
+	// Over many intros (seeds), about half of the new cells scramble,
+	// each cell's lot drawn from the seed: the same intro always picks
+	// the same cells.
+	n, total := 0, 0
+	for seed := uint64(1); seed <= 40; seed++ {
+		for y := range 3 {
+			for x := range 40 {
+				total++
+				if introScrambles(mix(seed, saltIntro, 1, uint64(y), uint64(x))) {
+					n++
+				}
+			}
+		}
+	}
+	if share := float64(n) / float64(total); share < 0.45 || share > 0.55 {
+		t.Fatalf("%.2f of the new cells scramble, want about half", share)
+	}
+	h := mix(7, saltIntro, 3, 2, 9)
+	if introScrambles(h) != introScrambles(h) {
+		t.Fatal("a cell's lot is not stable")
+	}
+	if introShare != 0.5 {
+		t.Errorf("introShare = %v, want 0.5", introShare)
+	}
+}
+
+func TestIntroGlyphsAreLight(t *testing.T) {
+	// Letters, digits and a few light symbols: no blocks, shades or half
+	// blocks, which read as aggressive; the title glitch keeps its own.
+	if len(introGlyphs) < 20 {
+		t.Fatalf("only %d intro glyphs", len(introGlyphs))
+	}
+	for _, r := range introGlyphs {
+		if r >= 0x2500 && r <= 0x259F || r > 0x7E || r <= ' ' || (r >= 'a' && r <= 'z') {
+			t.Errorf("intro glyph %q (%U) is not an uppercase letter, a digit or a light symbol", r, r)
+		}
+	}
+	if !slices.Contains(glitchGlyphs, '█') {
+		t.Error("the title glitch lost its blocks")
+	}
+}
+
+func TestAnIntroDrawsOnlyLightGlyphs(t *testing.T) {
+	c := newClock()
+	m := introModel(t, c)
+	m, _ = press(t, m, "/")
+	for p := 0.0; p < 1; p += 0.05 {
+		c.t = m.intro.start.Add(time.Duration(p * float64(introDur)))
+		base, _ := m.baseLayout()
+		lines, _ := m.layout()
+		for y, xs := range scrambledAt(base, lines) {
+			got := cells(lines[y])
+			for _, x := range xs {
+				if !slices.Contains(introGlyphs, []rune(got[x])[0]) {
+					t.Fatalf("at %.2f cell %d,%d shows %q, not an intro glyph", p, x, y, got[x])
+				}
+			}
+		}
 	}
 }

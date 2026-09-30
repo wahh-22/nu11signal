@@ -416,11 +416,11 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	lines = append(lines, " "+loop)
 
 	if eqRows := vizRows(ih, len(lines)); eqRows > 0 {
-		// Sit the visualizer on the bottom edge of the panel.
+		// Sit the rain on the bottom edge of the panel.
 		for len(lines)+eqRows < ih {
 			lines = append(lines, "")
 		}
-		for _, row := range m.activeViz().Render(inner, eqRows) {
+		for _, row := range m.rain.Render(inner, eqRows) {
 			lines = append(lines, " "+row)
 		}
 	}

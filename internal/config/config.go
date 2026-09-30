@@ -1,10 +1,12 @@
 // Package config reads the user's settings file, config.json in the
 // nu11signal directory of the user's config directory:
 //
-//	{"visualizer": "synthwave"}
+//	{"visualizer": "rain"}
 //
 // The file is optional and only read: nu11signal never creates or writes
-// it. Unknown fields are ignored; what a value means is the UI's business.
+// it. Unknown fields are ignored; what a value means is the UI's business
+// (today the UI reads the visualizer and ignores it: rain is the only
+// one).
 package config
 
 import (
@@ -18,7 +20,8 @@ import (
 // Config is the content of the settings file. A zero field is a setting
 // the file leaves out.
 type Config struct {
-	// Visualizer names the NOW PLAYING visualizer, as written.
+	// Visualizer names the NOW PLAYING visualizer, as written. It is
+	// accepted for older files and ignored: the UI only has the rain.
 	Visualizer string `json:"visualizer"`
 }
 

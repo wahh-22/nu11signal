@@ -193,7 +193,6 @@ func (m Model) onAuth(msg authMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) onState(s playback.State) Model {
 	if s.SongID != m.state.SongID || s.Title != m.state.Title {
-		m = m.pickForSong(s)
 		m.glitch = glitchFrames
 		m.seekPending = false // the pending target belonged to another song
 	}

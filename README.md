@@ -2,7 +2,7 @@
 
 A lightweight terminal player for Apple Music, styled after a neon cyberpunk
 car radio: your library PLAYLISTS sit on a pseudo FM dial, with a
-now-playing panel, a volume readout, spectrum EQ bars, and Apple Music style catalog browsing
+now-playing panel, a volume readout, music-driven data rain, and Apple Music style catalog browsing
 (search, artist pages, albums, songs, and playlists).
 
 It plays through a tiny windowless MusicKit helper (about 31 MB RSS measured
@@ -65,9 +65,10 @@ Apple Music access.
 | Helper | `helper/` | SwiftPM package; `build.sh` bundles and signs the `.app` |
 
 MusicKit exposes no audio samples, but in [app volume](#app-volume) mode the
-helper renders the music itself, so the EQ bars show its real spectrum (see
-[Spectrum](#spectrum)). Otherwise (system volume, `--demo`, macOS before 15)
-the bars are decorative: they follow the playback state, not the sound.
+helper renders the music itself, so the rain plays its real spectrum (see
+[Spectrum](#spectrum) and [Rain](#rain)). Otherwise (system volume,
+`--demo`, macOS before 15) the rain is decorative: it follows the playback
+state, not the sound.
 
 ## Requirements
 
@@ -340,7 +341,6 @@ PLAYLISTS (and anywhere the key is not taken by the view):
 | `esc` | Back one view |
 | `r` | Retry loading the playlists after a failure |
 | `x` | Turn the signal effects off or on (see [Signal effects](#signal-effects)) |
-| `v` | Show the next visualizer, for this session (see [Visualizers](#visualizers)) |
 | `q` / `ctrl+c` | Quit |
 
 SEARCH (typing goes to the input, so letter shortcuts are off):
@@ -424,10 +424,10 @@ leaving NOW PLAYING at least 30 columns.
 
 ## Signal effects
 
-The screen now and then loses the signal: every 10–22 s a sharp glitch
-burst of 0.6–1 s tears two to four rows 1–3 cells sideways, corrupts a
-handful of cells and, on about half its frames, runs a static bar across a
-row, all changing every frame; about one burst in four also flashes a bold
+The screen now and then loses the signal: every 10–22 s a short glitch
+burst of 0.6–1 s tears one to three rows 1–2 cells sideways, corrupts a
+few cells (4–10, twice as many on NO SIGNAL) and, on about one frame in
+three, runs a static bar across a row, all changing every frame; about one burst in four also flashes a bold
 red `NO SIGNAL` framed in red static for its whole length. A real message
 on the status line is never glitched. The effects are drawn over the
 frame, so clicks and keys work during a burst.
@@ -435,12 +435,13 @@ frame, so clicks and keys work during a burst.
 New content scrambles in: when text appears that was not on screen
 (another tab or page, a list or search results arriving, the ADD TO
 PLAYLIST picker or NEW PLAYLIST editor opening, a new artist, album or feed
-in NOW PLAYING), its new characters show glitch glyphs, the way the NOW
-PLAYING title does on a song change, each keeping its color. They hold for
-a moment, then resolve left to right within about 0.65 s, quickly at first
-and settling gently at the end; the glyphs shimmer every ~90 ms, each cell
-at its own moment, instead of jumping all at once. Only text that changed
-intros: the clock, progress, volume and visualizer never do, moving the
+in NOW PLAYING), about half of its new characters (a seeded pick) show
+light glyphs, uppercase letters, digits and a few thin symbols, each
+keeping its color. They hold for a moment, then resolve left to right
+within about 0.9 s, quickly at first and settling gently at the end; the
+glyphs drift every ~140 ms, each cell at its own moment, instead of jumping
+all at once. Only text that changed intros: the clock, progress, volume and
+rain never do, moving the
 cursor or scrolling a list does not, and the SEARCH input and the playlist
 name never scramble while you type (live results intro once as they
 arrive). Intros follow the same switch as the effects.
@@ -452,49 +453,35 @@ tiny layout. They add no timer: the animation tick sleeps until the next
 burst is due; a burst runs at about 15 fps and an intro at 20 fps. The terminal is redrawn at most 20 times a second, not Bubble
 Tea's default 60, to keep the process's wakeups (and battery use) low.
 
-## Visualizers
+## Rain
 
-The spectrum area at the bottom of NOW PLAYING draws one of four
-visualizers, all in the bars' colors (yellow tips, bold red, red, dim red
-behind the music):
+The spectrum area at the bottom of NOW PLAYING draws data rain: hex digits
+and half-width katakana fall down every other column, a bright head over a
+trail that dims, in the spectrum's colors (yellow, bold red, red, dim red).
+In app volume mode (see [Spectrum](#spectrum)) it plays the music:
 
-| Name | Look |
-|------|------|
-| `bars` | The equalizer bars (the default) |
-| `oscilloscope` | The waveform traced in braille dots (2 x 4 per cell) around a dim center axis, colored by how far it swings; a slow auto-gain lets loud passages reach the edges while quiet ones stay smaller |
-| `rain` | Data rain: hex digits and half-width katakana fall down every other column; a silent band stays dry, and the louder the band under a column, the more, faster, longer and brighter its drops (yellow heads when loud) |
-| `synthwave` | A horizon across the middle with the spectrum standing above it as a solid mountain range (bass on the left), mirrored dim below over a perspective grid that scrolls toward you and glows with the bass |
+- Each column follows the band under it through a curve that keeps quiet
+  bands completely dry and stands the loud ones out: the louder the band,
+  the more often drops start there, the faster and longer they fall, and
+  the brighter their heads burn, up to yellow. Silence is dry.
+- A hit (a band jumping over its recent average, the bass counting more)
+  bursts: a bass hit sends a wave of new drops across every sounding
+  column, a higher one under its own band, as many as the hit is strong,
+  and every head flashes brighter for a few frames. A steady passage never
+  flashes.
+- The waveform's loudness scales how often drops start.
 
-Choose one in `nu11signal/config.json` under `os.UserConfigDir()`
-(`~/Library/Application Support/nu11signal/config.json` on macOS):
+Without readings (system volume, `--demo`, macOS before 15) it drizzles
+slowly and dimly instead. When paused the rain holds still and the
+animation tick slows down to once a second. It draws on the existing
+animation frames, from the seed: the signal effects run over it.
 
-```json
-{"visualizer": "synthwave"}
-```
-
-The name is case-insensitive. `"random"` picks a visualizer per song: a
-hash of the song's id chooses it, never the one just shown, so the same
-song after the same visualizer always gets the same one. nu11signal only
-reads the file, once at startup, and never creates it: without it you get
-`bars`. A file that is not valid JSON, or names an unknown visualizer,
-also gives `bars`, and the status line says so once (so does the retired
-`waterfall`). Demo mode reads it
-too.
-
-`v` shows the next visualizer (bars, oscilloscope, rain, synthwave, then
-bars again) for this session only, with a brief
-`VISUALIZER // NAME` on the status line; the file is left alone. In random
-mode `v` cycles the same way, and the next song picks at random again.
-
-Every visualizer draws the player's readings in app volume mode (see
-[Spectrum](#spectrum)): the bands, and for the oscilloscope the waveform.
-Without readings (system volume, `--demo`, macOS before 15) they run on
-the decorative bars: the oscilloscope draws a smooth synthetic wave as
-loud as the bars and the rain turns to a slow, dim drizzle. When paused they
-settle as the bars do (the oscilloscope's trace flattens, the synthwave
-mountains fall, the rain holds still), so the animation
-tick slows down to once a second. They draw on the existing animation
-frames; the signal effects run over any of them.
+The other visualizers (bars, oscilloscope, synthwave, random) and the `v`
+key are gone. A `nu11signal/config.json` under `os.UserConfigDir()`
+(`~/Library/Application Support/nu11signal/config.json` on macOS) is still
+read, once at startup and never written, but its `"visualizer"` value,
+whatever it names, is accepted and ignored without a notice; a file that is
+not valid JSON says so once on the status line.
 
 ## Mouse
 
@@ -603,7 +590,7 @@ it (fast attack, a fall of about a second) and emits
 `{"event":"levels","bands":[0-100, ...],"wave":[-100-100, ...]}`: `wave` is
 the same 2048 samples decimated to 64 points, each keeping its stretch's
 largest swing (so a transient survives), in hundredths of full scale, for
-the oscilloscope (see [Visualizers](#visualizers)); a helper that omits it
+the rain's overall intensity (see [Rain](#rain)); a helper that omits it
 still works. The TUI resamples the 24 bands to
 the bars the panel has room for on its own 10 fps playing frame. When a
 song starts or resumes in app mode the bars hold where they are (usually

@@ -12,13 +12,13 @@
 │                                              │ │                             │
 │                                              │ │ ╱▒◀◀ ╱ ╱ ❚❚ ╱ ╱ ▶▶ ╱ ╱ ⤢ ╱  │
 │                                              │ │ ╱ - ╱ VOL --          ╱ + ╱ │
-│                                              │ │ ╱ ↻ LOOP OFF ╱           A  │
+│                                              │ │ ╱ ↻ LOOP OFF ╱              │
+│                                              │ │   ﾎ           ﾔ ｻ           │
+│                                              │ │   ﾜ           ﾖ ｮ           │
+  │                                              │ │   ﾀ             ｫ          
 │                                              │ │                             │
-│                                              │ │ ▇             ▂             │
-   │                                              │ │ █ ▃           █     ▂     
-│                                              │ │ █ █ ▆ ▃ ▆     █   ▆ █ ▁ ▆ ▃ │
-│                                              │ │ █ █ █ █ █ ▅ █ █ █ █ █ █ █ █ │
-│               7                              │ │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │
+│                                              │ │                             │
+│               7                              │ │                             │
 └─────────────────────────── BAND FM // 03 CH ─╱ └───────────── NC-NET 0x2077 ─╱
 ░▒▓ SYS NOMINAL // BUF 0x5EF6                                                   
-  [ENTER] OPEN  [/] SCAN  [SPACE] PLAY/PAUSE  [→] PLAYER  [,/.] SEEK  [Q] QU
+[ENTER] OPEN  [/] SCAN  [SPACE] PLAY/PAUSE  [→] PLAYER  [,/.] SEEK  [Q] QUIT
