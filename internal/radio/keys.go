@@ -50,7 +50,7 @@ const (
 	// keyLoop cycles the repeat mode, OFF, ALL, ONE, as the LOOP button
 	// does, wherever the player keys act.
 	keyLoop = "o"
-	// keyEffects toggles the signal effects (glitch bursts, text glitches and
+	// keyEffects toggles the signal effects (glitch bursts, text waves and
 	// alerts) on the playlists and the pages, not where typing takes it.
 	keyEffects = "x"
 	// keyDelete and keyDeleteAlt delete the selected recent search.

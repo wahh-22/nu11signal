@@ -1,7 +1,10 @@
 package radio
 
 import (
+	"cmp"
 	"fmt"
+	"math"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -13,12 +16,11 @@ import (
 // Signal effects: the screen now and then seems to lose the signal. Every
 // burstGapMin..burstGapMax a burst of burstMin..burstMax tears a few rows
 // sideways, corrupts a few cells and may run a static bar; one burst in
-// noSignalOdds also flashes NO SIGNAL. Between bursts, the text on screen
-// keeps glitching like the title on a song change: every
-// microGapMin..microGapMax one to microMaxN spans of existing text, on any
-// line, scramble and resolve back over microMin..microMax, each cell
-// keeping its own style. Night City alerts take the empty status line now
-// and then.
+// noSignalOdds also flashes NO SIGNAL. Midway between two bursts a text
+// wave runs: for waveMin..waveMax about waveShare of the words on screen
+// scramble at once, like the title on a song change, each cell keeping its
+// own style, and resolve back word by word. Night City alerts take the
+// empty status line now and then.
 //
 // Everything is drawn over the finished frame (see Model.decorate), cell
 // for cell, so no line changes width and the clickable zones, laid out
@@ -26,7 +28,7 @@ import (
 // from the seed, the injected clock and the frame counter: tests replay
 // them exactly. No timer is added: the animation tick sleeps until the
 // next effect is due, and runs fast only while one animates (see
-// effects.interval): idle, a micro-glitch takes three frames at most.
+// effects.interval).
 const (
 	burstGapMin  = 20 * time.Second
 	burstGapMax  = 45 * time.Second
@@ -37,23 +39,18 @@ const (
 	alertGapMax  = 60 * time.Second
 	alertShow    = 4 * time.Second
 	alertBlink   = 500 * time.Millisecond
-	// A micro-glitch scrambles microSpanMin..microSpanMax text cells;
-	// microHold is the share of its time before its cells start to
-	// resolve, left to right. The next one starts microGapMin..microGapMax
-	// after it started, never before it resolved.
-	microGapMin  = 200 * time.Millisecond
-	microGapMax  = 800 * time.Millisecond
-	microMin     = 150 * time.Millisecond
-	microMax     = 300 * time.Millisecond
-	microMaxN    = 3
-	microSpanMin = 3
-	microSpanMax = 12
-	microHold    = 0.3
-	// burstTick is the frame time during a burst (about 15 fps);
-	// microTick is how often the noise of a micro-glitch changes on the
-	// frames that run anyway; minWake keeps a late tick from spinning.
+	// A text wave scrambles waveShare of the words for waveMin..waveMax;
+	// all of them hold for waveHold of its time, then each resolves at
+	// its own moment, the ones on the left somewhat sooner.
+	waveMin   = 600 * time.Millisecond
+	waveMax   = 1000 * time.Millisecond
+	waveShare = 0.75
+	waveHold  = 0.3
+	// burstTick is the frame time during a burst (about 15 fps), waveTick
+	// during a text wave (10 fps); minWake keeps a late tick from
+	// spinning.
 	burstTick = 66 * time.Millisecond
-	microTick = 100 * time.Millisecond
+	waveTick  = 100 * time.Millisecond
 	minWake   = 10 * time.Millisecond
 )
 
@@ -65,10 +62,8 @@ const (
 	saltAlertGap
 	saltAlert
 	saltBurst
-	saltMicroGap
-	saltMicroN
-	saltMicroLen
-	saltMicro
+	saltWaveLen
+	saltWave
 )
 
 // effects is the schedule of the signal effects. It is a value type:
@@ -87,12 +82,12 @@ type effects struct {
 	alertSeq             uint64
 	nextAlert            time.Time
 	alertStart, alertEnd time.Time
-	// microSeq numbers the micro-glitches; the latest runs microN spans
-	// from microStart until microEnd, the end of its longest one.
-	microSeq             uint64
-	microN               int
-	nextMicro            time.Time
-	microStart, microEnd time.Time
+	// waveSeq numbers the text waves; the latest runs from waveStart to
+	// waveEnd. nextWave, midway between the last burst (or the start)
+	// and the next, is zero once that wave ran.
+	waveSeq            uint64
+	nextWave           time.Time
+	waveStart, waveEnd time.Time
 }
 
 // advance moves the schedule to now. While the effects are not active
@@ -101,33 +96,27 @@ type effects struct {
 func (e effects) advance(now time.Time, seed uint64, active bool) effects {
 	if !active {
 		e.nextBurst, e.burstEnd, e.nextAlert, e.alertEnd = time.Time{}, time.Time{}, time.Time{}, time.Time{}
-		e.nextMicro, e.microEnd = time.Time{}, time.Time{}
+		e.nextWave, e.waveEnd = time.Time{}, time.Time{}
 		return e
-	}
-	if e.nextMicro.IsZero() {
-		e.nextMicro = now.Add(span(mix(seed, saltMicroGap, e.microSeq), microGapMin, microGapMax))
-	}
-	if !now.Before(e.nextMicro) {
-		e.microSeq++
-		e.microStart, e.microEnd = now, now
-		e.microN = microCount(mix(seed, saltMicroN, e.microSeq))
-		for i := range e.microN {
-			if end := now.Add(microDuration(seed, e.microSeq, i)); end.After(e.microEnd) {
-				e.microEnd = end
-			}
-		}
-		next := now.Add(span(mix(seed, saltMicroGap, e.microSeq), microGapMin, microGapMax))
-		e.nextMicro = later(next, e.microEnd)
 	}
 	if e.nextBurst.IsZero() {
 		e.nextBurst = now.Add(span(mix(seed, saltBurstGap, e.burstSeq), burstGapMin, burstGapMax))
+		e.nextWave = midway(now, e.nextBurst)
 	}
-	if !now.Before(e.nextBurst) {
+	switch {
+	case !now.Before(e.nextBurst):
+		// A wave still pending (a very late tick) gives way to the burst.
 		e.burstSeq++
 		e.burstStart = now
 		e.burstEnd = now.Add(span(mix(seed, saltBurstLen, e.burstSeq), burstMin, burstMax))
 		e.noSignal = mix(seed, saltNoSignal, e.burstSeq)%noSignalOdds == 0
 		e.nextBurst = e.burstEnd.Add(span(mix(seed, saltBurstGap, e.burstSeq), burstGapMin, burstGapMax))
+		e.nextWave = midway(e.burstEnd, e.nextBurst)
+	case !e.nextWave.IsZero() && !now.Before(e.nextWave):
+		e.waveSeq++
+		e.waveStart = now
+		e.waveEnd = now.Add(span(mix(seed, saltWaveLen, e.waveSeq), waveMin, waveMax))
+		e.nextWave = time.Time{}
 	}
 	if e.nextAlert.IsZero() {
 		e.nextAlert = now.Add(span(mix(seed, saltAlertGap, e.alertSeq), alertGapMin, alertGapMax))
@@ -148,36 +137,29 @@ func (e effects) alerting(now time.Time) bool {
 	return !now.Before(e.alertStart) && now.Before(e.alertEnd)
 }
 
-func (e effects) micro(now time.Time) bool {
-	return !now.Before(e.microStart) && now.Before(e.microEnd)
+func (e effects) waving(now time.Time) bool {
+	return !now.Before(e.waveStart) && now.Before(e.waveEnd)
 }
 
 // interval is the time to the next frame, d without the effects:
-// burstTick during a burst; d itself when it is no slower than microTick;
-// else, while a micro-glitch resolves, the time to its middle (partly
-// resolved) and then to its end (whole again), so that it takes three
-// frames; and d cut short so that the ▲ of an alert blinks and the next
-// burst or micro-glitch starts on time.
+// burstTick during a burst; during a text wave d when it is already as
+// fast as waveTick (the playing tick), else waveTick, cut short at the
+// wave's end; and otherwise d cut short so that the ▲ of an alert blinks
+// and the next wave or burst starts on time.
 func (e effects) interval(now time.Time, d time.Duration) time.Duration {
 	if e.bursting(now) {
 		return burstTick
 	}
-	if d <= microTick {
-		// Already as fast as a micro-glitch needs: it rides the frames
-		// that run anyway, a few milliseconds late at most.
-		return d
-	}
-	if e.micro(now) {
-		next := e.microEnd
-		if mid := e.microStart.Add(e.microEnd.Sub(e.microStart) / 2); now.Before(mid) {
-			next = mid
+	if e.waving(now) {
+		if d <= waveTick {
+			return d
 		}
-		return max(next.Sub(now), minWake)
+		return max(min(waveTick, e.waveEnd.Sub(now)), minWake)
 	}
 	if e.alerting(now) {
 		d = min(d, alertBlink)
 	}
-	for _, next := range []time.Time{e.nextMicro, e.nextBurst} {
+	for _, next := range []time.Time{e.nextWave, e.nextBurst} {
 		if !next.IsZero() {
 			d = min(d, max(next.Sub(now), minWake))
 		}
@@ -185,30 +167,8 @@ func (e effects) interval(now time.Time, d time.Duration) time.Duration {
 	return d
 }
 
-// microCount is how many spans a micro-glitch scrambles at once: mostly
-// one, now and then two or three.
-func microCount(h uint64) int {
-	switch h % 8 {
-	case 0:
-		return 3
-	case 1, 2:
-		return 2
-	}
-	return 1
-}
-
-// microDuration is how long span i of micro-glitch seq takes to resolve.
-func microDuration(seed, seq uint64, i int) time.Duration {
-	return span(mix(seed, saltMicroLen, seq, uint64(i)), microMin, microMax)
-}
-
-// later is the later of a and b.
-func later(a, b time.Time) time.Time {
-	if a.After(b) {
-		return a
-	}
-	return b
-}
+// midway is the time halfway from a to b.
+func midway(a, b time.Time) time.Time { return a.Add(b.Sub(a) / 2) }
 
 // span maps a hash to a duration in [lo, hi).
 func span(h uint64, lo, hi time.Duration) time.Duration {
@@ -287,13 +247,13 @@ func (m Model) decorate(lines []string) []string {
 	spared := -1
 	frame := out
 	if m.status != "" && len(out) > 2 {
-		// A real status stays readable: micro-glitches spare the status
-		// line and bursts the status and hint lines while one is showing.
+		// A real status stays readable: text waves spare the status line
+		// and bursts the status and hint lines while one is showing.
 		spared = len(out) - 2
 		frame = out[:len(out)-2]
 	}
-	if m.fx.micro(now) {
-		m.microGlitch(out, spared, now)
+	if m.fx.waving(now) {
+		m.textWave(out, spared, now)
 	}
 	if m.fx.bursting(now) {
 		m.burst(frame)
@@ -301,20 +261,19 @@ func (m Model) decorate(lines []string) []string {
 	return out
 }
 
-// textRun is a run of text cells on line y: the cells of xs, in order,
-// with at most one space between two of them.
+// textRun is a word on line y: the cells of xs, next to each other.
 type textRun struct {
 	y  int
 	xs []int
 }
 
-// textRuns finds the runs of at least microSpanMin text cells in lines,
-// but on line spared. A text cell is one printable, one cell wide
-// character that is not a space, a border or a shade; a wide or combined
-// character ends a run, so it is never split. A line whose characters do
-// not add up to its width is left out.
-func textRuns(lines []string, spared int) []textRun {
-	var runs []textRun
+// textWords finds the words in lines, but on line spared: the runs of
+// text cells with nothing between them. A text cell is one printable, one
+// cell wide character that is not a space, a border or a shade; a wide or
+// combined character ends a word, so it is never split. A line whose
+// characters do not add up to its width is left out.
+func textWords(lines []string, spared int) []textRun {
+	var words []textRun
 	for y, line := range lines {
 		if y == spared {
 			continue
@@ -322,13 +281,13 @@ func textRuns(lines []string, spared int) []textRun {
 		var found []textRun
 		cur := textRun{y: y}
 		flush := func() {
-			if len(cur.xs) >= microSpanMin {
+			if len(cur.xs) > 0 {
 				found = append(found, cur)
 			}
 			cur = textRun{y: y}
 		}
 		rs := []rune(ansi.Strip(line))
-		x, gap := 0, false
+		x := 0
 		for i, r := range rs {
 			w := runeWidth(r)
 			combined := i+1 < len(rs) && runeWidth(rs[i+1]) == 0
@@ -336,21 +295,17 @@ func textRuns(lines []string, spared int) []textRun {
 			case w == 0:
 			case w == 1 && textRune(r) && !combined:
 				cur.xs = append(cur.xs, x)
-				gap = false
-			case r == ' ' && !gap && len(cur.xs) > 0:
-				gap = true
 			default:
 				flush()
-				gap = false
 			}
 			x += w
 		}
 		flush()
 		if x == ansi.StringWidth(line) {
-			runs = append(runs, found...)
+			words = append(words, found...)
 		}
 	}
-	return runs
+	return words
 }
 
 // runeWidth is the cell width of r, printable ASCII without a lookup.
@@ -367,47 +322,50 @@ func textRune(r rune) bool {
 	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F)
 }
 
-// microGlitch scrambles the spans of the live micro-glitch in lines, but
-// on line spared. Each span is microSpanMin..microSpanMax cells of one
-// text run, picked from the seed; its cells hold noise glyphs or letters,
-// changing every microTick, and after microHold of its time they resolve
-// left to right back to the text, like the title on a song change. Only
-// the characters of the scrambled cells change: every cell keeps its
-// style, and the others their text too.
-func (m Model) microGlitch(lines []string, spared int, now time.Time) {
-	runs := textRuns(lines, spared)
-	if len(runs) == 0 {
+// textWave scrambles the words of the live text wave in lines, but on
+// line spared. The words are ranked by a hash of the wave and their place
+// and the first waveShare of them scramble: their cells hold noise glyphs
+// or letters, new ones every waveTick, until the word's own moment to
+// resolve, after waveHold of the wave and before its end, somewhat sooner
+// on the left. Only the characters of the scrambled cells change: every
+// cell keeps its style, and the others their text too.
+func (m Model) textWave(lines []string, spared int, now time.Time) {
+	words := textWords(lines, spared)
+	if len(words) == 0 {
 		return
 	}
-	elapsed := now.Sub(m.fx.microStart)
+	type pick struct {
+		w textRun
+		h uint64
+	}
+	picks := make([]pick, len(words))
+	for i, w := range words {
+		picks[i] = pick{w, mix(m.seed, saltWave, m.fx.waveSeq, uint64(w.y), uint64(w.xs[0]))}
+	}
+	slices.SortFunc(picks, func(a, b pick) int { return cmp.Compare(a.h, b.h) })
+	picks = picks[:int(math.Ceil(waveShare*float64(len(picks))))]
+
+	d := m.fx.waveEnd.Sub(m.fx.waveStart)
+	p := float64(now.Sub(m.fx.waveStart)) / float64(d)
+	bucket := uint64(now.Sub(m.fx.waveStart) / waveTick)
+	width := float64(max(m.width, 1))
 	repl := map[int]map[int]rune{}
-	for i := range m.fx.microN {
-		d := microDuration(m.seed, m.fx.microSeq, i)
-		if elapsed >= d {
+	for _, pk := range picks {
+		// Resolve somewhere in [waveHold, 1): 60% chance, 40% the column.
+		at := 0.6*unit(mix(pk.h, 1)) + 0.4*min(float64(pk.w.xs[0])/width, 1)
+		if p >= waveHold+(1-waveHold)*at {
 			continue
 		}
-		h := mix(m.seed, saltMicro, m.fx.microSeq, uint64(i))
-		r := runs[h%uint64(len(runs))]
-		n := min(microSpanMin+int(h>>8%(microSpanMax-microSpanMin+1)), len(r.xs))
-		xs := r.xs[int(h>>16%uint64(len(r.xs)-n+1)):][:n]
-		resolved := 0
-		if p := float64(elapsed) / float64(d); p > microHold {
-			resolved = int((p - microHold) / (1 - microHold) * float64(n))
-		}
-		bucket := uint64(elapsed / microTick)
-		for j := resolved; j < n; j++ {
-			c := mix(h, bucket, uint64(j))
-			if j > resolved && unit(c) >= 0.75 {
-				continue // the first unresolved cell always flickers
-			}
+		for j, x := range pk.w.xs {
+			c := mix(pk.h, bucket, uint64(j))
 			glyph := glitchGlyphs[c>>16%uint64(len(glitchGlyphs))]
 			if c>>8%3 == 0 {
 				glyph = rune('A' + c>>24%26)
 			}
-			if repl[r.y] == nil {
-				repl[r.y] = map[int]rune{}
+			if repl[pk.w.y] == nil {
+				repl[pk.w.y] = map[int]rune{}
 			}
-			repl[r.y][xs[j]] = glyph
+			repl[pk.w.y][x] = glyph
 		}
 	}
 	for y, cells := range repl {
