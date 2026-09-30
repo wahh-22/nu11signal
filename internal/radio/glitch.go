@@ -182,7 +182,13 @@ func (m Model) decorate(lines []string) []string {
 	out := append([]string(nil), lines...)
 	m.rain(out, now)
 	if m.fx.bursting(now) {
-		m.burst(out)
+		frame := out
+		if m.status != "" && len(out) > 2 {
+			// A real status stays readable: the burst spares the status
+			// and hint lines while one is showing.
+			frame = out[:len(out)-2]
+		}
+		m.burst(frame)
 	}
 	return out
 }
@@ -215,7 +221,7 @@ func (m Model) rain(lines []string, now time.Time) {
 	rows := func(x0, x1 int, trailingOnly bool) {
 		first := top + 1
 		if trailingOnly {
-			for y := top + bodyH - 2; y > top; y-- {
+			for y := min(top+bodyH-2, last-1); y > top; y-- {
 				if !blank(lines[y], x0, x1) {
 					first = y + 1
 					break

@@ -409,3 +409,26 @@ func TestGlitchGolden80x24(t *testing.T) {
 		})
 	}
 }
+
+func TestBurstsSpareARealStatus(t *testing.T) {
+	c := newClock()
+	m := fxModel(t, c)
+	for _, noSignal := range []bool{false, true, false, true} {
+		m = forceBurst(t, m, c, noSignal)
+		m.setStatus("PLAY FAILED // HELPER GONE")
+		base, _ := m.baseLayout()
+		lines, _ := m.layout()
+		n := len(lines)
+		if !reflect.DeepEqual(lines[n-2:], base[n-2:]) {
+			t.Fatalf("burst (noSignal=%v) touched the status or hint line:\n%q\n%q", noSignal, ansi.Strip(lines[n-2]), ansi.Strip(lines[n-1]))
+		}
+	}
+}
+
+func TestRainToleratesAShortFrame(t *testing.T) {
+	c := newClock()
+	m := fxModel(t, c)
+	base, _ := m.baseLayout()
+	short := append([]string(nil), base[:len(base)/2]...)
+	m.rain(short, c.now()) // must not index past the frame
+}
