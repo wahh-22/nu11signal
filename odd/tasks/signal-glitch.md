@@ -34,3 +34,9 @@ More Cyberpunk 2077 atmosphere (user request, 2026-09-30): the screen recurrentl
 - G1 review: commit `20c6f0c`, RDD high, 1018 lines, consent granted, lineage `review-f5975847bbaebc01`, 4 lenses, APPROVED, acknowledged (burned).
 - G1f (route: inline, one file + tests): rain's trailing-rows scan could index past a short frame (RED: panic index out of range [20] with length 12) → bounded by the frame; bursts spare the status and hint lines while a real status shows (RED: status line torn). GREEN: `go test -race ./...` 718 passed, `go vet`/`gofmt` clean. Not scheduled: name the layout offsets in rain, `blank` naming, rain x salt, precedence parentheses, `calmEnv` in the test, a test that `x` types in the inputs.
 - G1f review: lineage `review-066712dbecf9665c`, reliability lens, APPROVED, acknowledged (burned); the status-sparing test now also asserts the burst is active and draws on the rest of the frame.
+
+## Round 2 (user feedback, 2026-09-30)
+
+The user did not want new letters/codes in the background. They want the song-title change glitch (existing text scrambling and resolving) applied to EXISTING text, randomly and very often across the whole TUI, while keeping the periodic whole-screen burst.
+
+- [ ] G2 — Remove data rain; add frequent micro-glitches that scramble random spans of existing visible text (anywhere: titles, rows, labels, buttons, player, footer) and resolve back like the title glitch; keep bursts and alerts; spare the SEARCH input while typing and real status; measure CPU. Branch `feat/text-glitch`. Route: delegated.
