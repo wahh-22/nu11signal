@@ -36,6 +36,11 @@ final class CommandHandler {
     /// so it stays a small part of `playbackTimeout`.
     static let libraryCopiesTimeout: TimeInterval = 1.5
 
+    /// How long `droppedSongs` waits for the player's queue to show every
+    /// song handed to it before reporting the ones it lacks; bounded by
+    /// what is left of `playbackTimeout` too.
+    static let dropCheckWindow: TimeInterval = 1
+
     /// Runs one request and sends exactly one response. With a timeout, a
     /// command that has not finished in time is answered with an error.
     func respond(to request: Request, timeout: TimeInterval? = nil) async {
@@ -351,37 +356,87 @@ final class CommandHandler {
 
     /// Looks up the catalog songs and plays them from `ids[startIndex]`
     /// (see `playSongs`). The result lists the ids the catalog did not
-    /// return as `"missing"`, the songs left out because the player cannot
-    /// queue them (see `PreparedQueue`) as `"skipped"`, and `"startedAlone":
-    /// true` when only the start song could be queued (see `play`).
+    /// return as `"missing"`; the songs left out of the queue as
+    /// `"skipped"`: those the player cannot hold with this start song (see
+    /// `QueuePlan`), those it would not take when appended after the start
+    /// and those it silently dropped (see `droppedSongs`); and
+    /// `"startedAlone": true` when the player refused the queue and only
+    /// the start song could be queued (see `play`).
     private func playCatalogSongs(_ ids: [String], from startIndex: Int, context: String) async throws -> JSONObject {
         let found = try await Self.catalogSongs(ids)
         // The catalog may return songs in any order; SongQueue restores the
         // requested one and turns startIndex into a position in the queue.
         let queue = try SongQueue(ids: ids, found: found, id: \.id.rawValue, startIndex: startIndex)
-        let prepared = PreparedQueue(
+        let plan = QueuePlan(
             items: queue.items, start: queue.start, id: \.id.rawValue,
             libraryCopies: await Self.libraryCopies(of: queue.items))
-        if !prepared.skipped.isEmpty {
-            log("\(context): left out \(prepared.skipped.count) songs of the local library "
-                + "(\(prepared.skipped.joined(separator: ", "))): a catalog start cannot queue them")
+        if !plan.skipped.isEmpty {
+            log("\(context): left out \(plan.skipped.count) songs (\(plan.skipped.joined(separator: ", "))): "
+                + "the player cannot queue them with this start song")
         }
         // Set before the queue changes: the player announces the new entry
         // as soon as it is handed the queue. A failed start leaves no queue
         // to name (the player is stopped), so the mapping goes with it.
-        emitter.catalogIDs = prepared.catalogIDs
-        let startedAlone: Bool
+        emitter.catalogIDs = plan.catalogIDs
+        let outcome: QueueOutcome
         do {
-            startedAlone = try await play(prepared.items, from: prepared.start, context: context)
+            outcome = try await play(plan, context: context)
         } catch {
             emitter.catalogIDs = [:]
             throw error
         }
+        let dropped = await droppedSongs(outcome.submitted, context: context)
+        // Library copies are reported by the catalog id that was asked for.
+        let skipped = plan.skipped + (outcome.notQueued + dropped).map { plan.catalogIDs[$0] ?? $0 }
         var result: JSONObject = [:]
         if !queue.missing.isEmpty { result["missing"] = queue.missing }
-        if !prepared.skipped.isEmpty { result["skipped"] = prepared.skipped }
-        if startedAlone { result["startedAlone"] = true }
+        if !skipped.isEmpty { result["skipped"] = skipped }
+        if outcome.startedAlone { result["startedAlone"] = true }
         return result
+    }
+
+    /// What `play` handed the player, by item id (a library copy by its
+    /// own id).
+    private struct QueueOutcome {
+        /// Whether the player refused the queue and only the start song
+        /// was queued (with its followers appended when that worked).
+        var startedAlone = false
+        /// The items the player's queue should now hold.
+        var submitted: [String]
+        /// Items meant to follow the start that could not be appended.
+        var notQueued: [String] = []
+    }
+
+    /// The submitted item ids the player's queue does not hold (see
+    /// QueueCheck), in submitted order. The queue may take a moment to
+    /// show an insert, so while songs look dropped it is read again every
+    /// 100 ms, within `dropCheckWindow` and what is left of the command's
+    /// budget. Drops are logged; a check that cannot tell (entries that do
+    /// not name the submitted items) reports nothing and is logged.
+    private func droppedSongs(_ submitted: [String], context: String) async -> [String] {
+        let until = min(playbackDeadline, Date().addingTimeInterval(Self.dropCheckWindow))
+        while true {
+            let queued = player.queue.entries.map { entry -> String? in
+                switch entry.item {
+                case let .song(song): return song.id.rawValue
+                case let .musicVideo(video): return video.id.rawValue
+                default: return nil
+                }
+            }
+            let dropped = QueueCheck.dropped(submitted: submitted, queued: queued)
+            if dropped?.isEmpty == true { return [] }
+            if Date() >= until {
+                guard let dropped else {
+                    log("\(context): could not check the queue: its \(queued.count) entries do not name "
+                        + "the \(submitted.count) songs handed to the player")
+                    return []
+                }
+                log("\(context): the player left \(dropped.count) of the \(submitted.count) songs out of its queue "
+                    + "(\(dropped.joined(separator: ", ")))")
+                return dropped
+            }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
     }
 
     /// The local library's copies of songs, keyed by catalog id: one
@@ -397,7 +452,7 @@ final class CommandHandler {
         for song in items {
             guard let parameters = song.playParameters,
                   let json = try? JSONEncoder().encode(parameters),
-                  let catalogID = PreparedQueue<Song>.catalogID(playParameters: json)
+                  let catalogID = QueuePlan<Song>.catalogID(playParameters: json)
             else { continue }
             copies[catalogID] = copies[catalogID] ?? song
         }
@@ -418,61 +473,90 @@ final class CommandHandler {
         }
     }
 
-    /// Replaces the queue with songs and plays from `songs[start]`;
-    /// returns whether the start song had to be queued on its own.
+    /// Replaces the queue as plan says and plays it.
     ///
     /// Each song gets its own queue entry and the start is named as that
     /// entry, so the player never has to find the start by matching a song
     /// (`Queue(for:startingAt:)` does, and a song listed twice matches its
-    /// first copy). If the player cannot prepare the queue (Code=6, see
-    /// QueueStart), playback is stopped and the start song is queued on its
-    /// own, which prepares where the whole queue does not; once it plays,
-    /// the songs after it are appended (`QueueStart.followers`), so the
-    /// list still plays on. Any other error, or a failure of that fallback,
-    /// is reported naming the song; a failed append is only logged, the
-    /// start song playing on alone. Every step shares the command's
-    /// `playbackTimeout`: the append gets what is left of it, so it cannot
-    /// change the queue after the command was answered.
+    /// first copy).
     ///
-    /// The fallback is logged to stderr with context (the command) and the
-    /// player's reason, so a Code=6 that keeps happening shows in the
-    /// helper log. The caller guarantees `songs.indices.contains(start)`.
-    private func play(_ songs: [Song], from start: Int, context: String) async throws -> Bool {
+    /// `upFront`: the whole queue is handed over. If the player cannot
+    /// prepare it (Code=6, see QueueStart), playback is stopped and the
+    /// start song is queued on its own, which prepares where the whole
+    /// queue does not; once it plays, the songs after it are appended
+    /// (`QueueStart.followers`), so the list still plays on. That fallback
+    /// is logged to stderr with context (the command) and the player's
+    /// reason, so a Code=6 that keeps happening shows in the helper log.
+    ///
+    /// `startThenAppend`: the start song is queued alone and, once it
+    /// plays, its followers are appended; followers that could not be
+    /// appended are reported (`notQueued`).
+    ///
+    /// A failure to start is reported naming the song; a failed append is
+    /// only logged, the start song playing on. Every step shares the
+    /// command's `playbackTimeout`: the append gets what is left of it, so
+    /// it cannot change the queue after the command was answered.
+    private func play(_ plan: QueuePlan<Song>, context: String) async throws -> QueueOutcome {
         func startQueue(_ songs: [Song], at start: Int) async throws {
             let entries = songs.map { MusicPlayer.Queue.Entry($0) }
             player.queue = ApplicationMusicPlayer.Queue(entries, startingAt: entries[start])
             try await startPlayback()
         }
-        let song = songs[start]
-        let startedAlone: Bool
-        do {
-            startedAlone = try await QueueStart.startWithFallback({
-                try await startQueue(songs, at: start)
-            }, fallback: {
-                try await startQueue([song], at: 0)
-            }, beforeFallback: { error in
-                log("\(context): \(QueueStart.failure(error, song: song.title)) starting \(songs.count) songs at "
-                    + "\(start) (song \(song.id.rawValue)); queueing that song alone")
-                player.stop()
-            })
-        } catch {
-            throw QueueStart.failure(error, song: song.title)
-        }
-        let followers = QueueStart.followers(of: songs, after: start)
-        let remaining = playbackDeadline.timeIntervalSinceNow
-        if startedAlone, !followers.isEmpty, remaining <= 0 {
-            log("\(context): no time left to append the \(followers.count) songs after \"\(song.title)\"; it plays alone")
-        } else if startedAlone, !followers.isEmpty {
-            let entries = followers.map { MusicPlayer.Queue.Entry($0) }
-            let queue = player.queue
+        func ids(_ songs: [Song]) -> [String] { songs.map(\.id.rawValue) }
+        switch plan.shape {
+        case let .upFront(songs, start):
+            let song = songs[start]
+            let startedAlone: Bool
             do {
-                try await Deadline.run(seconds: remaining) { try await queue.insert(entries, position: .tail) }
+                startedAlone = try await QueueStart.startWithFallback({
+                    try await startQueue(songs, at: start)
+                }, fallback: {
+                    try await startQueue([song], at: 0)
+                }, beforeFallback: { error in
+                    log("\(context): \(QueueStart.failure(error, song: song.title)) starting \(songs.count) songs at "
+                        + "\(start) (song \(song.id.rawValue)); queueing that song alone")
+                    player.stop()
+                })
             } catch {
-                log("\(context): could not append the \(followers.count) songs after \"\(song.title)\" "
-                    + "(\(QueueStart.failure(error, song: song.title))); it plays alone")
+                throw QueueStart.failure(error, song: song.title)
             }
+            guard startedAlone else { return QueueOutcome(submitted: ids(songs)) }
+            let followers = QueueStart.followers(of: songs, after: start)
+            let appended = await append(followers, after: song, context: context, otherwise: "it plays alone")
+            return QueueOutcome(startedAlone: true, submitted: ids([song] + (appended ? followers : [])))
+        case let .startThenAppend(song, followers):
+            do {
+                try await startQueue([song], at: 0)
+            } catch {
+                throw QueueStart.failure(error, song: song.title)
+            }
+            let appended = await append(followers, after: song, context: context, otherwise: "they are reported skipped")
+            return appended
+                ? QueueOutcome(submitted: ids([song] + followers))
+                : QueueOutcome(submitted: ids([song]), notQueued: ids(followers))
         }
-        return startedAlone
+    }
+
+    /// Inserts songs at the tail of the playing queue, within what is left
+    /// of the command's budget; returns whether they were (true when there
+    /// are none). A failure is logged, ending with what follows from it.
+    private func append(_ songs: [Song], after start: Song, context: String, otherwise consequence: String) async -> Bool {
+        guard !songs.isEmpty else { return true }
+        let remaining = playbackDeadline.timeIntervalSinceNow
+        guard remaining > 0 else {
+            log("\(context): no time left to append the \(songs.count) songs after \"\(start.title)\"; \(consequence)")
+            return false
+        }
+        let entries = songs.map { MusicPlayer.Queue.Entry($0) }
+        let queue = player.queue
+        do {
+            try await Deadline.run(seconds: remaining) { try await queue.insert(entries, position: .tail) }
+            return true
+        } catch {
+            log("\(context): could not append the \(songs.count) songs after \"\(start.title)\" "
+                + "(\(QueueStart.failure(error, song: start.title))); \(consequence)")
+            return false
+        }
     }
 
     /// A library playlist page: its songs in order (music videos are left

@@ -50,21 +50,34 @@ public struct SongQueue<Item> {
     }
 }
 
-/// The queue as the player is handed it, given the queued songs the Mac's
+/// How the queue is handed to the player, given the queued songs the Mac's
 /// local library also holds (`libraryCopies`, keyed by catalog id).
 ///
-/// Seen live on macOS: a queue whose start is a catalog song fails with
-/// "failed to prepare to play" (or "unexpected start item") as soon as it
-/// holds any song of the local library, whether queued as its catalog song
-/// or as its library copy, although each song prepares on its own; with a
-/// library copy as its start, the same mixed queue prepares. So a local
-/// start song takes every local song as its library copy, and a catalog
-/// start leaves the local songs out (`skipped`) rather than fail.
-public struct PreparedQueue<Item> {
-    public let items: [Item]
-    /// Index into `items` of the first song to play.
-    public let start: Int
-    /// Ids left out of the queue, in queue order (repeats included).
+/// Seen live on macOS, the start song decides the kind of queue:
+/// - A catalog start makes a catalog queue. Handed any song of the local
+///   library up front, as its catalog song or its library copy, it fails
+///   to prepare (Code=6, see QueueStart). Queued alone and playing, it
+///   takes local songs inserted at its tail as their library copies,
+///   along with catalog songs. So a catalog start with local songs after
+///   it is queued alone, then its followers are appended
+///   (`startThenAppend`); without local followers the queue goes up front.
+/// - A local start makes a library queue, which prepares with library
+///   copies but silently drops every catalog song, up front or inserted.
+///   So it queues the local songs as their library copies and leaves the
+///   catalog-only songs out (`skipped`).
+public struct QueuePlan<Item> {
+    public enum Shape {
+        /// Hand the player every item at once, starting at `start`.
+        case upFront(items: [Item], start: Int)
+        /// Queue `start` alone and, once it plays, insert `followers` at
+        /// the tail. Songs before the start are not queued: the tail is
+        /// the only place songs can be added, and they would play last.
+        case startThenAppend(start: Item, followers: [Item])
+    }
+
+    public let shape: Shape
+    /// Ids left out of the queue because the player cannot hold them, in
+    /// queue order (repeats included).
     public let skipped: [String]
     /// The catalog id of each library copy queued, keyed by the copy's own
     /// id: the player reports a copy by that id, and the state events name
@@ -73,34 +86,38 @@ public struct PreparedQueue<Item> {
 
     /// The caller guarantees `items.indices.contains(start)`.
     public init(items: [Item], start: Int, id: (Item) -> String, libraryCopies: [String: Item]) {
-        if libraryCopies[id(items[start])] != nil {
-            var catalogIDs: [String: String] = [:]
-            self.items = items.map { item in
-                guard let copy = libraryCopies[id(item)] else { return item }
-                catalogIDs[id(copy)] = id(item)
-                return copy
-            }
-            self.start = start
+        func isLocal(_ item: Item) -> Bool { libraryCopies[id(item)] != nil }
+        var catalogIDs: [String: String] = [:]
+        func copyOrSelf(_ item: Item) -> Item {
+            guard let copy = libraryCopies[id(item)] else { return item }
+            catalogIDs[id(copy)] = id(item)
+            return copy
+        }
+        let startIsLocal = isLocal(items[start])
+        let followers = QueueStart.followers(of: items, after: start)
+        if !startIsLocal, followers.contains(where: isLocal) {
+            self.shape = .startThenAppend(start: items[start], followers: followers.map(copyOrSelf))
             self.skipped = []
             self.catalogIDs = catalogIDs
             return
         }
+        // Up front: a local start keeps only local songs (as their copies),
+        // a catalog start only catalog songs. The start itself always stays.
         var kept: [Item] = []
         var skipped: [String] = []
         var newStart = 0
         for (position, item) in items.enumerated() {
             if position == start {
                 newStart = kept.count
-            } else if libraryCopies[id(item)] != nil {
+            } else if isLocal(item) != startIsLocal {
                 skipped.append(id(item))
                 continue
             }
-            kept.append(item)
+            kept.append(startIsLocal ? copyOrSelf(item) : item)
         }
-        self.items = kept
-        self.start = newStart
+        self.shape = .upFront(items: kept, start: newStart)
         self.skipped = skipped
-        self.catalogIDs = [:]
+        self.catalogIDs = catalogIDs
     }
 
     /// The catalog id a library song's play parameters name, from their
@@ -110,6 +127,34 @@ public struct PreparedQueue<Item> {
         let object = try? JSONSerialization.jsonObject(with: json) as? JSONObject
         guard let id = object?["catalogId"] as? String, !id.isEmpty else { return nil }
         return id
+    }
+}
+
+/// Finds the songs the player silently left out of a queue it accepted.
+public enum QueueCheck {
+    /// The `submitted` item ids (the ids of the items handed to the player,
+    /// library copies by their own id) that `queued`, the ids of the
+    /// player's queue entries in any order, does not hold: in submitted
+    /// order, repeats counted. Nil when the check cannot tell: an entry
+    /// without an id, or an id that was never submitted (the player naming
+    /// an item by another form of its id), so a drop is never reported
+    /// falsely.
+    public static func dropped(submitted: [String], queued: [String?]) -> [String]? {
+        var counts: [String: Int] = [:]
+        for id in queued {
+            guard let id else { return nil }
+            counts[id, default: 0] += 1
+        }
+        var dropped: [String] = []
+        for id in submitted {
+            if let n = counts[id], n > 0 {
+                counts[id] = n - 1
+            } else {
+                dropped.append(id)
+            }
+        }
+        guard counts.values.allSatisfy({ $0 == 0 }) else { return nil }
+        return dropped
     }
 }
 
@@ -150,8 +195,8 @@ public enum QueueStart {
     }
 
     /// The songs that follow `start` in `items`, in order: what is appended
-    /// after the start song when it had to be queued on its own. The songs
-    /// before it are left out, as the player would play them next.
+    /// after the start song when it is queued on its own. The songs before
+    /// it are left out, as the player would play them next.
     public static func followers<Item>(of items: [Item], after start: Int) -> [Item] {
         guard items.indices.contains(start) else { return [] }
         return Array(items[(start + 1)...])

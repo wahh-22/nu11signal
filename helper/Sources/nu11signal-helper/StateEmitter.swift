@@ -18,7 +18,7 @@ final class StateEmitter {
     private var ticker: Task<Void, Never>?
 
     /// The catalog id of each library copy in the queue, keyed by the
-    /// copy's id (see `PreparedQueue.catalogIDs`): a state names the
+    /// copy's id (see `QueuePlan.catalogIDs`): a state names the
     /// catalog song the UI asked for, not the copy the player holds.
     /// `playSongs` replaces it with each queue it hands the player, and
     /// clears it when that fails or playback stops.
