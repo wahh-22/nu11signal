@@ -421,14 +421,20 @@ leaving NOW PLAYING at least 30 columns.
 
 ## Signal effects
 
-The screen now and then loses the signal: every 20–45 s a glitch burst of
-0.2–0.6 s tears a few rows sideways, corrupts a few cells and may run a
-static bar; about one burst in four flashes `NO SIGNAL`. Midway between two
-bursts comes a text wave: about three quarters of the words on the frame
-(header, tabs, panel titles, rows, the player, buttons, key hints) scramble
-at once, the way the NOW PLAYING title does on a song change, and resolve
-back word by word, the left side somewhat sooner, within 0.6–1 s. So the
-screen alternates burst, wave, burst, something every 10–23 s. Only
+The screen now and then loses the signal, slowly enough to read as an
+effect rather than a fault: every 20–45 s a gentle glitch burst of
+0.5–0.9 s tears a row or two one cell sideways for a moment and sprinkles a
+few noise cells that shift every ~125 ms; about one burst in four runs a
+short static bar, and about one in six fades a `NO SIGNAL` sign in (dim
+text first), shows it framed in static, and fades it out before the burst
+ends. Midway between two bursts comes a text wave: about three quarters of
+the words on the frame (header, tabs, panel titles, rows, the player,
+buttons, key hints) scramble the way the NOW PLAYING title does on a song
+change. It sweeps in from the left over its first third, holds, then types
+the words back in letter by letter, most of them early and a few
+lingering, within 1.6–2.4 s; the scrambled glyphs flicker every ~160 ms,
+each cell at its own moment, so the screen shimmers instead of jumping. So
+the screen alternates burst, wave, burst, something every 10–23 s. Only
 existing text is touched, and only its characters: every altered character
 keeps its color, and blank space stays blank. Every 30–60 s an alert
 such as `▲ ICE TRACE DETECTED` takes the status line for 4 s, never over a
@@ -439,8 +445,8 @@ over the frame, so clicks and keys work during a burst.
 starts with them off. They pause while the SEARCH input or a NEW PLAYLIST
 name takes the keys, and on the tiny layout. They add no timer: the
 animation tick sleeps until the next effect is due; a text wave runs at
-10 fps (while a song plays it rides the 10 fps animation), a burst at
-15 fps. The terminal is redrawn at most 20 times a second, not Bubble
+10 fps and a burst at 8 fps (while a song plays both ride the 10 fps
+animation). The terminal is redrawn at most 20 times a second, not Bubble
 Tea's default 60, to keep the process's wakeups (and battery use) low.
 
 ## Mouse
