@@ -19,7 +19,7 @@ VOL [−] ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▯▯ [+] 90%
 Keep: clickable zones, keyboard focus (focused button filled yellow with ▸), focus navigation (arrows between rows), narrow-width degradation (drop PLAY label, then less), expanded player layout, intro regions (`np*Row` constants), status/hints. Conventional commits.
 
 ## Tasks
-- [ ] H1 — Implement the HUD layout (buttons, transport row with LOOP and right-aligned EXPAND, volume row), focus/zones/mouse updated, goldens regenerated. Route: delegated writer (several non-trivial radio files).
+- [x] H1 — Implement the HUD layout (buttons, transport row with LOOP and right-aligned EXPAND, volume row), focus/zones/mouse updated, goldens regenerated. Route: delegated writer (several non-trivial radio files).
 
 ## Acceptance criteria
 - Layout matches the target at ~60 cells; degrades cleanly at narrow widths without overflow.
@@ -31,3 +31,6 @@ Forecast ~350 lines; ask-on-risk. Branch `feat/player-hud` stacked on `fix/local
 
 ## Progress
 - Created 2026-09-30.
+- H1 done (route: delegated writer), commit `e09a7d6`. Bracket style for player buttons only; transport row tries 5 layouts (label → `[ ❚❚ ]` → tighter gaps → `[❚❚]` → `[↻]`), EXPAND right-aligned unless packed; LOOP `[↻ OFF|ALL|ONE]` on transport row (loopBar/loopTail/loopButton → loopName); volume `VOL [−] meter≤20 [+] 90%`; control order Prev, Play, Next, Loop, Expand, VolDown, VolUp, Fav; nowPlayingControlRows 12/11 → 11/10 (rain +1 row); compact layout packs LOOP into transport. RED: signature + 4 behavior failures; GREEN: `go test -race ./...` 887 passed, vet/gofmt clean; all 18 goldens regenerated.
+- Review (slice 41fff01..e09a7d6, incl. local-queue Q5 7aedba1): medium, 1028 lines, consent granted, consolidated lens, APPROVED, acknowledged (burned). Boundary now e09a7d6. Advisory: pressed NEXT on whole-list with repeat all; → stops at last drawn button untested.
+- Open: ♥ on the title line still slanted `╱ ♡ ╱` (maybe `[♡]`); PLAY/PAUSE width differs by one cell (buttons after it shift, as before).
