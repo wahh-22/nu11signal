@@ -76,9 +76,9 @@ func TestATabSwitchIntrosTheNewText(t *testing.T) {
 			t.Fatalf("row %d changed its styles or width:\n%q\n%q", y, skeleton(lines[y]), skeleton(base[y]))
 		}
 	}
-	// Left to right: late in the intro the left cells have resolved and
-	// some on the right still scramble.
-	c.t = start.Add(introDur * 7 / 10)
+	// Left to right: halfway through the intro the left cells have
+	// resolved and some on the right still scramble.
+	c.t = start.Add(introDur / 2)
 	late := scrambledAt(base, first(m.layout()))
 	lo, hi := listW, 0
 	for _, xs := range late {
@@ -87,7 +87,7 @@ func TestATabSwitchIntrosTheNewText(t *testing.T) {
 		}
 	}
 	if len(late) == 0 || lo < listW/4 {
-		t.Fatalf("at 70%% the scrambled cells span columns %d..%d", lo, hi)
+		t.Fatalf("at 50%% the scrambled cells span columns %d..%d", lo, hi)
 	}
 	// Resolved at the end, to the very frame.
 	c.t = start.Add(introDur)
@@ -490,5 +490,122 @@ func TestIntrosStayOffOnTheTinyLayoutAndTheAuthScreen(t *testing.T) {
 	m, _ = press(t, m, "/")
 	if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
 		t.Fatal("an intro was drawn on the auth error screen")
+	}
+}
+
+func TestIntroTimings(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		got, want time.Duration
+	}{
+		// Long enough to read as a resolve, short enough not to wait on.
+		{"introDur", introDur, 650 * time.Millisecond},
+		// Glyphs shimmer rather than flash.
+		{"introGlyph", introGlyph, 90 * time.Millisecond},
+	} {
+		if tt.got != tt.want {
+			t.Errorf("%s = %v, want %v", tt.name, tt.got, tt.want)
+		}
+	}
+	if introHold != 0.2 {
+		t.Errorf("introHold = %v, want 0.2 of the intro", introHold)
+	}
+	// Every glyph change reaches the screen, but no frame is wasted:
+	// never faster than the renderer or slower than the glyphs.
+	if period := time.Second / RenderFPS; introTick < period || introTick > introGlyph {
+		t.Errorf("introTick = %v, want %v..%v", introTick, period, introGlyph)
+	}
+}
+
+// introScrambled is the share of the cells of the running intro of m
+// that are scrambled at share p of it.
+func introScrambled(m Model, c *clock, p float64) float64 {
+	c.t = m.intro.start.Add(time.Duration(p * float64(introDur)))
+	base, _ := m.baseLayout()
+	n, total := 0, 0
+	for _, xs := range scrambledAt(base, first(m.layout())) {
+		n += len(xs)
+	}
+	for _, xs := range m.intro.cells {
+		total += len(xs)
+	}
+	return float64(n) / float64(max(total, 1))
+}
+
+func TestAnIntroHoldsThenResolvesEasedOut(t *testing.T) {
+	c := newClock()
+	m := introModel(t, c)
+	m, _ = press(t, m, "/")
+	if len(m.intro.cells) == 0 {
+		t.Fatal("opening SEARCH started no intro")
+	}
+	// The hold: every new cell scrambled.
+	for _, p := range []float64{0, introHold / 2, introHold - 0.01} {
+		if got := introScrambled(m, c, p); got < 0.99 {
+			t.Fatalf("at %.2f of the intro only %.2f of the cells scramble, want all (the hold)", p, got)
+		}
+	}
+	// Then fewer and fewer, never more.
+	prev := 1.0
+	for p := introHold; p < 1; p += 0.02 {
+		got := introScrambled(m, c, p)
+		if got > prev+1e-9 {
+			t.Fatalf("at %.2f of the intro %.2f scramble, up from %.2f", p, got, prev)
+		}
+		prev = got
+	}
+	// Eased out: most cells resolve in the first half of the resolve,
+	// the rest trail in gently over the second.
+	mid := introHold + (1-introHold)/2
+	if resolved := 1 - introScrambled(m, c, mid); resolved < 0.65 {
+		t.Fatalf("halfway through the resolve %.2f of the cells resolved, want most (ease out)", resolved)
+	}
+	if late := introScrambled(m, c, mid+(1-introHold)/4); late <= 0 || late > 0.25 {
+		t.Fatalf("three quarters through the resolve %.2f of the cells scramble, want a few trailing", late)
+	}
+	// Resolved at the end, to the very frame.
+	c.t = m.intro.start.Add(introDur)
+	if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
+		t.Fatal("the intro did not resolve to the frame")
+	}
+}
+
+func TestIntroGlyphsShimmer(t *testing.T) {
+	const sample = 10 * time.Millisecond
+	c := newClock()
+	m := introModel(t, c)
+	m, _ = press(t, m, "/")
+	start := m.intro.start
+	type cell struct{ x, y int }
+	glyph, since := map[cell]string{}, map[cell]time.Time{}
+	changes := 0
+	for c.t = start; c.t.Before(start.Add(introDur)); c.t = c.t.Add(sample) {
+		base, _ := m.baseLayout()
+		lines, _ := m.layout()
+		for y, xs := range scrambledAt(base, lines) {
+			got := cells(lines[y])
+			for _, x := range xs {
+				k := cell{x, y}
+				if old, ok := glyph[k]; ok && old != got[x] {
+					if at, seen := since[k]; seen && c.t.Sub(at) < introGlyph-sample {
+						t.Fatalf("cell (%d,%d) changed after %v, want every %v", x, y, c.t.Sub(at), introGlyph)
+					}
+					changes++
+					since[k] = c.t
+				}
+				glyph[k] = got[x]
+			}
+		}
+	}
+	if changes == 0 {
+		t.Fatal("the scrambled glyphs never changed")
+	}
+	// Each cell at its own phase: the changes spread over many moments.
+	moments := map[time.Time]bool{}
+	for _, at := range since {
+		moments[at] = true
+	}
+	if len(moments) < 8 {
+		t.Fatalf("the glyphs changed at only %d moments", len(moments))
 	}
 }

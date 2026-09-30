@@ -1,7 +1,6 @@
 package radio
 
 import (
-	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -118,7 +117,7 @@ func TestBurstScheduleStaysInRange(t *testing.T) {
 			lastEnd = e.burstEnd
 		}
 	}
-	if bursts < 20*30*60/45 {
+	if bursts < 20*30*60/int(burstGapMax/time.Second) {
 		t.Fatalf("only %d bursts in 20 half hours", bursts)
 	}
 	if frac := float64(flashes) / float64(bursts); frac < 0.15 || frac > 0.35 {
@@ -131,8 +130,8 @@ func TestPausedEffectsNeverBurst(t *testing.T) {
 	e := effects{on: true}
 	for now := start; now.Before(start.Add(10 * time.Minute)); now = now.Add(100 * time.Millisecond) {
 		e = e.advance(now, 3, false)
-		if e.bursting(now) || e.waving(now) {
-			t.Fatalf("paused effects burst or wave at %v", now.Sub(start))
+		if e.bursting(now) {
+			t.Fatalf("paused effects burst at %v", now.Sub(start))
 		}
 	}
 	// Resuming does not fire the bursts missed while paused at once.
@@ -195,7 +194,7 @@ func TestBurstGlitchesAndFlashesNoSignal(t *testing.T) {
 func TestRenderFPSShowsEveryAnimationFrame(t *testing.T) {
 	period := time.Second / RenderFPS
 	for name, step := range map[string]time.Duration{
-		"fastTick": fastTick, "waveTick": waveTick, "burstTick": burstTick,
+		"fastTick": fastTick, "introTick": introTick, "burstTick": burstTick,
 	} {
 		if period > step {
 			t.Errorf("frame period %v exceeds %s %v", period, name, step)
@@ -227,7 +226,7 @@ func TestTickRateRisesOnlyDuringBursts(t *testing.T) {
 		m = tick(t, m) // let the EQ settle flat
 	}
 	// Between the effects the tick sleeps until the next one is due.
-	want := min(idleTick, m.fx.nextWave.Sub(c.t), m.fx.nextBurst.Sub(c.t))
+	want := min(idleTick, m.fx.nextBurst.Sub(c.t))
 	if got := m.tickInterval(); got != want {
 		t.Fatalf("idle tick with effects = %v, want %v (to the next effect)", got, want)
 	}
@@ -354,9 +353,6 @@ func TestBurstsSpareARealStatus(t *testing.T) {
 		if !m.fx.bursting(c.t) {
 			t.Fatalf("setting a status ended the burst (noSignal=%v)", noSignal)
 		}
-		if m.fx.waving(c.t) {
-			t.Fatalf("a text wave runs during the burst (noSignal=%v)", noSignal)
-		}
 		base, _ := m.baseLayout()
 		lines, _ := m.layout()
 		n := len(lines)
@@ -369,323 +365,36 @@ func TestBurstsSpareARealStatus(t *testing.T) {
 	}
 }
 
-func TestWaveComesMidwayBetweenBursts(t *testing.T) {
-	const stepDur = 10 * time.Millisecond
-	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
-	for seed := uint64(1); seed <= 10; seed++ {
-		e := effects{on: true}.advance(start, seed, true)
-		// The first wave comes halfway to the first burst.
-		midpoint := start.Add(e.nextBurst.Sub(start) / 2)
-		if e.nextWave != midpoint {
-			t.Fatalf("seed %d: first wave at %v, want %v (halfway to the first burst)", seed, e.nextWave.Sub(start), midpoint.Sub(start))
-		}
-		var waveSeq, burstSeq uint64
-		waves, bursts := 0, 0
-		for now := start; now.Before(start.Add(30 * time.Minute)); now = now.Add(stepDur) {
-			e = e.advance(now, seed, true)
-			if e.waveSeq != waveSeq {
-				waveSeq = e.waveSeq
-				waves++
-				if waves != bursts+1 {
-					t.Fatalf("seed %d: wave %d after %d bursts, want one wave between two bursts", seed, waves, bursts)
-				}
-				if d := e.waveStart.Sub(midpoint); d < 0 || d > stepDur {
-					t.Errorf("seed %d wave %d starts %v off the midpoint between the bursts", seed, waves, d)
-				}
-				if d := e.waveEnd.Sub(e.waveStart); d < waveMin || d > waveMax {
-					t.Errorf("seed %d wave %d lasts %v, want %v..%v", seed, waves, d, waveMin, waveMax)
-				}
-				if !e.waveEnd.Before(e.nextBurst) {
-					t.Errorf("seed %d wave %d runs into the next burst", seed, waves)
-				}
-			}
-			if e.burstSeq != burstSeq {
-				burstSeq = e.burstSeq
-				bursts++
-				if bursts != waves {
-					t.Fatalf("seed %d: burst %d after %d waves, want bursts and waves to alternate", seed, bursts, waves)
-				}
-				if e.waving(now) {
-					t.Errorf("seed %d: burst %d starts during a wave", seed, bursts)
-				}
-				midpoint = e.burstEnd.Add(e.nextBurst.Sub(e.burstEnd) / 2)
-				if e.nextWave != midpoint {
-					t.Errorf("seed %d: wave after burst %d due at %v, want the midpoint %v", seed, bursts, e.nextWave, midpoint)
-				}
-			}
-		}
-		if waves < 30*60/45 {
-			t.Fatalf("seed %d: only %d waves in half an hour", seed, waves)
-		}
-	}
-}
-
-func TestPausedEffectsNeverWave(t *testing.T) {
-	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
-	e := effects{on: true}
-	for now := start; now.Before(start.Add(5 * time.Minute)); now = now.Add(50 * time.Millisecond) {
-		if e = e.advance(now, 3, false); e.waving(now) || !e.nextWave.IsZero() {
-			t.Fatalf("paused effects waved at %v", now.Sub(start))
-		}
-	}
-}
-
-// forceWave moves the clock to the next text wave and returns the model on
-// its first frame.
-func forceWave(t *testing.T, m Model, c *clock) Model {
-	t.Helper()
-	if m.fx.nextWave.IsZero() {
-		t.Fatal("no text wave scheduled")
-	}
-	c.t = m.fx.nextWave
-	m = tick(t, m)
-	if !m.fx.waving(c.t) {
-		t.Fatalf("no text wave at the scheduled time %v", c.t)
-	}
-	if m.fx.bursting(c.t) {
-		t.Fatal("the text wave fell into a burst")
-	}
-	return m
-}
-
-// nextWave lets the wave on screen end, then the burst after it, and
-// returns the model on the first frame of the wave that follows.
-func nextWave(t *testing.T, m Model, c *clock) Model {
-	t.Helper()
-	c.t = m.fx.waveEnd
-	m = tick(t, m)
-	c.t = m.fx.nextBurst
-	m = tick(t, m)
-	c.t = m.fx.burstEnd
-	m = tick(t, m)
-	return forceWave(t, m, c)
-}
-
-// scrambledCells counts the text cells of the words of base that differ
-// in lines, the words with some cells changed and some not (still partly
-// readable), and the lines with changed cells.
-func scrambledCells(base, lines []string, words []textRun) (n, partial int, rows map[int]bool) {
-	rows = map[int]bool{}
-	for _, w := range words {
-		got, want := cells(lines[w.y]), cells(base[w.y])
-		changed := 0
-		for _, x := range w.xs {
-			if got[x] != want[x] {
-				changed++
-			}
-		}
-		if changed > 0 {
-			rows[w.y] = true
-		}
-		if changed > 0 && changed < len(w.xs) {
-			partial++
-		}
-		n += changed
-	}
-	return n, partial, rows
-}
-
-// textCells counts the cells of words.
-func textCells(words []textRun) int {
-	n := 0
-	for _, w := range words {
-		n += len(w.xs)
-	}
-	return n
-}
-
-func TestWaveScramblesMostLettersAcrossTheScreen(t *testing.T) {
-	for _, keys := range [][]string{nil, {"f"}, {"enter"}} {
-		c := newClock()
-		m := fxModel(t, c)
-		m, _ = press(t, m, keys...)
-		m = forceWave(t, m, c)
-		for wave := range 4 {
-			if wave > 0 {
-				m = nextWave(t, m, c)
-			}
-			// All the chosen letters scramble once the ramp-in is over.
-			c.t = waveAt(m, waveRamp)
-			base, _ := m.baseLayout()
-			lines, _ := m.layout()
-			words := textWords(base, -1)
-			wordRows := map[int]bool{}
-			long := 0
-			for _, w := range words {
-				wordRows[w.y] = true
-				if len(w.xs) >= 3 {
-					long++
-				}
-			}
-			n, partial, rows := scrambledCells(base, lines, words)
-			if len(words) < 20 {
-				t.Fatalf("keys %v: only %d words on the frame", keys, len(words))
-			}
-			total := textCells(words)
-			if share := float64(n) / float64(total); share < 0.35 || share > 0.45 {
-				t.Fatalf("keys %v wave %d: %d of %d letters scrambled (%.2f), want about 40%%:\n%s", keys, wave, n, total, share, ansi.Strip(strings.Join(lines, "\n")))
-			}
-			// Letters, not whole words: many words stay partly readable.
-			if partial < long/3 {
-				t.Fatalf("keys %v wave %d: only %d words partly scrambled, want many of the %d longer words", keys, wave, partial, long)
-			}
-			if len(rows) < len(wordRows)*2/3 {
-				t.Fatalf("keys %v wave %d: scrambled words on %d of the %d lines with words", keys, wave, len(rows), len(wordRows))
-			}
-			// The words resolve at their own moments: fewer and fewer stay
-			// scrambled, and none by the end.
-			initial, staggered := n, false
-			for c.t.Before(m.fx.waveEnd) {
-				base, baseZones := m.baseLayout()
-				lines, zs := m.layout()
-				if !reflect.DeepEqual(zs, baseZones) {
-					t.Fatalf("keys %v: the wave changed the zones", keys)
-				}
-				if len(lines) != len(base) {
-					t.Fatalf("keys %v: %d lines, want %d", keys, len(lines), len(base))
-				}
-				for y := range lines {
-					if got, want := ansi.StringWidth(lines[y]), ansi.StringWidth(base[y]); got != want {
-						t.Fatalf("keys %v line %d is %d cells, want %d", keys, y, got, want)
-					}
-					if lines[y] == base[y] {
-						continue
-					}
-					if got, want := skeleton(lines[y]), skeleton(base[y]); got != want {
-						t.Fatalf("keys %v: the wave changed the styles of line %d:\n got %q\nwant %q", keys, y, lines[y], base[y])
-					}
-					got, want := cells(lines[y]), cells(base[y])
-					for x := range got {
-						if got[x] != want[x] && !textCell(want[x]) {
-							t.Fatalf("keys %v: the wave drew over %q at (%d,%d), not text", keys, want[x], x, y)
-						}
-					}
-				}
-				if n, _, _ := scrambledCells(base, lines, textWords(base, -1)); n > 0 && n < initial*2/3 {
-					staggered = true
-				}
-				c.advance(waveTick)
-				m = tick(t, m)
-			}
-			if !staggered {
-				t.Fatalf("keys %v wave %d: the letters never resolved one by one", keys, wave)
-			}
-			c.t = m.fx.waveEnd
+// TestNothingDrawsBetweenBursts: the bursts are the only signal effect;
+// between two of them the frame is left as it is (no text wave).
+func TestNothingDrawsBetweenBursts(t *testing.T) {
+	c := newClock()
+	m := fxModel(t, c)
+	for burst := range 3 {
+		if burst > 0 {
+			c.t = m.fx.nextBurst
 			m = tick(t, m)
+			c.t = m.fx.burstEnd
+			m = tick(t, m)
+		}
+		from, to := c.t, m.fx.nextBurst
+		for c.t = from; c.t.Before(to); c.t = c.t.Add(250 * time.Millisecond) {
+			m = tick(t, m)
+			m.intro = intro{}
 			if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
-				t.Fatalf("keys %v wave %d: text not whole again after the wave", keys, wave)
+				t.Fatalf("gap %d: an effect drew %v before the next burst:\n%s", burst, to.Sub(c.t), plain(m))
 			}
 		}
 	}
 }
 
-func TestWaveSparesARealStatus(t *testing.T) {
-	c := newClock()
-	m := fxModel(t, c)
-	m = forceWave(t, m, c)
-	for wave := range 5 {
-		if wave > 0 {
-			m = nextWave(t, m, c)
-		}
-		m.setStatus("PLAY FAILED // HELPER GONE")
-		at := c.t
-		c.t = waveAt(m, waveRamp)
-		base, _ := m.baseLayout()
-		lines, _ := m.layout()
-		c.t = at
-		n := len(lines)
-		if lines[n-2] != base[n-2] {
-			t.Fatalf("the wave touched the status line: %q", ansi.Strip(lines[n-2]))
-		}
-		if reflect.DeepEqual(lines[:n-2], base[:n-2]) {
-			t.Fatal("the wave drew nothing while a status showed")
-		}
-		m.status = ""
+// TestBurstSaltsStayPut pins the salts of the burst streams: retiring an
+// effect must not shift them, or every burst would look different.
+func TestBurstSaltsStayPut(t *testing.T) {
+	got := []uint64{saltBurstGap, saltBurstLen, saltNoSignal, saltBurst}
+	if want := []uint64{101, 102, 103, 106}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("burst salts = %v, want %v", got, want)
 	}
-}
-
-func TestNoWaveWhileTyping(t *testing.T) {
-	t.Run("SEARCH input", func(t *testing.T) {
-		c := newClock()
-		m := fxModel(t, c)
-		next := m.fx.nextWave
-		m, _ = press(t, m, "/")
-		c.t = next
-		m = tick(t, m)
-		if m.fx.waving(c.t) {
-			t.Fatal("a text wave started while typing")
-		}
-		if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
-			t.Fatal("the SEARCH input scrambled while typing")
-		}
-	})
-	t.Run("toggled off mid-wave", func(t *testing.T) {
-		c := newClock()
-		m := forceWave(t, fxModel(t, c), c)
-		m, _ = press(t, m, keyEffects)
-		if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
-			t.Fatal("the wave still drawn after the toggle")
-		}
-	})
-}
-
-func TestWaveTickRisesOnlyDuringTheWave(t *testing.T) {
-	c := newClock()
-	m := fxModel(t, c)
-	// While playing, the wave rides the frames that run anyway.
-	m = forceWave(t, m, c)
-	if got := m.tickInterval(); got != fastTick {
-		t.Fatalf("playing wave tick = %v, want %v", got, fastTick)
-	}
-	c.t = m.fx.waveEnd
-	m = tick(t, m)
-	still := playing(90*time.Second, 225*time.Second)
-	still.Status = playback.StatusPaused
-	m, _ = step(t, m, stateMsg{state: still})
-	for range 20 {
-		m = tick(t, m) // let the EQ settle flat
-	}
-	if m.tickFast {
-		t.Fatal("tick still fast while paused")
-	}
-	// Idle, the tick sleeps until the next effect is due.
-	c.t = m.fx.nextBurst
-	m = tick(t, m)
-	c.t = m.fx.burstEnd
-	m = tick(t, m)
-	if got, want := m.tickInterval(), min(idleTick, m.fx.nextWave.Sub(c.t)); got != want {
-		t.Fatalf("idle tick = %v, want %v (to the next effect)", got, want)
-	}
-	m = forceWave(t, m, c)
-	frames := 1
-	for m.fx.waving(c.t) {
-		if got := m.tickInterval(); got > waveTick {
-			t.Fatalf("idle wave tick = %v, want at most %v", got, waveTick)
-		}
-		c.advance(m.tickInterval())
-		m = tick(t, m)
-		frames++
-	}
-	if lo, hi := int(waveMin/waveTick), int(waveMax/waveTick)+2; frames < lo || frames > hi {
-		t.Fatalf("idle wave took %d frames, want %d..%d (about 10 fps)", frames, lo, hi)
-	}
-	if got := m.tickInterval(); got <= waveTick {
-		t.Fatalf("tick stayed fast after the wave: %v", got)
-	}
-}
-
-func TestWaveGolden80x24(t *testing.T) {
-	c := newClock()
-	m := forceWave(t, fxModel(t, c), c)
-	c.t = waveAt(m, (waveRamp+waveResolve)/2) // the hold: every chosen letter scrambled
-	m = tick(t, m)
-	assertGolden(t, "text_wave_80x24.golden", ansi.Strip(m.View().Content))
-}
-
-// waveAt is the time at share p of the text wave on screen.
-func waveAt(m Model, p float64) time.Time {
-	d := m.fx.waveEnd.Sub(m.fx.waveStart)
-	return m.fx.waveStart.Add(time.Duration(p * float64(d)))
 }
 
 func TestEffectTimings(t *testing.T) {
@@ -697,13 +406,9 @@ func TestEffectTimings(t *testing.T) {
 		{"burstMin", burstMin, 600 * time.Millisecond},
 		{"burstMax", burstMax, 1000 * time.Millisecond},
 		{"burstTick", burstTick, 66 * time.Millisecond},
-		// The text wave is slow and smooth.
-		{"waveMin", waveMin, 1000 * time.Millisecond},
-		{"waveMax", waveMax, 2000 * time.Millisecond},
-		{"waveGlyph", waveGlyph, 160 * time.Millisecond},
-		{"waveTick", waveTick, 100 * time.Millisecond},
-		{"burstGap", burstGapMin, 20 * time.Second},
-		{"burstGapMax", burstGapMax, 45 * time.Second},
+		// With no text wave between them, bursts come often.
+		{"burstGap", burstGapMin, 10 * time.Second},
+		{"burstGapMax", burstGapMax, 22 * time.Second},
 	} {
 		if tt.got != tt.want {
 			t.Errorf("%s = %v, want %v", tt.name, tt.got, tt.want)
@@ -711,116 +416,6 @@ func TestEffectTimings(t *testing.T) {
 	}
 	if noSignalOdds != 4 {
 		t.Errorf("noSignalOdds = %d, want 4", noSignalOdds)
-	}
-	if waveShare != 0.40 {
-		t.Errorf("waveShare = %v, want 0.40 of the letters", waveShare)
-	}
-}
-
-// chosenScrambled counts the text cells of base scrambled in the frame at
-// time at, and the text cells the wave can scramble.
-func chosenScrambled(t *testing.T, m Model, c *clock, at time.Time) (scrambled, total int) {
-	t.Helper()
-	was := c.t
-	c.t = at
-	defer func() { c.t = was }()
-	base, _ := m.baseLayout()
-	lines, _ := m.layout()
-	ws := textWords(base, -1)
-	n, _, _ := scrambledCells(base, lines, ws)
-	return n, textCells(ws)
-}
-
-func TestWaveRampsInAndEasesOut(t *testing.T) {
-	c := newClock()
-	m := forceWave(t, fxModel(t, c), c)
-	for wave := range 4 {
-		if wave > 0 {
-			m = nextWave(t, m, c)
-		}
-		_, total := chosenScrambled(t, m, c, m.fx.waveStart)
-		chosen := int(math.Ceil(float64(total) * waveShare))
-		// The wave sweeps in: only some letters at first, more and more,
-		// every chosen one by the end of the ramp-in.
-		start, _ := chosenScrambled(t, m, c, m.fx.waveStart)
-		if start > chosen/3 {
-			t.Fatalf("wave %d: %d of %d chosen letters scrambled at the start, want a few", wave, start, chosen)
-		}
-		mid, _ := chosenScrambled(t, m, c, waveAt(m, waveRamp/2))
-		if mid <= start || mid >= chosen {
-			t.Fatalf("wave %d: %d letters scrambled halfway through the ramp-in, want between %d and %d", wave, mid, start, chosen)
-		}
-		full, _ := chosenScrambled(t, m, c, waveAt(m, waveRamp))
-		if full < chosen*95/100 || full > chosen {
-			t.Fatalf("wave %d: %d of %d chosen letters scrambled after the ramp-in", wave, full, chosen)
-		}
-		// Nothing resolves before the resolve window.
-		if hold, _ := chosenScrambled(t, m, c, waveAt(m, waveResolve-0.01)); hold < chosen*95/100 {
-			t.Fatalf("wave %d: %d of %d letters scrambled during the hold", wave, hold, chosen)
-		}
-		// Eased: most letters resolve early in the window, a few linger.
-		half, _ := chosenScrambled(t, m, c, waveAt(m, waveResolve+(1-waveResolve)/2))
-		if half > chosen/2 {
-			t.Fatalf("wave %d: %d of %d letters still scrambled halfway through the resolve, want most resolved", wave, half, chosen)
-		}
-		late, _ := chosenScrambled(t, m, c, waveAt(m, 0.85))
-		if late == 0 {
-			t.Fatalf("wave %d: no letter lingers near the end", wave)
-		}
-		if end, _ := chosenScrambled(t, m, c, m.fx.waveEnd.Add(-time.Nanosecond)); end > late {
-			t.Fatalf("wave %d: %d letters scrambled at the end, %d near it", wave, end, late)
-		}
-		c.t = m.fx.waveEnd
-		m = tick(t, m)
-		if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
-			t.Fatalf("wave %d: text not whole after the wave", wave)
-		}
-	}
-}
-
-func TestWaveGlyphsChangeSlowly(t *testing.T) {
-	const sample = 10 * time.Millisecond
-	c := newClock()
-	m := forceWave(t, fxModel(t, c), c)
-	from, to := waveAt(m, waveRamp), waveAt(m, waveResolve)
-	type cell struct{ x, y int }
-	glyph, since := map[cell]string{}, map[cell]time.Time{}
-	changes := 0
-	for c.t = from; c.t.Before(to); c.t = c.t.Add(sample) {
-		// The base moves too (the clock, the position): only the cells
-		// scrambled on this frame count.
-		base, _ := m.baseLayout()
-		lines, _ := m.layout()
-		for y := range lines {
-			got, want := cells(lines[y]), cells(base[y])
-			for x := range got {
-				if got[x] == want[x] {
-					continue
-				}
-				k := cell{x, y}
-				if old, ok := glyph[k]; ok && old != got[x] {
-					// Only a gap between two changes seen counts.
-					if at, seen := since[k]; seen && !at.IsZero() && c.t.Sub(at) < waveGlyph-sample {
-						gap := c.t.Sub(at)
-						t.Fatalf("cell (%d,%d) changed after %v, want every %v", x, y, gap, waveGlyph)
-					}
-					changes++
-					since[k] = c.t
-				}
-				glyph[k] = got[x]
-			}
-		}
-	}
-	if changes == 0 {
-		t.Fatal("the scrambled glyphs never changed")
-	}
-	// The cells change at their own moments, not all on the same frame.
-	moments := map[time.Time]bool{}
-	for _, at := range since {
-		moments[at] = true
-	}
-	if len(moments) < 5 {
-		t.Fatalf("the glyphs changed at only %d moments", len(moments))
 	}
 }
 

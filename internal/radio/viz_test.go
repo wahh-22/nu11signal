@@ -581,13 +581,23 @@ func TestVisualizerGoldens80x24(t *testing.T) {
 	}
 }
 
-func TestTextWavesSpareTheScopeTrace(t *testing.T) {
+func TestTextGlitchesSpareTheScopeTrace(t *testing.T) {
 	trace := scopeViz{}.Step(vizFrame(0.8, 1, 12, 2, true)).Render(12, 2)
-	if words := textWords(trace, -1); len(words) != 0 {
-		t.Fatalf("the trace reads as %d words", len(words))
+	for y, line := range trace {
+		for x, r := range cellRunes(line) {
+			if r != 0 {
+				t.Fatalf("the trace reads as text %q at %d,%d", r, x, y)
+			}
+		}
 	}
-	if words := textWords([]string{"AB ⠁⠂ CD"}, -1); len(words) != 2 {
-		t.Fatalf("text around braille: %d words; want 2", len(words))
+	var text []rune
+	for _, r := range cellRunes("AB ⠁⠂ CD") {
+		if r != 0 {
+			text = append(text, r)
+		}
+	}
+	if string(text) != "ABCD" {
+		t.Fatalf("text around braille reads %q; want ABCD", string(text))
 	}
 }
 

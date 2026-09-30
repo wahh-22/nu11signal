@@ -424,29 +424,22 @@ leaving NOW PLAYING at least 30 columns.
 
 ## Signal effects
 
-The screen now and then loses the signal: every 20–45 s a sharp glitch
+The screen now and then loses the signal: every 10–22 s a sharp glitch
 burst of 0.6–1 s tears two to four rows 1–3 cells sideways, corrupts a
 handful of cells and, on about half its frames, runs a static bar across a
 row, all changing every frame; about one burst in four also flashes a bold
-red `NO SIGNAL` framed in red static for its whole length. Midway between
-two bursts comes a slow text wave: about 40% of the letters on the frame
-(header, tabs, panel titles, rows, the player, buttons, key hints) scramble
-the way the NOW PLAYING title does on a song change, chosen letter by
-letter, so the words stay partly readable. It sweeps in from the left over
-its first third, holds, then types the letters back one by one, most of
-them early and a few lingering, within 1–2 s; the scrambled glyphs
-flicker every ~160 ms, each cell at its own moment, so the screen shimmers
-instead of jumping. So the screen alternates burst, wave, burst, something
-every 10–23 s. The wave touches only existing text, and only its
-characters: every altered character keeps its color, and blank space stays
-blank. A real message on the status line is never glitched. The effects are drawn
-over the frame, so clicks and keys work during a burst.
+red `NO SIGNAL` framed in red static for its whole length. A real message
+on the status line is never glitched. The effects are drawn over the
+frame, so clicks and keys work during a burst.
 
-New content scrambles in the same way: when text appears that was not on
-screen (another tab or page, a list or search results arriving, the ADD TO
+New content scrambles in: when text appears that was not on screen
+(another tab or page, a list or search results arriving, the ADD TO
 PLAYLIST picker or NEW PLAYLIST editor opening, a new artist, album or feed
-in NOW PLAYING), its new characters show glitch glyphs and resolve left to
-right within about 0.4 s, each keeping its color. Only text that changed
+in NOW PLAYING), its new characters show glitch glyphs, the way the NOW
+PLAYING title does on a song change, each keeping its color. They hold for
+a moment, then resolve left to right within about 0.65 s, quickly at first
+and settling gently at the end; the glyphs shimmer every ~90 ms, each cell
+at its own moment, instead of jumping all at once. Only text that changed
 intros: the clock, progress, volume and visualizer never do, moving the
 cursor or scrolling a list does not, and the SEARCH input and the playlist
 name never scramble while you type (live results intro once as they
@@ -456,8 +449,7 @@ arrive). Intros follow the same switch as the effects.
 starts with them off. They pause while the SEARCH input or a NEW PLAYLIST
 name takes the keys (intros keep running, off the input line), and on the
 tiny layout. They add no timer: the animation tick sleeps until the next
-effect is due; a text wave runs at 10 fps (while a song plays it rides the
-10 fps animation), a burst at about 15 fps and an intro at 20 fps. The terminal is redrawn at most 20 times a second, not Bubble
+burst is due; a burst runs at about 15 fps and an intro at 20 fps. The terminal is redrawn at most 20 times a second, not Bubble
 Tea's default 60, to keep the process's wakeups (and battery use) low.
 
 ## Visualizers
