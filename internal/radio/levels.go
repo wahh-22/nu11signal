@@ -1,16 +1,57 @@
 package radio
 
-import "time"
+import (
+	"time"
+
+	"github.com/wahh-22/nu11signal/internal/playback"
+)
 
 // levelsFresh is how long a spectrum reading drives the bars: the helper
 // sends about 15 a second while it measures, so an older one means it
 // stopped (paused, or the app volume fell back to the system volume).
 const levelsFresh = 500 * time.Millisecond
 
+// In app volume mode the helper measures what plays, but only once its
+// tap has attached, a moment after the song starts. Until then the bars
+// wait, held where they are, for up to eqWaitLevels: animating them
+// decoratively meanwhile would show bars, then none as the first quiet
+// readings arrive, then the real ones. Without a reading by then they
+// turn decorative. Moving from decorative bars to readings takes
+// eqHandover frames, so the bars glide instead of jumping.
+const (
+	eqWaitLevels = 1500 * time.Millisecond
+	eqHandover   = 4
+)
+
+// trackPlay notes when playback starts (playSince, zero while it does
+// not play). A reading from before it (the last one sent before a pause,
+// still in the channel or already taken) is dropped: it is not what
+// plays now.
+func (m Model) trackPlay() Model {
+	if !m.isPlaying() {
+		m.playSince = time.Time{}
+		return m
+	}
+	if !m.playSince.IsZero() {
+		return m
+	}
+	m.playSince, m.spectrum = m.now(), nil
+	// The channel keeps the latest reading only: one read drains it.
+	select {
+	case _, ok := <-m.levels:
+		if !ok {
+			m.levels = nil
+		}
+	default:
+	}
+	return m
+}
+
 // pollLevels takes the player's latest spectrum reading, if a new one
 // arrived. It runs on the animation tick and never blocks, so readings
 // add no frames or messages of their own: the bars show the newest one
-// each frame. A closed channel (the player shut down) is dropped.
+// each frame. A closed channel (the player shut down) is dropped, and an
+// empty reading is no reading.
 func (m Model) pollLevels() Model {
 	if m.levels == nil {
 		return m
@@ -21,20 +62,61 @@ func (m Model) pollLevels() Model {
 			m.levels = nil
 			return m
 		}
-		m.spectrum, m.spectrumAt = levels, m.now()
+		if len(levels) > 0 {
+			m.spectrum, m.spectrumAt = levels, m.now()
+		}
 	default:
 	}
 	return m
 }
 
 // liveSpectrum is the reading the bars draw this frame: the latest one
-// while playing and fresh. Otherwise (paused, no reading, a player that
-// cannot measure) the bars animate decoratively, or fall when paused.
+// while playing, fresh and taken since playback started. Otherwise
+// (paused, no reading, a player that cannot measure) the bars wait for
+// one (see waitingForLevels), animate decoratively, or fall when paused.
 func (m Model) liveSpectrum() ([]float64, bool) {
-	if !m.isPlaying() || m.spectrum == nil || m.now().Sub(m.spectrumAt) >= levelsFresh {
+	if !m.isPlaying() || len(m.spectrum) == 0 || m.now().Sub(m.spectrumAt) >= levelsFresh ||
+		m.spectrumAt.Before(m.playSince) {
 		return nil, false
 	}
 	return m.spectrum, true
+}
+
+// waitingForLevels reports whether the bars hold still for a first
+// reading: playing in app volume mode with a player that measures, no
+// reading yet since playback started (trackPlay clears the last one),
+// for eqWaitLevels.
+func (m Model) waitingForLevels() bool {
+	return m.levels != nil && m.volumeMode == playback.VolumeApp && m.isPlaying() &&
+		len(m.spectrum) == 0 && m.now().Sub(m.playSince) < eqWaitLevels
+}
+
+// stepBars moves the bars one frame: onto the live reading (gliding over
+// eqHandover frames when they were decorative), held while waiting for a
+// first reading, else decorative while playing or falling when not.
+func (m Model) stepBars() Model {
+	if levels, ok := m.liveSpectrum(); ok {
+		target := m.bars.follow(levels, m.eqBarCount())
+		if m.barsDecorative {
+			m.barsDecorative, m.barsHandover = false, eqHandover
+		}
+		if m.barsHandover > 0 {
+			// 1/4, 1/3, 1/2, then all of what is left: on the reading.
+			m.bars = m.bars.ease(target, 1/float64(m.barsHandover))
+			m.barsHandover--
+			return m
+		}
+		m.bars = target
+		return m
+	}
+	m.barsHandover = 0
+	if m.waitingForLevels() {
+		return m
+	}
+	playing := m.isPlaying()
+	m.bars = m.bars.step(playing, m.seed, m.frame)
+	m.barsDecorative = playing
+	return m
 }
 
 // resampleLevels maps the bands of a reading onto n bars: each bar is the

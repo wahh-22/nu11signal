@@ -227,11 +227,17 @@ type Model struct {
 	frame uint64
 	bars  eq
 	// levels delivers the player's spectrum readings (nil when it cannot
-	// measure); spectrum is the latest, taken at spectrumAt.
-	levels     <-chan []float64
-	spectrum   []float64
-	spectrumAt time.Time
-	glitch     int
+	// measure); spectrum is the latest, taken at spectrumAt. playSince is
+	// when playback started (zero while it does not play). barsDecorative
+	// says the last frame's bars were decorative; barsHandover counts the
+	// frames left to glide onto the readings (see stepBars).
+	levels         <-chan []float64
+	spectrum       []float64
+	spectrumAt     time.Time
+	playSince      time.Time
+	barsDecorative bool
+	barsHandover   int
+	glitch         int
 	// tickGen identifies the live tick chain; ticks from older chains are
 	// dropped so rescheduling never doubles the frame rate.
 	tickGen  uint64

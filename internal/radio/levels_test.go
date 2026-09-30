@@ -174,3 +174,152 @@ func TestLevelsClosedFallsBackToDecorative(t *testing.T) {
 type noLevels struct{ *playbacktest.Fake }
 
 func (noLevels) Levels() {}
+
+// appPlaying is a loaded model at 80x24 whose player measures what it
+// plays (app volume mode), just told it plays.
+func appPlaying(t *testing.T) (Model, *playbacktest.Fake, *clock) {
+	t.Helper()
+	f := playbacktest.New()
+	c := newClock()
+	m := loaded(t, f, c)
+	m, _ = step(t, m, stateMsg{state: appState(playback.StatusPlaying)})
+	return m, f, c
+}
+
+func appState(status playback.Status) playback.State {
+	s := playing(time.Second, time.Minute)
+	s.Status, s.VolumeMode = status, playback.VolumeApp
+	return s
+}
+
+// allBars is a reading of v on every band.
+func allBars(v float64) []float64 { return []float64{v, v, v, v} }
+
+func TestEQWaitsForLevelsInAppMode(t *testing.T) {
+	m, f, c := appPlaying(t)
+	// The tap attaches: no reading yet, and no decorative bars either.
+	for elapsed := time.Duration(0); elapsed < eqWaitLevels; elapsed += fastTick {
+		m = tick(t, m)
+		if !m.bars.flat() {
+			t.Fatalf("decorative bars %v after %v without a reading, want the bars still", m.bars[:14], elapsed)
+		}
+		c.advance(fastTick)
+	}
+	c.t = m.playSince.Add(eqWaitLevels - time.Millisecond)
+	f.PushLevels(allBars(0.6))
+	m = tick(t, m)
+	if want := (eq{}).follow(allBars(0.6), 14); m.bars != want {
+		t.Fatalf("bars = %v; want the first reading", m.bars[:14])
+	}
+}
+
+func TestEQHoldsItsHeightsWhileWaitingForLevels(t *testing.T) {
+	m, _, _ := appPlaying(t)
+	m.bars[0], m.bars[3] = 0.4, 0.2
+	before := m.bars
+	m = tick(t, m)
+	if m.bars != before {
+		t.Fatalf("bars = %v; want them held at %v", m.bars[:14], before[:14])
+	}
+}
+
+func TestEQTurnsDecorativeWithoutLevelsInAppMode(t *testing.T) {
+	m, _, c := appPlaying(t)
+	m = tick(t, m)
+	c.t = m.playSince.Add(eqWaitLevels)
+	before := m.bars
+	m = tick(t, m)
+	if want := before.step(true, m.seed, m.frame); m.bars != want || m.bars.flat() {
+		t.Fatalf("bars = %v; want the decorative step %v", m.bars[:14], want[:14])
+	}
+}
+
+func TestEQHandsOverSmoothlyFromDecorativeToLevels(t *testing.T) {
+	m, f, c := appPlaying(t)
+	c.t = m.playSince.Add(eqWaitLevels)
+	for range 10 {
+		m = tick(t, m)
+		c.advance(fastTick)
+	}
+	target := (eq{}).follow(allBars(1), 14)
+	before := m.bars
+	f.PushLevels(allBars(1))
+	m = tick(t, m)
+	for i := range 14 {
+		if m.bars[i] <= before[i] || m.bars[i] >= 1 {
+			t.Fatalf("bar %d jumped from %.2f to %.2f, want it between them and the reading 1", i, before[i], m.bars[i])
+		}
+	}
+	for range 20 {
+		c.advance(fastTick)
+		f.PushLevels(allBars(1))
+		m = tick(t, m)
+	}
+	if m.bars != target {
+		t.Fatalf("bars = %v; want the reading once handed over", m.bars[:14])
+	}
+}
+
+func TestEQHandsOverSmoothlyFromLevelsToDecorative(t *testing.T) {
+	m, f, c := appPlaying(t)
+	f.PushLevels(allBars(1))
+	m = tick(t, m)
+	c.advance(levelsFresh)
+	before := m.bars
+	m = tick(t, m)
+	if want := before.step(true, m.seed, m.frame); m.bars != want {
+		t.Fatalf("bars = %v; want the decorative step from the reading", m.bars[:14])
+	}
+	for i := range 14 {
+		if m.bars[i] < 0.4 {
+			t.Fatalf("bar %d dropped from 1 to %.2f on the handover", i, m.bars[i])
+		}
+	}
+}
+
+func TestEQIgnoresAPrePauseReadingOnResume(t *testing.T) {
+	for _, polled := range []bool{false, true} {
+		m, f, c := appPlaying(t)
+		f.PushLevels(allBars(1))
+		m = tick(t, m)
+		m, _ = step(t, m, stateMsg{state: appState(playback.StatusPaused)})
+		for range 3 {
+			c.advance(fastTick)
+			m = tick(t, m)
+		}
+		// The last reading the helper sent before it stopped.
+		f.PushLevels(allBars(1))
+		if polled {
+			m = tick(t, m) // taken while paused
+		}
+		c.advance(fastTick)
+		m, _ = step(t, m, stateMsg{state: appState(playback.StatusPlaying)})
+		before := m.bars
+		m = tick(t, m)
+		if m.bars != before {
+			t.Fatalf("polled=%v: bars = %v on resume; want them held at %v, not the pre-pause reading", polled, m.bars[:14], before[:14])
+		}
+	}
+}
+
+func TestEQIgnoresEmptyLevels(t *testing.T) {
+	t.Run("app mode keeps the last reading", func(t *testing.T) {
+		m, f, _ := appPlaying(t)
+		f.PushLevels(allBars(0.8))
+		m = tick(t, m)
+		f.PushLevels([]float64{})
+		m = tick(t, m)
+		if want := (eq{}).follow(allBars(0.8), 14); m.bars != want {
+			t.Fatalf("bars = %v; want the last reading kept", m.bars[:14])
+		}
+	})
+	t.Run("no reading stays decorative", func(t *testing.T) {
+		m, f, _ := playingWithLevels(t)
+		f.PushLevels(nil)
+		before := m.bars
+		m = tick(t, m)
+		if want := before.step(true, m.seed, m.frame); m.bars != want {
+			t.Fatalf("bars = %v; want the decorative step", m.bars[:14])
+		}
+	})
+}
