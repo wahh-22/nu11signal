@@ -3,8 +3,9 @@
 // By default it starts the signed MusicKit helper, found only through
 // $NU11SIGNAL_HELPER (an absolute path) or next to the nu11signal binary (see
 // helper.Locate), never in the working directory; with --demo it runs
-// against an in-process simulated player instead. --version prints the
-// release version stamped at link time.
+// against an in-process simulated player instead. --calm (or
+// NU11SIGNAL_CALM=1) starts with the signal effects off; x toggles them.
+// --version prints the release version stamped at link time.
 package main
 
 import (
@@ -32,6 +33,9 @@ var version = "dev"
 // startTimeout bounds launching the helper until it reports ready.
 const startTimeout = 10 * time.Second
 
+// calmEnv set to 1 starts with the signal effects off, as --calm does.
+const calmEnv = "NU11SIGNAL_CALM"
+
 func main() {
 	os.Exit(run(os.Args[1:], deps{
 		stdout:       os.Stdout,
@@ -50,8 +54,9 @@ type deps struct {
 	// startHelper launches the helper at path; ctx bounds only startup.
 	startHelper func(ctx context.Context, path string) (playback.Player, error)
 	// runUI runs the radio UI against player until the user quits; recents
-	// stores recent searches (nil keeps them in memory only).
-	runUI func(player playback.Player, recents history.Recents) error
+	// stores recent searches (nil keeps them in memory only); calm starts
+	// the signal effects off.
+	runUI func(player playback.Player, recents history.Recents, calm bool) error
 }
 
 // run executes the command with args (without the program name) and
@@ -70,14 +75,15 @@ func run(args []string, d deps) int {
 		printVersion(d.stdout)
 		return 0
 	}
-	if err := play(opts.demo, d); err != nil {
+	calm := opts.calm || os.Getenv(calmEnv) == "1"
+	if err := play(opts.demo, calm, d); err != nil {
 		fmt.Fprintln(d.stderr, "nu11signal:", err)
 		return 1
 	}
 	return 0
 }
 
-func play(demoMode bool, d deps) error {
+func play(demoMode, calm bool, d deps) error {
 	player, err := openPlayer(demoMode, d)
 	if err != nil {
 		return err
@@ -88,7 +94,7 @@ func play(demoMode bool, d deps) error {
 	// shutdown and kills a helper that does not exit.
 	defer player.Close()
 
-	if err := d.runUI(player, openRecents(demoMode)); err != nil && !errors.Is(err, tea.ErrInterrupted) {
+	if err := d.runUI(player, openRecents(demoMode), calm); err != nil && !errors.Is(err, tea.ErrInterrupted) {
 		return err
 	}
 	return nil
@@ -108,8 +114,8 @@ func openRecents(demoMode bool) history.Recents {
 	return history.NewFile(path)
 }
 
-func runUI(player playback.Player, recents history.Recents) error {
-	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano()), Recents: recents})
+func runUI(player playback.Player, recents history.Recents, calm bool) error {
+	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano()), Recents: recents, Effects: !calm})
 	_, err := tea.NewProgram(model).Run()
 	return err
 }
@@ -117,6 +123,7 @@ func runUI(player playback.Player, recents history.Recents) error {
 // options are the parsed command-line flags.
 type options struct {
 	demo    bool
+	calm    bool
 	version bool
 }
 
@@ -127,6 +134,7 @@ func parseFlags(args []string, output io.Writer) (options, error) {
 	fs := flag.NewFlagSet("nu11signal", flag.ContinueOnError)
 	fs.SetOutput(output)
 	fs.BoolVar(&opts.demo, "demo", false, "run against a simulated player (no Apple Music, no sound)")
+	fs.BoolVar(&opts.calm, "calm", false, "start with the signal effects (glitches, data rain, alerts) off; also "+calmEnv+"=1")
 	fs.BoolVar(&opts.version, "version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err

@@ -21,7 +21,7 @@ More Cyberpunk 2077 atmosphere (user request, 2026-09-30): the screen recurrentl
 
 ## Tasks
 
-- [ ] G1 — Glitch engine + data rain + alerts + controls. Route: delegated (writer trigger: 2+ non-trivial files).
+- [x] G1 — Glitch engine + data rain + alerts + controls. Route: delegated (writer trigger: 2+ non-trivial files).
 
 ## Checks
 
@@ -30,3 +30,4 @@ More Cyberpunk 2077 atmosphere (user request, 2026-09-30): the screen recurrentl
 ## Progress
 
 - Branch `feat/signal-glitch` from `main` `ddf3b86`.
+- G1 done (route: delegated writer). Bursts every 20–45 s lasting 0.2–0.6 s (row tears, noise cells, static bar; 1 in 4 flash `N O   S I G N A L`), data rain in free space only (long `─` runs, header gap, blank NOW PLAYING rows, empty rows below the list), alerts every 30–60 s for 4 s with blinking `▲` yielding to real status; toggle `x`, `--calm` / `NU11SIGNAL_CALM=1`; effects off by default in `radio.Options` (binary opts in), paused while typing / tiny layout; zones from `baseLayout()` unchanged. RED: vet unknown field `Effects`/`calm`; GREEN: `go test -race ./...` ok (parent spot check), `go vet`/`gofmt` clean. CPU (60 s demo, 80x24): idle ~0.5–0.6% either way; playing 0.6% calm vs ~1.0% effects on.

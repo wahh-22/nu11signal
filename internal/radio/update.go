@@ -192,6 +192,7 @@ func (m Model) onState(s playback.State) Model {
 
 func (m Model) onTick() (tea.Model, tea.Cmd) {
 	m.frame++
+	m.fx = m.fx.advance(m.now(), m.seed, m.fxActive())
 	m.bars = m.bars.step(m.isPlaying(), m.seed, m.frame)
 	if m.glitch > 0 {
 		m.glitch--
@@ -297,6 +298,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.loveTarget()
 	case keyAdd:
 		return m.addTarget()
+	case keyEffects:
+		return m.toggleEffects(), nil
 	default:
 		if next, cmd, ok := m.playerKey(k); ok {
 			return next, cmd

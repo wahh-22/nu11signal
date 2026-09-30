@@ -34,6 +34,7 @@ type testEnv struct {
 	d              deps
 	uiPlayer       playback.Player
 	uiRecents      history.Recents
+	uiCalm         bool
 	uiRuns         int
 }
 
@@ -51,9 +52,9 @@ func newTestEnv(t *testing.T) *testEnv {
 			t.Error("startHelper called unexpectedly")
 			return nil, errors.New("unexpected start")
 		},
-		runUI: func(p playback.Player, r history.Recents) error {
+		runUI: func(p playback.Player, r history.Recents, calm bool) error {
 			e.uiRuns++
-			e.uiPlayer, e.uiRecents = p, r
+			e.uiPlayer, e.uiRecents, e.uiCalm = p, r, calm
 			return nil
 		},
 	}
@@ -183,12 +184,38 @@ func TestRunUIExitPaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newTestEnv(t)
-			e.d.runUI = func(playback.Player, history.Recents) error { return tt.uiErr }
+			e.d.runUI = func(playback.Player, history.Recents, bool) error { return tt.uiErr }
 			if code := run([]string{"--demo"}, e.d); code != tt.wantCode {
 				t.Fatalf("exit code = %d; want %d", code, tt.wantCode)
 			}
 			if got := e.stderr.String(); got != tt.wantStderr {
 				t.Fatalf("stderr = %q; want %q", got, tt.wantStderr)
+			}
+		})
+	}
+}
+
+func TestRunCalmStartsTheEffectsOff(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		env  string
+		want bool
+	}{
+		{"effects on by default", []string{"--demo"}, "", false},
+		{"calm flag", []string{"--demo", "--calm"}, "", true},
+		{"calm environment", []string{"--demo"}, "1", true},
+		{"environment other than 1", []string{"--demo"}, "0", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("NU11SIGNAL_CALM", tt.env)
+			e := newTestEnv(t)
+			if code := run(tt.args, e.d); code != 0 {
+				t.Fatalf("exit code = %d; want 0 (stderr %q)", code, e.stderr.String())
+			}
+			if e.uiCalm != tt.want {
+				t.Fatalf("UI calm = %v; want %v", e.uiCalm, tt.want)
 			}
 		})
 	}

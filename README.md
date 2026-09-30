@@ -337,6 +337,7 @@ PLAYLISTS (and anywhere the key is not taken by the view):
 | `tab` | Same as `/` |
 | `esc` | Back one view |
 | `r` | Retry loading the playlists after a failure |
+| `x` | Turn the signal effects off or on (see [Signal effects](#signal-effects)) |
 | `q` / `ctrl+c` | Quit |
 
 SEARCH (typing goes to the input, so letter shortcuts are off):
@@ -368,7 +369,7 @@ RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 | `r` | Retry after the page failed to load |
 | `l` | Love the selected song (a track, a top song, a song result), or unlove it; on another row, the song playing |
 | `a` | Add the selected song to a playlist; on another row, the song playing |
-| `space`, `n` / `p`, seek, volume and loop keys, `→`, `f` / `ctrl+f`, `q` | As on the playlists |
+| `space`, `n` / `p`, seek, volume and loop keys, `→`, `f` / `ctrl+f`, `x`, `q` | As on the playlists |
 
 ADD TO PLAYLIST and NEW PLAYLIST (over the list):
 
@@ -417,6 +418,24 @@ fit, it keeps the essential ones first (on the playlists: `enter`, `/`,
 
 The list panel keeps one width in every view (the browse pages' width),
 leaving NOW PLAYING at least 30 columns.
+
+## Signal effects
+
+The screen now and then loses the signal: every 20–45 s a glitch burst of
+0.2–0.6 s tears a few rows sideways, corrupts a few cells and may run a
+static bar; about one burst in four flashes `NO SIGNAL`. Between bursts,
+changing codes (hex, coordinates, frequencies) run in the free space only
+(the header gap, the panel borders and rules, the blank rows of NOW PLAYING
+and the empty rows under the list), and every 30–60 s an alert such as
+`▲ ICE TRACE DETECTED` takes the status line for 4 s, never over a real
+message. The effects are drawn over the frame, so clicks and keys work
+during a burst.
+
+`x` turns them off or on; `nu11signal --calm` (or `NU11SIGNAL_CALM=1`)
+starts with them off. They pause while the SEARCH input or a NEW PLAYLIST
+name takes the keys, and on the tiny layout. They add no timer: the
+animation tick runs every 0.5 s while they are on (1 s when idle without
+them) and at about 15 fps during a burst only.
 
 ## Mouse
 
