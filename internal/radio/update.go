@@ -181,6 +181,7 @@ func (m Model) onState(s playback.State) Model {
 	}
 	m.state, m.hasState, m.stateAt = cleanState(s), true, m.now()
 	m.confirmLoop()
+	m = m.trackPlay()
 	// With nothing left to seek in, the bar focus falls back to the
 	// button below it; with no song, the ♥ focus to PLAY.
 	m.onBar = m.onBar && m.seekable()
@@ -193,12 +194,7 @@ func (m Model) onState(s playback.State) Model {
 func (m Model) onTick() (tea.Model, tea.Cmd) {
 	m.frame++
 	m.fx = m.fx.advance(m.now(), m.seed, m.fxActive())
-	m = m.pollLevels()
-	if levels, ok := m.liveSpectrum(); ok {
-		m.bars = m.bars.follow(levels, m.eqBarCount())
-	} else {
-		m.bars = m.bars.step(m.isPlaying(), m.seed, m.frame)
-	}
+	m = m.trackPlay().pollLevels().stepBars()
 	if m.glitch > 0 {
 		m.glitch--
 	}

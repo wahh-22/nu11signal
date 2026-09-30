@@ -51,6 +51,14 @@ func (e eq) follow(levels []float64, n int) eq {
 	return e
 }
 
+// ease moves every bar the share k of the way to target.
+func (e eq) ease(target eq, k float64) eq {
+	for i := range e {
+		e[i] += (target[i] - e[i]) * k
+	}
+	return e
+}
+
 func (e eq) flat() bool { return e.total() == 0 }
 
 func (e eq) total() float64 {
