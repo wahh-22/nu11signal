@@ -416,9 +416,15 @@ func TestBurstsSpareARealStatus(t *testing.T) {
 	for _, noSignal := range []bool{false, true, false, true} {
 		m = forceBurst(t, m, c, noSignal)
 		m.setStatus("PLAY FAILED // HELPER GONE")
+		if !m.fx.bursting(c.t) {
+			t.Fatalf("setting a status ended the burst (noSignal=%v)", noSignal)
+		}
 		base, _ := m.baseLayout()
 		lines, _ := m.layout()
 		n := len(lines)
+		if reflect.DeepEqual(lines[:n-2], base[:n-2]) {
+			t.Fatalf("burst (noSignal=%v) drew nothing while a status showed", noSignal)
+		}
 		if !reflect.DeepEqual(lines[n-2:], base[n-2:]) {
 			t.Fatalf("burst (noSignal=%v) touched the status or hint line:\n%q\n%q", noSignal, ansi.Strip(lines[n-2]), ansi.Strip(lines[n-1]))
 		}
