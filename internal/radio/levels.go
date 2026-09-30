@@ -35,7 +35,7 @@ func (m Model) trackPlay() Model {
 	if !m.playSince.IsZero() {
 		return m
 	}
-	m.playSince, m.spectrum = m.now(), nil
+	m.playSince, m.spectrum = m.now(), playback.Spectrum{}
 	// The channel keeps the latest reading only: one read drains it.
 	select {
 	case _, ok := <-m.levels:
@@ -62,7 +62,7 @@ func (m Model) pollLevels() Model {
 			m.levels = nil
 			return m
 		}
-		if len(levels) > 0 {
+		if len(levels.Bands) > 0 {
 			m.spectrum, m.spectrumAt = levels, m.now()
 		}
 	default:
@@ -74,10 +74,10 @@ func (m Model) pollLevels() Model {
 // while playing, fresh and taken since playback started. Otherwise
 // (paused, no reading, a player that cannot measure) the bars wait for
 // one (see waitingForLevels), animate decoratively, or fall when paused.
-func (m Model) liveSpectrum() ([]float64, bool) {
-	if !m.isPlaying() || len(m.spectrum) == 0 || m.now().Sub(m.spectrumAt) >= levelsFresh ||
+func (m Model) liveSpectrum() (playback.Spectrum, bool) {
+	if !m.isPlaying() || len(m.spectrum.Bands) == 0 || m.now().Sub(m.spectrumAt) >= levelsFresh ||
 		m.spectrumAt.Before(m.playSince) {
-		return nil, false
+		return playback.Spectrum{}, false
 	}
 	return m.spectrum, true
 }
@@ -88,15 +88,15 @@ func (m Model) liveSpectrum() ([]float64, bool) {
 // for eqWaitLevels.
 func (m Model) waitingForLevels() bool {
 	return m.levels != nil && m.volumeMode == playback.VolumeApp && m.isPlaying() &&
-		len(m.spectrum) == 0 && m.now().Sub(m.playSince) < eqWaitLevels
+		len(m.spectrum.Bands) == 0 && m.now().Sub(m.playSince) < eqWaitLevels
 }
 
 // stepBars moves the bars one frame: onto the live reading (gliding over
 // eqHandover frames when they were decorative), held while waiting for a
 // first reading, else decorative while playing or falling when not.
 func (m Model) stepBars() Model {
-	if levels, ok := m.liveSpectrum(); ok {
-		target := m.bars.follow(levels, m.eqBarCount())
+	if reading, ok := m.liveSpectrum(); ok {
+		target := m.bars.follow(reading.Bands, m.eqBarCount())
 		if m.barsDecorative {
 			m.barsDecorative, m.barsHandover = false, eqHandover
 		}

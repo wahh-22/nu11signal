@@ -101,7 +101,7 @@ type Client struct {
 	done      chan struct{} // closed after the process is reaped
 	waitErr   error         // written before done is closed
 	states    chan playback.State
-	levels    chan []float64
+	levels    chan playback.Spectrum
 	errs      chan error
 
 	closeOnce sync.Once
@@ -150,7 +150,7 @@ func Start(ctx context.Context, opts Options) (*Client, error) {
 		ready:        make(chan struct{}),
 		done:         make(chan struct{}),
 		states:       make(chan playback.State, stateBuffer),
-		levels:       make(chan []float64, levelsBuffer),
+		levels:       make(chan playback.Spectrum, levelsBuffer),
 		errs:         make(chan error, errorBuffer),
 	}
 	go c.readLoop(stdout)
@@ -177,7 +177,7 @@ func (c *Client) States() <-chan playback.State { return c.states }
 
 // Levels delivers the spectrum readings the helper measures in app-volume
 // mode (see playback.LevelSource); only the latest one is kept.
-func (c *Client) Levels() <-chan []float64 { return c.levels }
+func (c *Client) Levels() <-chan playback.Spectrum { return c.levels }
 
 // Errors delivers asynchronous helper failures (error events and responses
 // to requests the helper could not parse).
@@ -375,7 +375,7 @@ func (c *Client) dispatch(line []byte) {
 		}
 	case m.Event == "levels":
 		if m.Bands != nil {
-			offer(c.levels, levels(m.Bands))
+			offer(c.levels, playback.Spectrum{Bands: levels(m.Bands), Wave: wave(m.Wave)})
 		}
 	case m.Event == "error":
 		offer(c.errs, fmt.Errorf("helper: %s", m.Message))

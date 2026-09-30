@@ -10,6 +10,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wahh-22/nu11signal/internal/config"
 	"github.com/wahh-22/nu11signal/internal/history"
 	"github.com/wahh-22/nu11signal/internal/playback"
 )
@@ -31,6 +32,9 @@ type Options struct {
 	CloseTimeout time.Duration
 	// Recents keeps recent search terms; nil keeps them in memory only.
 	Recents history.Recents
+	// Config is the settings file, read once at startup (the visualizer,
+	// see viz.go); nil keeps the defaults.
+	Config config.Source
 }
 
 const (
@@ -231,13 +235,19 @@ type Model struct {
 	// when playback started (zero while it does not play). barsDecorative
 	// says the last frame's bars were decorative; barsHandover counts the
 	// frames left to glide onto the readings (see stepBars).
-	levels         <-chan []float64
-	spectrum       []float64
+	levels         <-chan playback.Spectrum
+	spectrum       playback.Spectrum
 	spectrumAt     time.Time
 	playSince      time.Time
 	barsDecorative bool
 	barsHandover   int
 	glitch         int
+	// viz is the visualizer the spectrum area draws, vizKind which one;
+	// vizMode is the setting, from configSource (see vizstate.go).
+	viz          visualizer
+	vizKind      vizKind
+	vizMode      vizMode
+	configSource config.Source
 	// tickGen identifies the live tick chain; ticks from older chains are
 	// dropped so rescheduling never doubles the frame rate.
 	tickGen  uint64
@@ -270,7 +280,7 @@ func New(p playback.Player, opts Options) Model {
 	name.Placeholder = "PLAYLIST NAME"
 	name.CharLimit = 100
 	name.SetStyles(inputStyles())
-	var levels <-chan []float64
+	var levels <-chan playback.Spectrum
 	if src, ok := p.(playback.LevelSource); ok {
 		levels = src.Levels()
 	}
@@ -284,6 +294,8 @@ func New(p playback.Player, opts Options) Model {
 		stack:        []frame{{kind: viewStations}},
 		volumeBusy:   true, // Init reads the volume
 		fx:           effects{on: opts.Effects},
+		viz:          barsViz{},
+		configSource: opts.Config,
 
 		input:         in,
 		nameInput:     name,
@@ -292,10 +304,10 @@ func New(p playback.Player, opts Options) Model {
 	}
 }
 
-// Init authorizes, loads recent searches, reads the volume, starts
+// Init authorizes, loads recent searches and the settings, reads the volume, starts
 // listening to the player, and starts animating.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.readVolumeCmd(0), m.waitStates(), m.waitErrors(), tickAfter(idleTick, m.tickGen))
+	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.loadConfigCmd(), m.readVolumeCmd(0), m.waitStates(), m.waitErrors(), tickAfter(idleTick, m.tickGen))
 }
 
 // Messages produced by the model's commands.
@@ -440,7 +452,7 @@ func tickAfter(d time.Duration, gen uint64) tea.Cmd {
 }
 
 func (m Model) animating() bool {
-	return m.isPlaying() || !m.bars.flat() || m.glitch > 0
+	return m.isPlaying() || !m.bars.flat() || !m.viz.Idle() || m.glitch > 0
 }
 
 func (m Model) isPlaying() bool {

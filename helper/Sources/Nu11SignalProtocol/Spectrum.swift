@@ -7,7 +7,8 @@ import Synchronization
 // IOProc copies each buffer, mixed to mono, into a SampleRing; a timer off
 // the real-time thread reads the newest window, runs an FFT
 // (SpectrumAnalyzer), smooths the bands (LevelSmoother) and emits them as a
-// `levels` event: {"event":"levels","bands":[0...100, ...]}.
+// `levels` event: {"event":"levels","bands":[0...100, ...],"wave":[...]}
+// (the waveform: see Waveform).
 
 /// The shape of the `levels` event.
 public enum LevelsEvent {

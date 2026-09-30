@@ -15,7 +15,7 @@ import (
 // Requests:  {"id":"<id>","cmd":"<name>", ...args}
 // Responses: {"id":"<id>","ok":true,"result":{...}} | {"id":"<id>","ok":false,"error":"<msg>"}
 // Events:    {"event":"ready"} | {"event":"state","state":{...}} | {"event":"error","message":"<msg>"}
-//            | {"event":"levels","bands":[0...100, ...]}
+//            | {"event":"levels","bands":[0...100, ...],"wave":[-100...100, ...]}
 
 // inbound is any line the helper writes to stdout. Lines carrying "event"
 // are events; everything else is a response. A response with an empty id
@@ -31,6 +31,9 @@ type inbound struct {
 	// Bands are a levels event's readings, percentages from low to high
 	// frequencies.
 	Bands []float64 `json:"bands"`
+	// Wave is a levels event's waveform, hundredths of full scale, oldest
+	// first; helpers older than the oscilloscope leave it out.
+	Wave []float64 `json:"wave"`
 }
 
 type wireState struct {
@@ -191,6 +194,19 @@ func levels(bands []float64) []float64 {
 	out := make([]float64, len(bands))
 	for i, b := range bands {
 		out[i] = min(max(b/100, 0), 1)
+	}
+	return out
+}
+
+// wave converts a levels event's waveform to -1...1 points; no waveform
+// stays nil.
+func wave(points []float64) []float64 {
+	if points == nil {
+		return nil
+	}
+	out := make([]float64, len(points))
+	for i, p := range points {
+		out[i] = min(max(p/100, -1), 1)
 	}
 	return out
 }

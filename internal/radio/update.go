@@ -40,6 +40,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p.Name = cleanLine(p.Name)
 			return p
 		})), nil
+	case configMsg:
+		return m.onConfig(msg), nil
 	case recentsMsg:
 		return m.onRecents(msg), nil
 	case recentSavedMsg:
@@ -176,6 +178,7 @@ func (m Model) onAuth(msg authMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) onState(s playback.State) Model {
 	if s.SongID != m.state.SongID || s.Title != m.state.Title {
+		m = m.pickForSong(s)
 		m.glitch = glitchFrames
 		m.seekPending = false // the pending target belonged to another song
 	}
@@ -194,7 +197,7 @@ func (m Model) onState(s playback.State) Model {
 func (m Model) onTick() (tea.Model, tea.Cmd) {
 	m.frame++
 	m.fx = m.fx.advance(m.now(), m.seed, m.fxActive())
-	m = m.trackPlay().pollLevels().stepBars()
+	m = m.trackPlay().pollLevels().stepBars().stepViz()
 	if m.glitch > 0 {
 		m.glitch--
 	}

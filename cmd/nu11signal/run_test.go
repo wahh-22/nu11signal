@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wahh-22/nu11signal/internal/config"
 	"github.com/wahh-22/nu11signal/internal/helper"
 	"github.com/wahh-22/nu11signal/internal/history"
 	"github.com/wahh-22/nu11signal/internal/playback"
@@ -34,6 +35,7 @@ type testEnv struct {
 	d              deps
 	uiPlayer       playback.Player
 	uiRecents      history.Recents
+	uiConfig       config.Source
 	uiCalm         bool
 	uiRuns         int
 }
@@ -52,9 +54,9 @@ func newTestEnv(t *testing.T) *testEnv {
 			t.Error("startHelper called unexpectedly")
 			return nil, errors.New("unexpected start")
 		},
-		runUI: func(p playback.Player, r history.Recents, calm bool) error {
+		runUI: func(p playback.Player, r history.Recents, cfg config.Source, calm bool) error {
 			e.uiRuns++
-			e.uiPlayer, e.uiRecents, e.uiCalm = p, r, calm
+			e.uiPlayer, e.uiRecents, e.uiConfig, e.uiCalm = p, r, cfg, calm
 			return nil
 		},
 	}
@@ -155,6 +157,9 @@ func TestRunPlaysThroughHelperAndClosesIt(t *testing.T) {
 	if _, ok := e.uiRecents.(*history.File); !ok {
 		t.Fatalf("UI got recents %T; want the recent-searches file", e.uiRecents)
 	}
+	if _, ok := e.uiConfig.(*config.File); !ok {
+		t.Fatalf("UI got settings %T; want the settings file", e.uiConfig)
+	}
 }
 
 func TestRunDemoUsesSimulatedPlayerWithoutHelper(t *testing.T) {
@@ -168,6 +173,10 @@ func TestRunDemoUsesSimulatedPlayerWithoutHelper(t *testing.T) {
 	// The demo keeps recent searches in memory, off the user's config.
 	if e.uiRecents != nil {
 		t.Fatalf("UI got recents %T; want none (in-memory fallback)", e.uiRecents)
+	}
+	// It reads the settings, though: they only choose how it looks.
+	if _, ok := e.uiConfig.(*config.File); !ok {
+		t.Fatalf("UI got settings %T; want the settings file", e.uiConfig)
 	}
 }
 
@@ -184,7 +193,7 @@ func TestRunUIExitPaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newTestEnv(t)
-			e.d.runUI = func(playback.Player, history.Recents, bool) error { return tt.uiErr }
+			e.d.runUI = func(playback.Player, history.Recents, config.Source, bool) error { return tt.uiErr }
 			if code := run([]string{"--demo"}, e.d); code != tt.wantCode {
 				t.Fatalf("exit code = %d; want %d", code, tt.wantCode)
 			}

@@ -199,6 +199,8 @@ func (m Model) playerKey(k string) (next Model, cmd tea.Cmd, ok bool) {
 	case keyLoop:
 		next, cmd = m.cycleLoop()
 		return next, cmd, true
+	case keyVisualizer:
+		return m.cycleVisualizer(), nil, true
 	}
 	return m, nil, false
 }

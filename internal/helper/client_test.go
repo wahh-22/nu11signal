@@ -259,15 +259,16 @@ func TestLevelsEventsKeepTheLatestReading(t *testing.T) {
 	c := startFake(t, "standard", Options{})
 
 	// The fake emits two levels events, then a malformed one, before it
-	// answers: only the latest well-formed reading is kept, scaled to 0...1.
+	// answers: only the latest well-formed reading is kept, its bands
+	// scaled to 0...1 and its waveform to -1...1.
 	if err := c.Pause(t.Context()); err != nil {
 		t.Fatalf("Pause: %v", err)
 	}
 	select {
 	case got := <-c.Levels():
-		want := []float64{0, 0.5, 1, 1, 0}
-		if !slices.Equal(got, want) {
-			t.Fatalf("levels = %v; want %v", got, want)
+		want := playback.Spectrum{Bands: []float64{0, 0.5, 1, 1, 0}, Wave: []float64{0, 0.5, -1, 1, -1}}
+		if !slices.Equal(got.Bands, want.Bands) || !slices.Equal(got.Wave, want.Wave) {
+			t.Fatalf("levels = %+v; want %+v", got, want)
 		}
 	default:
 		t.Fatal("no levels reading")
@@ -276,6 +277,21 @@ func TestLevelsEventsKeepTheLatestReading(t *testing.T) {
 	case got := <-c.Levels():
 		t.Fatalf("a second reading %v; want only the latest", got)
 	default:
+	}
+}
+
+func TestLevelsEventsWithoutAWaveform(t *testing.T) {
+	c := startFake(t, "levelsNoWave", Options{})
+	if err := c.Pause(t.Context()); err != nil {
+		t.Fatalf("Pause: %v", err)
+	}
+	select {
+	case got := <-c.Levels():
+		if !slices.Equal(got.Bands, []float64{0.3, 0.6}) || got.Wave != nil {
+			t.Fatalf("levels = %+v; want the bands and no waveform", got)
+		}
+	default:
+		t.Fatal("no levels reading")
 	}
 }
 

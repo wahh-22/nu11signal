@@ -340,6 +340,7 @@ PLAYLISTS (and anywhere the key is not taken by the view):
 | `esc` | Back one view |
 | `r` | Retry loading the playlists after a failure |
 | `x` | Turn the signal effects off or on (see [Signal effects](#signal-effects)) |
+| `v` | Show the next visualizer, for this session (see [Visualizers](#visualizers)) |
 | `q` / `ctrl+c` | Quit |
 
 SEARCH (typing goes to the input, so letter shortcuts are off):
@@ -449,6 +450,49 @@ animation tick sleeps until the next effect is due; a text wave runs at
 about 15 fps. The terminal is redrawn at most 20 times a second, not Bubble
 Tea's default 60, to keep the process's wakeups (and battery use) low.
 
+## Visualizers
+
+The spectrum area at the bottom of NOW PLAYING draws one of five
+visualizers:
+
+| Name | Look |
+|------|------|
+| `bars` | The equalizer bars (the default) |
+| `oscilloscope` | The waveform traced in braille dots (2 x 4 per cell) around a dim center axis |
+| `waterfall` | A scrolling spectrogram: each frame the bands become a new row at the top and older rows flow down; shades ` ░▒▓█` and a cyan → magenta → yellow gradient show how loud each band was |
+| `rain` | Data rain: hex digits and half-width katakana fall down every other column, bright heads over dimming trails; the louder the band under a column, the more, faster and longer its drops (a loud one gets a yellow head) |
+| `synthwave` | A striped sun sinking behind mountains raised by the spectrum, over a perspective grid that scrolls toward you faster the louder the music |
+
+Choose one in `nu11signal/config.json` under `os.UserConfigDir()`
+(`~/Library/Application Support/nu11signal/config.json` on macOS):
+
+```json
+{"visualizer": "waterfall"}
+```
+
+The name is case-insensitive. `"random"` picks a visualizer per song: a
+hash of the song's id chooses it, never the one just shown, so the same
+song after the same visualizer always gets the same one. nu11signal only
+reads the file, once at startup, and never creates it: without it you get
+`bars`. A file that is not valid JSON, or names an unknown visualizer,
+also gives `bars`, and the status line says so once. Demo mode reads it
+too.
+
+`v` shows the next visualizer (bars, oscilloscope, waterfall, rain,
+synthwave, then bars again) for this session only, with a brief
+`VISUALIZER // NAME` on the status line; the file is left alone. In random
+mode `v` cycles the same way, and the next song picks at random again.
+
+Every visualizer draws the player's readings in app volume mode (see
+[Spectrum](#spectrum)): the bands, and for the oscilloscope the waveform.
+Without readings (system volume, `--demo`, macOS before 15) they run on
+the decorative bars: the oscilloscope draws a smooth synthetic wave as
+loud as the bars and the rain turns to a slow drizzle. When paused they
+settle as the bars do (the oscilloscope's trace flattens, the synthwave
+mountains fall, the waterfall and the rain hold still), so the animation
+tick slows down to once a second. They draw on the existing animation
+frames; the signal effects run over any of them.
+
 ## Mouse
 
 The mouse does what the keys do; the keys keep working. Every control is
@@ -553,7 +597,11 @@ reads the newest 2048 samples 15 times a second, applies a Hann window and
 a vDSP FFT, sums the bins into 24 log-spaced bands from 40 Hz to 16 kHz,
 maps each band's power from -50 dBFS (empty) to -10 dBFS (full), smooths
 it (fast attack, a fall of about a second) and emits
-`{"event":"levels","bands":[0-100, ...]}`. The TUI resamples the 24 bands to
+`{"event":"levels","bands":[0-100, ...],"wave":[-100-100, ...]}`: `wave` is
+the same 2048 samples decimated to 64 points, each keeping its stretch's
+largest swing (so a transient survives), in hundredths of full scale, for
+the oscilloscope (see [Visualizers](#visualizers)); a helper that omits it
+still works. The TUI resamples the 24 bands to
 the bars the panel has room for on its own 10 fps playing frame. When a
 song starts or resumes in app mode the bars hold where they are (usually
 flat) until the first reading arrives, since the tap takes a moment to
@@ -582,7 +630,7 @@ One JSON object per line.
 |-----------|-------|
 | Request | `{"id":"<string>","cmd":"<name>", ...args}` |
 | Response | `{"id":"<id>","ok":true,"result":{...}}` or `{"id":"<id>","ok":false,"error":"<msg>"}` |
-| Event | `{"event":"ready"}`, `{"event":"state","state":{...}}`, `{"event":"error","message":"<msg>"}`, `{"event":"levels","bands":[...]}` (app volume mode only; see [Spectrum](#spectrum)) |
+| Event | `{"event":"ready"}`, `{"event":"state","state":{...}}`, `{"event":"error","message":"<msg>"}`, `{"event":"levels","bands":[...],"wave":[...]}` (app volume mode only; see [Spectrum](#spectrum)) |
 
 | Command | Args | Result |
 |---------|------|--------|

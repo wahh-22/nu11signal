@@ -261,9 +261,10 @@ func runeWidth(r rune) int {
 }
 
 // textRune reports whether r is text: printable, not a space, not a box
-// drawing border or a block shade.
+// drawing border or a block shade, and not braille (the oscilloscope's
+// trace, see scopeViz).
 func textRune(r rune) bool {
-	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F)
+	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F) && (r < 0x2800 || r > 0x28FF)
 }
 
 // textWave scrambles the letters of the live text wave in lines, but on

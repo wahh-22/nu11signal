@@ -400,21 +400,13 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	zs.addAt(nowPlayingMargin, len(lines), lz)
 	lines = append(lines, " "+loop)
 
-	eqRows := min(ih-len(lines), eqMaxRows)
-	if eqRows >= 2 {
-		// Sit the spectrum on the bottom edge of the panel.
+	if eqRows := vizRows(ih, len(lines)); eqRows > 0 {
+		// Sit the visualizer on the bottom edge of the panel.
 		for len(lines)+eqRows < ih {
 			lines = append(lines, "")
 		}
-		for i, row := range m.bars.render(inner, eqRows) {
-			style := stRed
-			switch {
-			case i == 0:
-				style = stYellow
-			case i < eqRows/2:
-				style = stRedBold
-			}
-			lines = append(lines, " "+style.Render(row))
+		for _, row := range m.activeViz().Render(inner, eqRows) {
+			lines = append(lines, " "+row)
 		}
 	}
 	return lines, zs

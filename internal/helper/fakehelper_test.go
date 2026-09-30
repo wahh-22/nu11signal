@@ -167,6 +167,13 @@ func runFakeHelper(scenario string) int {
 				held = nil
 			}
 			continue
+		case "levelsNoWave":
+			// A helper older than the waveform sends bands only.
+			if cmd == "pause" {
+				emit(map[string]any{"event": "levels", "bands": []int{30, 60}})
+				ok(id, map[string]any{})
+				continue
+			}
 		case "silentAuth":
 			if cmd == "authorize" {
 				continue // never answered
@@ -341,8 +348,8 @@ func answer(id, cmd string) {
 		}})
 		ok(id, map[string]any{})
 	case "pause":
-		emit(map[string]any{"event": "levels", "bands": []int{10, 20}})
-		emit(map[string]any{"event": "levels", "bands": []int{0, 50, 100, 120, -5}})
+		emit(map[string]any{"event": "levels", "bands": []int{10, 20}, "wave": []int{1, 2}})
+		emit(map[string]any{"event": "levels", "bands": []int{0, 50, 100, 120, -5}, "wave": []int{0, 50, -100, 130, -150}})
 		emit(map[string]any{"event": "levels"})
 		ok(id, map[string]any{})
 	case "previous":

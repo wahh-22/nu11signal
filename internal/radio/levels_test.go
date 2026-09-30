@@ -96,7 +96,7 @@ func TestEQDrawsFreshLevels(t *testing.T) {
 	for i := range bands {
 		bands[i] = float64(i) / 23
 	}
-	f.PushLevels(bands)
+	f.PushLevels(playback.Spectrum{Bands: bands})
 	m = tick(t, m)
 
 	want := resampleLevels(bands, 14)
@@ -110,7 +110,7 @@ func TestEQDrawsFreshLevels(t *testing.T) {
 
 func TestEQKeepsTheLatestLevelsWhileFresh(t *testing.T) {
 	m, f, c := playingWithLevels(t)
-	f.PushLevels([]float64{1})
+	f.PushLevels(playback.Spectrum{Bands: []float64{1}})
 	m = tick(t, m)
 	// No new reading for a moment (a reading is late): the bars hold it.
 	c.advance(400 * time.Millisecond)
@@ -122,7 +122,7 @@ func TestEQKeepsTheLatestLevelsWhileFresh(t *testing.T) {
 
 func TestEQFallsBackToDecorativeWhenLevelsStop(t *testing.T) {
 	m, f, c := playingWithLevels(t)
-	f.PushLevels([]float64{0.5})
+	f.PushLevels(playback.Spectrum{Bands: []float64{0.5}})
 	m = tick(t, m)
 	c.advance(levelsFresh)
 	before := m.bars
@@ -134,12 +134,12 @@ func TestEQFallsBackToDecorativeWhenLevelsStop(t *testing.T) {
 
 func TestEQFallsWhenPausedEvenWithFreshLevels(t *testing.T) {
 	m, f, _ := playingWithLevels(t)
-	f.PushLevels([]float64{1})
+	f.PushLevels(playback.Spectrum{Bands: []float64{1}})
 	m = tick(t, m)
 	paused := playing(time.Second, time.Minute)
 	paused.Status = playback.StatusPaused
 	m, _ = step(t, m, stateMsg{state: paused})
-	f.PushLevels([]float64{1})
+	f.PushLevels(playback.Spectrum{Bands: []float64{1}})
 	before := m.bars
 	m = tick(t, m)
 	if want := before.step(false, m.seed, m.frame); m.bars != want {
@@ -161,7 +161,7 @@ func TestEQIsDecorativeWithoutALevelSource(t *testing.T) {
 
 func TestLevelsClosedFallsBackToDecorative(t *testing.T) {
 	m, f, _ := playingWithLevels(t)
-	f.PushLevels([]float64{1})
+	f.PushLevels(playback.Spectrum{Bands: []float64{1}})
 	m = tick(t, m)
 	_ = f.Close()
 	m = tick(t, m) // the closed channel is dropped, the reading kept
@@ -206,7 +206,7 @@ func TestEQWaitsForLevelsInAppMode(t *testing.T) {
 		c.advance(fastTick)
 	}
 	c.t = m.playSince.Add(eqWaitLevels - time.Millisecond)
-	f.PushLevels(allBars(0.6))
+	f.PushLevels(playback.Spectrum{Bands: allBars(0.6)})
 	m = tick(t, m)
 	if want := (eq{}).follow(allBars(0.6), 14); m.bars != want {
 		t.Fatalf("bars = %v; want the first reading", m.bars[:14])
@@ -243,7 +243,7 @@ func TestEQHandsOverSmoothlyFromDecorativeToLevels(t *testing.T) {
 	}
 	target := (eq{}).follow(allBars(1), 14)
 	before := m.bars
-	f.PushLevels(allBars(1))
+	f.PushLevels(playback.Spectrum{Bands: allBars(1)})
 	m = tick(t, m)
 	for i := range 14 {
 		if m.bars[i] <= before[i] || m.bars[i] >= 1 {
@@ -252,7 +252,7 @@ func TestEQHandsOverSmoothlyFromDecorativeToLevels(t *testing.T) {
 	}
 	for range 20 {
 		c.advance(fastTick)
-		f.PushLevels(allBars(1))
+		f.PushLevels(playback.Spectrum{Bands: allBars(1)})
 		m = tick(t, m)
 	}
 	if m.bars != target {
@@ -262,7 +262,7 @@ func TestEQHandsOverSmoothlyFromDecorativeToLevels(t *testing.T) {
 
 func TestEQHandsOverSmoothlyFromLevelsToDecorative(t *testing.T) {
 	m, f, c := appPlaying(t)
-	f.PushLevels(allBars(1))
+	f.PushLevels(playback.Spectrum{Bands: allBars(1)})
 	m = tick(t, m)
 	c.advance(levelsFresh)
 	before := m.bars
@@ -280,7 +280,7 @@ func TestEQHandsOverSmoothlyFromLevelsToDecorative(t *testing.T) {
 func TestEQIgnoresAPrePauseReadingOnResume(t *testing.T) {
 	for _, polled := range []bool{false, true} {
 		m, f, c := appPlaying(t)
-		f.PushLevels(allBars(1))
+		f.PushLevels(playback.Spectrum{Bands: allBars(1)})
 		m = tick(t, m)
 		m, _ = step(t, m, stateMsg{state: appState(playback.StatusPaused)})
 		for range 3 {
@@ -288,7 +288,7 @@ func TestEQIgnoresAPrePauseReadingOnResume(t *testing.T) {
 			m = tick(t, m)
 		}
 		// The last reading the helper sent before it stopped.
-		f.PushLevels(allBars(1))
+		f.PushLevels(playback.Spectrum{Bands: allBars(1)})
 		if polled {
 			m = tick(t, m) // taken while paused
 		}
@@ -305,9 +305,9 @@ func TestEQIgnoresAPrePauseReadingOnResume(t *testing.T) {
 func TestEQIgnoresEmptyLevels(t *testing.T) {
 	t.Run("app mode keeps the last reading", func(t *testing.T) {
 		m, f, _ := appPlaying(t)
-		f.PushLevels(allBars(0.8))
+		f.PushLevels(playback.Spectrum{Bands: allBars(0.8)})
 		m = tick(t, m)
-		f.PushLevels([]float64{})
+		f.PushLevels(playback.Spectrum{Bands: []float64{}})
 		m = tick(t, m)
 		if want := (eq{}).follow(allBars(0.8), 14); m.bars != want {
 			t.Fatalf("bars = %v; want the last reading kept", m.bars[:14])
@@ -315,11 +315,22 @@ func TestEQIgnoresEmptyLevels(t *testing.T) {
 	})
 	t.Run("no reading stays decorative", func(t *testing.T) {
 		m, f, _ := playingWithLevels(t)
-		f.PushLevels(nil)
+		f.PushLevels(playback.Spectrum{Bands: nil})
 		before := m.bars
 		m = tick(t, m)
 		if want := before.step(true, m.seed, m.frame); m.bars != want {
 			t.Fatalf("bars = %v; want the decorative step", m.bars[:14])
 		}
 	})
+}
+
+func TestLevelsKeepTheWaveform(t *testing.T) {
+	m, f, _ := playingWithLevels(t)
+	wave := []float64{0.5, -0.5, 1, -1}
+	f.PushLevels(playback.Spectrum{Bands: []float64{0.2}, Wave: wave})
+	m = tick(t, m)
+	got, ok := m.liveSpectrum()
+	if !ok || !slices.Equal(got.Wave, wave) {
+		t.Fatalf("liveSpectrum() = %+v, %v; want the waveform %v", got, ok, wave)
+	}
 }
