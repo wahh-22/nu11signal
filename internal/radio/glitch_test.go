@@ -222,6 +222,11 @@ func TestTickRateRisesOnlyDuringBursts(t *testing.T) {
 	still := playing(90*time.Second, 225*time.Second)
 	still.Status = playback.StatusPaused
 	m, _ = step(t, m, stateMsg{state: still})
+	// The rain settles into the emblem at the burst's pace (see vizswap.go).
+	if got := m.tickInterval(); got != burstTick {
+		t.Fatalf("swap tick = %v, want %v", got, burstTick)
+	}
+	c.t = m.swap.end()
 	for range 20 {
 		m = tick(t, m) // let the EQ settle flat
 	}

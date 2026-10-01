@@ -170,7 +170,7 @@ func TestIdleEmblemLargeInTheExpandedPlayer(t *testing.T) {
 
 func TestIdleSaltsAreItsOwn(t *testing.T) {
 	salts := []uint64{saltBurstGap, saltBurstLen, saltNoSignal, saltBurst, saltRain, saltRainBurst, saltIntro, saltBoot, saltShutdown}
-	for _, s := range []uint64{saltIdle, saltIdleField} {
+	for _, s := range []uint64{saltIdle, saltSwap} {
 		if slices.Contains(salts, s) {
 			t.Errorf("idle salt %d shared with another effect", s)
 		}
@@ -189,6 +189,8 @@ func idleFxModel(t *testing.T, c *clock) Model {
 	for range 20 {
 		m = tick(t, m)
 	}
+	// Let the pause's swap to the emblem end (see vizswap.go).
+	c.advance(swapDur)
 	c.advance(idleFrameWait(c.t))
 	m.fx.nextBurst = c.t.Add(time.Hour)
 	return m.tickAt(t, c)
@@ -284,91 +286,39 @@ func TestIdleGlitchIsContinuousAndSoft(t *testing.T) {
 	}
 }
 
-// fieldCells are the non-blank cells of rows outside the emblem's box,
-// and the number of cells there.
-func fieldCells(rows []string, a idleArt, w int) (glyphs []string, total int) {
+// outsideBox are the cells of rows outside the emblem's box.
+func outsideBox(rows []string, a idleArt, w int) []string {
 	x0, x1 := a.box(w)
+	var out []string
 	for y, r := range rows {
 		cs := cells(r)
 		for x := range w {
 			if y >= a.y && y < a.y+len(a.e.rows) && x >= x0 && x < x1 {
 				continue
 			}
-			total++
-			if x < len(cs) && cs[x] != " " {
-				glyphs = append(glyphs, cs[x])
+			if x < len(cs) {
+				out = append(out, cs[x])
 			}
 		}
 	}
-	return glyphs, total
+	return out
 }
 
-func TestIdleFieldScattersRainGlyphsBehindTheEmblem(t *testing.T) {
+func TestIdleAreaHoldsTheEmblemAlone(t *testing.T) {
 	c := newClock()
 	m := idleFxModel(t, c)
 	w, h := m.vizSize()
 	art, _ := idleArtFor(w, h)
-	var frames [][]string
-	sum, cellsSeen := 0, 0
-	for range 60 {
+	for i := range 60 {
 		rows := rainArea(t, m)
-		glyphs, total := fieldCells(rows, art, w)
-		for _, g := range glyphs {
-			if !slices.Contains(rainGlyphs, []rune(g)[0]) {
-				t.Fatalf("field glyph %q is not a rain glyph", g)
+		for _, g := range outsideBox(rows, art, w) {
+			if g != " " {
+				t.Fatalf("frame %d: %q drawn outside the emblem's box:\n%s", i, g, strings.Join(rows, "\n"))
 			}
 		}
-		if d := float64(len(glyphs)) / float64(total); d < 0.02 || d > 0.12 {
-			t.Fatalf("field density %.3f out of 0.02..0.12", d)
-		}
-		sum += len(glyphs)
-		cellsSeen += total
-		frames = append(frames, rows)
+		emblemChanges(t, rows, art, w, h) // only the soft glitch inside
 		c.advance(m.tickInterval())
 		m = m.tickAt(t, c)
-	}
-	if d := float64(sum) / float64(cellsSeen); d < 0.04 || d > 0.08 {
-		t.Fatalf("mean field density %.3f out of 0.04..0.08", d)
-	}
-	changed := 0
-	for i := 1; i < len(frames); i++ {
-		if !slices.Equal(frames[i], frames[i-1]) {
-			changed++
-		}
-	}
-	if changed < len(frames)/2 {
-		t.Fatalf("the field changed on %d of %d frames", changed, len(frames)-1)
-	}
-	a, _ := fieldCells(frames[0], art, w)
-	b, _ := fieldCells(frames[40], art, w)
-	if slices.Equal(a, b) {
-		t.Fatal("the field is the same 40 frames later")
-	}
-}
-
-func TestIdleFieldInksAreDim(t *testing.T) {
-	counts := map[uint8]int{}
-	for f := range uint64(50) {
-		for y := range 10 {
-			for x := range 60 {
-				g, k, ok := idleFieldCell(7, f, x, y)
-				if !ok {
-					continue
-				}
-				if !slices.Contains(rainGlyphs, g) {
-					t.Fatalf("field glyph %q is not a rain glyph", g)
-				}
-				counts[k]++
-			}
-		}
-	}
-	for k := range counts {
-		if k != inkDim && k != inkMuted && k != inkBody {
-			t.Fatalf("field ink %d, want dim, muted or body", k)
-		}
-	}
-	if counts[inkDim] <= counts[inkMuted] || counts[inkMuted] <= counts[inkBody] || counts[inkBody] == 0 {
-		t.Fatalf("field inks %v, want mostly dim, some muted, a few body", counts)
 	}
 }
 
@@ -409,9 +359,8 @@ func TestIdleStaticWithTheEffectsOff(t *testing.T) {
 	if n := emblemChanges(t, first, art, w, h); n != 0 {
 		t.Fatalf("effects off: %d emblem cells glitched", n)
 	}
-	glyphs, total := fieldCells(first, art, w)
-	if d := float64(len(glyphs)) / float64(total); d < 0.02 || d > 0.12 {
-		t.Fatalf("effects off: field density %.3f out of 0.02..0.12", d)
+	if !slices.Equal(first, stripAll(art.lines(w, h))) {
+		t.Fatalf("effects off: the idle area is not the clean emblem:\n%s", strings.Join(first, "\n"))
 	}
 	for range 40 {
 		c.advance(m.tickInterval())

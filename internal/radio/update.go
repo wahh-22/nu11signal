@@ -20,11 +20,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	// Text msg brought scrambles in (see intro.go), the tick raised for it.
 	nm = nm.withIntro(m, msg)
+	// A flip of the spectrum area between the emblem and the rain swaps
+	// them over its own frames (see vizswap.go).
+	nm, swapped := nm.withSwap(m)
 	// A boot or a shutdown that starts needs its frames and its end on
 	// time.
 	booted := m.bootEnd.IsZero() && !nm.bootEnd.IsZero()
 	shut := !m.shutdown && nm.shutdown
-	if booted || shut || (nm.intro.seq != m.intro.seq && !nm.tickFast) {
+	if booted || shut || ((nm.intro.seq != m.intro.seq || swapped) && !nm.tickFast) {
 		tick := nm.scheduleTick()
 		return nm, tea.Batch(cmd, tick)
 	}

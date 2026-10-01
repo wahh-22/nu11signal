@@ -20,35 +20,28 @@ import (
 // (bootNoiseGlyphs) over the emblem's drawn cells and, on one frame in
 // idleTearOdds, tears one emblem row 1 cell sideways, inside its box (see
 // idleArt.box); most frames change one or two cells and never draw
-// letters over it. Behind the emblem, never in its box, a sparse field
-// of the rain's glyphs (about idleFieldPerMille per mille of the cells,
-// see idleFieldCell) flickers, each cell appearing, changing and going
-// out on a life of its own. Everything comes from the seed and the idle
-// frame, drawn inside the area, so nothing else moves.
+// letters over it. Nothing is drawn behind it. Everything comes from the
+// seed and the idle frame, drawn inside the area, so nothing else moves.
+// When playback starts or stops the area dissolves between the emblem
+// and the rain instead of cutting (see vizswap.go).
 //
 // The tick runs at idleFrameTick while it does, landing on each frame
 // (see idleFrameWait): about 6.7 wakeups a second instead of idleTick's
 // one, fewer than playing's fastTick and slow enough to read as a quiet
-// hum, not as motion. With the effects off the emblem and the field are
-// static (frame 0) and the tick stays at idleTick.
+// hum, not as motion. With the effects off the emblem is the
+// clean art, still, and the tick stays at idleTick.
 const (
 	idleFrameTick = 150 * time.Millisecond
 	// idleNoiseMax is the most noise cells a frame draws over the emblem;
 	// one frame in idleTearOdds also tears a row.
 	idleNoiseMax = 2
 	idleTearOdds = 6
-	// idleFieldPerMille of the cells behind the emblem show a glyph at a
-	// time; each cell rolls anew every idleFieldLifeMin..idleFieldLifeMax
-	// frames, its own phase and life, so the field flickers unevenly.
-	idleFieldPerMille = 60
-	idleFieldLifeMin  = 4
-	idleFieldLifeMax  = 12
 )
 
 // Salts keep the idle look's streams apart from the other effects'.
 const (
 	saltIdle uint64 = iota + 601
-	saltIdleField
+	saltSwap
 )
 
 // idleFrame is the idle frame at now: the number of idleFrameTicks since
@@ -63,27 +56,6 @@ func idleFrameWait(now time.Time) time.Duration {
 	q := int64(idleFrameTick)
 	ns := now.UnixNano()
 	return time.Duration((ns/q+1)*q - ns)
-}
-
-// idleFieldCell is cell x, y of the glyph field on idle frame f: its
-// glyph (one of rainGlyphs) and ink, mostly inkDim, now and then inkMuted,
-// rarely inkBody, when it shows one. Each cell keeps a glyph for its own
-// life of frames, from its own phase, then rolls again.
-func idleFieldCell(seed, f uint64, x, y int) (rune, uint8, bool) {
-	c := mix(seed, saltIdleField, uint64(x), uint64(y))
-	life := idleFieldLifeMin + c%(idleFieldLifeMax-idleFieldLifeMin+1)
-	h := mix(c, (f+c>>16%life)/life)
-	if h%1000 >= idleFieldPerMille {
-		return 0, inkNone, false
-	}
-	k := inkDim
-	switch h >> 40 % 20 {
-	case 0:
-		k = inkBody
-	case 1, 2, 3, 4, 5:
-		k = inkMuted
-	}
-	return rainGlyphs[h>>16%uint64(len(rainGlyphs))], k, true
 }
 
 // idleShown reports whether the idle emblem is on screen: no music
@@ -150,7 +122,7 @@ func (a idleArt) plain() []string {
 
 // box is the columns [x0, x1) of an area w wide that the emblem's rows
 // keep to themselves: the art and a cell on either side, the room a tear
-// moves it into. The field never draws there.
+// moves it into.
 func (a idleArt) box(w int) (x0, x1 int) {
 	bw := a.e.width()
 	if a.text {
@@ -175,10 +147,12 @@ func (a idleArt) lines(w, h int) []string {
 	return out
 }
 
-// idleRows is the spectrum area w x h while idle: the glyph field with
-// the emblem over it, centered in its box (see idleArtFor, idleArt.box),
-// glitched while the effects run; blank where no emblem fits. With the
-// effects off it draws idle frame 0, the same every time.
+// idleRows is the spectrum area w x h while idle: the emblem centered
+// (see idleArtFor), softly glitched within its box (see idleArt.box)
+// while the effects are active, on blank cells; blank where no emblem
+// fits. With the effects off it is the clean art, the same every time.
+// It glitches during a swap to the rain too, playing or not (see
+// vizswap.go), so the emblem it dissolves from keeps moving.
 func (m Model) idleRows(w, h int) []string {
 	a, ok := idleArtFor(w, h)
 	if !ok {
@@ -188,33 +162,16 @@ func (m Model) idleRows(w, h int) []string {
 		}
 		return out
 	}
-	live := m.idleActive()
-	f := uint64(0)
-	if live {
-		f = idleFrame(m.now())
+	lines := a.lines(w, h)
+	if !m.fxActive() {
+		return lines
 	}
 	x0, x1 := a.box(w)
-	c := newCanvas(w, h)
-	for y := range h {
-		inRows := y >= a.y && y < a.y+len(a.e.rows)
-		for x := range w {
-			if inRows && x >= x0 && x < x1 {
-				continue
-			}
-			if g, k, ok := idleFieldCell(m.seed, f, x, y); ok {
-				c.set(x, y, g, k)
-			}
-		}
-	}
-	lines := c.lines()
 	segs := make([]string, len(a.e.rows))
-	for i, l := range a.block() {
-		seg := strings.Repeat(" ", a.x-x0) + l
-		segs[i] = seg + strings.Repeat(" ", max(x1-x0-ansi.StringWidth(seg), 0))
+	for i := range segs {
+		segs[i] = ansi.Cut(lines[a.y+i], x0, x1)
 	}
-	if live {
-		idleGlitchDraw(segs, a, x0, mix(m.seed, saltIdle, f))
-	}
+	idleGlitchDraw(segs, a, x0, mix(m.seed, saltIdle, idleFrame(m.now())))
 	for i, seg := range segs {
 		lines[a.y+i] = overlay(lines[a.y+i], x0, seg)
 	}

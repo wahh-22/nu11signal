@@ -72,19 +72,25 @@ While no music plays (paused, stopped, nothing loaded) the spectrum area
 shows the null emblem with `N U 1 1 / S I G N A L` beside it, centered,
 in place of the rain: the large emblem where it fits (the expanded player
 included), else the compact one, else the emblem without its text, else
-nothing. Behind it, never over the emblem or its text, a sparse field of
-the rain's glyphs (hex digits, half-width katakana) sits at random cells,
-about 6% of them, mostly dim, now and then a brighter one; they do not
-fall. With the effects on the field flickers, each cell appearing,
-changing and going out on its own 0.6–1.8 s life, and the emblem glitches
-all the time, softly: every frame zero to two block cells flicker over it
-and, on about one frame in six, one emblem row tears a cell sideways. The
-tick runs at about 6.7 fps (150 ms) while the emblem is shown with the
-effects on, instead of once a second; with the effects off the emblem and
-the field are still and the tick stays at once a second. Playing again
-brings the rain back, its drops where they were. The emblem, the field
-and the glitch come from the seed and the clock, and the signal effects
-still run over them.
+nothing, on blank cells. With the effects on the emblem glitches all the
+time, softly: every frame zero to two block cells flicker over it and, on
+about one frame in six, one emblem row tears a cell sideways. The tick
+runs at about 6.7 fps (150 ms) while the emblem is shown with the effects
+on, instead of once a second; with the effects off the emblem is still and
+the tick stays at once a second. The emblem and the glitch come from the
+seed and the clock, and the signal effects still run over them.
+
+When music starts or stops the area does not cut: over 0.7 s the emblem
+breaks up into the rain, or the rain settles into the emblem. Each cell
+turns at its own seeded moment, biased so the emblem leaves from the
+area's edges inward and comes back from its middle outward; the cells at
+the moving edge glitch, block noise over the emblem and bright rain
+glyphs elsewhere. The rain keeps falling and the emblem keeps its glitch
+underneath, the tick runs at the burst's pace (about 15 fps) until the
+switch ends, and a flip halfway turns it around from where it stands.
+With the effects off, during the boot, on the player's first report and
+in the compact and tiny layouts (no rain area) it cuts as before. Playing
+again brings the rain back, its drops where they were.
 
 The other visualizers (bars, oscilloscope, synthwave, random) and the `v`
 key are gone. A `nu11signal/config.json` under `os.UserConfigDir()`
