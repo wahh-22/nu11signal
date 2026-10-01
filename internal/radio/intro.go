@@ -126,11 +126,12 @@ func introQuiet(msg tea.Msg) bool {
 // still running go on scrambling where their text stayed, in the new one
 // or, with nothing new, in the same one.
 //
-// The first size, while access is linking, is compared with the empty
-// frame before it: the startup screen scrambles in (see splash).
+// The first size of a boot is compared with the empty frame before it:
+// the boot splash scrambles in (see splash). The tick that ends the boot
+// is compared too: the normal UI scrambles in over the splash.
 func (m Model) withIntro(prev Model, msg tea.Msg) Model {
 	_, sized := msg.(tea.WindowSizeMsg)
-	first := sized && prev.width <= 0 && prev.height <= 0 && m.linking()
+	first := (sized && prev.width <= 0 && prev.height <= 0 && m.boot) || (prev.boot && !m.boot)
 	if introQuiet(msg) && !first {
 		return m
 	}
@@ -217,7 +218,7 @@ func quitModalRows(zs zones, inset int) []rowSpan {
 // introRegions are the rows compared for new content: the quit modal's
 // inside while it asks (it covers the rest, see quit.go); the KEYS or
 // SETTINGS overlay's inside while one is open (it hides the rest); the
-// startup screen's body while access is linking (see splashRegion);
+// boot splash's body during the boot (see splashRegion);
 // otherwise the list panel's inside, and the NOW PLAYING field rows in
 // the full layout; never the rows of the SEARCH input or the NEW
 // PLAYLIST name, where their zones put them.
@@ -244,7 +245,7 @@ func (m Model) introRegions(zs zones) [][]rowSpan {
 		}
 		return [][]rowSpan{rows}
 	}
-	if m.linking() {
+	if m.boot {
 		return [][]rowSpan{m.splashRegion()}
 	}
 	var inputs []int

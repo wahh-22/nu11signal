@@ -163,7 +163,7 @@ func TestTypingNeverScramblesTheInput(t *testing.T) {
 	f := playbacktest.New()
 	f.SearchCatalogResult = catalog()
 	f.PlaylistsResult = stations()
-	m := New(f, Options{Now: c.now, Seed: 2077, Effects: true})
+	m := New(f, Options{SkipBoot: true, Now: c.now, Seed: 2077, Effects: true})
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m, cmd := step(t, m, run(t, m.authorizeCmd()))
 	m, _ = step(t, m, run(t, cmd))
@@ -245,7 +245,7 @@ func introModelSized(t *testing.T, c *clock, w, h int, lists []playback.Playlist
 	t.Helper()
 	f := playbacktest.New()
 	f.PlaylistsResult = lists
-	m := New(f, Options{Now: c.now, Seed: 2077, Effects: true})
+	m := New(f, Options{SkipBoot: true, Now: c.now, Seed: 2077, Effects: true})
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: w, Height: h})
 	m, cmd := step(t, m, run(t, m.authorizeCmd()))
 	for _, msg := range runAll(t, cmd) {
@@ -477,7 +477,7 @@ func TestIntrosStayOffOnTheTinyLayoutAndTheAuthScreen(t *testing.T) {
 
 	f := playbacktest.New()
 	f.AuthStatus = playback.AuthDenied
-	m := New(f, Options{Now: c.now, Seed: 2077, Effects: true})
+	m := New(f, Options{SkipBoot: true, Now: c.now, Seed: 2077, Effects: true})
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	prev := m
 	m, _ = step(t, m, run(t, m.authorizeCmd()))

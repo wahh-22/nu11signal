@@ -73,7 +73,7 @@ func keyMsg(s string) tea.KeyPressMsg {
 
 func newModel(t *testing.T, f *playbacktest.Fake, c *clock) Model {
 	t.Helper()
-	m := New(f, Options{Now: c.now, Seed: 2077})
+	m := New(f, Options{SkipBoot: true, Now: c.now, Seed: 2077})
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	return m
 }
@@ -667,7 +667,7 @@ func (b blockingCloser) Close() error {
 func TestQuitDoesNotHangOnAStuckPlayer(t *testing.T) {
 	p := blockingCloser{Fake: playbacktest.New(), release: make(chan struct{})}
 	defer close(p.release)
-	m := New(p, Options{Now: newClock().now, CloseTimeout: 50 * time.Millisecond})
+	m := New(p, Options{SkipBoot: true, Now: newClock().now, CloseTimeout: 50 * time.Millisecond})
 	_, cmd := press(t, m, "q", "y")
 	if _, ok := run(t, cmd).(tea.QuitMsg); !ok {
 		t.Fatal("quit did not produce tea.QuitMsg")

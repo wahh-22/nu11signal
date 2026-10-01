@@ -450,12 +450,14 @@ to quit.
 
 Quitting always asks first, so a stray `q` never ends the session: `q`
 (wherever it is not typed) and `ctrl+c` open a small `QUIT NU11SIGNAL?`
-panel over whatever is on screen (the overlays, the startup screen and the
-access error included) while the music keeps playing. `y` or `enter` quits,
+panel over whatever is on screen (the overlays and the access error
+included; over the boot splash `q` skips the boot first) while the music
+keeps playing. `y` or `enter` quits,
 and so does `q` or `ctrl+c` pressed again (the double press is the fast way
 out); `n` or `esc` closes it and gives the screen back as it was. The other
-keys do nothing while it asks. Its `[Y/ENTER] QUIT` and `[N/ESC] STAY`
-buttons are clickable, and a click outside the panel closes it.
+keys do nothing while it asks. Its `[ Y QUIT ]` and `[ N STAY ]` buttons,
+HUD keys like the player's (QUIT filled, as `enter`'s action; STAY in cyan
+brackets), are clickable, and a click outside the panel closes it.
 
 The HUD names live state: the nav bar ends in the Night City net node the
 radio is patched through (`NODE 7F // NC-GRID`, flavor, fixed for a session
@@ -479,6 +481,16 @@ three, runs a static bar across a row, all changing every frame; about one burst
 red `NO SIGNAL` framed in red static for its whole length. A real message
 on the status line is never glitched. The effects are drawn over the
 frame, so clicks and keys work during a burst.
+
+At launch nu11signal boots: for about 1.5 s the body shows the null
+emblem (compact, or its text alone, on a small terminal) with
+`BOOTING NU11SIGNAL...`, spaced out, under it, glitching from the first frame (torn
+emblem rows, noise cells, now and then a static bar, at about 15 fps), then
+the normal UI scrambles in, whether Apple Music has linked yet or not
+(`LINKING` stays in the header until it does). Any key or click skips the
+boot (the key does nothing else, but `q` and `ctrl+c` ask to quit); refused
+access shows the access error at once. With the effects off the boot splash
+shows still.
 
 New content scrambles in: when text appears that was not on screen
 (another tab or page, a list or search results arriving, the ADD TO

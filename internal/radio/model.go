@@ -25,6 +25,9 @@ type Options struct {
 	// intros (see glitch.go and intro.go). Off by default, and in tests, so frames stay fixed;
 	// keyEffects toggles them.
 	Effects bool
+	// SkipBoot starts past the boot splash (see boot.go), on the normal UI
+	// from the first frame: tests that are not about the boot use it.
+	SkipBoot bool
 	// CallTimeout bounds every Player call (default 8s).
 	CallTimeout time.Duration
 	// CloseTimeout bounds how long quitting waits for Player.Close before
@@ -281,6 +284,10 @@ type Model struct {
 	// latest content intro (see intro.go).
 	fx    effects
 	intro intro
+	// boot shows the boot splash (see boot.go) until bootEnd, set by the
+	// first size; zero until then.
+	boot    bool
+	bootEnd time.Time
 }
 
 // New returns a radio Model driving p.
@@ -321,6 +328,7 @@ func New(p playback.Player, opts Options) Model {
 		stack:        []frame{{kind: viewStations}},
 		volumeBusy:   true, // Init reads the volume
 		fx:           effects{on: opts.Effects},
+		boot:         !opts.SkipBoot,
 		configSource: opts.Config,
 		configSaves:  &configSaves{},
 
@@ -490,7 +498,8 @@ func (m Model) animInterval() time.Duration {
 
 // tickInterval is the time to the next frame: fastTick while something
 // moves, else idleTick, paced by the signal effects while they run (see
-// effects.interval) and at most introTick during an intro.
+// effects.interval), at most introTick during an intro, and cut to the
+// boot's frames and its end (see bootInterval).
 func (m Model) tickInterval() time.Duration {
 	d := idleTick
 	if m.tickFast {
@@ -503,7 +512,7 @@ func (m Model) tickInterval() time.Duration {
 		end := m.intro.start.Add(introDur)
 		d = min(d, max(min(introTick, end.Sub(m.now())), minWake))
 	}
-	return d
+	return m.bootInterval(d)
 }
 
 func (m Model) animating() bool {

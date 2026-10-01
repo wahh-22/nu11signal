@@ -36,13 +36,16 @@ func (m Model) render() string {
 	return strings.Join(lines, "\n")
 }
 
-// layout lays out the frame, with the content intro and the signal
-// effects drawn over it while they run (see intro.go and glitch.go); they
-// never move the zones.
+// layout lays out the frame, with the content intro, the boot glitch and
+// the signal effects drawn over it while they run (see intro.go, boot.go
+// and glitch.go); they never move the zones.
 func (m Model) layout() ([]string, zones) {
 	lines, zs := m.baseLayout()
 	if m.introOn() {
 		m.drawIntro(lines)
+	}
+	if m.bootGlitching() {
+		m.bootGlitch(lines)
 	}
 	if m.fxActive() {
 		lines = m.decorate(lines)
@@ -107,8 +110,8 @@ func (m Model) renderFull() ([]string, zones) {
 		lines = append(lines, panel...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
-	if m.linking() {
-		// The startup screen: nothing in the body is clickable.
+	if m.boot {
+		// The boot splash: nothing in the body is clickable.
 		lines = append(lines, splash(w, bodyH)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
@@ -185,8 +188,8 @@ func (m Model) listBodyWidth() int {
 }
 
 // renderCompact stacks the screen in one column: the nav bar takes the
-// header rule and, while access is linking, the startup screen (see
-// splash) the rest down to the status line; else the title line ends in
+// header rule and, during the boot, the boot splash (see splash) the
+// rest down to the status line; else the title line ends in
 // the [<3] button, then the artist
 // line, the transport row (packed), the volume row beside it while it fits
 // and the rule over the list, which the expanded player leaves out. The
@@ -209,7 +212,7 @@ func (m Model) renderCompact() ([]string, zones) {
 		lines = append(lines, panel...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
-	if m.linking() {
+	if m.boot {
 		lines = append(lines, splash(w, m.height-4)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}

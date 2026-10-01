@@ -65,7 +65,7 @@ func TestTheNavBarShowsANetNode(t *testing.T) {
 
 func TestTheNetNodeFollowsTheSeed(t *testing.T) {
 	node := func(seed uint64) string {
-		m := New(playbacktest.New(), Options{Now: newClock().now, Seed: seed})
+		m := New(playbacktest.New(), Options{SkipBoot: true, Now: newClock().now, Seed: seed})
 		m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 		return nodeOf(t, m)
 	}

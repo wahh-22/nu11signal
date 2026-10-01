@@ -39,7 +39,7 @@ func assertAsking(t *testing.T, m Model, cmd tea.Cmd) {
 		t.Fatalf("opening the quit modal sent a command (%T)", run(t, cmd))
 	}
 	view := plain(m)
-	for _, want := range []string{quitQuestion, "[Y/ENTER] QUIT", "[N/ESC] STAY"} {
+	for _, want := range []string{quitQuestion, "[ Y QUIT ]", "[ N STAY ]"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("the quit modal lacks %q:\n%s", want, view)
 		}
@@ -134,8 +134,9 @@ func TestQIsTypedWhereTextIsTyped(t *testing.T) {
 	}
 }
 
-// The modal draws over every screen, the overlays, the startup screen
-// and the auth error screen included, and closing it gives that screen
+// The modal draws over every screen, the overlays, the screen while
+// access links and the auth error screen included (over the boot splash
+// q skips the boot first, see TestAKeyOrAClickSkipsTheBoot), and closing it gives that screen
 // back as it was.
 func TestTheQuitModalOpensOverEveryView(t *testing.T) {
 	denied := func(t *testing.T) Model {
@@ -164,7 +165,7 @@ func TestTheQuitModalOpensOverEveryView(t *testing.T) {
 		{"tabs focus", func(t *testing.T) Model { return playingModel(t, playbacktest.New()) }, []string{keyUp, keyUp, keyQuit}, "PLAYLISTS"},
 		{"keys", func(t *testing.T) Model { return playingModel(t, playbacktest.New()) }, []string{keyHelp, keyCtrlC}, "▮ KEYS"},
 		{"settings", func(t *testing.T) Model { return playingModel(t, playbacktest.New()) }, []string{keySettings, keyCtrlC}, "▮ SETTINGS"},
-		{"splash", func(t *testing.T) Model { return linkingModel(t, 80, 24) }, []string{keyQuit}, "LINKING"},
+		{"linking", func(t *testing.T) Model { return newModel(t, playbacktest.New(), newClock()) }, []string{keyQuit}, "LINKING"},
 		{"auth error", denied, []string{keyQuit}, "AUTH // ERROR"},
 		{"auth error esc", denied, []string{keyEsc}, "AUTH // ERROR"},
 	} {
@@ -236,15 +237,29 @@ func TestAClickOutsideTheQuitModalClosesIt(t *testing.T) {
 	}
 }
 
+// QUIT and STAY are HUD bracket buttons like the player's transport:
+// QUIT, enter's action, filled as the primary one, STAY in cyan brackets;
+// both are clickable.
 func TestTheQuitModalButtons(t *testing.T) {
 	f := playbacktest.New()
 	m := playingModel(t, f)
 	m, _ = press(t, m, keyQuit)
-	if got := textAt(m, zoneOf(t, m, zoneQuitYes)); !strings.Contains(got, "[Y/ENTER] QUIT") {
+	yes, no := zoneOf(t, m, zoneQuitYes), zoneOf(t, m, zoneQuitNo)
+	if got := textAt(m, yes); got != "[ Y QUIT ]" {
 		t.Fatalf("QUIT button reads %q", got)
 	}
-	if got := textAt(m, zoneOf(t, m, zoneQuitNo)); !strings.Contains(got, "[N/ESC] STAY") {
+	if got := textAt(m, no); got != "[ N STAY ]" {
 		t.Fatalf("STAY button reads %q", got)
+	}
+	if yes.y != no.y || no.x <= yes.x+yes.w {
+		t.Fatalf("QUIT %v and STAY %v are not side by side", yes, no)
+	}
+	screen := m.render()
+	if want := stButtonOn.Render("[ Y QUIT ]"); !strings.Contains(screen, want) {
+		t.Fatalf("QUIT is not the filled primary button %q:\n%s", want, screen)
+	}
+	if want := stHi.Render("[ N STAY ]"); !strings.Contains(screen, want) {
+		t.Fatalf("STAY is not a cyan bracket button %q:\n%s", want, screen)
 	}
 	stay, cmd := click(t, m, zoneQuitNo)
 	if stay.quitAsk || cmd != nil || f.Closed() {
@@ -252,6 +267,17 @@ func TestTheQuitModalButtons(t *testing.T) {
 	}
 	_, cmd = click(t, m, zoneQuitYes)
 	assertQuits(t, f, cmd)
+}
+
+// Too narrow for both side by side, the buttons stack, still whole and
+// clickable.
+func TestTheQuitModalStacksItsButtonsWhenNarrow(t *testing.T) {
+	m, _ := step(t, playingModel(t, playbacktest.New()), tea.WindowSizeMsg{Width: 22, Height: 20})
+	m, _ = press(t, m, keyQuit)
+	yes, no := zoneOf(t, m, zoneQuitYes), zoneOf(t, m, zoneQuitNo)
+	if no.y <= yes.y || textAt(m, yes) != "[ Y QUIT ]" || textAt(m, no) != "[ N STAY ]" {
+		t.Fatalf("narrow modal: QUIT %v %q, STAY %v %q; want stacked whole\n%s", yes, textAt(m, yes), no, textAt(m, no), plain(m))
+	}
 }
 
 func TestTheFooterShowsTheQuitModalKeys(t *testing.T) {

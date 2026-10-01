@@ -93,7 +93,7 @@ func catalog() playback.SearchResults {
 func loadedWithRecents(t *testing.T, f *playbacktest.Fake, r *fakeRecents) Model {
 	t.Helper()
 	f.PlaylistsResult = stations()
-	m := New(f, Options{Now: newClock().now, Seed: 2077, Recents: r})
+	m := New(f, Options{SkipBoot: true, Now: newClock().now, Seed: 2077, Recents: r})
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m, cmd := step(t, m, run(t, m.authorizeCmd()))
 	m, _ = step(t, m, run(t, cmd))
@@ -484,7 +484,7 @@ func TestInFlightSearchIsCancelled(t *testing.T) {
 			f := playbacktest.New()
 			f.PlaylistsResult = stations()
 			p := &blockingPlayer{Fake: f, ctxs: make(chan context.Context, 4)}
-			m := New(p, Options{Now: newClock().now, Seed: 2077})
+			m := New(p, Options{SkipBoot: true, Now: newClock().now, Seed: 2077})
 			m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 			m, _ = press(t, m, "/")
 			m = typeText(t, m, "daft")

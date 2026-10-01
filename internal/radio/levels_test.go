@@ -71,7 +71,7 @@ func TestEQBarCountFollowsThePanel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New(playbacktest.New(), Options{})
+			m := New(playbacktest.New(), Options{SkipBoot: true})
 			m.width, m.height, m.expanded = tt.w, tt.h, tt.expanded
 			if got := m.eqBarCount(); got != tt.want {
 				t.Fatalf("eqBarCount() = %d; want %d", got, tt.want)
@@ -149,7 +149,7 @@ func TestEQFallsWhenPausedEvenWithFreshLevels(t *testing.T) {
 
 func TestEQIsDecorativeWithoutALevelSource(t *testing.T) {
 	c := newClock()
-	m := New(noLevels{playbacktest.New()}, Options{Now: c.now, Seed: 2077})
+	m := New(noLevels{playbacktest.New()}, Options{SkipBoot: true, Now: c.now, Seed: 2077})
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m, _ = step(t, m, stateMsg{state: playing(time.Second, time.Minute)})
 	before := m.bars

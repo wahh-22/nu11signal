@@ -191,7 +191,7 @@ func TestStartupAppliesTheSavedTheme(t *testing.T) {
 func TestAThemeChosenBeforeTheSettingsLoadIsKept(t *testing.T) {
 	src := &savingSource{cfg: config.Config{Theme: "NIGHT CITY"}}
 	t.Cleanup(func() { applyTheme(themes[0]) })
-	m := New(playbacktest.New(), Options{Now: newClock().now, Seed: 2077, Config: src})
+	m := New(playbacktest.New(), Options{SkipBoot: true, Now: newClock().now, Seed: 2077, Config: src})
 	load := m.loadConfigCmd()
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m, _ = press(t, m, "s", "down", "enter")
