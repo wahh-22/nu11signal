@@ -174,18 +174,15 @@ func (m Model) idleRows(w, h int) []string {
 	}
 	lines := a.lines(w, h)
 	if m.idleActive() && m.idle.on(m.now()) {
-		glitchArt(lines, a, mix(m.seed, saltIdle, m.idle.seq, m.frame))
+		m.idleGlitchDraw(lines, a)
 	}
 	return lines
 }
 
-// glitchArt draws an emblem glitch's look over lines, an area holding art
-// a, from r (the seed, the glitch's salt and number, and the frame): 1..3
-// block noise cells over the emblem's drawn cells (its mask's), then one
-// emblem row torn 1 cell sideways, as wide as its line. The idle emblem
-// tears its whole area row, the NOW PLAYING one its block only (see
-// npemblem.go).
-func glitchArt(lines []string, a idleArt, r uint64) {
+// idleGlitchDraw draws the idle glitch's look on this frame over lines,
+// the area with art a: 1..3 block noise cells over the emblem's drawn
+// cells (its mask's), then one emblem row torn 1 cell sideways.
+func (m Model) idleGlitchDraw(lines []string, a idleArt) {
 	type cell struct{ x, y int }
 	var drawn []cell
 	for i, mask := range a.e.mask {
@@ -195,6 +192,7 @@ func glitchArt(lines []string, a idleArt, r uint64) {
 			}
 		}
 	}
+	r := mix(m.seed, saltIdle, m.idle.seq, m.frame)
 	n := uint64(len(drawn))
 	for i := range 1 + r%3 {
 		h := mix(r, 4, i)

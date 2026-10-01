@@ -220,9 +220,8 @@ func quitModalRows(zs zones, inset int) []rowSpan {
 // SETTINGS overlay's inside while one is open (it hides the rest); the
 // splash's body during the boot or the shutdown (see splashRegion);
 // otherwise the list panel's inside, and the NOW PLAYING field rows in
-// the full layout, short of the NOW PLAYING emblem (see npemblem.go);
-// never the rows of the SEARCH input or the NEW PLAYLIST name, where
-// their zones put them.
+// the full layout; never the rows of the SEARCH input or the NEW
+// PLAYLIST name, where their zones put them.
 func (m Model) introRegions(zs zones) [][]rowSpan {
 	if m.quitAsk {
 		return [][]rowSpan{quitModalRows(zs, 1)}
@@ -271,15 +270,10 @@ func (m Model) introRegions(zs zones) [][]rowSpan {
 	if full && len(player) > 0 {
 		var fields []rowSpan
 		z := player[0]
-		a, emblem := m.npEmblem()
 		for _, r := range introFieldRows {
 			x0, x1 := z.x+1+nowPlayingMargin, z.x+z.w-1
 			if r == npHeadRow {
 				x1 = min(x1, x0+m.headFeedWidth(z.w-2))
-			}
-			if emblem && r >= a.y && r < a.y+len(a.e.rows) {
-				// The emblem and its glitch never scramble.
-				x1 = min(x1, z.x+1+a.x)
 			}
 			fields = append(fields, rowSpan{z.y + 1 + r, x0, x1})
 		}

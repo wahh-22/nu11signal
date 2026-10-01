@@ -284,12 +284,10 @@ type Model struct {
 	tickFast bool
 	// fx schedules the signal effects (see glitch.go); intro is the
 	// latest content intro (see intro.go); idle schedules the idle
-	// emblem's glitch (see idle.go), npGlitch the NOW PLAYING emblem's
-	// (see npemblem.go).
-	fx       effects
-	intro    intro
-	idle     idleGlitch
-	npGlitch idleGlitch
+	// emblem's glitch (see idle.go).
+	fx    effects
+	intro intro
+	idle  idleGlitch
 	// boot shows the boot splash (see boot.go) until bootEnd, set by the
 	// first size; zero until then.
 	boot    bool
@@ -512,8 +510,7 @@ func (m Model) animInterval() time.Duration {
 
 // tickInterval is the time to the next frame: fastTick while something
 // moves, else idleTick, paced by the signal effects while they run (see
-// effects.interval) and the idle and NOW PLAYING emblems' glitches (see
-// idleGlitch.interval),
+// effects.interval) and the idle emblem's glitch (see idleGlitch.interval),
 // at most introTick during an intro, and cut to the boot's or the
 // shutdown's frames and its end (see splashInterval).
 func (m Model) tickInterval() time.Duration {
@@ -526,9 +523,6 @@ func (m Model) tickInterval() time.Duration {
 	}
 	if m.idleActive() {
 		d = m.idle.interval(m.now(), d)
-	}
-	if m.npActive() {
-		d = m.npGlitch.interval(m.now(), d)
 	}
 	if m.introAnimating() {
 		end := m.intro.start.Add(introDur)
