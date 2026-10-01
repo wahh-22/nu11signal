@@ -158,6 +158,20 @@ type favoritesResult struct {
 	Favorites map[string]bool `json:"favorites"`
 }
 
+// queueResult answers playSongs (and playPlaylist): the ids the catalog
+// did not return, the songs the player could not queue with the start
+// song, and whether only the start song could be queued. Each key is left
+// out when there is nothing to report.
+type queueResult struct {
+	Missing      []string `json:"missing"`
+	Skipped      []string `json:"skipped"`
+	StartedAlone bool     `json:"startedAlone"`
+}
+
+func (r queueResult) toDomain() playback.QueueReport {
+	return playback.QueueReport{Missing: r.Missing, Skipped: r.Skipped, StartedAlone: r.StartedAlone}
+}
+
 type volumeResult struct {
 	Level float64 `json:"level"`
 }

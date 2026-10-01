@@ -97,7 +97,7 @@ func TestSearchAndPlaySongs(t *testing.T) {
 	}
 	songs := res.Songs
 	ids := []string{songs[0].ID}
-	if err := p.PlaySongs(ctx, ids, 0); err != nil {
+	if _, err := p.PlaySongs(ctx, ids, 0); err != nil {
 		t.Fatal(err)
 	}
 	waitState(t, p, func(s playback.State) bool { return s.SongID == songs[0].ID && s.Status == playback.StatusPlaying })
@@ -113,7 +113,7 @@ func TestPlaySongsStartsAtThePosition(t *testing.T) {
 		t.Fatalf("SearchCatalog = %d songs, %v; want at least 3", len(res.Songs), err)
 	}
 	a, b, c := res.Songs[0].ID, res.Songs[1].ID, res.Songs[2].ID
-	if err := p.PlaySongs(ctx, []string{a, b, a, c}, 2); err != nil {
+	if _, err := p.PlaySongs(ctx, []string{a, b, a, c}, 2); err != nil {
 		t.Fatal(err)
 	}
 	waitState(t, p, func(s playback.State) bool { return s.SongID == a && s.Status == playback.StatusPlaying })
@@ -239,7 +239,7 @@ func TestInvalidRequestsFail(t *testing.T) {
 	if err := p.PlayPlaylist(ctx, "nope"); err == nil {
 		t.Error("unknown playlist accepted")
 	}
-	if err := p.PlaySongs(ctx, []string{"nope"}, 0); err == nil {
+	if _, err := p.PlaySongs(ctx, []string{"nope"}, 0); err == nil {
 		t.Error("unknown song accepted")
 	}
 	if err := p.Resume(ctx); err == nil {
@@ -752,7 +752,7 @@ func TestRepeatModeDecidesWhatFollowsASong(t *testing.T) {
 	a, b := res.Songs[0].ID, res.Songs[1].ID
 	play := func(start int) {
 		t.Helper()
-		if err := p.PlaySongs(ctx, []string{a, b}, start); err != nil {
+		if _, err := p.PlaySongs(ctx, []string{a, b}, start); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -796,7 +796,7 @@ func TestNextAtTheLastSongFollowsTheRepeatMode(t *testing.T) {
 	res, _ := p.SearchCatalog(ctx, "e", 25)
 	a, b := res.Songs[0].ID, res.Songs[1].ID
 
-	if err := p.PlaySongs(ctx, []string{a, b}, 1); err != nil {
+	if _, err := p.PlaySongs(ctx, []string{a, b}, 1); err != nil {
 		t.Fatal(err)
 	}
 	if err := p.Next(ctx); err != nil {
@@ -808,7 +808,7 @@ func TestNextAtTheLastSongFollowsTheRepeatMode(t *testing.T) {
 		if err := p.SetRepeat(ctx, mode); err != nil {
 			t.Fatal(err)
 		}
-		if err := p.PlaySongs(ctx, []string{a, b}, 1); err != nil {
+		if _, err := p.PlaySongs(ctx, []string{a, b}, 1); err != nil {
 			t.Fatal(err)
 		}
 		if err := p.Next(ctx); err != nil {
@@ -846,7 +846,7 @@ func TestStatesReportTheAppVolume(t *testing.T) {
 	if err != nil || len(res.Songs) == 0 {
 		t.Fatalf("SearchCatalog = %d songs, %v", len(res.Songs), err)
 	}
-	if err := p.PlaySongs(ctx, []string{res.Songs[0].ID}, 0); err != nil {
+	if _, err := p.PlaySongs(ctx, []string{res.Songs[0].ID}, 0); err != nil {
 		t.Fatal(err)
 	}
 	s := waitState(t, p, func(s playback.State) bool { return s.Status == playback.StatusPlaying })

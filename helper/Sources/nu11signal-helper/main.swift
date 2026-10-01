@@ -17,6 +17,27 @@ let emitter = MainActor.assumeIsolated { StateEmitter() }
 let handler = MainActor.assumeIsolated { CommandHandler(emitter: emitter) }
 let inFlight = DispatchGroup()
 
+/// Runs playback work one item at a time, in the order it was enqueued
+/// from any thread: the playback commands read from stdin, and the helper's
+/// own move to the next segment when a queue ends (see
+/// CommandHandler.segmentEnded), which must not interleave with them.
+final class PlaybackChain: @unchecked Sendable {
+    private let lock = NSLock()
+    private var tail: Task<Void, Never>?
+
+    func enqueue(_ work: @escaping @MainActor () async -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        let previous = tail
+        tail = Task { @MainActor in
+            await previous?.value
+            await work()
+        }
+    }
+}
+
+let playbackChain = PlaybackChain()
+
 /// Reads stdin on a background thread. Playback commands run one at a time
 /// in arrival order (each awaits the previous one); read-only commands run
 /// concurrently, so a slow search never delays `pause`. Each playback command
@@ -26,7 +47,6 @@ let inFlight = DispatchGroup()
 /// At EOF, waits up to `Lifecycle.shutdownGrace` for in-flight requests and
 /// queued output, then stops playback and exits regardless.
 func readRequests() {
-    var playbackTail: Task<Void, Never>?
     while let line = readLine(strippingNewline: true) {
         if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
         switch Codec.decode(line) {
@@ -35,9 +55,7 @@ func readRequests() {
         case let .success(request):
             inFlight.enter()
             if request.mutatesPlayback {
-                let previous = playbackTail
-                playbackTail = Task { @MainActor in
-                    await previous?.value
+                playbackChain.enqueue {
                     await handler.respond(to: request, timeout: CommandHandler.playbackTimeout)
                     inFlight.leave()
                 }
@@ -67,6 +85,13 @@ MainActor.assumeIsolated {
         Task { @MainActor in
             do { try await ApplicationMusicPlayer.shared.play() } catch { log("app volume: could not resume: \(error)") }
         }
+    }
+    // The end of a segment is acted on in the playback chain, after the
+    // commands already waiting; a command that changed the list meanwhile
+    // makes it a no-op (the generation noted now no longer matches).
+    emitter.onSegmentEnd = {
+        let generation = handler.listGeneration
+        playbackChain.enqueue { await handler.segmentEnded(generation: generation) }
     }
     emitter.start()
 }

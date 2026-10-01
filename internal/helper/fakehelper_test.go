@@ -234,6 +234,14 @@ func runFakeHelper(scenario string) int {
 			if answerLibraryEdit(id, cmd, req) {
 				continue
 			}
+		case "leftOut":
+			// Answers playSongs as a helper that left songs out of the
+			// queue: two not in the catalog, one it could not queue, and
+			// the rest refused by the player.
+			if cmd == "playSongs" {
+				ok(id, map[string]any{"missing": []any{"s8", "s9"}, "skipped": []any{"s3"}, "startedAlone": true})
+				continue
+			}
 		case "sparseCatalog":
 			// Answers searchCatalog by term: empty result, fields
 			// missing, or an error response.

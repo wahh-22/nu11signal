@@ -183,8 +183,15 @@ func openPlayer(demoMode bool, d deps) (playback.Player, error) {
 }
 
 func startHelper(ctx context.Context, path string) (playback.Player, error) {
+	// The helper's diagnostics are appended to its log file as well as
+	// kept (their tail) to explain a crash; without the file, only the
+	// tail.
+	opts := helper.Options{Path: path}
+	if log := openDefaultHelperLog(); log != nil {
+		opts.Stderr = log
+	}
 	// Return a nil interface, not a typed nil *helper.Client, on failure.
-	client, err := helper.Start(ctx, helper.Options{Path: path})
+	client, err := helper.Start(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
