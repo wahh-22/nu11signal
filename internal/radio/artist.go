@@ -150,7 +150,7 @@ func (m Model) artistLayout(w int) ([]pageLine, []artistItem) {
 		if len(lines) > 0 {
 			add("")
 		}
-		add(" " + stYellow.Render("▞ ") + stMuted.Render(spaced(name)))
+		add(" " + stAccent.Render("▞ ") + stMuted.Render(spaced(name)))
 	}
 	item := func(it artistItem, render func(selected bool) string) {
 		n := len(items)
@@ -164,7 +164,7 @@ func (m Model) artistLayout(w int) ([]pageLine, []artistItem) {
 		section(name)
 		for _, a := range albums {
 			item(artistItem{kind: itemAlbum, album: a}, func(sel bool) string {
-				return detailLine("◈", stYellow, strings.ToUpper(a.Title), yearOf(a), sel, w)
+				return detailLine("◈", stAccent, strings.ToUpper(a.Title), yearOf(a), sel, w)
 			})
 		}
 	}
@@ -175,7 +175,7 @@ func (m Model) artistLayout(w int) ([]pageLine, []artistItem) {
 			n := len(items)
 			items = append(items, artistItem{kind: itemSong, index: i})
 			lines = append(lines, m.songLine(s, n, n == cur, w, func(sel bool, w int) string {
-				return detailLine("♪", stCyan, strings.ToUpper(s.Title), strings.ToUpper(s.Album), sel, w)
+				return detailLine("♪", stHi, strings.ToUpper(s.Title), strings.ToUpper(s.Album), sel, w)
 			}))
 		}
 	}
@@ -185,7 +185,7 @@ func (m Model) artistLayout(w int) ([]pageLine, []artistItem) {
 		section("ARTIST PLAYLISTS")
 		for _, p := range d.Playlists {
 			item(artistItem{kind: itemPlaylist, playlist: p}, func(sel bool) string {
-				return detailLine("≡", stCyan, strings.ToUpper(p.Name), strings.ToUpper(p.Curator), sel, w)
+				return detailLine("≡", stHi, strings.ToUpper(p.Name), strings.ToUpper(p.Curator), sel, w)
 			})
 		}
 	}
@@ -200,7 +200,7 @@ func (m Model) artistLayout(w int) ([]pageLine, []artistItem) {
 	if about.Notes != "" {
 		notes, more := wrapNotes(about.Notes, page.aboutOpen, w)
 		for _, l := range notes {
-			add(" " + stRed.Render(l))
+			add(" " + stText.Render(l))
 		}
 		if more {
 			item(artistItem{kind: itemMore}, func(sel bool) string { return moreLine(page.aboutOpen, sel, w) })
@@ -210,7 +210,7 @@ func (m Model) artistLayout(w int) ([]pageLine, []artistItem) {
 		{"FROM", about.Origin}, {"FORMED", about.Formed}, {"GENRE", about.Genre},
 	} {
 		if fact.value != "" {
-			add(" " + stMuted.Render(fmt.Sprintf("%-7s", fact.label)) + stRed.Render(strings.ToUpper(fact.value)))
+			add(" " + stMuted.Render(fmt.Sprintf("%-7s", fact.label)) + stText.Render(strings.ToUpper(fact.value)))
 		}
 	}
 	return lines, items
@@ -235,7 +235,7 @@ func detailLine(glyph string, glyphStyle lipgloss.Style, text, detail string, se
 		}
 		return stSelected.Render(fit(plain, w))
 	}
-	line := " " + glyphStyle.Render(glyph) + " " + stRed.Render(text)
+	line := " " + glyphStyle.Render(glyph) + " " + stText.Render(text)
 	if detail != "" {
 		line += stMuted.Render(" · " + detail)
 	}
@@ -279,7 +279,7 @@ func (m Model) artistCode() string {
 // exactly w cells wide.
 func (m Model) artistBody(w, h int) ([]string, zones) {
 	page := m.top().artist
-	head := stYellowB.Render(strings.ToUpper(page.artistTitle()))
+	head := stHeading.Render(strings.ToUpper(page.artistTitle()))
 	if g := page.artistGenre(); g != "" {
 		head += stMuted.Render("  " + strings.ToUpper(g))
 	}

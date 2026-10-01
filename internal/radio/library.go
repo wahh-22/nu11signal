@@ -445,7 +445,7 @@ func (m Model) songActions(s playback.Song, selected bool) string {
 		return stSelected.Render(" " + favoriteMark(on) + " + ")
 	}
 	if on {
-		return " " + stYellowB.Render(favoriteOnMark) + "   "
+		return " " + stFav.Render(favoriteOnMark) + "   "
 	}
 	return strings.Repeat(" ", songActionsWidth)
 }
@@ -486,7 +486,7 @@ func (m Model) heartTitle(title string, w int) (string, zones) {
 	}
 	b := button{id: zoneFavPlaying, label: favoriteOffMark, tone: stDim, bracket: true, focused: m.focused(ctlFav)}
 	if on, _ := m.favoriteOf(s.ID); on {
-		b.label, b.tone = favoriteOnMark, stYellowB
+		b.label, b.tone = favoriteOnMark, stFav
 	}
 	room := w - b.width() - 1
 	title = ansi.Truncate(title, room, "…")
@@ -819,7 +819,7 @@ func newPlaylistLine(selected bool, w int) string {
 	if selected {
 		return stSelected.Render(fit("▌▶ "+label, w))
 	}
-	return fit("   "+stYellow.Render(label), w)
+	return fit("   "+stAccent.Render(label), w)
 }
 
 // editorTitle and editorCode head and foot the list panel while the
@@ -843,7 +843,7 @@ func (m Model) editorCode() string {
 
 // songHead is the line naming the editor's song: title and artist.
 func songHead(s playback.Song, w int) string {
-	line := " " + stCyan.Render("♪ ") + stYellowB.Render(strings.ToUpper(s.Title))
+	line := " " + stHi.Render("♪ ") + stHeading.Render(strings.ToUpper(s.Title))
 	if s.Artist != "" {
 		line += stMuted.Render(" · " + strings.ToUpper(s.Artist))
 	}
@@ -886,7 +886,7 @@ func (m Model) pickerBody(w, h int) ([]string, zones) {
 		if i == cur {
 			lines = append(lines, stSelected.Render(fit("▌▶ "+freq+"  "+name, w)))
 		} else {
-			lines = append(lines, fit("   "+stMuted.Render(freq)+"  "+stRed.Render(name), w))
+			lines = append(lines, fit("   "+stMuted.Render(freq)+"  "+stText.Render(name), w))
 		}
 	}
 	if len(editable) == 0 && len(lines) < h {
@@ -898,7 +898,7 @@ func (m Model) pickerBody(w, h int) ([]string, zones) {
 // nameBody renders NEW PLAYLIST: the name input, a rule, the song the
 // playlist will hold, if any, and the CREATE and CANCEL buttons.
 func (m Model) nameBody(w, h int) ([]string, zones) {
-	lines := []string{fit(stYellow.Render("+ ")+m.nameInput.View(), w)}
+	lines := []string{fit(stAccent.Render("+ ")+m.nameInput.View(), w)}
 	var zs zones
 	zs.add(zoneNameInput, 0, 0, w)
 	add := func(l string) {
@@ -914,8 +914,8 @@ func (m Model) nameBody(w, h int) ([]string, zones) {
 	add("")
 	if len(lines) < h {
 		bar, bz := buttonBar([]button{
-			{id: zoneEditCreate, label: "CREATE", tone: stYellow},
-			{id: zoneEditCancel, label: "CANCEL", tone: stRed},
+			{id: zoneEditCreate, label: "CREATE", tone: stAccent},
+			{id: zoneEditCancel, label: "CANCEL", tone: stLabel},
 		}, w-1)
 		zs.addAt(1, len(lines), bz)
 		add(" " + bar)

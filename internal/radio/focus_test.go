@@ -613,7 +613,7 @@ func TestFitHintsMatchesRestylingEveryCandidate(t *testing.T) {
 	join := func(hs []hint) string {
 		parts := make([]string, len(hs))
 		for i, h := range hs {
-			parts[i] = keyCap(h.key) + " " + stRed.Render(h.label)
+			parts[i] = keyCap(h.key) + " " + stLabel.Render(h.label)
 		}
 		return strings.Join(parts, "  ")
 	}

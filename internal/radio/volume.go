@@ -199,15 +199,15 @@ func (m Model) volumeBar(w int) (string, zones) {
 		label = "SYS "
 	}
 	pct := fmt.Sprintf("%d%%", int(math.Round(m.volume*100)))
-	down := button{id: zoneVolDown, label: "−", tone: stCyan, bracket: true, focused: m.focused(ctlVolDown)}
-	up := button{id: zoneVolUp, label: "+", tone: stCyan, bracket: true, focused: m.focused(ctlVolUp)}
+	down := button{id: zoneVolDown, label: "−", tone: stHi, bracket: true, focused: m.focused(ctlVolDown)}
+	up := button{id: zoneVolUp, label: "+", tone: stHi, bracket: true, focused: m.focused(ctlVolUp)}
 	lead := len(label) + down.width() + 1
 	bare := lead + up.width() + 1 + volumePctWidth
 	if w < bare {
 		if !m.volumeKnown {
 			return fit(stMuted.Render(label)+stDim.Render("--"), w), nil
 		}
-		return fit(stMuted.Render(label)+stRed.Render(pct), w), nil
+		return fit(stMuted.Render(label)+stNumber.Render(pct), w), nil
 	}
 	meter := min(w-bare-1, volumeMeterMax)
 	var gauge, tail string
@@ -215,13 +215,13 @@ func (m Model) volumeBar(w int) (string, zones) {
 	case meter < volumeMeterMin && !m.volumeKnown:
 		meter, tail = 0, stDim.Render("--")
 	case meter < volumeMeterMin:
-		meter, tail = 0, stRed.Render(pct)
+		meter, tail = 0, stNumber.Render(pct)
 	case !m.volumeKnown:
 		gauge = fit(stDim.Render("--"), meter) + " "
 	default:
 		filled := int(math.Round(m.volume * float64(meter)))
-		gauge = stCyan.Render(strings.Repeat("▮", filled)) + stDim.Render(strings.Repeat("▯", meter-filled)) + " "
-		tail = stRed.Render(pct)
+		gauge = stHi.Render(strings.Repeat("▮", filled)) + stDim.Render(strings.Repeat("▯", meter-filled)) + " "
+		tail = stNumber.Render(pct)
 	}
 	upX := lead + ansi.StringWidth(gauge)
 	var zs zones

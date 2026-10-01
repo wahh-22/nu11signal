@@ -139,7 +139,7 @@ func (m Model) saveConfigCmd(c config.Config) tea.Cmd {
 // settingsPanel frames the SETTINGS overlay, w x h cells, with the zones
 // of its theme rows relative to the panel.
 func (m Model) settingsPanel(w, h int) ([]string, zones) {
-	body := []string{" " + stYellowB.Render("▞ THEMES")}
+	body := []string{" " + stHeading.Render("▞ THEMES")}
 	var zs zones
 	iw := w - 2
 	for i, t := range themes {
@@ -148,7 +148,7 @@ func (m Model) settingsPanel(w, h int) ([]string, zones) {
 			mark = "◉"
 		}
 		text := "  " + mark + " " + t.name
-		row := stRed.Render(text)
+		row := stText.Render(text)
 		if i == m.settingsCursor {
 			row = stSelected.Render(fit(text, max(iw, 0)))
 		}

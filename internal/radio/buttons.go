@@ -45,10 +45,10 @@ func (b button) render() string {
 		return b.tone.Render("[" + b.label + "]")
 	}
 	if b.focused {
-		return stYellow.Render("╱") + stButtonOn.Render("▸"+b.label+" ") + stYellow.Render("╱")
+		return stFillEdge.Render("╱") + stButtonOn.Render("▸"+b.label+" ") + stFillEdge.Render("╱")
 	}
 	if b.active {
-		return stYellow.Render("╱") + stButtonOn.Render(" "+b.label+" ") + stYellow.Render("╱")
+		return stFillEdge.Render("╱") + stButtonOn.Render(" "+b.label+" ") + stFillEdge.Render("╱")
 	}
 	return b.tone.Render("╱ " + b.label + " ╱")
 }
@@ -84,11 +84,11 @@ func buttonBar(bs []button, w int) (string, zones) {
 func (m Model) navButtons() []button {
 	lit := m.litTab()
 	bs := []button{
-		{id: zoneTabStations, label: "PLAYLISTS", tone: stRed, active: lit == zoneTabStations},
-		{id: zoneTabSearch, label: "SEARCH", tone: stRed, active: lit == zoneTabSearch},
+		{id: zoneTabStations, label: "PLAYLISTS", tone: stLabel, active: lit == zoneTabStations},
+		{id: zoneTabSearch, label: "SEARCH", tone: stLabel, active: lit == zoneTabSearch},
 	}
 	if isPage(m.top().kind) || m.editor.mode != editClosed {
-		bs = append(bs, button{id: zoneBack, label: "◀ BACK", tone: stYellow})
+		bs = append(bs, button{id: zoneBack, label: "◀ BACK", tone: stAccent})
 	}
 	if m.focus == areaTabs && m.tab < len(bs) {
 		bs[m.tab].focused = true
@@ -172,12 +172,12 @@ func (m Model) transportButtons(l hudLayout) ([]button, []int) {
 	bs := make([]button, len(labels))
 	for i, label := range labels {
 		c := playerControl(i)
-		bs[i] = button{id: controlZone(c), label: label, tone: stCyan, bracket: true, focused: m.focused(c)}
+		bs[i] = button{id: controlZone(c), label: label, tone: stHi, bracket: true, focused: m.focused(c)}
 	}
 	// PLAY or PAUSE is the primary action, always filled; EXPAND stands
 	// apart from the transport controls.
 	bs[ctlPlay].active = true
-	bs[ctlExpand].tone = stYellow
+	bs[ctlExpand].tone = stAccent
 	return bs, []int{0, l.near, l.near, l.loop, l.expand}
 }
 

@@ -68,9 +68,9 @@ func helpBody(w, h int) []string {
 	}
 	var cols [][]string
 	for _, g := range helpGroups {
-		block := []string{" " + stYellowB.Render("▞ "+g.name)}
+		block := []string{" " + stHeading.Render("▞ "+g.name)}
 		for _, e := range g.entries {
-			block = append(block, " "+stYellow.Render(fit(e.show, helpKeyWidth))+" "+stRed.Render(e.label))
+			block = append(block, " "+stAccent.Render(fit(e.show, helpKeyWidth))+" "+stLabel.Render(e.label))
 		}
 		if len(cols) == 0 || len(cols[len(cols)-1])+len(block) > h {
 			cols = append(cols, nil)

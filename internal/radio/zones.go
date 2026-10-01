@@ -43,8 +43,13 @@ const (
 	zoneEditCancel = "edit:cancel"
 	// zonePanelList and zonePanelPlayer cover the whole list and NOW
 	// PLAYING panels, frame included, under the zones drawn in them.
-	zonePanelList    = "panel:list"
-	zonePanelPlayer  = "panel:player"
+	zonePanelList   = "panel:list"
+	zonePanelPlayer = "panel:player"
+	// zonePanelOverlay covers the KEYS or SETTINGS overlay, frame
+	// included, under the SETTINGS rows: nothing acts on it (a press
+	// closes the overlay, see handleMouse), but the content intro finds
+	// the overlay's inside by it (see introRegions).
+	zonePanelOverlay = "panel:overlay"
 	rowZonePrefix    = "row:"
 	deleteZonePrefix = "delete:"
 )

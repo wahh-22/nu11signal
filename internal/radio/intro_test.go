@@ -681,3 +681,123 @@ func TestAnIntroDrawsOnlyLightGlyphs(t *testing.T) {
 		}
 	}
 }
+
+// overlayInside are the rows inside the frame of the overlay labeled
+// label in lines: below its top edge, above the status and hint lines
+// and its bottom edge.
+func overlayInside(t *testing.T, lines []string, label string) (top, bottom int) {
+	t.Helper()
+	top = slices.IndexFunc(lines, func(l string) bool { return strings.Contains(ansi.Strip(l), "▮ "+label+" ") })
+	if top < 0 {
+		t.Fatalf("no %s overlay:\n%s", label, ansi.Strip(strings.Join(lines, "\n")))
+	}
+	return top + 1, len(lines) - 3
+}
+
+// Opening KEYS or SETTINGS scrambles its text in like any other content,
+// and closing it scrambles the view back in.
+func TestOpeningAnOverlayIntrosIt(t *testing.T) {
+	for _, tt := range []struct{ key, label string }{{keyHelp, "KEYS"}, {keySettings, "SETTINGS"}} {
+		t.Run(tt.label, func(t *testing.T) {
+			c := newClock()
+			m := introModel(t, c)
+			seq := m.intro.seq
+			m, cmd := press(t, m, tt.key)
+			if m.intro.seq != seq+1 || (cmd == nil && !m.tickFast) {
+				t.Fatalf("opening %s started %d intros (ticking %v); want 1", tt.label, m.intro.seq-seq, cmd != nil || m.tickFast)
+			}
+			base, _ := m.baseLayout()
+			lines, _ := m.layout()
+			scrambled := scrambledAt(base, lines)
+			if len(scrambled) == 0 {
+				t.Fatalf("%s opened without an intro", tt.label)
+			}
+			top, bottom := overlayInside(t, base, tt.label)
+			for y := range scrambled {
+				if y < top || y >= bottom {
+					t.Errorf("row %d scrambled; only the overlay's inside (%d..%d) may", y, top, bottom-1)
+				}
+			}
+			c.advance(introDur)
+			if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
+				t.Fatal("the overlay intro outlived introDur")
+			}
+			seq = m.intro.seq
+			m, _ = press(t, m, tt.key)
+			if m.intro.seq != seq+1 || len(scrambledAt(first(m.baseLayout()), first(m.layout()))) == 0 {
+				t.Fatalf("closing %s did not intro the view", tt.label)
+			}
+		})
+	}
+}
+
+func TestOverlaysOpenWithoutAnIntroWhenCalm(t *testing.T) {
+	for _, k := range []string{keyHelp, keySettings} {
+		c := newClock()
+		m := loaded(t, playbacktest.New(), c) // effects off, as with --calm
+		m, _ = press(t, m, k)
+		if lines, _ := m.layout(); !reflect.DeepEqual(lines, first(m.baseLayout())) {
+			t.Fatalf("%q drew an intro with the effects off", k)
+		}
+	}
+}
+
+// Moving the SETTINGS cursor or applying a theme changes the marks and
+// the colors, never the text: nothing scrambles again.
+func TestTheSettingsCursorNeverReplaysTheIntro(t *testing.T) {
+	t.Cleanup(func() { applyTheme(themes[0]) })
+	c := newClock()
+	m := introModel(t, c)
+	m, _ = press(t, m, keySettings)
+	c.advance(introDur)
+	seq := m.intro.seq
+	for _, k := range []string{"down", "up", "down", "enter"} {
+		m, _ = press(t, m, k)
+		if m.intro.seq != seq {
+			t.Fatalf("%q started an intro", k)
+		}
+	}
+	if m.theme != "BLUE" {
+		t.Fatalf("theme %q; want BLUE", m.theme)
+	}
+}
+
+// A click on a theme row applies it while the overlay is still
+// scrambling in: the intro draws over the frame, not its zones.
+func TestAClickDuringTheOverlayIntroAppliesTheTheme(t *testing.T) {
+	t.Cleanup(func() { applyTheme(themes[0]) })
+	c := newClock()
+	m := introModel(t, c)
+	m, _ = press(t, m, keySettings)
+	if !m.introAnimating() {
+		t.Fatal("no intro running")
+	}
+	_, zs := m.layout()
+	z, ok := zs.find(zoneSettingsTheme + "1")
+	if !ok {
+		t.Fatalf("no zone for the BLUE row in %v", zs)
+	}
+	m, _ = pressAt(t, m, z.x+2, z.y)
+	if m.theme != "BLUE" || !m.settings {
+		t.Fatalf("click on BLUE: theme %q, settings open %v", m.theme, m.settings)
+	}
+}
+
+// The compact layout's overlays intro too.
+func TestOpeningAnOverlayIntrosItInTheCompactLayout(t *testing.T) {
+	c := newClock()
+	m := introModelSized(t, c, 50, 20, stations())
+	c.advance(introDur)
+	m, _ = press(t, m, keyHelp)
+	base, _ := m.baseLayout()
+	scrambled := scrambledAt(base, first(m.layout()))
+	if len(scrambled) == 0 {
+		t.Fatal("KEYS opened without an intro")
+	}
+	top, bottom := overlayInside(t, base, "KEYS")
+	for y := range scrambled {
+		if y < top || y >= bottom {
+			t.Errorf("row %d scrambled; only the overlay's inside (%d..%d) may", y, top, bottom-1)
+		}
+	}
+}

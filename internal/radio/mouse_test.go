@@ -530,7 +530,7 @@ func TestNavTabLightsTheViewShown(t *testing.T) {
 	if got := active(m); !reflect.DeepEqual(got, []string{zoneTabSearch}) {
 		t.Fatalf("active tabs on search %v", got)
 	}
-	if on, off := (button{label: "X", active: true}).render(), (button{label: "X", tone: stRed}).render(); on == off {
+	if on, off := (button{label: "X", active: true}).render(), (button{label: "X", tone: stLabel}).render(); on == off {
 		t.Fatal("the active tab looks like the others")
 	}
 }

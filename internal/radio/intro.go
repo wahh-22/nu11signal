@@ -12,7 +12,8 @@ import (
 
 // Content intros: text that was not on screen — another tab or page, a
 // list or search results arriving, the playlist picker or editor opening,
-// a new artist, album or feed in NOW PLAYING — scrambles in softly, about
+// the KEYS or SETTINGS overlay opening or closing, a new artist, album
+// or feed in NOW PLAYING — scrambles in softly, about
 // introShare of its cells in light glyphs (introGlyphs: letters, digits,
 // a few thin symbols), and resolves left to right, easing out, over
 // introDur, each cell keeping its style.
@@ -24,7 +25,9 @@ import (
 // both, and only the intro regions are compared: the list panel's inside
 // and the artist, album and feed rows of NOW PLAYING (the title glitches
 // on its own; the progress, transport, volume and visualizer rows are
-// left out). A row of a region is new when its text, its text cells
+// left out) or, while it is open, the KEYS or SETTINGS overlay's inside
+// (the SETTINGS cursor and the ◉ of the theme applied only change marks,
+// see rowText). A row of a region is new when its text, its text cells
 // without the selection marks and borders, is on no row of that region
 // before: a row that only moved (a scroll) or changed its marks or its
 // end (the cursor, see sameRow) is not. The cells of a new row that
@@ -178,20 +181,30 @@ func (in intro) carried(now time.Time, before, after []string) (cells map[int][]
 // rowSpan is the cells x0 to x1 (excluded) of row y.
 type rowSpan struct{ y, x0, x1 int }
 
-// introRegions are the rows compared for new content: the list panel's
-// inside, and the NOW PLAYING field rows in the full layout; never the
-// rows of the SEARCH input or the NEW PLAYLIST name, where their zones
-// put them.
+// introRegions are the rows compared for new content: the KEYS or
+// SETTINGS overlay's inside while one is open (it hides the rest);
+// otherwise the list panel's inside, and the NOW PLAYING field rows in
+// the full layout; never the rows of the SEARCH input or the NEW
+// PLAYLIST name, where their zones put them.
 func (m Model) introRegions(zs zones) [][]rowSpan {
 	full := m.width >= fullMinWidth && m.height >= fullMinHeight
-	var list, player []zone
+	var list, player, overlay []zone
 	for _, z := range zs {
 		switch z.id {
 		case zonePanelList:
 			list = append(list, z)
 		case zonePanelPlayer:
 			player = append(player, z)
+		case zonePanelOverlay:
+			overlay = append(overlay, z)
 		}
+	}
+	if len(overlay) > 2 {
+		var rows []rowSpan
+		for _, z := range overlay[1 : len(overlay)-1] { // the frame
+			rows = append(rows, rowSpan{z.y, z.x + 1, z.x + z.w - 1})
+		}
+		return [][]rowSpan{rows}
 	}
 	var inputs []int
 	for _, id := range []string{zoneInput, zoneNameInput} {

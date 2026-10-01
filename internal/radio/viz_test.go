@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/wahh-22/nu11signal/internal/config"
@@ -238,9 +237,9 @@ func TestRainDrizzlesWithoutReadings(t *testing.T) {
 	}
 	// Dim: no bright heads, whatever the decorative level.
 	out := strings.Join(drizzle.Render(40, 10), "\n")
-	for _, st := range []lipgloss.Style{stYellow, stRedBold} {
-		if strings.Contains(out, inkOf(st).pre) {
-			t.Fatalf("the drizzle burns in %q", inkOf(st).pre)
+	for _, k := range []uint8{inkTip, inkBright} {
+		if strings.Contains(out, vizInks[k].pre) {
+			t.Fatalf("the drizzle burns in %q", vizInks[k].pre)
 		}
 	}
 }
@@ -255,10 +254,10 @@ func TestRainTrailStepsDownTheRamp(t *testing.T) {
 	}
 	// Four steps at most: a red head's trail ends dim, a yellow one's
 	// muted.
-	if got := trailInk(inkRed, 39, 40); got != inkDim {
+	if got := trailInk(inkBody, 39, 40); got != inkDim {
 		t.Errorf("far down a red trail: ink %d; want dim", got)
 	}
-	if got := trailInk(inkYellow, 39, 40); got != inkMuted {
+	if got := trailInk(inkTip, 39, 40); got != inkMuted {
 		t.Errorf("far down a yellow trail: ink %d; want muted", got)
 	}
 }
@@ -301,7 +300,7 @@ func TestRainFollowsEachBand(t *testing.T) {
 }
 
 func TestRainHeadsBurnWithTheEnergy(t *testing.T) {
-	yellow := inkOf(stYellow).pre
+	yellow := vizInks[inkTip].pre
 	quiet := strings.Join(stepped(rainViz{}, 40, 0.3, 40, 10, true).Render(40, 10), "\n")
 	loud := strings.Join(stepped(rainViz{}, 40, 1, 40, 10, true).Render(40, 10), "\n")
 	if strings.Contains(quiet, yellow) || !strings.Contains(loud, yellow) {
@@ -348,7 +347,7 @@ func TestABassHitBurstsTheRain(t *testing.T) {
 	if burst.flash <= 0 {
 		t.Fatal("no flash on a bass hit")
 	}
-	yellow := inkOf(stYellow).pre
+	yellow := vizInks[inkTip].pre
 	if !strings.Contains(strings.Join(burst.Render(w, h), "\n"), yellow) {
 		t.Fatal("the hit does not brighten the heads")
 	}
@@ -708,8 +707,7 @@ func TestRainGolden80x24(t *testing.T) {
 // dim reds the rain's trails use, in the theme applied.
 func barsPalette() map[string]bool {
 	ok := map[string]bool{}
-	for _, st := range []lipgloss.Style{stRed, stRedBold, stYellow, stMuted, stDim} {
-		k := inkOf(st)
+	for _, k := range vizInks[inkTip:] {
 		ok[k.pre], ok[k.post] = true, true
 	}
 	return ok
@@ -719,7 +717,7 @@ var sgrPattern = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
 
 func TestRainUsesTheBarsPalette(t *testing.T) {
 	palette := barsPalette()
-	bright := []string{inkOf(stYellow).pre, inkOf(stRedBold).pre, inkOf(stRed).pre}
+	bright := []string{vizInks[inkTip].pre, vizInks[inkBright].pre, vizInks[inkBody].pre}
 	for _, real := range []bool{true, false} {
 		t.Run(fmt.Sprintf("real=%v", real), func(t *testing.T) {
 			var out strings.Builder

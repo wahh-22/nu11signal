@@ -400,7 +400,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 				if len(lines) > 0 {
 					add("")
 				}
-				add(" " + stYellow.Render("▞ ") + stMuted.Render(spaced(fmt.Sprintf("DISC %d", disc))))
+				add(" " + stAccent.Render("▞ ") + stMuted.Render(spaced(fmt.Sprintf("DISC %d", disc))))
 			}
 			total += t.Duration
 			n := t.Number
@@ -433,7 +433,7 @@ func (m Model) trackLayout(w int) ([]pageLine, []trackItem) {
 		wrapped, more := wrapNotes(notes, page.notesOpen, w)
 		add("")
 		for _, l := range wrapped {
-			add(" " + stRed.Render(l))
+			add(" " + stText.Render(l))
 		}
 		if more {
 			item(trackItem{more: true}, func(sel bool) string { return moreLine(page.notesOpen, sel, w) })
@@ -448,7 +448,7 @@ func playAllLine(selected bool, w int) string {
 	if selected {
 		return stSelected.Render(fit("▌"+label, w))
 	}
-	return fit(" "+stYellowB.Render(label), w)
+	return fit(" "+stAccentBold.Render(label), w)
 }
 
 // trackLine lays out one track row in exactly w cells: the selection mark,
@@ -477,14 +477,14 @@ func trackLine(num int, title, detail string, d time.Duration, playing, selected
 	if selected {
 		return stSelected.Render(fit("▌"+mark+number+"  "+title+detail+pad+right, w))
 	}
-	titleStyle := stRed
+	titleStyle := stText
 	switch {
 	case playing:
-		titleStyle = stYellowB
+		titleStyle = stOnAirBold
 	case muted:
 		titleStyle = stMuted
 	}
-	line := " " + stYellow.Render(mark) + stMuted.Render(number) + "  " + titleStyle.Render(title) +
+	line := " " + stOnAir.Render(mark) + stMuted.Render(number) + "  " + titleStyle.Render(title) +
 		stMuted.Render(detail) + pad + stMuted.Render(right)
 	return fit(line, w)
 }
@@ -609,9 +609,9 @@ func (m Model) trackHead() []string {
 		}
 		facts = strings.Join(parts, " · ")
 	}
-	head := []string{" " + stYellowB.Render(strings.ToUpper(title))}
+	head := []string{" " + stHeading.Render(strings.ToUpper(title))}
 	if by != "" {
-		head = append(head, " "+stCyan.Render(strings.ToUpper(by)))
+		head = append(head, " "+stHi.Render(strings.ToUpper(by)))
 	}
 	if facts != "" {
 		head = append(head, " "+stMuted.Render(facts))

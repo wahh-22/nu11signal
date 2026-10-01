@@ -163,7 +163,7 @@ func pageNotice(loading bool, err error, feed string, empty bool) string {
 	case loading:
 		return stDim.Render("DECRYPTING " + feed + " FEED...")
 	case err != nil:
-		return stYellow.Render("▲ [R] RETRY // " + strings.ToUpper(cleanLine(err.Error())))
+		return stWarn.Render("▲ [R] RETRY // " + strings.ToUpper(cleanLine(err.Error())))
 	case empty:
 		return stDim.Render("NO DATA ON FILE")
 	}
@@ -248,5 +248,5 @@ func moreLine(open, selected bool, w int) string {
 	if selected {
 		return stSelected.Render(fit("▌"+label, w))
 	}
-	return " " + stYellow.Render(label)
+	return " " + stAccent.Render(label)
 }

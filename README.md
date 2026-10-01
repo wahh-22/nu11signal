@@ -453,15 +453,16 @@ frame, so clicks and keys work during a burst.
 
 New content scrambles in: when text appears that was not on screen
 (another tab or page, a list or search results arriving, the ADD TO
-PLAYLIST picker or NEW PLAYLIST editor opening, a new artist, album or feed
-in NOW PLAYING), about half of its new characters (a seeded pick) show
+PLAYLIST picker or NEW PLAYLIST editor opening, the KEYS or SETTINGS
+overlay opening or closing, a new artist, album or feed in NOW PLAYING),
+about half of its new characters (a seeded pick) show
 light glyphs, uppercase letters, digits and a few thin symbols, each
 keeping its color. They hold for a moment, then resolve left to right
 within about 0.9 s, quickly at first and settling gently at the end; the
 glyphs drift every ~140 ms, each cell at its own moment, instead of jumping
 all at once. Only text that changed intros: the clock, progress, volume and
 rain never do, moving the
-cursor or scrolling a list does not, and the SEARCH input and the playlist
+cursor (in a list or in SETTINGS) or scrolling a list does not, and the SEARCH input and the playlist
 name never scramble while you type (live results intro once as they
 arrive). Intros follow the same switch as the effects.
 
@@ -512,7 +513,7 @@ section lists the color themes, the active one marked `◉`:
 | Theme | Look |
 |-------|------|
 | `NIGHT CITY` | The default: neon red frames and text, cyan and yellow highlights |
-| `BLUE` | The gentleman-blue palette: electric blue frames and text, cyan and yellow highlights, pink alerts |
+| `BLUE` | The gentleman-blue palette: electric blue frames and labels, pale blue names, violet headings and active buttons, cyan highlights, orange times, green signal, pink favorites, a violet NO SIGNAL |
 
 `↑`/`↓` move, `enter` (or a click on a row) applies the theme at once, the
 whole UI recolored (frames, text, buttons, the rain, the signal effects),

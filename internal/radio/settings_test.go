@@ -72,8 +72,8 @@ func TestTheSettingsPickATheme(t *testing.T) {
 		t.Fatalf("moving applied %q; want enter to apply", m.theme)
 	}
 	m, cmd := press(t, m, "enter")
-	if m.theme != "BLUE" || !strings.Contains(stRed.Render("x"), "52;122;255") {
-		t.Fatalf("enter on BLUE: theme %q, stRed %q", m.theme, stRed.Render("x"))
+	if m.theme != "BLUE" || !strings.Contains(stLabel.Render("x"), "52;122;255") {
+		t.Fatalf("enter on BLUE: theme %q, stLabel %q", m.theme, stLabel.Render("x"))
 	}
 	if !m.settings {
 		t.Fatal("enter closed the settings; want them open to compare")
@@ -89,8 +89,8 @@ func TestTheSettingsPickATheme(t *testing.T) {
 		t.Fatalf("a saved theme reported %q", m.status)
 	}
 	m, _ = press(t, m, "up", "enter")
-	if m.theme != "NIGHT CITY" || !strings.Contains(stRed.Render("x"), "255;95;87") {
-		t.Fatalf("back to NIGHT CITY: theme %q, stRed %q", m.theme, stRed.Render("x"))
+	if m.theme != "NIGHT CITY" || !strings.Contains(stLabel.Render("x"), "255;95;87") {
+		t.Fatalf("back to NIGHT CITY: theme %q, stLabel %q", m.theme, stLabel.Render("x"))
 	}
 }
 
@@ -172,13 +172,13 @@ func TestAClickOnAThemeAppliesIt(t *testing.T) {
 
 func TestStartupAppliesTheSavedTheme(t *testing.T) {
 	m := settingsModel(t, &savingSource{cfg: config.Config{Theme: "blue"}})
-	if m.theme != "BLUE" || !strings.Contains(stRed.Render("x"), "52;122;255") {
-		t.Fatalf("saved blue: theme %q, stRed %q", m.theme, stRed.Render("x"))
+	if m.theme != "BLUE" || !strings.Contains(stLabel.Render("x"), "52;122;255") {
+		t.Fatalf("saved blue: theme %q, stLabel %q", m.theme, stLabel.Render("x"))
 	}
 	applyTheme(themes[1])
 	m = settingsModel(t, &savingSource{cfg: config.Config{Theme: "neon"}})
-	if m.theme != "NIGHT CITY" || !strings.Contains(stRed.Render("x"), "255;95;87") {
-		t.Fatalf("unknown theme: theme %q, stRed %q; want NIGHT CITY", m.theme, stRed.Render("x"))
+	if m.theme != "NIGHT CITY" || !strings.Contains(stLabel.Render("x"), "255;95;87") {
+		t.Fatalf("unknown theme: theme %q, stLabel %q; want NIGHT CITY", m.theme, stLabel.Render("x"))
 	}
 	if m.status != "" {
 		t.Fatalf("an unknown theme reported %q; want silence", m.status)

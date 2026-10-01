@@ -41,7 +41,7 @@ func (m Model) render() string {
 // never move the zones.
 func (m Model) layout() ([]string, zones) {
 	lines, zs := m.baseLayout()
-	if m.introOn() && !m.help && !m.settings {
+	if m.introOn() {
 		m.drawIntro(lines)
 	}
 	if m.fxActive() {
@@ -80,7 +80,7 @@ func (m Model) baseLayout() ([]string, zones) {
 }
 
 func (m Model) renderTiny() []string {
-	return []string{stRedBold.Render("NU11SIGNAL"), m.statusTag()}
+	return []string{stLabelBold.Render("NU11SIGNAL"), m.statusTag()}
 }
 
 func (m Model) renderFull() ([]string, zones) {
@@ -91,12 +91,14 @@ func (m Model) renderFull() ([]string, zones) {
 	if m.help {
 		// The KEYS overlay takes the whole body; nothing under it is
 		// clickable (see handleMouse).
+		zs.addBox(zonePanelOverlay, 0, top, w, bodyH)
 		lines = append(lines, m.helpPanel(w, bodyH)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
 	if m.settings {
 		// SETTINGS takes the whole body too; only its rows are clickable.
 		panel, pz := m.settingsPanel(w, bodyH)
+		zs.addBox(zonePanelOverlay, 0, top, w, bodyH)
 		zs.addAt(0, top, pz)
 		lines = append(lines, panel...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
@@ -185,11 +187,13 @@ func (m Model) renderCompact() ([]string, zones) {
 	zs = zs.shifted(0, 1)
 	lines := []string{m.headerLeft(false) + "  " + m.statusTag(), nav}
 	if m.help {
+		zs.addBox(zonePanelOverlay, 0, len(lines), w, m.height-4)
 		lines = append(lines, m.helpPanel(w, m.height-4)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
 	if m.settings {
 		panel, pz := m.settingsPanel(w, m.height-4)
+		zs.addBox(zonePanelOverlay, 0, len(lines), w, m.height-4)
 		zs.addAt(0, len(lines), pz)
 		lines = append(lines, panel...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
@@ -240,15 +244,15 @@ func (m Model) renderAuthError() []string {
 	boxW := min(m.width, 66)
 	body := []string{
 		"",
-		stYellowB.Render("▲ ACCESS DENIED"),
+		stWarnBold.Render("▲ ACCESS DENIED"),
 		"",
-		stRed.Render("NU11SIGNAL CANNOT REACH YOUR APPLE MUSIC LIBRARY."),
+		stLabel.Render("NU11SIGNAL CANNOT REACH YOUR APPLE MUSIC LIBRARY."),
 		stMuted.Render(strings.ToUpper(m.authDetail)),
 		"",
-		stRed.Render("GRANT ACCESS IN SYSTEM SETTINGS › PRIVACY & SECURITY"),
-		stRed.Render("› MEDIA & APPLE MUSIC, THEN RESTART."),
+		stLabel.Render("GRANT ACCESS IN SYSTEM SETTINGS › PRIVACY & SECURITY"),
+		stLabel.Render("› MEDIA & APPLE MUSIC, THEN RESTART."),
 		"",
-		keyCap("Q") + stRed.Render(" QUIT"),
+		keyCap("Q") + stLabel.Render(" QUIT"),
 	}
 	box := panel("AUTH // ERROR", "ERR-403", body, boxW, min(len(body)+2, m.height), true)
 	pad := strings.Repeat(" ", (m.width-boxW)/2)
@@ -265,7 +269,7 @@ func (m Model) headerLeft(wide bool) string {
 	if wide {
 		sub = spaced(sub)
 	}
-	return stYellow.Render("◢◤ ") + stRedBold.Render("NU11SIGNAL") + stMuted.Render(" // ") + stRed.Render(sub)
+	return stAccent.Render("◢◤ ") + stLabelBold.Render("NU11SIGNAL") + stMuted.Render(" // ") + stLabel.Render(sub)
 }
 
 // header is the title line over the nav bar.
@@ -273,18 +277,18 @@ func (m Model) header(w int) ([]string, zones) {
 	var auth string
 	switch m.auth {
 	case authOK:
-		auth = stCyan.Render("AUTH OK")
+		auth = stOK.Render("AUTH OK")
 	case authFailed:
-		auth = stYellow.Render("AUTH FAIL")
+		auth = stWarn.Render("AUTH FAIL")
 	default:
-		auth = stYellow.Render("LINKING")
+		auth = stWarn.Render("LINKING")
 	}
-	sig := stCyan.Render("▂▄▆█")
+	sig := stOK.Render("▂▄▆█")
 	if m.signalLost() {
-		sig = stYellow.Render("▂") + stDim.Render("▄▆█") + stYellow.Render(" SIGNAL LOST")
+		sig = stWarn.Render("▂") + stDim.Render("▄▆█") + stWarn.Render(" SIGNAL LOST")
 	}
 	right := auth + stDim.Render("  ▮  ") + stMuted.Render("SIG ") + sig +
-		stDim.Render("  ▮  ") + stRed.Render(m.now().Format("15:04:05"))
+		stDim.Render("  ▮  ") + stNumber.Render(m.now().Format("15:04:05"))
 
 	left := m.headerLeft(true)
 	if ansi.StringWidth(left)+ansi.StringWidth(right)+2 > w {
@@ -326,7 +330,7 @@ func (m Model) navLine(w int) (string, zones) {
 		tail = stFrameDim.Render(strings.Repeat("─", rest-ansi.StringWidth(node+nodeEnd))) +
 			stMuted.Render(node) + stFrameDim.Render(nodeEnd)
 	}
-	return stYellow.Render(mark) + gap + bar + gap + tail, zs
+	return stAccent.Render(mark) + gap + bar + gap + tail, zs
 }
 
 // netNode is the nav bar's flavor text: the Night City net node the radio
@@ -356,17 +360,17 @@ func (m Model) spectrumCode() string {
 func (m Model) statusTag() string {
 	switch {
 	case m.signalLost():
-		return stYellowB.Render("▮ SIGNAL LOST")
+		return stWarnBold.Render("▮ SIGNAL LOST")
 	case !m.hasState:
 		return stMuted.Render("▮ STANDBY")
 	}
 	switch m.state.Status {
 	case playback.StatusPlaying:
-		return stCyanBold.Render("▮ PLAYING")
+		return stOKBold.Render("▮ PLAYING")
 	case playback.StatusPaused:
-		return stYellowB.Render("▮ PAUSED")
+		return stWarnBold.Render("▮ PAUSED")
 	case playback.StatusSeeking:
-		return stCyan.Render("▮ SEEKING")
+		return stHi.Render("▮ SEEKING")
 	}
 	return stMuted.Render("▮ STANDBY")
 }
@@ -376,12 +380,12 @@ func (m Model) statusTag() string {
 func (m Model) titleLines() (string, string) {
 	switch {
 	case m.signalLost():
-		return stYellowB.Render("SIGNAL LOST"), stRed.Render("HELPER OFFLINE // RESTART NU11SIGNAL")
+		return stWarnBold.Render("SIGNAL LOST"), stLabel.Render("HELPER OFFLINE // RESTART NU11SIGNAL")
 	case !m.hasState || m.state.Title == "":
 		return stMuted.Render("NO CARRIER"), stDim.Render("OPEN A PLAYLIST WITH [ENTER]")
 	}
 	title := glitchText(strings.ToUpper(m.state.Title), m.glitch, mix(m.seed, m.animFrame))
-	return stCyanBold.Render(title), stRed.Render(strings.ToUpper(m.state.Artist))
+	return stHiBold.Render(title), stText.Render(strings.ToUpper(m.state.Artist))
 }
 
 // progressLine renders the progress bar and the times in w cells; barW
@@ -393,12 +397,12 @@ func (m Model) progressLine(w int) (line string, barW int) {
 	times := formatClock(pos) + " / " + formatClock(dur)
 	barW = w - len(times) - 2
 	if barW < 4 {
-		return stRed.Render(times), 0
+		return stNumber.Render(times), 0
 	}
 	elapsed := progressBar(pos, dur, barW)
 	filled := strings.Count(elapsed, "▮")
-	return stCyan.Render(strings.Repeat("▮", filled)) + stDim.Render(strings.Repeat("▯", barW-filled)) +
-		"  " + stRed.Render(times), barW
+	return stHi.Render(strings.Repeat("▮", filled)) + stDim.Render(strings.Repeat("▯", barW-filled)) +
+		"  " + stNumber.Render(times), barW
 }
 
 // nowPlayingMargin is the room NOW PLAYING leaves on each side of the
@@ -479,7 +483,7 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 // the focus.
 func (m Model) barMark() string {
 	if m.barFocused() && m.seekable() {
-		return stYellowB.Render("▸")
+		return stFocusBold.Render("▸")
 	}
 	return " "
 }
@@ -489,11 +493,11 @@ func (m Model) barMark() string {
 func (m Model) feedLine() string {
 	for i, s := range m.stations {
 		if s.ID == m.playingStation {
-			return stYellow.Render("▞ "+frequency(i)+" MHZ") + stMuted.Render(" // "+strings.ToUpper(s.Name))
+			return stAccent.Render("▞ "+frequency(i)+" MHZ") + stMuted.Render(" // "+strings.ToUpper(s.Name))
 		}
 	}
 	if m.hasState && m.state.Title != "" {
-		return stYellow.Render("▞ CATALOG FEED") + stMuted.Render(" // DIRECT")
+		return stAccent.Render("▞ CATALOG FEED") + stMuted.Render(" // DIRECT")
 	}
 	return stDim.Render("▞ ---.- MHZ // NO FEED")
 }
@@ -578,17 +582,17 @@ func (m Model) stationRow(i int, selected bool, w int) string {
 		text = fit(text, textWidth) + mark
 		return stSelected.Render(fit(text, w))
 	}
-	nameStyle := stRed
+	nameStyle := stText
 	if onAir {
-		nameStyle = stYellow
+		nameStyle = stOnAir
 	}
 	text := "   " + stMuted.Render(frequency(i)) + "  " + nameStyle.Render(name)
-	return fit(fit(text, textWidth)+stYellow.Render(mark), w)
+	return fit(fit(text, textWidth)+stOnAir.Render(mark), w)
 }
 
 func (m Model) statusLine(w int) string {
 	if m.status != "" {
-		return stYellow.Render("▲ " + strings.ToUpper(m.status))
+		return stWarn.Render("▲ " + strings.ToUpper(m.status))
 	}
 	return stDim.Render(fit("░▒▓ "+m.idleStatus(), w))
 }
@@ -617,7 +621,7 @@ func (m Model) idleStatus() string {
 	return fx
 }
 
-func keyCap(k string) string { return stYellow.Render("[" + k + "]") }
+func keyCap(k string) string { return stAccent.Render("[" + k + "]") }
 
 // hintLine lays out key hints, dropping lower-priority ones (never the
 // last, quit, nor KEYS before it) until they fit.
@@ -700,7 +704,7 @@ func renderHints(hs []hint) ([]renderedHint, int) {
 	parts := make([]renderedHint, len(hs))
 	width := 0
 	for i, h := range hs {
-		text := keyCap(h.key) + " " + stRed.Render(h.label)
+		text := keyCap(h.key) + " " + stLabel.Render(h.label)
 		parts[i] = renderedHint{text: text, width: ansi.StringWidth(text)}
 		if i > 0 {
 			width += len(hintGap)
