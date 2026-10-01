@@ -312,6 +312,7 @@ section lists the color themes, the active one marked `◉`:
 |-------|------|
 | `NIGHT CITY` | The default: neon red frames and text, cyan and yellow highlights |
 | `BLUE` | NIGHT CITY recolored from the gentleman-blue palette, with as many colors: electric blue where NIGHT CITY is red, violet where it is yellow, cyan where it is cyan, blue-grey shades behind |
+| `MATRIX` | NIGHT CITY recolored in the greens of falling code, with as many colors: mid green where NIGHT CITY is red, code green where it is cyan, a pale glow where it is yellow, dark greens behind |
 
 `↑`/`↓` move, `enter` (or a click on a row) applies the theme at once, the
 whole UI recolored (frames, text, buttons, the rain, the signal effects),

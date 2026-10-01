@@ -53,8 +53,8 @@ func TestThemesStartWithNightCityThenBlue(t *testing.T) {
 	for _, th := range themes {
 		names = append(names, th.name)
 	}
-	if strings.Join(names, ",") != "NIGHT CITY,BLUE" {
-		t.Fatalf("themes %v; want NIGHT CITY then BLUE", names)
+	if strings.Join(names, ",") != "NIGHT CITY,BLUE,MATRIX" {
+		t.Fatalf("themes %v; want NIGHT CITY, BLUE, MATRIX", names)
 	}
 	if th, ok := themeNamed("blue"); !ok || th.name != "BLUE" {
 		t.Fatalf("themeNamed(blue) = %v, %v; want BLUE, case aside", th.name, ok)
@@ -247,6 +247,37 @@ func TestBlueNoSignalReadsBlue(t *testing.T) {
 	for _, code := range []string{"255;95;87", bluePink} {
 		if strings.Contains(frame, code) {
 			t.Errorf("NO SIGNAL under BLUE draws the red %s", code)
+		}
+	}
+}
+
+// MATRIX is NIGHT CITY recolored in greens: as many colors, each one a
+// green (its green channel above red and blue), and SETTINGS offers it.
+func TestMatrixIsAllGreen(t *testing.T) {
+	m, ok := themeNamed("MATRIX")
+	if !ok {
+		t.Fatal("no MATRIX theme")
+	}
+	night, green := themeRoles(themes[0]), themeRoles(m)
+	pairs := map[string]string{}
+	for i, c := range night {
+		if b, seen := pairs[c]; seen && b != green[i] {
+			t.Fatalf("role %d: NIGHT CITY's %s maps to both %s and %s", i, c, b, green[i])
+		}
+		pairs[c] = green[i]
+	}
+	used := map[string]bool{}
+	for _, g := range pairs {
+		if used[g] {
+			t.Fatalf("MATRIX merges two NIGHT CITY colors into %s", g)
+		}
+		used[g] = true
+		var r, gr, b int
+		if _, err := fmt.Sscanf(g, "#%02x%02x%02x", &r, &gr, &b); err != nil {
+			t.Fatalf("color %q: %v", g, err)
+		}
+		if gr < r || gr < b {
+			t.Fatalf("MATRIX color %s is not green", g)
 		}
 	}
 }
