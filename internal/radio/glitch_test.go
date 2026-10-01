@@ -470,7 +470,7 @@ func TestNoSignalFlashesFullRedFramedInStatic(t *testing.T) {
 		lines, _ := m.layout()
 		at := -1
 		for y, line := range lines {
-			if strings.Contains(line, stRedBold.Render(sign)) {
+			if strings.Contains(line, stAlertSign.Render(sign)) {
 				at = y
 			}
 		}

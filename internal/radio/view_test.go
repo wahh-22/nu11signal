@@ -192,3 +192,52 @@ func TestOnAirStationRowFillsWidth(t *testing.T) {
 		}
 	}
 }
+
+// The head row of NOW PLAYING is the feed on the left and the status on
+// the right: the panel's frame label already names it, so the inside
+// never repeats NOW PLAYING, and the feed has no row of its own.
+func TestNowPlayingHeadIsTheFeedAndTheStatus(t *testing.T) {
+	m := playingModel(t, playbacktest.New())
+	m, _ = press(t, m, "f") // expanded: the whole width
+	iw, ih := m.playerPanelWidth()-2, m.height-6
+	lines, _ := m.nowPlaying(iw, ih)
+	head := ansi.Strip(lines[0])
+	if !strings.HasPrefix(head, " ▞ CATALOG FEED // DIRECT ") || !strings.HasSuffix(head, " ▮ PLAYING") {
+		t.Fatalf("head row reads %q; want the feed then the status", head)
+	}
+	if got := ansi.StringWidth(lines[0]); got != iw {
+		t.Fatalf("head row is %d cells; want %d", got, iw)
+	}
+	for y, line := range lines {
+		text := ansi.Strip(line)
+		if strings.Contains(text, "NOW PLAYING") || strings.Contains(text, spaced("NOW PLAYING")) {
+			t.Errorf("row %d repeats the frame label: %q", y, text)
+		}
+		if y > 0 && strings.Contains(text, "CATALOG FEED") {
+			t.Errorf("row %d draws the feed again: %q", y, text)
+		}
+	}
+	screen := plain(m)
+	if !strings.Contains(screen, "▮ NOW PLAYING") || strings.Contains(screen, spaced("NOW PLAYING")) {
+		t.Fatalf("the frame label is gone or the spaced head is back:\n%s", screen)
+	}
+}
+
+// Beside the list the panel is too narrow for the whole feed: the feed is
+// cut, the status stays whole on the right.
+func TestNarrowNowPlayingCutsTheFeedNotTheStatus(t *testing.T) {
+	m := playingModel(t, playbacktest.New())
+	iw := m.playerPanelWidth() - 2
+	feed := ansi.StringWidth(m.feedLine())
+	if 1+feed+1+ansi.StringWidth(m.statusTag()) <= iw {
+		t.Fatalf("the panel, %d cells inside, holds the whole feed; the test needs a narrower one", iw)
+	}
+	lines, _ := m.nowPlaying(iw, m.height-6)
+	head := ansi.Strip(lines[0])
+	if got := ansi.StringWidth(lines[0]); got != iw {
+		t.Fatalf("head row is %d cells; want %d: %q", got, iw, head)
+	}
+	if !strings.HasPrefix(head, " ▞ CATALOG") || !strings.HasSuffix(head, " ▮ PLAYING") || !strings.Contains(head, "…") {
+		t.Fatalf("head row reads %q; want the feed cut and the status whole", head)
+	}
+}

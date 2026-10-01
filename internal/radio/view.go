@@ -18,7 +18,6 @@ const (
 	fullMinHeight = 16
 	tinyMinWidth  = 20
 	tinyMinHeight = 5
-	eqMaxRows     = 12
 )
 
 // View renders the radio in the alternate screen.
@@ -81,7 +80,7 @@ func (m Model) baseLayout() ([]string, zones) {
 }
 
 func (m Model) renderTiny() []string {
-	return []string{stRedBold.Render("NU11SIGNAL"), m.statusTag()}
+	return []string{stLabelBold.Render("NU11SIGNAL"), m.statusTag()}
 }
 
 func (m Model) renderFull() ([]string, zones) {
@@ -89,13 +88,28 @@ func (m Model) renderFull() ([]string, zones) {
 	bodyH := h - 4
 	lines, zs := m.header(w)
 	top := len(lines)
+	if m.help {
+		// The KEYS overlay takes the whole body; nothing under it is
+		// clickable (see handleMouse).
+		zs.addBox(zonePanelOverlay, 0, top, w, bodyH)
+		lines = append(lines, m.helpPanel(w, bodyH)...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
+	if m.settings {
+		// SETTINGS takes the whole body too; only its rows are clickable.
+		panel, pz := m.settingsPanel(w, bodyH)
+		zs.addBox(zonePanelOverlay, 0, top, w, bodyH)
+		zs.addAt(0, top, pz)
+		lines = append(lines, panel...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
 	// The panels go under the zones drawn in them, which stay on top.
 	if m.expanded {
 		// NOW PLAYING takes the list panel's place too.
 		playing, playingZones := m.nowPlaying(m.playerPanelWidth()-2, bodyH-2)
 		zs.addBox(zonePanelPlayer, 0, top, w, bodyH)
 		zs.addAt(1, top+1, playingZones.clip(w-2, bodyH-2))
-		lines = append(lines, panel("NOW PLAYING", "NC-NET 0x2077", playing, w, bodyH, true)...)
+		lines = append(lines, panel("NOW PLAYING", m.spectrumCode(), playing, w, bodyH, true)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
 	leftW := listPanelWidthFor(w)
@@ -103,7 +117,7 @@ func (m Model) renderFull() ([]string, zones) {
 
 	left, leftZones := m.listPanel(leftW, bodyH)
 	playing, playingZones := m.nowPlaying(rightW-2, bodyH-2)
-	right := panel("NOW PLAYING", "NC-NET 0x2077", playing, rightW, bodyH, m.focus == areaPlayer)
+	right := panel("NOW PLAYING", m.spectrumCode(), playing, rightW, bodyH, m.focus == areaPlayer)
 
 	zs.addBox(zonePanelList, 0, top, leftW, bodyH)
 	zs.addBox(zonePanelPlayer, leftW+1, top, rightW, bodyH)
@@ -135,14 +149,14 @@ func (m Model) eqBarCount() int {
 
 // compactVolumeWidth is the widest volume row beside the transport
 // buttons in the compact layout, and compactVolumeMin the narrowest, with
-// its buttons and a bare percentage.
+// its buttons and the narrowest meter.
 const (
-	compactVolumeWidth = 26
-	compactVolumeMin   = 21
+	compactVolumeWidth = 27
+	compactVolumeMin   = 20
 )
 
 // playerMinWidth is the narrowest NOW PLAYING panel beside the list: room
-// for the four transport buttons as glyphs.
+// for the five transport buttons, tightly packed.
 const playerMinWidth = 30
 
 // listPanelWidthFor is the width of the list panel in the full layout, the
@@ -162,14 +176,28 @@ func (m Model) listBodyWidth() int {
 }
 
 // renderCompact stacks the screen in one column: the nav bar takes the
-// header rule, the title and artist lines end in the ♥ and LOOP buttons,
-// then the transport buttons, the volume row while it fits and the rule
-// over the list, which the expanded player leaves out.
+// header rule, the title line ends in the [<3] button, then the artist
+// line, the transport row (packed), the volume row beside it while it fits
+// and the rule over the list, which the expanded player leaves out. The
+// one-row HUD of the full layout (hudRowCount) never fits here, narrower
+// than fullMinWidth; the focus follows the zones drawn either way.
 func (m Model) renderCompact() ([]string, zones) {
 	w := m.width
 	nav, zs := m.navLine(w)
 	zs = zs.shifted(0, 1)
 	lines := []string{m.headerLeft(false) + "  " + m.statusTag(), nav}
+	if m.help {
+		zs.addBox(zonePanelOverlay, 0, len(lines), w, m.height-4)
+		lines = append(lines, m.helpPanel(w, m.height-4)...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
+	if m.settings {
+		panel, pz := m.settingsPanel(w, m.height-4)
+		zs.addBox(zonePanelOverlay, 0, len(lines), w, m.height-4)
+		zs.addAt(0, len(lines), pz)
+		lines = append(lines, panel...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
 	// The player lines (title to buttons) and the list below them are the
 	// panels, under the zones drawn in them.
 	var panels zones
@@ -177,20 +205,18 @@ func (m Model) renderCompact() ([]string, zones) {
 	title, artist := m.titleLines()
 	title, hz := m.heartTitle(title, w-1)
 	zs.addAt(0, len(lines), hz)
-	artist, lz := m.loopTail(artist, w-1)
-	zs.addAt(0, len(lines)+1, lz)
-	lines = append(lines, title, artist)
+	lines = append(lines, title, ansi.Truncate(artist, w-1, "…"))
 	progress, barW := m.progressLine(w - 1)
 	if m.seekable() {
 		zs.add(zoneSeek, 1, len(lines), barW)
 	}
 	lines = append(lines, m.barMark()+progress)
-	// The volume row takes the room of the transport labels when it can
-	// fit beside all four buttons that way.
-	transport, tz := m.transportBar(w - 3 - compactVolumeMin)
+	// The volume row takes the room of the PLAY label and the gaps when it
+	// can fit beside all five buttons that way.
+	transport, tz := m.transportBar(w-3-compactVolumeMin, true)
 	withVolume := len(tz) == int(ctlExpand)+1
 	if !withVolume {
-		transport, tz = m.transportBar(w - 1)
+		transport, tz = m.transportBar(w-1, true)
 	}
 	zs.addAt(1, len(lines), tz)
 	controls := " " + transport + " "
@@ -218,15 +244,15 @@ func (m Model) renderAuthError() []string {
 	boxW := min(m.width, 66)
 	body := []string{
 		"",
-		stYellowB.Render("▲ ACCESS DENIED"),
+		stWarnBold.Render("▲ ACCESS DENIED"),
 		"",
-		stRed.Render("NU11SIGNAL CANNOT REACH YOUR APPLE MUSIC LIBRARY."),
+		stLabel.Render("NU11SIGNAL CANNOT REACH YOUR APPLE MUSIC LIBRARY."),
 		stMuted.Render(strings.ToUpper(m.authDetail)),
 		"",
-		stRed.Render("GRANT ACCESS IN SYSTEM SETTINGS › PRIVACY & SECURITY"),
-		stRed.Render("› MEDIA & APPLE MUSIC, THEN RESTART."),
+		stLabel.Render("GRANT ACCESS IN SYSTEM SETTINGS › PRIVACY & SECURITY"),
+		stLabel.Render("› MEDIA & APPLE MUSIC, THEN RESTART."),
 		"",
-		keyCap("Q") + stRed.Render(" QUIT"),
+		keyCap("Q") + stLabel.Render(" QUIT"),
 	}
 	box := panel("AUTH // ERROR", "ERR-403", body, boxW, min(len(body)+2, m.height), true)
 	pad := strings.Repeat(" ", (m.width-boxW)/2)
@@ -243,7 +269,7 @@ func (m Model) headerLeft(wide bool) string {
 	if wide {
 		sub = spaced(sub)
 	}
-	return stYellow.Render("◢◤ ") + stRedBold.Render("NU11SIGNAL") + stMuted.Render(" // ") + stRed.Render(sub)
+	return stAccent.Render("◢◤ ") + stLabelBold.Render("NU11SIGNAL") + stMuted.Render(" // ") + stLabel.Render(sub)
 }
 
 // header is the title line over the nav bar.
@@ -251,18 +277,18 @@ func (m Model) header(w int) ([]string, zones) {
 	var auth string
 	switch m.auth {
 	case authOK:
-		auth = stCyan.Render("AUTH OK")
+		auth = stOK.Render("AUTH OK")
 	case authFailed:
-		auth = stYellow.Render("AUTH FAIL")
+		auth = stWarn.Render("AUTH FAIL")
 	default:
-		auth = stYellow.Render("LINKING")
+		auth = stWarn.Render("LINKING")
 	}
-	sig := stCyan.Render("▂▄▆█")
+	sig := stOK.Render("▂▄▆█")
 	if m.signalLost() {
-		sig = stYellow.Render("▂") + stDim.Render("▄▆█") + stYellow.Render(" SIGNAL LOST")
+		sig = stWarn.Render("▂") + stDim.Render("▄▆█") + stWarn.Render(" SIGNAL LOST")
 	}
 	right := auth + stDim.Render("  ▮  ") + stMuted.Render("SIG ") + sig +
-		stDim.Render("  ▮  ") + stRed.Render(m.now().Format("15:04:05"))
+		stDim.Render("  ▮  ") + stNumber.Render(m.now().Format("15:04:05"))
 
 	left := m.headerLeft(true)
 	if ansi.StringWidth(left)+ansi.StringWidth(right)+2 > w {
@@ -276,18 +302,20 @@ func (m Model) header(w int) ([]string, zones) {
 }
 
 // navLine is the header rule carrying the nav bar: the PLAYLISTS and
-// SEARCH tabs and, on a page, BACK. The serial code stays
-// at the right edge while there is room for it.
+// SEARCH tabs and, on a page, BACK. The net node readout (netNode) stays
+// at the right edge, cut with … to the room left, while at least
+// minNode cells of it fit.
 //
-//	▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ── RDO-77 // NC-NET ──
+//	▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ──── NODE 7F // NC-GRID ──
 func (m Model) navLine(w int) (string, zones) {
 	const (
 		mark    = "▓▒░"
 		gap     = " "
-		code    = " RDO-77 // NC-NET "
-		codeEnd = "──"
-		// minRule is the rule kept between the bar and the code.
+		nodeEnd = "──"
+		// minRule is the rule kept between the bar and the readout, and
+		// minNode the fewest cells of its text worth drawing.
 		minRule = 1
+		minNode = 6
 	)
 	lead := ansi.StringWidth(mark + gap)
 	gapW := ansi.StringWidth(gap)
@@ -296,26 +324,53 @@ func (m Model) navLine(w int) (string, zones) {
 	zs.addAt(lead, 0, bz)
 	rest := max(w-lead-ansi.StringWidth(bar)-gapW, 0)
 	tail := stFrameDim.Render(strings.Repeat("─", rest))
-	if codeW := ansi.StringWidth(code + codeEnd); rest >= codeW+minRule {
-		tail = stFrameDim.Render(strings.Repeat("─", rest-codeW)) + stMuted.Render(code) + stFrameDim.Render(codeEnd)
+	// The text sits between a space on each side and the closing rule.
+	if room := rest - minRule - ansi.StringWidth(nodeEnd) - 2; room >= minNode {
+		node := " " + ansi.Truncate(m.netNode(), room, "…") + " "
+		tail = stFrameDim.Render(strings.Repeat("─", rest-ansi.StringWidth(node+nodeEnd))) +
+			stMuted.Render(node) + stFrameDim.Render(nodeEnd)
 	}
-	return stYellow.Render(mark) + gap + bar + gap + tail, zs
+	return stAccent.Render(mark) + gap + bar + gap + tail, zs
+}
+
+// netNode is the nav bar's flavor text: the Night City net node the radio
+// is patched through, one byte of the Model's seed in hex, so a session
+// keeps its node and a fixed seed draws a fixed frame.
+func (m Model) netNode() string {
+	return fmt.Sprintf("NODE %02X // NC-GRID", mix(m.seed, netNodeSalt)&0xFF)
+}
+
+// netNodeSalt keeps netNode apart from the other hashes of the seed.
+const netNodeSalt = 0x4E43
+
+// spectrumCode is the NOW PLAYING panel's bottom label: where the rain's
+// levels come from, the player's readings (LIVE), the decorative
+// animation while playing (SIM), or nothing while paused or stopped
+// (HOLD, the bars falling).
+func (m Model) spectrumCode() string {
+	switch _, live := m.liveSpectrum(); {
+	case live:
+		return "SPECTRUM LIVE"
+	case m.isPlaying():
+		return "SPECTRUM SIM"
+	}
+	return "SPECTRUM HOLD"
 }
 
 func (m Model) statusTag() string {
 	switch {
 	case m.signalLost():
-		return stYellowB.Render("▮ SIGNAL LOST")
+		return stWarnBold.Render("▮ SIGNAL LOST")
 	case !m.hasState:
 		return stMuted.Render("▮ STANDBY")
 	}
 	switch m.state.Status {
 	case playback.StatusPlaying:
-		return stCyanBold.Render("▮ PLAYING")
+		return stOKBold.Render("▮ PLAYING")
 	case playback.StatusPaused:
-		return stYellowB.Render("▮ PAUSED")
+		return stWarnBold.Render("▮ PAUSED")
 	case playback.StatusSeeking:
-		return stCyan.Render("▮ SEEKING")
+		return stHi.Render("▮ SEEKING")
 	}
 	return stMuted.Render("▮ STANDBY")
 }
@@ -325,12 +380,12 @@ func (m Model) statusTag() string {
 func (m Model) titleLines() (string, string) {
 	switch {
 	case m.signalLost():
-		return stYellowB.Render("SIGNAL LOST"), stRed.Render("HELPER OFFLINE // RESTART NU11SIGNAL")
+		return stWarnBold.Render("SIGNAL LOST"), stLabel.Render("HELPER OFFLINE // RESTART NU11SIGNAL")
 	case !m.hasState || m.state.Title == "":
 		return stMuted.Render("NO CARRIER"), stDim.Render("OPEN A PLAYLIST WITH [ENTER]")
 	}
 	title := glitchText(strings.ToUpper(m.state.Title), m.glitch, mix(m.seed, m.animFrame))
-	return stCyanBold.Render(title), stRed.Render(strings.ToUpper(m.state.Artist))
+	return stHiBold.Render(title), stText.Render(strings.ToUpper(m.state.Artist))
 }
 
 // progressLine renders the progress bar and the times in w cells; barW
@@ -342,22 +397,24 @@ func (m Model) progressLine(w int) (line string, barW int) {
 	times := formatClock(pos) + " / " + formatClock(dur)
 	barW = w - len(times) - 2
 	if barW < 4 {
-		return stRed.Render(times), 0
+		return stNumber.Render(times), 0
 	}
 	elapsed := progressBar(pos, dur, barW)
 	filled := strings.Count(elapsed, "▮")
-	return stCyan.Render(strings.Repeat("▮", filled)) + stDim.Render(strings.Repeat("▯", barW-filled)) +
-		"  " + stRed.Render(times), barW
+	return stHi.Render(strings.Repeat("▮", filled)) + stDim.Render(strings.Repeat("▯", barW-filled)) +
+		"  " + stNumber.Render(times), barW
 }
 
 // nowPlayingMargin is the room NOW PLAYING leaves on each side of the
 // lines under its head.
 const nowPlayingMargin = 1
 
-// The rows of the NOW PLAYING inside from the head down to the feed, the
-// others blank; the rows under them (the buttons, the volume, LOOP and the
-// visualizer) depend on the height. The content intro compares the
-// artist, album and feed rows (see introFieldRows).
+// The rows of the NOW PLAYING inside from the head down to the progress
+// bar, the others blank; the rows under them (the controls and the
+// visualizer) depend on the width and the height. The head is the feed
+// and the status tag: the panel's frame label already says NOW PLAYING.
+// The content intro compares the artist, album and head rows (see
+// introFieldRows).
 const (
 	npHeadRow = iota
 	_
@@ -366,30 +423,30 @@ const (
 	npAlbumRow
 	_
 	npProgressRow
-	npFeedRow
 )
 
 // nowPlaying renders the inside of the NOW PLAYING panel, iw x ih cells,
-// with its zones: the progress bar (click to seek), the transport buttons
-// under the feed, the volume row under them and LOOP under that.
+// with its zones: the progress bar (click to seek) and, under it, the
+// controls: one row when the width holds them all, else the transport
+// row (LOOP and EXPAND included) over the volume row (see hudControls).
 func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	title, artist := m.titleLines()
 	album := ""
 	if m.hasState && !m.signalLost() {
 		album = stMuted.Render(strings.ToUpper(m.state.Album))
 	}
-	label := stMuted.Render(spaced("NOW PLAYING"))
-	tag := m.statusTag()
-	if ansi.StringWidth(label)+1+ansi.StringWidth(tag) > iw-1 {
-		// The narrower panel beside the artist page keeps the status whole.
-		label = stMuted.Render("NOW PLAYING")
+	feed, tag := m.feedLine(), m.statusTag()
+	if room := m.headFeedWidth(iw); ansi.StringWidth(feed) > room {
+		// The narrower panel beside the list cuts the feed and keeps the
+		// status whole.
+		feed = ansi.Truncate(feed, room, "…")
 	}
-	head := label + strings.Repeat(" ", max(iw-1-ansi.StringWidth(label)-ansi.StringWidth(tag), 1)) + tag
+	head := feed + strings.Repeat(" ", max(iw-1-ansi.StringWidth(feed)-ansi.StringWidth(tag), 1)) + tag
 
 	// The lines under the head sit nowPlayingMargin cells in from each
 	// side, and so do their zones.
 	inner := iw - 2*nowPlayingMargin
-	lines := make([]string, npFeedRow+1)
+	lines := make([]string, npProgressRow+1)
 	lines[npHeadRow] = " " + head
 	title, hz := m.heartTitle(title, inner)
 	var zs zones
@@ -399,21 +456,17 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	if m.seekable() {
 		zs.add(zoneSeek, nowPlayingMargin, npProgressRow, barW)
 	}
-	lines[npProgressRow], lines[npFeedRow] = m.barMark()+progress, " "+m.feedLine()
-	if ih > len(lines)+2 {
-		// The buttons keep their gap from the feed while it leaves room
-		// for the volume row.
+	lines[npProgressRow] = m.barMark() + progress
+	controls, cz := m.hudControls(inner)
+	if ih > len(lines)+len(controls) {
+		// The buttons keep their gap from the progress bar while it
+		// leaves room for them all.
 		lines = append(lines, "")
 	}
-	transport, tz := m.transportBar(inner)
-	zs.addAt(nowPlayingMargin, len(lines), tz)
-	lines = append(lines, " "+transport)
-	volume, vz := m.volumeBar(inner)
-	zs.addAt(nowPlayingMargin, len(lines), vz)
-	lines = append(lines, " "+volume)
-	loop, lz := m.loopBar(inner)
-	zs.addAt(nowPlayingMargin, len(lines), lz)
-	lines = append(lines, " "+loop)
+	zs.addAt(nowPlayingMargin, len(lines), cz)
+	for _, row := range controls {
+		lines = append(lines, " "+row)
+	}
 
 	if eqRows := vizRows(ih, len(lines)); eqRows > 0 {
 		// Sit the rain on the bottom edge of the panel.
@@ -427,25 +480,33 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	return lines, zs
 }
 
+// headFeedWidth is the room the head row of NOW PLAYING, iw cells inside,
+// leaves the feed: all but the margin, the status tag and the space
+// before it. The content intro compares those cells only, so a new
+// status never scrambles (see introRegions).
+func (m Model) headFeedWidth(iw int) int {
+	return max(iw-nowPlayingMargin-ansi.StringWidth(m.statusTag())-1, 0)
+}
+
 // barMark is the cell before the progress bar: a marker while the bar has
 // the focus.
 func (m Model) barMark() string {
 	if m.barFocused() && m.seekable() {
-		return stYellowB.Render("▸")
+		return stFocusBold.Render("▸")
 	}
 	return " "
 }
 
-// feedLine names where the music comes from: a station's frequency or the
-// catalog.
+// feedLine names where the music comes from, at the head of NOW PLAYING:
+// a station's frequency or the catalog.
 func (m Model) feedLine() string {
 	for i, s := range m.stations {
 		if s.ID == m.playingStation {
-			return stYellow.Render("▞ "+frequency(i)+" MHZ") + stMuted.Render(" // "+strings.ToUpper(s.Name))
+			return stAccent.Render("▞ "+frequency(i)+" MHZ") + stMuted.Render(" // "+strings.ToUpper(s.Name))
 		}
 	}
 	if m.hasState && m.state.Title != "" {
-		return stYellow.Render("▞ CATALOG FEED") + stMuted.Render(" // DIRECT")
+		return stAccent.Render("▞ CATALOG FEED") + stMuted.Render(" // DIRECT")
 	}
 	return stDim.Render("▞ ---.- MHZ // NO FEED")
 }
@@ -530,32 +591,60 @@ func (m Model) stationRow(i int, selected bool, w int) string {
 		text = fit(text, textWidth) + mark
 		return stSelected.Render(fit(text, w))
 	}
-	nameStyle := stRed
+	nameStyle := stText
 	if onAir {
-		nameStyle = stYellow
+		nameStyle = stOnAir
 	}
 	text := "   " + stMuted.Render(frequency(i)) + "  " + nameStyle.Render(name)
-	return fit(fit(text, textWidth)+stYellow.Render(mark), w)
+	return fit(fit(text, textWidth)+stOnAir.Render(mark), w)
 }
 
 func (m Model) statusLine(w int) string {
 	if m.status != "" {
-		return stYellow.Render("▲ " + strings.ToUpper(m.status))
+		return stWarn.Render("▲ " + strings.ToUpper(m.status))
 	}
-	return stDim.Render(fit("░▒▓ SYS NOMINAL // BUF 0x5EF6", w))
+	return stDim.Render(fit("░▒▓ "+m.idleStatus(), w))
 }
 
-func keyCap(k string) string { return stYellow.Render("[" + k + "]") }
+// idleStatus is the status line without a message: the song NEXT moves
+// to, when the model knows it (see upNext), else which volume the
+// player drives (once it says) and whether the signal effects are on.
+func (m Model) idleStatus() string {
+	if s, ok := m.upNext(); ok {
+		next := "UP NEXT // " + strings.ToUpper(cleanLine(s.Title))
+		if s.Artist != "" {
+			next += " · " + strings.ToUpper(cleanLine(s.Artist))
+		}
+		return next
+	}
+	fx := "FX OFF"
+	if m.fx.on {
+		fx = "FX ON"
+	}
+	switch m.volumeMode {
+	case playback.VolumeApp:
+		return "APP VOLUME // " + fx
+	case playback.VolumeSystem:
+		return "SYS VOLUME // " + fx
+	}
+	return fx
+}
 
-// hintLine lays out key hints, dropping lower-priority ones (never the last,
-// quit) until they fit.
+func keyCap(k string) string { return stAccent.Render("[" + k + "]") }
+
+// hintLine lays out key hints, dropping lower-priority ones (never the
+// last, quit, nor KEYS before it) until they fit.
 func (m Model) hintLine(w int) string {
 	hints := playerHints
 	switch kind := m.top().kind; {
+	case m.help:
+		hints = helpOverlayHints
+	case m.settings:
+		hints = settingsOverlayHints
 	case m.focus == areaTabs:
-		hints = tabsFocusHints(kind == viewSearch || m.editor.mode == editName)
+		hints = tabsFocusHints(m.keysTyped())
 	case m.focus == areaPlayer:
-		hints = playerFocusHints(m.expanded, kind == viewSearch || m.editor.mode == editName)
+		hints = playerFocusHints(m.expanded, m.keysTyped())
 	case m.editor.mode == editPick:
 		hints = pickerHints
 	case m.editor.mode == editName:
@@ -577,17 +666,28 @@ func (m Model) hintLine(w int) string {
 	return fitHints(hints, w)
 }
 
-// fitHints joins hints into a line of at most w cells, shortening their
-// keys and then dropping lower-priority ones (never the last) until it
+// fitHints joins hints into a line of at most w cells, leaving out
+// SETTINGS, then shortening their keys and then dropping lower-priority ones (never the last, nor the
+// KEYS hint right before it, but when only the two are left) until it
 // fits. Each hint is styled once: the View runs on every frame, and
 // styling every candidate line anew made the hints most of its cost.
 func fitHints(hints []hint, w int) string {
 	parts, width := renderHints(hints)
+	if i := slices.Index(hints, settingsHint); i >= 0 && width > w {
+		// SETTINGS shows only where the whole footer fits: it goes
+		// before any other hint is shortened or dropped.
+		hints = slices.Delete(slices.Clone(hints), i, i+1)
+		parts, width = renderHints(hints)
+	}
 	if width > w {
 		parts, width = renderHints(shortHints(hints))
 	}
+	keep := 1
+	if n := len(hints); n >= 2 && hints[n-2] == helpHint {
+		keep = 2
+	}
 	for len(parts) > 1 && width > w {
-		drop := len(parts) - 2
+		drop := max(len(parts)-1-keep, 0)
 		width -= parts[drop].width + len(hintGap)
 		parts = append(parts[:drop], parts[drop+1:]...)
 	}
@@ -613,7 +713,7 @@ func renderHints(hs []hint) ([]renderedHint, int) {
 	parts := make([]renderedHint, len(hs))
 	width := 0
 	for i, h := range hs {
-		text := keyCap(h.key) + " " + stRed.Render(h.label)
+		text := keyCap(h.key) + " " + stLabel.Render(h.label)
 		parts[i] = renderedHint{text: text, width: ansi.StringWidth(text)}
 		if i > 0 {
 			width += len(hintGap)
@@ -623,12 +723,21 @@ func renderHints(hs []hint) ([]renderedHint, int) {
 	return parts, width
 }
 
-// shortHints names only DEL of the recent delete keys.
+// shortHints names only DEL of the recent delete keys, the space key
+// PLAY and the arrows walking the player or the tabs PICK: the room they
+// free keeps ESC BACK (on the pages), SEEK (on the playlists) and F
+// RESTORE (on the expanded player) beside KEYS and QUIT in an 80-column
+// footer.
 func shortHints(hs []hint) []hint {
 	out := slices.Clone(hs)
 	for i, h := range out {
-		if h.key == recentDeleteKeys {
+		switch {
+		case h.key == recentDeleteKeys:
 			out[i].key = "DEL"
+		case h.key == "SPACE" && h.label == "PLAY/PAUSE":
+			out[i].label = "PLAY"
+		case h.key == "←→" && h.label == "SELECT":
+			out[i].label = "PICK"
 		}
 	}
 	return out

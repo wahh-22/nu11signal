@@ -45,27 +45,22 @@ func inkOf(st lipgloss.Style) ink {
 	return ink{pre: s[:i], post: s[i+1:]}
 }
 
-// Inks of the rain's palette, the equalizer bars' own: yellow tips, bold
-// red, red, and the theme's dim reds for what sits behind the music (the
-// trails). The rain's trail steps down
+// Inks of the rain's palette, the equalizer bars' own, from the theme's
+// rain roles: the tips, the bright (bold) and body steps, and the theme's
+// muted and dim for what sits behind the music (the trails; NIGHT CITY
+// draws yellow tips, bold red, red and its dim reds). The rain's trail steps down
 // them in rainRamp's order, not in their numbers'. inkNone draws unstyled.
 const (
 	inkNone uint8 = iota
-	inkYellow
-	inkRedBold
-	inkRed
+	inkTip
+	inkBright
+	inkBody
 	inkMuted
 	inkDim
 )
 
-var vizInks = []ink{
-	inkNone:    {},
-	inkYellow:  inkOf(stYellow),
-	inkRedBold: inkOf(stRedBold),
-	inkRed:     inkOf(stRed),
-	inkMuted:   inkOf(stMuted),
-	inkDim:     inkOf(stDim),
-}
+// vizInks are the inks by number, from the theme (see applyTheme).
+var vizInks []ink
 
 // canvas is a w x h grid of one-cell glyphs, each with an ink, that
 // renders to styled lines.

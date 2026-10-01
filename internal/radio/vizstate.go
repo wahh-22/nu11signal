@@ -24,15 +24,27 @@ func (m Model) loadConfigCmd() tea.Cmd {
 	}
 }
 
-// onConfig applies the settings. The only one, the visualizer, is read
-// and ignored: the rain is the only visualizer (see viz.go), and a name
-// from before, of a visualizer since retired, is no error. A file that
-// cannot be read says so once.
+// onConfig applies the settings. The theme is applied, the default for a
+// name no theme has (silently: a theme since renamed is no error), unless
+// SETTINGS already chose one. The visualizer is read and ignored: the
+// rain is the only visualizer (see viz.go), and a name from before, of a
+// visualizer since retired, is no error. A file that cannot be read says
+// so once.
 func (m Model) onConfig(msg configMsg) Model {
 	if msg.err != nil {
 		m.setStatus("CONFIG UNREADABLE // " + msg.err.Error())
+		return m
 	}
-	return m
+	m.settingsFile = msg.cfg
+	if m.themePicked {
+		m.settingsFile.Theme = m.theme
+		return m
+	}
+	t, ok := themeNamed(msg.cfg.Theme)
+	if !ok {
+		t = themes[0]
+	}
+	return m.setTheme(t)
 }
 
 // stepViz advances the rain a frame, after the bars (stepBars).
@@ -61,23 +73,25 @@ func (m Model) vizSize() (w, h int) {
 		return 0, 0
 	}
 	ih := m.height - 6 // the panel's inside: the body less its frame
-	return m.playerPanelWidth() - 2 - 2*nowPlayingMargin, vizRows(ih, nowPlayingControlRows(ih))
+	return m.playerPanelWidth() - 2 - 2*nowPlayingMargin, vizRows(ih, nowPlayingControlRows(m.playerPanelWidth()-2, ih))
 }
 
-// nowPlayingControlRows is how many rows NOW PLAYING draws over the
-// spectrum area in ih rows: head to LOOP, with the gap over the buttons
-// once there is room for it.
-func nowPlayingControlRows(ih int) int {
-	if ih > 10 {
-		return 12
+// nowPlayingControlRows is how many rows NOW PLAYING, iw x ih inside,
+// draws over the spectrum area: the head down to the progress bar, then
+// the controls (one row or two, as hudRowCount says for the width inside
+// the margins), with the gap over them once there is room for it.
+func nowPlayingControlRows(iw, ih int) int {
+	rows := npProgressRow + 1 + hudRowCount(iw-2*nowPlayingMargin)
+	if ih > rows {
+		rows++
 	}
-	return 11
+	return rows
 }
 
-// vizRows is the height of the spectrum area under used rows of ih, at
-// most eqMaxRows; 0 when fewer than 2 rows are left.
+// vizRows is the height of the spectrum area: every row of ih under the
+// used ones; 0 when fewer than 2 rows are left.
 func vizRows(ih, used int) int {
-	if rows := min(ih-used, eqMaxRows); rows >= 2 {
+	if rows := ih - used; rows >= 2 {
 		return rows
 	}
 	return 0

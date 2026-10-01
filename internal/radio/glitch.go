@@ -13,7 +13,8 @@ import (
 // burstGapMin..burstGapMax a short burst of burstMin..burstMax tears a
 // row or few sideways, corrupts a handful of cells and may run a static
 // bar;
-// one burst in noSignalOdds also flashes NO SIGNAL, framed in red static.
+// one burst in noSignalOdds also flashes NO SIGNAL, framed in static, in
+// the theme's alert roles (red in NIGHT CITY).
 //
 // Everything is drawn over the finished frame (see Model.decorate), cell
 // for cell, so no line changes width and the clickable zones, laid out
@@ -182,7 +183,8 @@ func setCells(line string, cells map[int]rune) string {
 // noiseGlyphs replace cells during a burst.
 var noiseGlyphs = []string{"░", "▒", "▓", "█", "▚", "▞", "0", "1", "3", "7", "A", "C", "E", "F"}
 
-var noiseStyles = []lipgloss.Style{stRed, stCyan, stYellow, stFrameDim}
+// noiseStyles color the noise cells, from the theme (see applyTheme).
+var noiseStyles []lipgloss.Style
 
 // tear is row y torn k cells sideways.
 type tear struct {
@@ -256,8 +258,9 @@ func (m Model) burst(lines []string) {
 	}
 }
 
-// noSignalFlash draws the NO SIGNAL sign in bold red, framed in red
-// static, in the middle of the frame:
+// noSignalFlash draws the NO SIGNAL sign in the theme's bold alert color
+// (red in NIGHT CITY, violet in BLUE), framed in its static (alertStatic:
+// red, primary blue), in the middle of the frame:
 //
 //	▓▒░▒▓░▒▓▒░▓▒░▒▓░▒▓▒░▓▒░▒▓
 //	▒▓   N O   S I G N A L  ▓▒
@@ -268,9 +271,9 @@ func (m Model) noSignalFlash(lines []string, r uint64) {
 	x := max((m.width-signW)/2, 0)
 	y := max(len(lines)/2-1, 0)
 	rows := []string{
-		stRed.Render(static(signW, mix(r, 5))),
-		stRed.Render("▒▓") + stRedBold.Render(sign) + stRed.Render("▓▒"),
-		stRed.Render(static(signW, mix(r, 6))),
+		stAlertStatic.Render(static(signW, mix(r, 5))),
+		stAlertStatic.Render("▒▓") + stAlertSign.Render(sign) + stAlertStatic.Render("▓▒"),
+		stAlertStatic.Render(static(signW, mix(r, 6))),
 	}
 	for i, row := range rows {
 		if y+i < len(lines) {

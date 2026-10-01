@@ -123,15 +123,30 @@ type (
 	}
 )
 
-// songActionsWidth is the room the ♥ and + controls take at the end of a
-// song row, and songActionsMinWidth the narrowest row that gets them.
-// heartTitleMinWidth is the narrowest NOW PLAYING title line that gets
-// the ♥ button: the button and heartTitleMinRoom cells of title.
+// The favorite mark is an ASCII pulse, always two cells: <3 for a loved
+// song, lit, and -- for one that is not, dim.
 const (
-	songActionsWidth    = 5
+	favoriteOnMark  = "<3"
+	favoriteOffMark = "--"
+)
+
+// favoriteMark is the mark for a song loved (on) or not.
+func favoriteMark(on bool) string {
+	if on {
+		return favoriteOnMark
+	}
+	return favoriteOffMark
+}
+
+// songActionsWidth is the room the favorite mark and + take at the end of
+// a song row, and songActionsMinWidth the narrowest row that gets them.
+// heartTitleMinWidth is the narrowest NOW PLAYING title line that gets
+// the [<3] button: heartTitleMinRoom cells of title, a gap and the button.
+const (
+	songActionsWidth    = 6
 	songActionsMinWidth = 24
 	heartTitleMinRoom   = 12
-	heartTitleMinWidth  = heartTitleMinRoom + songActionsWidth
+	heartTitleMinWidth  = heartTitleMinRoom + 1 + len(favoriteOnMark) + 2
 )
 
 // createCheck is a create whose outcome is unknown, looked for in the
@@ -413,28 +428,24 @@ func (m Model) onSetFavorite(msg setFavoriteMsg) (Model, tea.Cmd) {
 	case msg.err != nil:
 		f = favorite{}
 	case msg.on:
-		m.setStatus("♥ LOVED // " + title)
+		m.setStatus(favoriteOnMark + " LOVED // " + title)
 	default:
-		m.setStatus("♡ UNLOVED // " + title)
+		m.setStatus(favoriteOffMark + " UNLOVED // " + title)
 	}
 	m.setFavorite(msg.song.ID, f)
 	return m, nil
 }
 
 // songActions renders the end of a song row, songActionsWidth cells: on
-// the selected row its ♥ (or ♡) and + controls, elsewhere a ♥ when the
-// song is known to be loved.
+// the selected row its favorite mark (<3 or --) and + controls, elsewhere
+// a lit <3 when the song is known to be loved.
 func (m Model) songActions(s playback.Song, selected bool) string {
 	on, _ := m.favoriteOf(s.ID)
-	heart := "♡"
-	if on {
-		heart = "♥"
-	}
 	if selected {
-		return stSelected.Render(" " + heart + " + ")
+		return stSelected.Render(" " + favoriteMark(on) + " + ")
 	}
 	if on {
-		return " " + stYellow.Render(heart) + "   "
+		return " " + stFav.Render(favoriteOnMark) + "   "
 	}
 	return strings.Repeat(" ", songActionsWidth)
 }
@@ -457,25 +468,25 @@ func (m Model) songLine(s playback.Song, n int, selected bool, w int, render fun
 	return pageLine{text: text, item: n, actions: actions}
 }
 
-// addActionZones registers the ♥ and + of a song row w cells wide drawn
-// on line y.
+// addActionZones registers the favorite mark and + of a song row w cells
+// wide drawn on line y, each with the space before it.
 func addActionZones(zs *zones, w, y int) {
 	x := w - songActionsWidth
-	zs.add(zoneRowFavorite, x, y, 2)
-	zs.add(zoneRowAdd, x+2, y, 2)
+	zs.add(zoneRowFavorite, x, y, 1+len(favoriteOnMark))
+	zs.add(zoneRowAdd, x+1+len(favoriteOnMark), y, 2)
 }
 
-// heartTitle ends the title line of NOW PLAYING, w cells, with the ♥
-// button of the song playing, while there is one and room for it (w of at
+// heartTitle ends the title line of NOW PLAYING, w cells, with the
+// favorite button of the song playing, [<3] (lit) or [--] (dim), while there is one and room for it (w of at
 // least heartTitleMinWidth); the zones are in the line's coordinates.
 func (m Model) heartTitle(title string, w int) (string, zones) {
 	s, ok := m.playingSong()
 	if !ok || w < heartTitleMinWidth {
 		return title, nil
 	}
-	b := button{id: zoneFavPlaying, label: "♡", tone: stMuted, focused: m.focused(ctlFav)}
+	b := button{id: zoneFavPlaying, label: favoriteOffMark, tone: stDim, bracket: true, focused: m.focused(ctlFav)}
 	if on, _ := m.favoriteOf(s.ID); on {
-		b.label, b.tone = "♥", stYellow
+		b.label, b.tone = favoriteOnMark, stFav
 	}
 	room := w - b.width() - 1
 	title = ansi.Truncate(title, room, "…")
@@ -808,7 +819,7 @@ func newPlaylistLine(selected bool, w int) string {
 	if selected {
 		return stSelected.Render(fit("▌▶ "+label, w))
 	}
-	return fit("   "+stYellow.Render(label), w)
+	return fit("   "+stAccent.Render(label), w)
 }
 
 // editorTitle and editorCode head and foot the list panel while the
@@ -832,7 +843,7 @@ func (m Model) editorCode() string {
 
 // songHead is the line naming the editor's song: title and artist.
 func songHead(s playback.Song, w int) string {
-	line := " " + stCyan.Render("♪ ") + stYellowB.Render(strings.ToUpper(s.Title))
+	line := " " + stHi.Render("♪ ") + stHeading.Render(strings.ToUpper(s.Title))
 	if s.Artist != "" {
 		line += stMuted.Render(" · " + strings.ToUpper(s.Artist))
 	}
@@ -875,7 +886,7 @@ func (m Model) pickerBody(w, h int) ([]string, zones) {
 		if i == cur {
 			lines = append(lines, stSelected.Render(fit("▌▶ "+freq+"  "+name, w)))
 		} else {
-			lines = append(lines, fit("   "+stMuted.Render(freq)+"  "+stRed.Render(name), w))
+			lines = append(lines, fit("   "+stMuted.Render(freq)+"  "+stText.Render(name), w))
 		}
 	}
 	if len(editable) == 0 && len(lines) < h {
@@ -887,7 +898,7 @@ func (m Model) pickerBody(w, h int) ([]string, zones) {
 // nameBody renders NEW PLAYLIST: the name input, a rule, the song the
 // playlist will hold, if any, and the CREATE and CANCEL buttons.
 func (m Model) nameBody(w, h int) ([]string, zones) {
-	lines := []string{fit(stYellow.Render("+ ")+m.nameInput.View(), w)}
+	lines := []string{fit(stAccent.Render("+ ")+m.nameInput.View(), w)}
 	var zs zones
 	zs.add(zoneNameInput, 0, 0, w)
 	add := func(l string) {
@@ -903,8 +914,8 @@ func (m Model) nameBody(w, h int) ([]string, zones) {
 	add("")
 	if len(lines) < h {
 		bar, bz := buttonBar([]button{
-			{id: zoneEditCreate, label: "CREATE", tone: stYellow},
-			{id: zoneEditCancel, label: "CANCEL", tone: stRed},
+			{id: zoneEditCreate, label: "CREATE", tone: stAccent},
+			{id: zoneEditCancel, label: "CANCEL", tone: stLabel},
 		}, w-1)
 		zs.addAt(1, len(lines), bz)
 		add(" " + bar)

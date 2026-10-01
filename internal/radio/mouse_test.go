@@ -217,8 +217,8 @@ func TestTransportButtonsDriveThePlayer(t *testing.T) {
 	}{
 		{"pause", playback.StatusPlaying, zonePlay, "PAUSE", "Pause"},
 		{"resume", playback.StatusPaused, zonePlay, "PLAY", "Resume"},
-		{"next", playback.StatusPlaying, zoneNext, "NEXT", "Next"},
-		{"previous", playback.StatusPlaying, zonePrev, "PREV", "Previous"},
+		{"next", playback.StatusPlaying, zoneNext, "▶▶", "Next"},
+		{"previous", playback.StatusPlaying, zonePrev, "◀◀", "Previous"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -530,7 +530,7 @@ func TestNavTabLightsTheViewShown(t *testing.T) {
 	if got := active(m); !reflect.DeepEqual(got, []string{zoneTabSearch}) {
 		t.Fatalf("active tabs on search %v", got)
 	}
-	if on, off := (button{label: "X", active: true}).render(), (button{label: "X", tone: stRed}).render(); on == off {
+	if on, off := (button{label: "X", active: true}).render(), (button{label: "X", tone: stLabel}).render(); on == off {
 		t.Fatal("the active tab looks like the others")
 	}
 }
@@ -686,7 +686,7 @@ func TestClickOnTheBareListPanelGivesTheSearchInputBack(t *testing.T) {
 
 func TestClickOnTheExpandedPlayerFocusesIt(t *testing.T) {
 	m := playingModel(t, playbacktest.New())
-	m, _ = press(t, m, "f", "up", "up", "up") // the bar, the ♥, the tabs
+	m, _ = press(t, m, "f", "up", "up", "up") // the bar, the favorite, the tabs
 	if m.focus != areaTabs {
 		t.Fatalf("focus %v; want the tabs", m.focus)
 	}

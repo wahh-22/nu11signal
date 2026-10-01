@@ -120,7 +120,7 @@ func TestThePlayingSongOffThePageIsReadByTheTick(t *testing.T) {
 		t.Fatalf("Favorite calls = %v; want the playing c1", calls)
 	}
 	if on, _ := m.favoriteOf("c1"); !on {
-		t.Fatal("the playing song's ♥ is not known")
+		t.Fatal("the playing song's favorite is not known")
 	}
 }
 

@@ -133,6 +133,10 @@ type Model struct {
 	// playSeq numbers play requests; only the answer to the latest one
 	// may change playingStation.
 	playSeq uint64
+	// onAirQueue is the songs the latest confirmed play queued, in order
+	// (see onPlay); the status line names the one after the song playing
+	// (see upNext).
+	onAirQueue []playback.Song
 	// stationsFailed means loading the station list failed; r retries.
 	stationsFailed bool
 
@@ -174,10 +178,10 @@ type Model struct {
 	// selected button, or onBar the progress bar above them. The expanded
 	// player takes the full width and keeps the focus, but for the nav
 	// tabs (see focus.go). favFrom is the transport button ↑ left for the
-	// ♥ of the song playing, which ↓ goes back to. inputHadFocus keeps,
-	// while the list does not have the focus, whether the search input had
-	// the keys before. On the nav tabs, tab is the selected one and
-	// tabsFrom the area ↓ returns to.
+	// favorite of the song playing, which ↓ goes back to. inputHadFocus
+	// keeps, while the list does not have the focus, whether the search
+	// input had the keys before. On the nav tabs, tab is the selected one
+	// and tabsFrom the area ↓ returns to.
 	focus         focusArea
 	control       playerControl
 	favFrom       playerControl
@@ -186,6 +190,19 @@ type Model struct {
 	inputHadFocus bool
 	tab           int
 	tabsFrom      focusArea
+	// help shows the KEYS overlay (see help.go), which takes every key
+	// but keyHelp and esc (closing it) and ctrl+c (quitting).
+	help bool
+	// settings shows the SETTINGS overlay (see settings.go), its cursor
+	// on the theme row settingsCursor. theme is the theme applied (see
+	// setTheme); themePicked means SETTINGS chose one, which the settings
+	// file read at startup no longer overrides. settingsFile is the
+	// settings as last read or saved, what a save starts from.
+	settings       bool
+	settingsCursor int
+	theme          string
+	themePicked    bool
+	settingsFile   config.Config
 
 	// favs caches the favorite state of songs by id, and favSeq numbers
 	// its reads and changes (see library.go).
@@ -252,6 +269,7 @@ type Model struct {
 	// configSource the settings file (see vizstate.go).
 	rain         rainViz
 	configSource config.Source
+	configSaves  *configSaves
 	// tickGen identifies the live tick chain; ticks from older chains are
 	// dropped so rescheduling never doubles the frame rate.
 	tickGen  uint64
@@ -290,7 +308,7 @@ func New(p playback.Player, opts Options) Model {
 	if src, ok := p.(playback.LevelSource); ok {
 		levels = src.Levels()
 	}
-	return Model{
+	m := Model{
 		player:       p,
 		levels:       levels,
 		now:          opts.Now,
@@ -301,12 +319,16 @@ func New(p playback.Player, opts Options) Model {
 		volumeBusy:   true, // Init reads the volume
 		fx:           effects{on: opts.Effects},
 		configSource: opts.Config,
+		configSaves:  &configSaves{},
 
 		input:         in,
 		nameInput:     name,
 		recentsStore:  opts.Recents,
 		recentsWrites: newRecentsWriter(opts.Recents),
 	}
+	// A new Model starts on the default theme until the settings file
+	// names another (see onConfig).
+	return m.setTheme(themes[0])
 }
 
 // Init authorizes, loads recent searches and the settings, reads the volume, starts
@@ -337,6 +359,7 @@ type (
 		seq     uint64
 		op      string
 		station string
+		queue   []playback.Song
 		report  playback.QueueReport
 		err     error
 	}

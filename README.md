@@ -285,11 +285,11 @@ Limitations:
 - **Love** a song (Apple Music's favorite): `l` on a song row (a track, a
   top song, a song among the results or the search rows), or with no song
   row selected (the playlists, the player), the song playing. The selected
-  song row ends in `♡ +` (`♥` once loved); a loved song keeps its `♥` on any
-  row, and NOW PLAYING shows a `╱ ♡ ╱` button beside the title. A page
-  reads the state of all its songs in one `favorites` call as it loads
-  (album, song, playlist, artist top songs, results, search rows), so its
-  hearts show at once; states are cached per song. The song playing, when
+  song row ends in `-- +` (`<3 +` once loved, the `<3` lit); a loved song
+  keeps its `<3` on any row, and NOW PLAYING shows a `[--]` / `[<3]` button
+  beside the title. A page reads the state of all its songs in one
+  `favorites` call as it loads (album, song, playlist, artist top songs,
+  results, search rows), so its marks show at once; states are cached per song. The song playing, when
   it is not on the page, and the selected song, when the page read failed,
   are read on their own when the selection rests (on the next animation
   tick). A change shows at once: a refused one is reported on the status
@@ -342,6 +342,8 @@ PLAYLISTS (and anywhere the key is not taken by the view):
 | `r` | Retry loading the playlists after a failure |
 | `x` | Turn the signal effects off or on (see [Signal effects](#signal-effects)) |
 | `q` / `ctrl+c` | Quit |
+| `?` | Open or close KEYS, the list of every key (see below) |
+| `s` | Open or close SETTINGS, the color themes (see [Settings](#settings)) |
 
 SEARCH (typing goes to the input, so letter shortcuts are off):
 
@@ -388,8 +390,8 @@ panel frame shows which side has the focus):
 
 | Key | Action |
 |-----|--------|
-| `←` / `→` | Walk a row of buttons: `PREV`, `PLAY`/`PAUSE`, `NEXT`, `EXPAND`, or `VOL-`, `VOL+` below them; `LOOP` and the `♡` of the song playing are alone on their rows; `←` from the first button of a row goes back to the list |
-| `↑` / `↓` | Move between the `♡` of the song playing (while there is one), the progress bar (when the song can seek), the transport row, the volume row (`VOL-` under `PREV`/`PLAY`, `VOL+` under `NEXT`/`EXPAND`), and `LOOP` under it; `↑` from the `♡` (or from what is under it, with no song) moves the focus to the nav tabs |
+| `←` / `→` | Walk a row of buttons as drawn: `PREV`, `PLAY`/`PAUSE`, `NEXT`, `LOOP`, `VOL-`, `VOL+`, `EXPAND` when the player is wide enough for one row, else `PREV` to `EXPAND` on the transport row and `VOL-`, `VOL+` on the volume row below; the `[<3]` of the song playing is alone on its row; `←` from the first button of a row goes back to the list |
+| `↑` / `↓` | Move between the `[<3]` of the song playing (while there is one), the progress bar (when the song can seek), the transport row and, with two rows, the volume row (`VOL-` under `PREV`/`PLAY`, `VOL+` under `NEXT`, `LOOP` and `EXPAND`); `↑` from the `[<3]` (or from what is under it, with no song) moves the focus to the nav tabs |
 | `←` / `→` on the progress bar | Seek -10 s / +10 s |
 | `enter` | Press the focused button (as a click) |
 | `l` / `a` | Love / add to a playlist the song playing |
@@ -417,7 +419,24 @@ list, as it was left (on SEARCH, the same row or the input).
 
 The footer names the keys of the side and view in focus; when it does not
 fit, it keeps the essential ones first (on the playlists: `enter`, `/`,
-`space`, `→`) and always quit.
+`space`, `→`) and always `[?] KEYS` and quit (where `?` is typed, on SEARCH
+and in the NEW PLAYLIST name, only quit). `[S] SETTINGS` shows only where
+the whole footer fits.
+
+`?` opens KEYS, every binding grouped (PLAYBACK, NAVIGATION, VIEW, SEARCH,
+APP) in a panel over the body, wherever `q` quits (on SEARCH and in the
+NEW PLAYLIST name `?` is typed). `?` or `esc` (or a click) closes it; while
+it is open the other keys do nothing, `q` included, and `ctrl+c` quits.
+
+The HUD names live state: the nav bar ends in the Night City net node the
+radio is patched through (`NODE 7F // NC-GRID`, flavor, fixed for a session
+by its seed, cut to fit); the NOW PLAYING frame says where the rain's levels come from
+(`SPECTRUM LIVE` from the player's readings, `SPECTRUM SIM` animated,
+`SPECTRUM HOLD` paused or stopped); and with no message the status line
+names the song `n` moves to (`UP NEXT // RESONANCE · HOME`) when the song
+playing is in the list nu11signal queued (after the last one, the first
+while the loop repeats), else the volume driven and the effects
+(`APP VOLUME // FX ON`).
 
 The list panel keeps one width in every view (the browse pages' width),
 leaving NOW PLAYING at least 30 columns.
@@ -434,15 +453,16 @@ frame, so clicks and keys work during a burst.
 
 New content scrambles in: when text appears that was not on screen
 (another tab or page, a list or search results arriving, the ADD TO
-PLAYLIST picker or NEW PLAYLIST editor opening, a new artist, album or feed
-in NOW PLAYING), about half of its new characters (a seeded pick) show
+PLAYLIST picker or NEW PLAYLIST editor opening, the KEYS or SETTINGS
+overlay opening or closing, a new artist, album or feed in NOW PLAYING),
+about half of its new characters (a seeded pick) show
 light glyphs, uppercase letters, digits and a few thin symbols, each
 keeping its color. They hold for a moment, then resolve left to right
 within about 0.9 s, quickly at first and settling gently at the end; the
 glyphs drift every ~140 ms, each cell at its own moment, instead of jumping
 all at once. Only text that changed intros: the clock, progress, volume and
 rain never do, moving the
-cursor or scrolling a list does not, and the SEARCH input and the playlist
+cursor (in a list or in SETTINGS) or scrolling a list does not, and the SEARCH input and the playlist
 name never scramble while you type (live results intro once as they
 arrive). Intros follow the same switch as the effects.
 
@@ -479,9 +499,39 @@ animation frames, from the seed: the signal effects run over it.
 The other visualizers (bars, oscilloscope, synthwave, random) and the `v`
 key are gone. A `nu11signal/config.json` under `os.UserConfigDir()`
 (`~/Library/Application Support/nu11signal/config.json` on macOS) is still
-read, once at startup and never written, but its `"visualizer"` value,
+read once at startup (it also holds the theme, see [Settings](#settings)),
+but its `"visualizer"` value,
 whatever it names, is accepted and ignored without a notice; a file that is
 not valid JSON says so once on the status line.
+
+## Settings
+
+`s` opens SETTINGS, a panel over the body like KEYS, wherever `?` opens
+KEYS (on SEARCH and in the NEW PLAYLIST name `s` is typed). Its THEMES
+section lists the color themes, the active one marked `◉`:
+
+| Theme | Look |
+|-------|------|
+| `NIGHT CITY` | The default: neon red frames and text, cyan and yellow highlights |
+| `BLUE` | NIGHT CITY recolored from the gentleman-blue palette, with as many colors: electric blue where NIGHT CITY is red, violet where it is yellow, cyan where it is cyan, blue-grey shades behind |
+
+`↑`/`↓` move, `enter` (or a click on a row) applies the theme at once, the
+whole UI recolored (frames, text, buttons, the rain, the signal effects),
+and the panel stays open to compare; `s` or `esc` (or a click off the rows)
+closes it. The other keys do nothing while it is open; `ctrl+c` quits.
+
+The choice is saved to `"theme"` in `nu11signal/config.json` under
+`os.UserConfigDir()` and applied at the next start:
+
+```json
+{"theme": "BLUE"}
+```
+
+The file is written only when a theme is chosen, atomically (a temporary
+file renamed over it), private (`0600`, its directory `0700`), keeping the
+fields it does not know. A file that is not valid JSON is left alone and
+the choice is not saved (the status line says so); a theme name nu11signal
+does not know starts `NIGHT CITY` silently.
 
 ## Mouse
 
@@ -495,28 +545,35 @@ reaches too (or, for the controls ending a row, the row's own keys: `l`,
 | A row (playlist, search row, page row, `▶ PLAY`, MORE/LESS) | Select it and act as `enter` |
 | The SEARCH input | Select the input |
 | `✕` at the end of a recent term | Delete that term (as `ctrl+d` / `delete`) |
-| `♡` / `♥` and `+` at the end of the selected song row | Love or unlove it (as `l`); add it to a playlist (as `a`) |
-| `╱ ♡ ╱` beside the title (NOW PLAYING) | Love or unlove the song playing; the focus moves to the button |
+| `--` / `<3` and `+` at the end of the selected song row | Love or unlove it (as `l`); add it to a playlist (as `a`) |
+| `[--]` / `[<3]` beside the title (NOW PLAYING) | Love or unlove the song playing; the focus moves to the button |
 | `+ NEW PLAYLIST` (row over the playlists) | Name a new playlist |
 | A picker row, `CREATE`, `CANCEL` | As `enter` on the row; create; cancel |
 | A `[R] RETRY` notice | Retry, as `r` |
 | `PLAYLISTS` / `SEARCH` tabs (header rule) | `PLAYLISTS` as `tab` (from a library playlist page, back to the list); `SEARCH` as `/`; the lit tab is the branch shown |
 | `◀ BACK` (on RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST, and over ADD TO PLAYLIST and NEW PLAYLIST) | As `esc` |
-| `◀◀ PREV`, `▶ PLAY` / `❚❚ PAUSE`, `NEXT ▶▶` (NOW PLAYING) | As `p`, `space`, `n`; the focus moves to the button |
-| `⤢ EXPAND` / `⤡ RESTORE` (NOW PLAYING) | Expand the player to the full width, or restore it |
-| `-` / `+` around the `VOL` readout (NOW PLAYING) | Volume down / up by 5%, as `j` / `k`; the focus moves to the button |
-| `↻ LOOP OFF` / `ALL` / `ONE` (NOW PLAYING, under the volume row; lit while on) | Cycle the loop mode, as `o`; the focus moves to the button |
+| `[◀◀]`, `[ ▶ PLAY ]` / `[ ❚❚ PAUSE ]`, `[▶▶]` (NOW PLAYING) | As `p`, `space`, `n`; the focus moves to the button |
+| `[⤢]` EXPAND / `[⤡]` RESTORE (NOW PLAYING, at the right edge) | Expand the player to the full width, or restore it |
+| `[−]` / `[+]` around the `VOL` meter (NOW PLAYING) | Volume down / up by 5%, as `j` / `k`; the focus moves to the button |
+| `[↻ OFF]` / `[↻ ALL]` / `[↻ ONE]` (NOW PLAYING, after `NEXT`) | Cycle the loop mode, as `o`; the focus moves to the button |
 | Anywhere else in a panel (its frame and empty space included) | The panel takes the focus: the list keeps its cursor (nothing opens); NOW PLAYING focuses `PLAY`, or keeps the button it had |
 | The progress bar | Seek to that point of the song; the focus moves to the bar |
 
 Other clicks on the nav bar or the header do nothing. The wheel moves the
 cursor like `↑`/`↓`, stopping at the top of the list (it never reaches the
-nav tabs; nothing while the player is expanded). Narrow layouts
-shorten the transport buttons to their glyphs (`EXPAND` first) and leave
-out buttons that do not fit; the tiny layout has none. The compact layout
-puts the volume row beside the transport buttons when it fits (the buttons
-as glyphs), and leaves it out otherwise; `LOOP` ends the artist line. In the
-compact layout, expanding hides the list under the player.
+nav tabs; nothing while the player is expanded). When NOW PLAYING is wide
+enough (the expanded player, for one), every control takes one row:
+
+```
+[◀◀]  [ ❚❚ PAUSE ]  [▶▶]  [↻ OFF]  VOL [−] ▮▮▮▮▮▮▮▮ [+] 90%  [⤢]
+```
+
+with the meter as wide as fits; narrower, the volume row goes under the
+transport row. Narrow layouts shorten `PLAY`/`PAUSE` to its glyph, tighten
+the gaps and leave out buttons that do not fit; the tiny layout has none.
+The compact layout puts the volume row beside the transport buttons when it
+fits (the buttons as glyphs), and leaves it out otherwise. In the compact
+layout, expanding hides the list under the player.
 
 `LOOP` shows the mode asked for at once and keeps it until the player
 reports it (for at most 3 seconds); a refused change is reported on the status line and the button
@@ -680,7 +737,7 @@ once it plays, the songs after it are appended to the queue, so the list
 still plays on (a failed append is only logged: the song plays alone); if
 even the song alone fails, the error names the song. These steps are logged
 to the helper's stderr. `state` events name a song queued as its library
-copy by the catalog id asked for, so the UI's `▶` and hearts match.
+copy by the catalog id asked for, so the UI's `▶` and favorite marks match.
 
 ## Troubleshooting
 

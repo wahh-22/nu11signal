@@ -12,7 +12,8 @@ import (
 
 // Content intros: text that was not on screen — another tab or page, a
 // list or search results arriving, the playlist picker or editor opening,
-// a new artist, album or feed in NOW PLAYING — scrambles in softly, about
+// the KEYS or SETTINGS overlay opening or closing, a new artist, album
+// or feed in NOW PLAYING — scrambles in softly, about
 // introShare of its cells in light glyphs (introGlyphs: letters, digits,
 // a few thin symbols), and resolves left to right, easing out, over
 // introDur, each cell keeping its style.
@@ -22,9 +23,12 @@ import (
 // but those of introQuiet (see there), the frames before and after it are
 // laid out at the same instant, so the clock, the progress and the visualizer read the same in
 // both, and only the intro regions are compared: the list panel's inside
-// and the artist, album and feed rows of NOW PLAYING (the title glitches
-// on its own; the progress, buttons, volume, LOOP and visualizer rows are
-// left out). A row of a region is new when its text, its text cells
+// and the artist and album rows of NOW PLAYING and the feed at its head
+// (the status tag beside the feed is left out, the title glitches
+// on its own; the progress, transport, volume and visualizer rows are
+// left out) or, while it is open, the KEYS or SETTINGS overlay's inside
+// (the SETTINGS cursor and the ◉ of the theme applied only change marks,
+// see rowText). A row of a region is new when its text, its text cells
 // without the selection marks and borders, is on no row of that region
 // before: a row that only moved (a scroll) or changed its marks or its
 // end (the cursor, see sameRow) is not. The cells of a new row that
@@ -68,8 +72,10 @@ func introScrambles(h uint64) bool { return unit(mix(h, 2)) < introShare }
 const saltIntro uint64 = 401
 
 // introFieldRows are the rows of the NOW PLAYING inside that intro: the
-// artist, the album and the feed, as nowPlaying lays them out.
-var introFieldRows = []int{npArtistRow, npAlbumRow, npFeedRow}
+// artist, the album and the head, as nowPlaying lays them out. Of the
+// head only the feed's cells count, not the status tag right of them
+// (see headFeedWidth).
+var introFieldRows = []int{npArtistRow, npAlbumRow, npHeadRow}
 
 // A row reading b is the row that read a (see sameRow) when they share at
 // least sameRowMinShared runes of their start, and at least sameRowShare
@@ -178,20 +184,30 @@ func (in intro) carried(now time.Time, before, after []string) (cells map[int][]
 // rowSpan is the cells x0 to x1 (excluded) of row y.
 type rowSpan struct{ y, x0, x1 int }
 
-// introRegions are the rows compared for new content: the list panel's
-// inside, and the NOW PLAYING field rows in the full layout; never the
-// rows of the SEARCH input or the NEW PLAYLIST name, where their zones
-// put them.
+// introRegions are the rows compared for new content: the KEYS or
+// SETTINGS overlay's inside while one is open (it hides the rest);
+// otherwise the list panel's inside, and the NOW PLAYING field rows in
+// the full layout; never the rows of the SEARCH input or the NEW
+// PLAYLIST name, where their zones put them.
 func (m Model) introRegions(zs zones) [][]rowSpan {
 	full := m.width >= fullMinWidth && m.height >= fullMinHeight
-	var list, player []zone
+	var list, player, overlay []zone
 	for _, z := range zs {
 		switch z.id {
 		case zonePanelList:
 			list = append(list, z)
 		case zonePanelPlayer:
 			player = append(player, z)
+		case zonePanelOverlay:
+			overlay = append(overlay, z)
 		}
+	}
+	if len(overlay) > 2 {
+		var rows []rowSpan
+		for _, z := range overlay[1 : len(overlay)-1] { // the frame
+			rows = append(rows, rowSpan{z.y, z.x + 1, z.x + z.w - 1})
+		}
+		return [][]rowSpan{rows}
 	}
 	var inputs []int
 	for _, id := range []string{zoneInput, zoneNameInput} {
@@ -216,7 +232,11 @@ func (m Model) introRegions(zs zones) [][]rowSpan {
 		var fields []rowSpan
 		z := player[0]
 		for _, r := range introFieldRows {
-			fields = append(fields, rowSpan{z.y + 1 + r, z.x + 1 + nowPlayingMargin, z.x + z.w - 1})
+			x0, x1 := z.x+1+nowPlayingMargin, z.x+z.w-1
+			if r == npHeadRow {
+				x1 = min(x1, x0+m.headFeedWidth(z.w-2))
+			}
+			fields = append(fields, rowSpan{z.y + 1 + r, x0, x1})
 		}
 		regions = append(regions, fields)
 	}
@@ -276,7 +296,7 @@ func cellRunes(line string) []rune {
 
 // sameRow reports whether a row reading b is the row that read a, moved
 // or marked: the same text, or text that shares most of its start, in
-// runes (the selected row's truncated title and trailing ♥ +). The
+// runes (the selected row's truncated title and trailing <3 +). The
 // trade-off: two different rows that share most of their start (a
 // "PART 1" and a "PART 2") count as one that moved, and do not intro.
 func sameRow(a, b string) bool {

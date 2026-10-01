@@ -56,13 +56,77 @@ const (
 	// keyDelete and keyDeleteAlt delete the selected recent search.
 	keyDelete    = "delete"
 	keyDeleteAlt = "ctrl+d"
+	// keyHelp opens the KEYS overlay (helpGroups) and closes it, wherever
+	// q quits: SEARCH and the NEW PLAYLIST name type it (see keysTyped).
+	keyHelp = "?"
+	// keySettings opens the SETTINGS overlay (see settings.go) and closes
+	// it, wherever keyHelp opens KEYS.
+	keySettings = "s"
 )
+
+// helpEntry is one line of the KEYS overlay: the keys as shown, what
+// they do, and the key names above it stands for.
+type helpEntry struct {
+	show, label string
+	keys        []string
+}
+
+// helpGroup is a titled block of the KEYS overlay.
+type helpGroup struct {
+	name    string
+	entries []helpEntry
+}
+
+// helpGroups is the one table of the KEYS overlay: every key above, in
+// at least one entry (a test reads the constants of this file to check).
+// Where typing takes a key, its entry names the alternative that acts.
+var helpGroups = []helpGroup{
+	{"PLAYBACK", []helpEntry{
+		{"SPACE", "PLAY / PAUSE", []string{keySpace}},
+		{"N / P", "NEXT / PREVIOUS SONG", []string{keyNext, keyPrev}},
+		{", / .", "SEEK -10 S / +10 S", []string{keySeekBackAlt, keySeekForwardAlt}},
+		{"SHIFT+← / →", "SEEK, ALSO IN SEARCH", []string{keySeekBack, keySeekForward}},
+		{"J / K", "VOLUME DOWN / UP", []string{keyVolumeDownLetter, keyVolumeUpLetter}},
+		{"- / + =", "VOLUME DOWN / UP", []string{keyVolumeDown, keyVolumeUp, keyVolumeUpAlt}},
+		{"SHIFT+↑ / ↓", "VOLUME, ALSO IN SEARCH", []string{keyVolumeUpAnywhere, keyVolumeDownAnywhere}},
+		{"O", "LOOP OFF / ALL / ONE", []string{keyLoop}},
+		{"L", "LOVE THE SONG", []string{keyLove}},
+		{"A", "ADD TO A PLAYLIST", []string{keyAdd}},
+	}},
+	{"NAVIGATION", []helpEntry{
+		{"↑ / ↓", "MOVE, ↑ TO THE TABS", []string{keyUp, keyDown}},
+		{"ENTER", "OPEN / PLAY / PRESS", []string{keyEnter}},
+		{"ESC", "BACK / CANCEL", []string{keyEsc}},
+		{"TAB", "PLAYLISTS ⇄ SEARCH", []string{keyTab}},
+		{"/", "SEARCH", []string{keySearch}},
+		{"→ / ←", "PLAYER FOCUS / LIST", []string{keyRight, keyLeft}},
+		{"G", "OPEN THE SONG'S ALBUM", []string{keyAlbum}},
+	}},
+	{"VIEW", []helpEntry{
+		{"F / CTRL+F", "EXPAND / RESTORE PLAYER", []string{keyExpandAlt, keyExpand}},
+		{"X", "SIGNAL FX ON / OFF", []string{keyEffects}},
+	}},
+	{"SEARCH", []helpEntry{
+		{"DEL / CTRL+D", "DROP A RECENT SEARCH", []string{keyDelete, keyDeleteAlt}},
+	}},
+	{"APP", []helpEntry{
+		{"R", "RETRY A FAILED LOAD", []string{keyRetry}},
+		{"Q / CTRL+C", "QUIT (CTRL+C IN TEXT)", []string{keyQuit, keyCtrlC}},
+		{"S", "SETTINGS (THEMES)", []string{keySettings}},
+		{"?", "KEYS (THIS LIST)", []string{keyHelp}},
+	}},
+}
+
+// helpHint is the footer's entry for keyHelp, kept with quit when the
+// footer is too narrow (see fitHints). The footers where ? is typed
+// (SEARCH, the NEW PLAYLIST name) leave it out.
+var helpHint = hint{"?", "KEYS"}
 
 // hint is one footer key legend entry.
 type hint struct{ key, label string }
 
 // playerHints are shown in priority order; the footer drops entries from
-// the end (keeping quit) when the terminal is too narrow.
+// the end (keeping KEYS and quit) when the terminal is too narrow.
 var playerHints = []hint{
 	{"ENTER", "OPEN"},
 	{"/", "SCAN"},
@@ -77,22 +141,22 @@ var playerHints = []hint{
 	{"O", "LOOP"},
 	{"↑↓", "MOVE"},
 	{"X", "FX"},
+	settingsHint,
+	helpHint,
 	{"Q", "QUIT"},
 }
 
 // playerFocusHints replace the view's hints while the player has the
 // focus: ←→ walk a row of buttons (or seek on the bar), ↑↓ switch between
 // the bar and the rows of buttons. F restores the expanded player; while the list
-// behind is the SEARCH input (typing), q types there, so ctrl+c quits.
+// behind is the SEARCH input (typing), q and ? type there, so ctrl+c
+// quits and the KEYS hint is left out.
 func playerFocusHints(expanded, typing bool) []hint {
-	expand, quit := hint{"F", "EXPAND"}, hint{"Q", "QUIT"}
+	expand := hint{"F", "EXPAND"}
 	if expanded {
 		expand.label = "RESTORE"
 	}
-	if typing {
-		quit.key = "CTRL+C"
-	}
-	return []hint{
+	return append([]hint{
 		{"←→", "SELECT"},
 		{"ENTER", "PRESS"},
 		{"↑↓", "ROW"},
@@ -101,26 +165,29 @@ func playerFocusHints(expanded, typing bool) []hint {
 		{"SPACE", "PLAY/PAUSE"},
 		{"L", "LOVE"},
 		{"O", "LOOP"},
-		quit,
+	}, quitHints(typing)...)
+}
+
+// quitHints end a footer: SETTINGS, KEYS and Q QUIT, or only CTRL+C QUIT where
+// typing takes q and ?.
+func quitHints(typing bool) []hint {
+	if typing {
+		return []hint{{"CTRL+C", "QUIT"}}
 	}
+	return []hint{settingsHint, helpHint, {"Q", "QUIT"}}
 }
 
 // tabsFocusHints replace the view's hints while the nav tabs have the
 // focus: ←→ walk the tabs, enter opens one, ↓ or esc go back down. While
-// the view is SEARCH (typing), q types there, so ctrl+c quits.
+// the view is SEARCH (typing), q and ? type there, so ctrl+c quits.
 func tabsFocusHints(typing bool) []hint {
-	quit := hint{"Q", "QUIT"}
-	if typing {
-		quit.key = "CTRL+C"
-	}
-	return []hint{
+	return append([]hint{
 		{"←→", "SELECT"},
 		{"ENTER", "OPEN"},
 		{"↓", "RETURN"},
 		{"SPACE", "PLAY/PAUSE"},
 		{"J/K", "VOL"},
-		quit,
-	}
+	}, quitHints(typing)...)
 }
 
 // artistHints replace playerHints on an artist page: enter plays a top
@@ -136,6 +203,8 @@ var artistHints = []hint{
 	{"A", "ADD"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
+	settingsHint,
+	helpHint,
 	{"Q", "QUIT"},
 }
 
@@ -152,6 +221,8 @@ var resultsHints = []hint{
 	{"G", "ALBUM"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
+	settingsHint,
+	helpHint,
 	{"Q", "QUIT"},
 }
 
@@ -166,6 +237,8 @@ var trackHints = []hint{
 	{"A", "ADD"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
+	settingsHint,
+	helpHint,
 	{"Q", "QUIT"},
 }
 
@@ -177,6 +250,8 @@ var pickerHints = []hint{
 	{"↑↓", "MOVE"},
 	{"ESC", "CANCEL"},
 	{"SPACE", "PLAY/PAUSE"},
+	settingsHint,
+	helpHint,
 	{"Q", "QUIT"},
 }
 

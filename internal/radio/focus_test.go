@@ -90,7 +90,7 @@ func TestExpandKeysToggleTheFullWidthPlayer(t *testing.T) {
 			if strings.Contains(view, "NIGHT DRIVE") || !strings.Contains(view, "PLAYLISTS") {
 				t.Fatalf("list still shown, or the nav bar is gone:\n%s", view)
 			}
-			if !strings.Contains(textAt(m, zoneOf(t, m, zoneExpand)), "RESTORE") {
+			if !strings.Contains(textAt(m, zoneOf(t, m, zoneExpand)), "⤡") {
 				t.Fatalf("the expand button does not offer RESTORE:\n%s", view)
 			}
 			m, _ = press(t, m, k)
@@ -167,8 +167,10 @@ func TestArrowsWalkFromTheListThroughTheButtons(t *testing.T) {
 	}{
 		{"right", areaPlayer, ctlPlay},
 		{"right", areaPlayer, ctlNext},
+		{"right", areaPlayer, ctlLoop},
 		{"right", areaPlayer, ctlExpand},
 		{"right", areaPlayer, ctlExpand}, // the last button stays
+		{"left", areaPlayer, ctlLoop},
 		{"left", areaPlayer, ctlNext},
 		{"left", areaPlayer, ctlPlay},
 		{"left", areaPlayer, ctlPrev},
@@ -262,7 +264,7 @@ func TestEnterActivatesTheFocusedButton(t *testing.T) {
 	}
 	t.Run("expand", func(t *testing.T) {
 		m := playingModel(t, playbacktest.New())
-		m, _ = press(t, m, "right", "right", "right", "enter")
+		m, _ = press(t, m, "right", "right", "right", "right", "enter")
 		if !m.expanded || m.control != ctlExpand {
 			t.Fatalf("expanded %v control %v; want expanded, still on the button", m.expanded, m.control)
 		}
@@ -501,7 +503,7 @@ func TestExpandKeepsTheFocusedControl(t *testing.T) {
 			return m
 		}, ctlPlay},
 		{"enter on EXPAND", func(t *testing.T, m Model) Model {
-			m, _ = press(t, m, "right", "right", "right", "enter")
+			m, _ = press(t, m, "right", "right", "right", "right", "enter")
 			return m
 		}, ctlExpand},
 		{"button from the list", func(t *testing.T, m Model) Model {
@@ -598,7 +600,7 @@ func TestStationsFooterKeepsTheEssentialHintsAt80Columns(t *testing.T) {
 	m := playingModel(t, playbacktest.New())
 	lines := strings.Split(plain(m), "\n")
 	got := strings.TrimRight(lines[len(lines)-1], " ")
-	want := "[ENTER] OPEN  [/] SCAN  [SPACE] PLAY/PAUSE  [→] PLAYER  [,/.] SEEK  [Q] QUIT"
+	want := "[ENTER] OPEN  [/] SCAN  [SPACE] PLAY  [→] PLAYER  [,/.] SEEK  [?] KEYS  [Q] QUIT"
 	if got != want {
 		t.Fatalf("stations footer\n got %q\nwant %q", got, want)
 	}
@@ -611,17 +613,28 @@ func TestFitHintsMatchesRestylingEveryCandidate(t *testing.T) {
 	join := func(hs []hint) string {
 		parts := make([]string, len(hs))
 		for i, h := range hs {
-			parts[i] = keyCap(h.key) + " " + stRed.Render(h.label)
+			parts[i] = keyCap(h.key) + " " + stLabel.Render(h.label)
 		}
 		return strings.Join(parts, "  ")
 	}
 	reference := func(hints []hint, w int) string {
+		// SETTINGS goes first, before any hint is shortened.
+		if ansi.StringWidth(join(hints)) > w {
+			hints = slices.DeleteFunc(slices.Clone(hints), func(h hint) bool { return h == settingsHint })
+		}
 		if ansi.StringWidth(join(hints)) > w {
 			hints = shortHints(hints)
 		}
+		// The last hint stays, and KEYS before it while there is another
+		// hint to drop.
+		keep := 1
+		if n := len(hints); n >= 2 && hints[n-2] == helpHint {
+			keep = 2
+		}
 		shown := append([]hint(nil), hints...)
 		for len(shown) > 1 && ansi.StringWidth(join(shown)) > w {
-			shown = append(shown[:len(shown)-2], shown[len(shown)-1])
+			drop := max(len(shown)-1-keep, 0)
+			shown = append(shown[:drop], shown[drop+1:]...)
 		}
 		return join(shown)
 	}

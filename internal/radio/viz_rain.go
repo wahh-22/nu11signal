@@ -424,7 +424,7 @@ func (v rainViz) Render(w, h int) []string {
 }
 
 // rainRamp is the palette a trail steps down, brightest first.
-var rainRamp = []uint8{inkYellow, inkRedBold, inkRed, inkMuted, inkDim}
+var rainRamp = []uint8{inkTip, inkBright, inkBody, inkMuted, inkDim}
 
 // rainHeadInk is the ink of a head over a column of energy e: muted when
 // faint, red, bold red, then yellow when loud; a flash lifts it a step,

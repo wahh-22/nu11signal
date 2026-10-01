@@ -90,8 +90,7 @@ func (m Model) resultsEnter() (Model, tea.Cmd) {
 	}
 	it := items[cur]
 	if it.Kind == playback.ItemSong {
-		ids, start := m.resultsQueue(cur)
-		return m.playSongs(ids, start)
+		return m.playSongs(m.resultsQueue(cur))
 	}
 	kind, ok := resultKinds[it.Kind]
 	if !ok {
@@ -116,9 +115,8 @@ func (m Model) resultsAlbum() (next Model, cmd tea.Cmd, ok bool) {
 // songs of the SONGS section, started at the song. A top result plays the
 // SONGS section too, from its copy there; a top song missing from SONGS
 // plays first, the section after it.
-func (m Model) resultsQueue(cur int) (ids []string, start int) {
+func (m Model) resultsQueue(cur int) (songs []playback.Song, start int) {
 	var top *playback.Song
-	var songs []playback.Song
 	n := 0
 	for _, s := range resultSections(m.top().results.found) {
 		for _, it := range s.items {
@@ -142,7 +140,7 @@ func (m Model) resultsQueue(cur int) (ids []string, start int) {
 			songs, start = append([]playback.Song{*top}, songs...), 0
 		}
 	}
-	return songIDs(songs), start
+	return songs, start
 }
 
 // resultKind is what the RESULTS page knows of one kind of row: how it
@@ -160,7 +158,7 @@ type resultKind struct {
 
 var resultKinds = map[playback.SearchItemKind]resultKind{
 	playback.ItemArtist: {
-		glyph: "◆", style: stYellow,
+		glyph: "◆", style: stAccent,
 		describe: func(it playback.SearchItem) (string, []string) {
 			var genre []string
 			if len(it.Artist.Genres) > 0 {
@@ -171,21 +169,21 @@ var resultKinds = map[playback.SearchItemKind]resultKind{
 		open: func(m Model, it playback.SearchItem) (Model, tea.Cmd) { return m.openArtist(it.Artist) },
 	},
 	playback.ItemAlbum: {
-		glyph: "◈", style: stYellow,
+		glyph: "◈", style: stAccent,
 		describe: func(it playback.SearchItem) (string, []string) {
 			return it.Album.Title, []string{it.Album.Artist, yearOf(it.Album)}
 		},
 		open: func(m Model, it playback.SearchItem) (Model, tea.Cmd) { return m.openAlbum(it.Album) },
 	},
 	playback.ItemSong: {
-		glyph: "♪", style: stCyan,
+		glyph: "♪", style: stHi,
 		describe: func(it playback.SearchItem) (string, []string) {
 			return it.Song.Title, []string{it.Song.Artist}
 		},
 		open: func(m Model, it playback.SearchItem) (Model, tea.Cmd) { return m.openSong(it.Song) },
 	},
 	playback.ItemPlaylist: {
-		glyph: "≡", style: stCyan,
+		glyph: "≡", style: stHi,
 		describe: func(it playback.SearchItem) (string, []string) {
 			return it.Playlist.Name, []string{it.Playlist.Curator}
 		},
@@ -266,7 +264,7 @@ func (m Model) resultsLayout(w int) []pageLine {
 		if len(lines) > 0 {
 			lines = append(lines, pageLine{text: "", item: -1})
 		}
-		lines = append(lines, pageLine{text: " " + stYellow.Render("▞ ") + stMuted.Render(spaced(s.name)), item: -1})
+		lines = append(lines, pageLine{text: " " + stAccent.Render("▞ ") + stMuted.Render(spaced(s.name)), item: -1})
 		for _, it := range s.items {
 			if it.Kind == playback.ItemSong {
 				lines = append(lines, m.songLine(it.Song, n, n == cur, w, func(sel bool, w int) string {
@@ -319,7 +317,7 @@ func (m Model) resultsCode() string {
 // Every line is exactly w cells wide.
 func (m Model) resultsBody(w, h int) ([]string, zones) {
 	page := m.top().results
-	head := stYellow.Render("⌕ ") + stYellowB.Render(strings.ToUpper(cleanLine(page.term)))
+	head := stAccent.Render("⌕ ") + stHeading.Render(strings.ToUpper(cleanLine(page.term)))
 	lines := m.resultsLayout(w)
 	notice := pageNotice(page.loading, page.err, "SEARCH", len(lines) == 0)
 	return m.pageBody(w, h, []string{" " + head}, lines, notice)

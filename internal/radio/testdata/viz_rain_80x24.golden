@@ -1,24 +1,24 @@
 ◢◤ NU11SIGNAL // NIGHT CITY RADIO              AUTH OK  ▮  SIG ▂▄▆█  ▮  23:41:08
-▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ─────────────────────────────── RDO-77 // NC-NET ──
+▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ───────────────────────────── NODE B8 // NC-GRID ──
 ╱─▮ PLAYLISTS ─────────────────────────────────┐ ╱─▯ NOW PLAYING ──────────────┐
-│   + NEW PLAYLIST                             │ │ NOW PLAYING        ▮ PLAYING│
+│   + NEW PLAYLIST                             │ │ ▞ CATALOG FEED //… ▮ PLAYING│
 │ NO PLAYLISTS // LIBRARY EMPTY                │ │                             │
-│                                              │ │ CHIPPIN' IN           ╱ ♡ ╱ │
+│                                              │ │ CHIPPIN' IN            [--] │
 │                                              │ │ SAMURAI                     │
 │                                              │ │ NEVER FADE AWAY             │
 │                                              │ │                             │
 │                                              │ │ ▮▮▮▮▮▯▯▯▯▯▯▯  01:24 / 03:45 │
-│                                              │ │ ▞ CATALOG FEED // DIRECT    │
 │                                              │ │                             │
-│                                              │ │ ╱ ◀◀ ╱ ╱ ❚❚ ╱ ╱ ▶▶ ╱ ╱ ⤢ ╱  │
-│                                              │ │ ╱ - ╱ VOL --          ╱ + ╱ │
-│                                              │ │ ╱ ↻ LOOP OFF ╱              │
+│                                              │ │ [◀◀] [❚❚] [▶▶] [↻ OFF]  [⤢] │
+│                                              │ │ VOL [−] --         [+]      │
 │                                              │ │ D 4 ｰ ｼ ﾏ ﾎ ﾄ ﾄ ｧ ｷ ﾖ ｴ 1 ｩ │
 │                                              │ │ ｶ 6 ｷ ﾘ ﾜ 3 ｵ ﾈ ｮ   ﾌ 3 9 ﾙ │
 │                                              │ │ ﾖ ﾊ 6 ｴ ﾊ ﾘ 9 E F   ｸ ﾆ   7 │
-│                                              │ │ 9 ｦ ｧ ﾎ ﾖ 1 ｬ 4 ﾆ     ﾃ ﾖ ｫ │
-│                                              │ │ 1 1   3 ﾉ ｾ ﾈ ﾋ ﾁ     3     │
-│                                              │ │ ｽ B ﾉ ﾔ ｾ 4 ﾓ ｧ ｶ     ﾙ ｫ ﾃ │
-└─────────────────────────── BAND FM // 00 CH ─╱ └───────────── NC-NET 0x2077 ─╱
-░▒▓ SYS NOMINAL // BUF 0x5EF6                                                   
-[ENTER] OPEN  [/] SCAN  [SPACE] PLAY/PAUSE  [→] PLAYER  [,/.] SEEK  [Q] QUIT
+│                                              │ │ 9 ｦ ｧ ﾎ ﾖ 1 ｬ 4 ﾆ     ﾃ ﾂ ｫ │
+│                                              │ │ 1 1 ﾕ 3 ﾉ ｾ ﾈ ﾋ ﾁ ｹ   3 ｨ ｴ │
+│                                              │ │ ｽ B ﾉ ﾔ ｾ 4 ﾓ ｧ ｶ 1   ﾙ ｫ ﾃ │
+│                                              │ │ ﾗ 2 ﾆ A ｲ ｭ ﾑ ﾘ 4 ﾓ F ｰ ﾕ 8 │
+│                                              │ │ ｭ ﾈ ﾌ ﾋ ﾇ ｸ A A F ﾃ 3 ﾉ 0 ｷ │
+└─────────────────────────── BAND FM // 00 CH ─╱ └───────────── SPECTRUM LIVE ─╱
+░▒▓ FX OFF                                                                      
+[ENTER] OPEN  [/] SCAN  [SPACE] PLAY  [→] PLAYER  [,/.] SEEK  [?] KEYS  [Q] QUIT

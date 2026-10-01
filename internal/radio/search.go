@@ -385,7 +385,7 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 			}
 			songs = append(songs, r.song)
 		}
-		next, play := m.playSongs(songIDs(songs), start)
+		next, play := m.playSongs(songs, start)
 		return next, tea.Batch(play, save)
 	}
 	m.input.SetValue(row.term)
@@ -460,14 +460,14 @@ func (m Model) inputWidth() int {
 // searchBody renders the search view in w x h cells: the input, a rule and
 // the rows, scrolled so the cursor stays on screen. Every line is exactly w
 // cells wide. Its zones are the input and the rows shown, with the ✕ of
-// each recent term and the ♥ and + of the selected song.
+// each recent term and the favorite mark and + of the selected song.
 func (m Model) searchBody(w, h int) ([]string, zones) {
 	if h <= 0 || w <= 0 {
 		return nil, nil
 	}
 	var zs zones
 	zs.add(zoneInput, 0, 0, w)
-	lines := []string{fit(stYellow.Render("⌕ ")+m.input.View(), w)}
+	lines := []string{fit(stAccent.Render("⌕ ")+m.input.View(), w)}
 	if h == 1 {
 		return lines, zs
 	}
@@ -491,7 +491,7 @@ func (m Model) searchBody(w, h int) ([]string, zones) {
 	case !m.resultsAnswerInput():
 		notice = stDim.Render("SCANNING CATALOG...")
 	case m.search.err != nil:
-		notice = stYellow.Render("▲ SCAN FAILED")
+		notice = stWarn.Render("▲ SCAN FAILED")
 	case len(rows) == 0:
 		notice = stDim.Render(fmt.Sprintf("NO SIGNAL FOR %q", strings.ToUpper(m.search.term)))
 	}
@@ -526,7 +526,7 @@ func (m Model) searchRowLine(r searchRow, selected bool, w int) string {
 			tag += " · " + strings.ToUpper(r.artist.Genres[0])
 		}
 		name := strings.ToUpper(r.artist.Name)
-		return searchLine("◆", stYellow, name, styled(stCyan), tag, selected, w)
+		return searchLine("◆", stAccent, name, styled(stHi), tag, selected, w)
 	case rowSong:
 		title := strings.ToUpper(r.song.Title)
 		tag := "SONG"
@@ -534,7 +534,7 @@ func (m Model) searchRowLine(r searchRow, selected bool, w int) string {
 			tag += " · " + strings.ToUpper(r.song.Artist)
 		}
 		line, _ := m.songRow(r.song, selected, w, func(w int) string {
-			return searchLine("♪", stCyan, title, styled(stRed), tag, selected, w)
+			return searchLine("♪", stHi, title, styled(stText), tag, selected, w)
 		})
 		return line
 	case rowSuggestion:
@@ -544,14 +544,14 @@ func (m Model) searchRowLine(r searchRow, selected bool, w int) string {
 	}
 	text := strings.ToUpper(r.term)
 	if w < recentCrossMinWidth {
-		return searchLine("⌕", stMuted, text, styled(stRed), "", selected, w)
+		return searchLine("⌕", stMuted, text, styled(stText), "", selected, w)
 	}
 	// A recent term ends in the ✕ that deletes it.
-	cross := stRed.Render(recentCross)
+	cross := stLabel.Render(recentCross)
 	if selected {
 		cross = stSelected.Render(recentCross)
 	}
-	return searchLine("⌕", stMuted, text, styled(stRed), "", selected, w-recentCrossWidth) + cross
+	return searchLine("⌕", stMuted, text, styled(stText), "", selected, w-recentCrossWidth) + cross
 }
 
 // searchLine lays out one row in exactly w cells: a selection mark, a
@@ -585,9 +585,9 @@ func searchLine(glyph string, glyphStyle lipgloss.Style, text string, style func
 func highlightPrefix(s, prefix string) string {
 	n := min(len(prefix), len(s))
 	if n == 0 || s[:n] != prefix[:n] {
-		return stRed.Render(s)
+		return stText.Render(s)
 	}
-	return stYellow.Render(s[:n]) + stRed.Render(s[n:])
+	return stAccent.Render(s[:n]) + stText.Render(s[n:])
 }
 
 // styled adapts a style to searchLine's text renderer.

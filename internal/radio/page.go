@@ -22,7 +22,7 @@ func isPage(kind viewKind) bool {
 
 // pageLine is one line of a page body below its head; item is the
 // selectable row it shows, or -1. actions marks the selected song row,
-// which ends in its ♥ and + controls.
+// which ends in its favorite mark and + controls.
 type pageLine struct {
 	text    string
 	item    int
@@ -163,7 +163,7 @@ func pageNotice(loading bool, err error, feed string, empty bool) string {
 	case loading:
 		return stDim.Render("DECRYPTING " + feed + " FEED...")
 	case err != nil:
-		return stYellow.Render("▲ [R] RETRY // " + strings.ToUpper(cleanLine(err.Error())))
+		return stWarn.Render("▲ [R] RETRY // " + strings.ToUpper(cleanLine(err.Error())))
 	case empty:
 		return stDim.Render("NO DATA ON FILE")
 	}
@@ -248,5 +248,5 @@ func moreLine(open, selected bool, w int) string {
 	if selected {
 		return stSelected.Render(fit("▌"+label, w))
 	}
-	return " " + stYellow.Render(label)
+	return " " + stAccent.Render(label)
 }
