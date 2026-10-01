@@ -26,7 +26,8 @@ import Nu11SignalProtocol
 /// its actions on the HAL. The tap is built right before a play (so the
 /// audio never starts loud), its IOProc stops when playback pauses (the
 /// muted tap stays, so resuming is never briefly loud) and everything is
-/// destroyed when playback stops and on exit. A rebuild (a new default
+/// destroyed when playback stops and on exit (where a rendering tap first
+/// fades the gain to 0, see ShutdownPlan). A rebuild (a new default
 /// output device, or a new RemotePlayerService copy) builds the new tap
 /// first and destroys the old one once the new one starts, so a failed
 /// rebuild keeps the old muted tap, its IOProc stopped, while a transient
@@ -67,6 +68,13 @@ final class AppVolume {
     private var level: Double
     /// The amplitude the IOProc ramps to; written here, read on the IO thread.
     private let target = UnsafeMutablePointer<Float>.allocate(capacity: 1)
+    /// Non-zero once the helper exits: the IOProc ramps at the slow
+    /// shutdown rate (GainRamp.shutdownSeconds). Written here, read on the
+    /// IO thread.
+    private let fading = UnsafeMutablePointer<Float>.allocate(capacity: 1)
+    /// Set when the quiet exit begins: the lifecycle and the level are
+    /// left alone from then on, so nothing raises the gain or rebuilds.
+    private var closing = false
     /// The tap in use.
     private var tap: Tap?
     /// The tap a rebuild replaced, kept (muted, its IOProc stopped) until
@@ -93,6 +101,7 @@ final class AppVolume {
         permission = policy.mode(.authorized) == .app ? CaptureAuthorization.preflight() : .unavailable
         level = AppGain.stored(UserDefaults.standard.object(forKey: AppGain.defaultsKey))
         target.initialize(to: AppGain.amplitude(level: level))
+        fading.initialize(to: 0)
         if #available(macOS 15.0, *) { meter = LevelMeter() } else { meter = nil }
         updateMode()
         log("volume mode \(mode.rawValue) (responsible for itself: \(policy.disclaimed), capture permission: \(permission))")
@@ -114,6 +123,7 @@ final class AppVolume {
         case .app:
             level = VolumeLevel.reported(requested)
             UserDefaults.standard.set(level, forKey: AppGain.defaultsKey)
+            guard !closing else { return } // the exit's fade keeps the gain at 0
             target.pointee = AppGain.amplitude(level: level)
             _ = lifecycle.handle(.gain(quieterThanSystem: level < 1))
         case .system:
@@ -155,13 +165,33 @@ final class AppVolume {
         if mode == .app { send(.playback(PlaybackActivity(status: name))) }
     }
 
-    /// Releases the tap and aggregate device; called on exit.
+    /// Begins the quiet exit: from now on the lifecycle is no longer fed,
+    /// so nothing rebuilds, resumes or raises the gain. Returns the steps
+    /// for what plays now (see ShutdownPlan); `playing` is the player's.
+    func beginShutdown(playing: Bool) -> [ShutdownPlan.Step] {
+        closing = true
+        retryGeneration += 1
+        return ShutdownPlan.steps(rendering: mode == .app && running, playing: playing)
+    }
+
+    /// Ramps the gain to 0 at the shutdown rate. The IOProc reads the two
+    /// words separately: if it sees the new target before the slower rate,
+    /// one buffer ramps at the level-change rate, which is click-free too.
+    func fadeOut() {
+        fading.pointee = 1
+        target.pointee = 0
+    }
+
+    /// Releases the tap and aggregate device; called on exit. The IOProc
+    /// stops before the tap, muted to the last, is destroyed.
     func shutdown() {
+        closing = true
         teardown()
     }
 
     private func permissionAnswered(_ granted: Bool) {
         requesting = false
+        guard !closing else { return }
         permission = granted ? .authorized : .denied
         log("audio capture permission \(granted ? "granted" : "denied")")
         updateMode()
@@ -189,6 +219,7 @@ final class AppVolume {
     // MARK: Lifecycle actions
 
     private func send(_ event: TapLifecycle.Event) {
+        guard !closing else { return }
         perform(lifecycle.handle(event))
     }
 
@@ -345,14 +376,16 @@ final class AppVolume {
         let render = UnsafeMutablePointer<RenderState>.allocate(capacity: 1)
         render.initialize(to: RenderState(
             current: target.pointee, increment: GainRamp.increment(sampleRate: outputFormat.mSampleRate),
+            fadeIncrement: GainRamp.increment(sampleRate: outputFormat.mSampleRate, seconds: GainRamp.shutdownSeconds),
             tapChannels: Int(max(tapFormat.mChannelsPerFrame, 1))))
         let target = self.target
+        let fading = self.fading
         var ring: UnsafeMutableRawPointer?
         if #available(macOS 15.0, *) { ring = levelMeter?.ringPointer }
         var procID: AudioDeviceIOProcID?
         // No dispatch queue: the block runs on the real-time IO thread.
         result = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, nil) { _, input, _, output, _ in
-            AppVolume.renderGain(input: input, output: output, target: target, state: render)
+            AppVolume.renderGain(input: input, output: output, target: target, fading: fading, state: render)
             if let ring { AppVolume.capture(input: input, ring: ring, state: render) }
         }
         guard result == noErr, let procID else {
@@ -467,21 +500,25 @@ final class AppVolume {
     struct RenderState {
         var current: Float = 1
         var increment: Float = 1
+        /// The increment while the helper exits (GainRamp.shutdownSeconds).
+        var fadeIncrement: Float = 1
         var tapChannels = 2
     }
 
     /// The IOProc body: copies the tap's channels (the aggregate's last
     /// `tapChannels` input channels) to every output channel, scaled along
-    /// the gain ramp. Real-time safe: no allocation, locks or Swift
+    /// the gain ramp (the slow shutdown ramp once `fading` is non-zero).
+    /// Real-time safe: no allocation, locks or Swift
     /// reference counting (only raw pointers are captured). Missing input
     /// renders silence; output buffers are always fully written.
     nonisolated static func renderGain(input: UnsafePointer<AudioBufferList>, output: UnsafeMutablePointer<AudioBufferList>,
-                                       target: UnsafeMutablePointer<Float>, state: UnsafeMutablePointer<RenderState>) {
+                                       target: UnsafeMutablePointer<Float>, fading: UnsafeMutablePointer<Float>,
+                                       state: UnsafeMutablePointer<RenderState>) {
         let inputs = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
         let outputs = UnsafeMutableAudioBufferListPointer(output)
         let start = state.pointee.current
         let goal = target.pointee // an aligned 32-bit load: never torn
-        let increment = state.pointee.increment
+        let increment = fading.pointee != 0 ? state.pointee.fadeIncrement : state.pointee.increment
 
         var inputChannels = 0
         for buffer in inputs { inputChannels += Int(buffer.mNumberChannels) }

@@ -487,7 +487,7 @@ func TestLeavingALoadingTrackPageCancelsIt(t *testing.T) {
 			f.PlaylistsResult = stations()
 			f.SearchCatalogResult = catalog()
 			p := &blockingDetailPlayer{Fake: f, ctxs: make(chan context.Context, 1)}
-			m := New(p, Options{Now: newClock().now, Seed: 2077})
+			m := New(p, Options{SkipBoot: true, Now: newClock().now, Seed: 2077})
 			m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 			m = searchFor(t, m, "daft")
 			m, _ = press(t, m, "down", "down", "down", "down")

@@ -19,7 +19,7 @@ func fxModel(t *testing.T, c *clock) Model {
 	t.Helper()
 	f := playbacktest.New()
 	f.PlaylistsResult = stations()
-	m := New(f, Options{Now: c.now, Seed: 2077, Effects: true})
+	m := New(f, Options{SkipBoot: true, Now: c.now, Seed: 2077, Effects: true})
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m, cmd := step(t, m, run(t, m.authorizeCmd()))
 	// The playlists, without the tick the intro of the new rows raised.

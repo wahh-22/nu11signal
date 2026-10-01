@@ -116,8 +116,8 @@ func TestTheHelpIgnoresOtherKeysButCtrlC(t *testing.T) {
 	if cmd != nil || !m.quitAsk {
 		t.Fatal("ctrl+c did not ask to quit under the help")
 	}
-	_, cmd = press(t, m, "y")
-	assertQuits(t, f, cmd)
+	m, cmd = press(t, m, "y")
+	assertQuits(t, f, m, cmd)
 }
 
 func TestQuestionMarkIsTypedWhereTextIsTyped(t *testing.T) {

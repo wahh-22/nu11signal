@@ -36,13 +36,16 @@ func (m Model) render() string {
 	return strings.Join(lines, "\n")
 }
 
-// layout lays out the frame, with the content intro and the signal
-// effects drawn over it while they run (see intro.go and glitch.go); they
-// never move the zones.
+// layout lays out the frame, with the content intro, the splash glitch
+// (boot or shutdown) and the signal effects drawn over it while they run
+// (see intro.go, boot.go and glitch.go); they never move the zones.
 func (m Model) layout() ([]string, zones) {
 	lines, zs := m.baseLayout()
 	if m.introOn() {
 		m.drawIntro(lines)
+	}
+	if m.splashGlitching() {
+		m.splashGlitch(lines)
 	}
 	if m.fxActive() {
 		lines = m.decorate(lines)
@@ -64,7 +67,7 @@ func (m Model) baseLayout() ([]string, zones) {
 	switch {
 	case w < tinyMinWidth || h < tinyMinHeight:
 		lines = m.renderTiny()
-	case m.auth == authFailed:
+	case m.auth == authFailed && !m.shutdown:
 		lines = m.renderAuthError()
 	case w < fullMinWidth || h < fullMinHeight:
 		lines, zs = m.renderCompact()
@@ -83,7 +86,13 @@ func (m Model) baseLayout() ([]string, zones) {
 	return lines, zs.clip(w, h)
 }
 
+// renderTiny is the tiny layout: the wordmark over the status tag, or
+// over the SHUTTING DOWN line while nu11signal shuts down (no room for
+// the splash).
 func (m Model) renderTiny() []string {
+	if m.shutdown {
+		return []string{stLabelBold.Render("NU11SIGNAL"), stHiBold.Render(shutdownText)}
+	}
 	return []string{stLabelBold.Render("NU11SIGNAL"), m.statusTag()}
 }
 
@@ -92,6 +101,12 @@ func (m Model) renderFull() ([]string, zones) {
 	bodyH := h - 4
 	lines, zs := m.header(w)
 	top := len(lines)
+	if m.boot || m.shutdown {
+		// The boot or shutdown splash, over any overlay left open: nothing
+		// in the body is clickable.
+		lines = append(lines, splash(w, bodyH, m.splashText())...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
 	if m.help {
 		// The KEYS overlay takes the whole body; nothing under it is
 		// clickable (see handleMouse).
@@ -105,11 +120,6 @@ func (m Model) renderFull() ([]string, zones) {
 		zs.addBox(zonePanelOverlay, 0, top, w, bodyH)
 		zs.addAt(0, top, pz)
 		lines = append(lines, panel...)
-		return append(lines, m.statusLine(w), m.hintLine(w)), zs
-	}
-	if m.linking() {
-		// The startup screen: nothing in the body is clickable.
-		lines = append(lines, splash(w, bodyH)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
 	// The panels go under the zones drawn in them, which stay on top.
@@ -185,8 +195,9 @@ func (m Model) listBodyWidth() int {
 }
 
 // renderCompact stacks the screen in one column: the nav bar takes the
-// header rule and, while access is linking, the startup screen (see
-// splash) the rest down to the status line; else the title line ends in
+// header rule and, during the boot or the shutdown, the splash (see
+// splash) the
+// rest down to the status line; else the title line ends in
 // the [<3] button, then the artist
 // line, the transport row (packed), the volume row beside it while it fits
 // and the rule over the list, which the expanded player leaves out. The
@@ -197,6 +208,10 @@ func (m Model) renderCompact() ([]string, zones) {
 	nav, zs := m.navLine(w)
 	zs = zs.shifted(0, 1)
 	lines := []string{m.wordmark() + "  " + m.statusTag(), nav}
+	if m.boot || m.shutdown {
+		lines = append(lines, splash(w, m.height-4, m.splashText())...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
 	if m.help {
 		zs.addBox(zonePanelOverlay, 0, len(lines), w, m.height-4)
 		lines = append(lines, m.helpPanel(w, m.height-4)...)
@@ -207,10 +222,6 @@ func (m Model) renderCompact() ([]string, zones) {
 		zs.addBox(zonePanelOverlay, 0, len(lines), w, m.height-4)
 		zs.addAt(0, len(lines), pz)
 		lines = append(lines, panel...)
-		return append(lines, m.statusLine(w), m.hintLine(w)), zs
-	}
-	if m.linking() {
-		lines = append(lines, splash(w, m.height-4)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
 	// The player lines (title to buttons) and the list below them are the
@@ -480,11 +491,16 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	}
 
 	if eqRows := vizRows(ih, len(lines)); eqRows > 0 {
-		// Sit the rain on the bottom edge of the panel.
+		// Sit the rain on the bottom edge of the panel; while no music
+		// plays, the idle emblem takes its place (see idle.go).
 		for len(lines)+eqRows < ih {
 			lines = append(lines, "")
 		}
-		for _, row := range m.rain.Render(inner, eqRows) {
+		area := m.idleRows
+		if m.isPlaying() {
+			area = m.rain.Render
+		}
+		for _, row := range area(inner, eqRows) {
 			lines = append(lines, " "+row)
 		}
 	}
@@ -644,8 +660,12 @@ func (m Model) idleStatus() string {
 func keyCap(k string) string { return stAccent.Render("[" + k + "]") }
 
 // hintLine lays out key hints, dropping lower-priority ones (never the
-// last, quit, nor KEYS before it) until they fit.
+// last, quit, nor KEYS before it) until they fit. It is blank during the
+// shutdown, where no key acts but ctrl+c, the escape hatch.
 func (m Model) hintLine(w int) string {
+	if m.shutdown {
+		return ""
+	}
 	hints := playerHints
 	switch kind := m.top().kind; {
 	case m.quitAsk:

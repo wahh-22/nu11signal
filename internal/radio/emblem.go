@@ -7,8 +7,9 @@ import (
 )
 
 // The null emblem: a block-drawn Ø, its ring in the label color and its
-// slash in the accent color, with the name beside it. The startup screen
-// draws it while Apple Music access is linking (see splash), and
+// slash in the accent color, with the name beside it. The boot and
+// shutdown splashes draw it (see splash, boot.go and shutdown.go), the
+// spectrum area shows it while no music plays (see idle.go), and
 // nu11signal --version prints the compact one (see EmblemRows).
 //
 //	  ▄████▄▄▀
@@ -17,7 +18,7 @@ import (
 //	▀█▄▀   ▄█▀   ◢◤◢◤◢◤◢◤◢◤
 //	▄▀▀████▀
 //
-//	         L I N K I N G   A P P L E   M U S I C . . .
+//	        B O O T I N G   N U 1 1 S I G N A L . . .
 
 // An emblem is the Ø drawn cell by cell: rows of block glyphs, all as
 // wide, and for each a mask as wide naming what each cell draws, r the
@@ -72,13 +73,16 @@ const (
 	emblemMark = "◢◤◢◤◢◤◢◤◢◤"
 )
 
-// linkingText is the line under the emblem while access is linking,
-// spaced out where it fits (see splash).
-const linkingText = "LINKING APPLE MUSIC..."
-
 // EmblemRows are the plain rows of the compact emblem, as wide as each
 // other, for the command line to print (nu11signal --version).
 func EmblemRows() []string { return append([]string(nil), emblemCompact.rows...) }
+
+// EmblemArt is the large emblem cell by cell, for the README art
+// (tools/readmeart): its rows of block glyphs and, as wide, their masks
+// (r the ring, s the slash, a space nothing).
+func EmblemArt() (rows, mask []string) {
+	return append([]string(nil), emblemLarge.rows...), append([]string(nil), emblemLarge.mask...)
+}
 
 // textLines are the lines beside the emblem, plain: the name spaced out
 // on two lines, then the slants.
@@ -144,21 +148,19 @@ func paintRow(row, mask string) string {
 	return b.String()
 }
 
-// linking reports whether Apple Music access is still linking: neither
-// granted nor refused yet, the startup screen's time (see splash).
-func (m Model) linking() bool { return m.auth == authPending }
-
-// splash renders the body of the startup screen, w x h cells, while
-// access is linking: the large emblem with its text, centered on the
-// width as a block, and one blank row under it the LINKING line, centered
-// on the width on its own; together they are centered on the height. The
-// compact emblem takes the large one's place where that does not fit, and
-// only the line is left where neither does. The line is spaced out where
-// it fits, plain otherwise.
-func splash(w, h int) []string {
-	line := spaced(linkingText)
+// splash renders the body of the boot or shutdown splash, w x h cells:
+// the large emblem with its text, centered on the width as a block, and
+// one blank row under it the line text (bootText or shutdownText, see
+// splashText), centered on the width on its own; together they are
+// centered on the height. The compact emblem takes the large one's place
+// where that does not fit, and only the line is left where neither does.
+// The line is spaced out where it fits, plain otherwise, and drawn bright
+// (stHiBold, the transport's cyan in bold) so it reads clearly under the
+// emblem.
+func splash(w, h int, text string) []string {
+	line := spaced(text)
 	if ansi.StringWidth(line) > w {
-		line = linkingText
+		line = text
 	}
 	var block []string
 	for _, e := range []emblem{emblemLarge, emblemCompact} {
@@ -171,7 +173,7 @@ func splash(w, h int) []string {
 			break
 		}
 	}
-	block = append(block, strings.Repeat(" ", max((w-ansi.StringWidth(line))/2, 0))+stMuted.Render(line))
+	block = append(block, strings.Repeat(" ", max((w-ansi.StringWidth(line))/2, 0))+stHiBold.Render(line))
 	lines := make([]string, max((h-len(block))/2, 0), max(h, 0))
 	lines = append(lines, block...)
 	for len(lines) < h {
@@ -180,13 +182,13 @@ func splash(w, h int) []string {
 	return lines
 }
 
-// splashTop is the first row of the startup screen's body, under the
+// splashTop is the first row of the splash's body, under the
 // title line and the nav bar in the full layout and under the wordmark
 // and the nav bar in the compact one; the body ends over the status line
 // and the footer.
 const splashTop = 2
 
-// splashRegion is the body of the startup screen, compared for new
+// splashRegion is the body of the splash, compared for new
 // content like a list (see introRegions): its text scrambles in.
 func (m Model) splashRegion() []rowSpan {
 	var rows []rowSpan

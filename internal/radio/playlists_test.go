@@ -352,7 +352,7 @@ func TestPlaylistsGetTheDetailTimeout(t *testing.T) {
 	// The helper pages through the Apple Music API for the playlists,
 	// within CatalogBudget.libraryRead; the call waits as long as a page.
 	p := &deadlinePlayer{Fake: playbacktest.New()}
-	m := New(p, Options{Now: newClock().now, Seed: 2077})
+	m := New(p, Options{SkipBoot: true, Now: newClock().now, Seed: 2077})
 	run(t, m.loadPlaylistsCmd())
 	if p.left <= defaultCallTimeout || p.left > detailCallTimeout {
 		t.Fatalf("Playlists deadline %v away; want the detail timeout %v", p.left, detailCallTimeout)

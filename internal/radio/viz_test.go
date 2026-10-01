@@ -31,7 +31,7 @@ func (configSource) Save(config.Config) error { return nil }
 // withConfig is a loaded model that read src at startup.
 func withConfig(t *testing.T, f *playbacktest.Fake, c *clock, src config.Source) Model {
 	t.Helper()
-	m := New(f, Options{Now: c.now, Seed: 2077, Config: src})
+	m := New(f, Options{SkipBoot: true, Now: c.now, Seed: 2077, Config: src})
 	m, _ = step(t, m, run(t, m.loadConfigCmd()))
 	return m
 }
@@ -62,7 +62,7 @@ func TestConfigVisualizerIsAcceptedAndIgnored(t *testing.T) {
 }
 
 func TestNoConfigSourceLoadsNothing(t *testing.T) {
-	if m := New(playbacktest.New(), Options{}); m.loadConfigCmd() != nil {
+	if m := New(playbacktest.New(), Options{SkipBoot: true}); m.loadConfigCmd() != nil {
 		t.Fatal("a command to load settings without a source")
 	}
 }

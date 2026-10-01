@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="556" viewBox="0 0 840 556" role="img" aria-label="nu11signal NIGHT CITY screen, 80x24">
+<rect x="1" y="1" width="838" height="554" rx="12" fill="#0A0A0A" stroke="#FF5F57" stroke-opacity="0.5" stroke-width="2"/>
+<circle cx="20" cy="20" r="6" fill="#FF5F57"/>
+<circle cx="40" cy="20" r="6" fill="#FEBC2E"/>
+<circle cx="60" cy="20" r="6" fill="#28C840"/>
+<text x="420" y="24" text-anchor="middle" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="13" fill="#8A8A8A">nu11signal — NIGHT CITY — 80×24</text>
+<g font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="16" xml:space="preserve">
+<text x="370" y="71" textLength="100" lengthAdjust="spacingAndGlyphs" fill="#FF5F57" font-weight="bold">NU11SIGNAL</text>
+<text x="490" y="71" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF">AUTH OK</text>
+<text x="580" y="71" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">▮</text>
+<text x="610" y="71" textLength="30" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">SIG</text>
+<text x="650" y="71" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF">▂▄▆█</text>
+<text x="710" y="71" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">▮</text>
+<text x="740" y="71" textLength="80" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">23:41:07</text>
+<text x="20" y="91" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">◢◤◢◤</text>
+<text x="70" y="91" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">╱</text>
+<rect x="80" y="76" width="110" height="20" fill="#FCEE0A"/>
+<text x="90" y="91" textLength="90" lengthAdjust="spacingAndGlyphs" fill="#0A0A0A" font-weight="bold">PLAYLISTS</text>
+<text x="190" y="91" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">╱</text>
+<text x="210" y="91" textLength="100" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">╱ SEARCH ╱</text>
+<text x="320" y="91" textLength="280" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">────────────────────────────</text>
+<text x="610" y="91" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NODE B8 // NC-GRID</text>
+<text x="800" y="91" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">──</text>
+<text x="20" y="111" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#E8554E">╱─</text>
+<text x="40" y="111" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">▮</text>
+<text x="60" y="111" textLength="90" lengthAdjust="spacingAndGlyphs" fill="#FF5F57" font-weight="bold">PLAYLISTS</text>
+<text x="160" y="111" textLength="340" lengthAdjust="spacingAndGlyphs" fill="#E8554E">─────────────────────────────────┐</text>
+<text x="510" y="111" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">╱─</text>
+<text x="530" y="111" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">▯</text>
+<text x="550" y="111" textLength="110" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NOW PLAYING</text>
+<text x="670" y="111" textLength="150" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">──────────────┐</text>
+<text x="20" y="131" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="60" y="131" textLength="140" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">+ NEW PLAYLIST</text>
+<text x="490" y="131" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="131" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="530" y="131" textLength="140" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">▞ CATALOG FEED</text>
+<text x="680" y="131" textLength="30" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">//…</text>
+<text x="720" y="131" textLength="90" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">▮ PLAYING</text>
+<text x="810" y="131" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="151" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<rect x="30" y="136" width="460" height="20" fill="#0E2A2F"/>
+<text x="30" y="151" textLength="210" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">▌▶ 088.1  NIGHT DRIVE</text>
+<text x="490" y="151" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="151" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="810" y="151" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="60" y="171" textLength="50" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">089.7</text>
+<text x="130" y="171" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">SAMURAI</text>
+<text x="490" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="530" y="171" textLength="110" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">CHIPPIN' IN</text>
+<text x="760" y="171" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">[--]</text>
+<text x="810" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="60" y="191" textLength="50" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">091.3</text>
+<text x="130" y="191" textLength="90" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">BODY HEAT</text>
+<text x="490" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="530" y="191" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">SAMURAI</text>
+<text x="810" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="530" y="211" textLength="150" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NEVER FADE AWAY</text>
+<text x="810" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="231" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="231" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="231" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="810" y="231" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="251" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="251" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="251" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="530" y="251" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF">▮▮▮▮</text>
+<text x="570" y="251" textLength="80" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">▯▯▯▯▯▯▯▯</text>
+<text x="670" y="251" textLength="130" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">01:23 / 03:45</text>
+<text x="810" y="251" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="271" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="271" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="271" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="810" y="271" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="291" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="291" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="291" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="530" y="291" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF">[◀◀]</text>
+<rect x="580" y="276" width="40" height="20" fill="#FCEE0A"/>
+<text x="580" y="291" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#0A0A0A" font-weight="bold">[❚❚]</text>
+<text x="630" y="291" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF">[▶▶]</text>
+<text x="680" y="291" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF">[↻ OFF]</text>
+<text x="770" y="291" textLength="30" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">[⤢]</text>
+<text x="810" y="291" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="311" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="311" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="311" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="530" y="311" textLength="30" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">VOL</text>
+<text x="570" y="311" textLength="30" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF">[−]</text>
+<text x="610" y="311" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">--</text>
+<text x="720" y="311" textLength="30" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF">[+]</text>
+<text x="810" y="311" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="331" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="331" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="331" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="670" y="331" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">ﾔ</text>
+<text x="730" y="331" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">ﾛ</text>
+<text x="770" y="331" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">ﾈ</text>
+<text x="810" y="331" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="351" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="351" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="351" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="550" y="351" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">ﾜ</text>
+<text x="670" y="351" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">ﾖ</text>
+<text x="690" y="351" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">ｮ</text>
+<text x="810" y="351" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="371" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="371" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="371" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="550" y="371" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">ﾓ</text>
+<text x="670" y="371" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">ﾝ</text>
+<text x="690" y="371" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">ｱ</text>
+<text x="810" y="371" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="391" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="391" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="391" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="550" y="391" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">ﾊ</text>
+<text x="690" y="391" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">ｾ</text>
+<text x="810" y="391" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="411" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="411" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="411" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="810" y="411" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="431" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="431" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="431" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="810" y="431" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="451" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="451" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="451" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="810" y="451" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="471" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="490" y="471" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="510" y="471" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="810" y="471" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
+<text x="20" y="491" textLength="280" lengthAdjust="spacingAndGlyphs" fill="#E8554E">└───────────────────────────</text>
+<text x="310" y="491" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">BAND FM // 03 CH ─</text>
+<text x="490" y="491" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">╱</text>
+<text x="510" y="491" textLength="150" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">└──────────────</text>
+<text x="670" y="491" textLength="140" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">SPECTRUM SIM ─</text>
+<text x="810" y="491" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">╱</text>
+<text x="20" y="511" textLength="110" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">◢◤◢◤ FX OFF</text>
+<text x="20" y="531" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">[ENTER]</text>
+<text x="100" y="531" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">OPEN</text>
+<text x="160" y="531" textLength="30" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">[/]</text>
+<text x="200" y="531" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">SCAN</text>
+<text x="260" y="531" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">[SPACE]</text>
+<text x="340" y="531" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">PLAY</text>
+<text x="400" y="531" textLength="30" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">[→]</text>
+<text x="440" y="531" textLength="60" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">PLAYER</text>
+<text x="520" y="531" textLength="50" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">[,/.]</text>
+<text x="580" y="531" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">SEEK</text>
+<text x="640" y="531" textLength="30" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">[?]</text>
+<text x="680" y="531" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">KEYS</text>
+<text x="740" y="531" textLength="30" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">[Q]</text>
+<text x="780" y="531" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">QUIT</text>
+</g>
+</svg>

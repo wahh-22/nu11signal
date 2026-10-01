@@ -14,18 +14,22 @@ import (
 // small panel centered over whatever is on screen, the playback going on
 // under it. y or enter quit, and so do q or ctrl+c pressed again (the
 // double press is the fast way out); n or esc close it, giving the screen
-// back as it was. Every other key is ignored. Its QUIT and STAY buttons
-// are clickable; a click on the panel off them does nothing, anywhere
-// else it closes the modal. It scrambles in and out like the overlays
-// (see introRegions and withIntro). On the tiny layout there is no room
-// for the panel: the question takes the status tag's line.
+// back as it was (a confirmed quit closes it for the shutdown splash, see
+// shutdown.go). Every other key is ignored. Its QUIT and STAY buttons
+// are HUD bracket keys like the player's transport (see button): QUIT,
+// enter's action, filled as the primary one, STAY in the transport's
+// cyan brackets. They are clickable; a click on the panel off them does
+// nothing, anywhere else it closes the modal. It scrambles in and out
+// like the overlays (see introRegions and withIntro). On the tiny layout
+// there is no room for the panel: the question takes the status tag's
+// line.
 //
-//	╱─▮ QUIT ─────────────────────────────┐
-//	│                                     │
-//	│          QUIT NU11SIGNAL?           │
-//	│                                     │
-//	│ ╱ [Y/ENTER] QUIT ╱ ╱ [N/ESC] STAY ╱ │
-//	└─────────────────────────── CONFIRM ─╱
+//	╱─▮ QUIT ──────────────────────┐
+//	│                              │
+//	│       QUIT NU11SIGNAL?       │
+//	│                              │
+//	│    [ Y QUIT ]  [ N STAY ]    │
+//	└──────────────────── CONFIRM ─╱
 
 // The modal's own keys, beside keyEnter, keyEsc, keyQuit and keyCtrlC;
 // either case acts.
@@ -35,8 +39,12 @@ const (
 )
 
 // quitModalWidth is the widest the modal is, frame included: its two
-// buttons side by side with a margin. A narrower screen stacks them.
-const quitModalWidth = 39
+// buttons side by side, quitButtonGap apart, with a margin. A screen too
+// narrow for them side by side stacks them.
+const (
+	quitModalWidth = 32
+	quitButtonGap  = 2
+)
 
 // zoneQuitPanel covers the quit modal, frame included, under its buttons:
 // a click there does nothing, and the content intro finds the modal's
@@ -60,11 +68,12 @@ func (m Model) askQuit() Model {
 }
 
 // quitKey handles a key press while the quit modal asks: the quit path
-// (see quitCmd) for yes, closed for no, nothing for any other key.
+// (the shutdown, see startShutdown) for yes, closed for no, nothing for
+// any other key.
 func (m Model) quitKey(k string) (Model, tea.Cmd) {
 	switch strings.ToLower(k) {
 	case quitYes, keyEnter, keyQuit, keyCtrlC:
-		return m, m.quitCmd()
+		return m.startShutdown()
 	case quitNo, keyEsc:
 		m.quitAsk = false
 	}
@@ -80,17 +89,22 @@ func (m Model) quitClick(x, y int) (Model, tea.Cmd) {
 	case !ok:
 		m.quitAsk = false
 	case z.id == zoneQuitYes:
-		return m, m.quitCmd()
+		return m.startShutdown()
 	case z.id == zoneQuitNo:
 		m.quitAsk = false
 	}
 	return m, nil
 }
 
-// quitButtons are the modal's QUIT and STAY buttons.
-var quitButtons = []button{
-	{id: zoneQuitYes, label: "[Y/ENTER] QUIT", tone: stAccent},
-	{id: zoneQuitNo, label: "[N/ESC] STAY", tone: stLabel},
+// quitButtons are the modal's QUIT and STAY buttons, HUD bracket keys
+// (see button.render): QUIT active, filled in the primary fill; STAY in
+// stHi, the transport buttons' cyan. A function, so the tone follows the
+// theme applied.
+func quitButtons() []button {
+	return []button{
+		{id: zoneQuitYes, label: " Y QUIT ", bracket: true, active: true},
+		{id: zoneQuitNo, label: " N STAY ", tone: stHi, bracket: true},
+	}
 }
 
 // quitPanel frames the quit modal in at most w x h cells, with the zones
@@ -102,10 +116,12 @@ func quitPanel(w, h int) ([]string, zones) {
 	iw := mw - 2
 	var rows []string
 	var rowZones []zones
-	if bar, bz := buttonBar(quitButtons, iw-2); len(bz) == len(quitButtons) {
+	bs := quitButtons()
+	if gaps := []int{0, quitButtonGap}; hudWidth(bs, gaps) <= iw-2 {
+		bar, bz := hudRow(bs, gaps)
 		rows, rowZones = []string{bar}, []zones{bz}
 	} else {
-		for _, b := range quitButtons {
+		for _, b := range bs {
 			bar, bz := buttonBar([]button{b}, iw)
 			rows, rowZones = append(rows, bar), append(rowZones, bz)
 		}

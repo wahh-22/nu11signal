@@ -20,7 +20,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	// Text msg brought scrambles in (see intro.go), the tick raised for it.
 	nm = nm.withIntro(m, msg)
-	if nm.intro.seq != m.intro.seq && !nm.tickFast {
+	// A boot or a shutdown that starts needs its frames and its end on
+	// time.
+	booted := m.bootEnd.IsZero() && !nm.bootEnd.IsZero()
+	shut := !m.shutdown && nm.shutdown
+	if booted || shut || (nm.intro.seq != m.intro.seq && !nm.tickFast) {
 		tick := nm.scheduleTick()
 		return nm, tea.Batch(cmd, tick)
 	}
@@ -31,6 +35,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		m = m.startBoot()
 		m.input.SetWidth(m.inputWidth())
 		m.nameInput.SetWidth(m.inputWidth())
 		return m, nil
@@ -42,7 +47,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen != m.tickGen {
 			return m, nil // superseded chain
 		}
+		if m.shutdown {
+			return m.onShutdownTick()
+		}
 		return m.onTick(msg)
+	case closedMsg:
+		return m.onClosed()
 	case authMsg:
 		return m.onAuth(msg)
 	case playlistsMsg:
@@ -183,12 +193,13 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) onAuth(msg authMsg) (tea.Model, tea.Cmd) {
+	// Refused access wins over the boot at once.
 	switch {
 	case msg.err != nil:
-		m.auth, m.authDetail = authFailed, msg.err.Error()
+		m.auth, m.authDetail, m.boot = authFailed, msg.err.Error(), false
 		return m, nil
 	case msg.status != playback.AuthAuthorized:
-		m.auth, m.authDetail = authFailed, "music library access: "+string(msg.status)
+		m.auth, m.authDetail, m.boot = authFailed, "music library access: "+string(msg.status), false
 		return m, nil
 	}
 	m.auth = authOK
@@ -216,7 +227,9 @@ func (m Model) onState(s playback.State) Model {
 
 func (m Model) onTick(msg tickMsg) (tea.Model, tea.Cmd) {
 	m.frame++
+	m = m.endBootOnTime()
 	m.fx = m.fx.advance(m.now(), m.seed, m.fxActive())
+	m.idle = m.idle.advance(m.now(), m.seed, m.idleActive())
 	m = m.trackPlay().pollLevels()
 	if m.animDue(msg) {
 		m = m.animate()
@@ -267,8 +280,14 @@ func (m Model) animate() Model {
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
+	if m.shutdown {
+		return m.shutdownKey(k)
+	}
 	if m.quitAsk {
 		return m.quitKey(k)
+	}
+	if m.boot {
+		return m.bootKey(k)
 	}
 	if k == keyCtrlC {
 		return m.askQuit(), nil

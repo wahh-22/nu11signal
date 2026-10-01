@@ -320,7 +320,7 @@ func TestLeavingLoadingResultsCancelsThem(t *testing.T) {
 	f.PlaylistsResult = stations()
 	f.SearchCatalogResult = fullCatalog()
 	p := &blockingPlayer{Fake: f, ctxs: make(chan context.Context, 4)}
-	m := New(p, Options{Now: newClock().now, Seed: 2077})
+	m := New(p, Options{SkipBoot: true, Now: newClock().now, Seed: 2077})
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m, _ = press(t, m, "/")
 	m = typeText(t, m, "daft")

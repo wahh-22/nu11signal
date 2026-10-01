@@ -431,7 +431,7 @@ func TestRecentAddThenRemoveEndsRemoved(t *testing.T) {
 	if err := store.Add("queen"); err != nil {
 		t.Fatal(err)
 	}
-	m := New(playbacktest.New(), Options{Now: newClock().now, Seed: 2077, Recents: store})
+	m := New(playbacktest.New(), Options{SkipBoot: true, Now: newClock().now, Seed: 2077, Recents: store})
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m, _ = step(t, m, run(t, m.loadRecentsCmd()))
 	add := m.remember("daft")

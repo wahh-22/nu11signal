@@ -25,10 +25,15 @@ type Options struct {
 	// intros (see glitch.go and intro.go). Off by default, and in tests, so frames stay fixed;
 	// keyEffects toggles them.
 	Effects bool
+	// SkipBoot starts past the boot splash (see boot.go), on the normal UI
+	// from the first frame: tests that are not about the boot use it.
+	SkipBoot bool
 	// CallTimeout bounds every Player call (default 8s).
 	CallTimeout time.Duration
 	// CloseTimeout bounds how long quitting waits for Player.Close before
-	// the UI exits anyway (default 3s).
+	// the UI exits anyway (default 6s: at least the helper client's own
+	// bound, see helper.DefaultCloseTimeout, so the helper's fade out is
+	// never cut short).
 	CloseTimeout time.Duration
 	// Recents keeps recent search terms; nil keeps them in memory only.
 	Recents history.Recents
@@ -51,7 +56,7 @@ const (
 	fastTick            = 100 * time.Millisecond
 	idleTick            = time.Second
 	defaultCallTimeout  = 8 * time.Second
-	defaultCloseTimeout = 3 * time.Second
+	defaultCloseTimeout = 6 * time.Second
 )
 
 // RenderFPS is the frame rate the program's renderer should run at
@@ -278,9 +283,21 @@ type Model struct {
 	tickGen  uint64
 	tickFast bool
 	// fx schedules the signal effects (see glitch.go); intro is the
-	// latest content intro (see intro.go).
+	// latest content intro (see intro.go); idle schedules the idle
+	// emblem's glitch (see idle.go).
 	fx    effects
 	intro intro
+	idle  idleGlitch
+	// boot shows the boot splash (see boot.go) until bootEnd, set by the
+	// first size; zero until then.
+	boot    bool
+	bootEnd time.Time
+	// shutdown shows the shutdown splash (see shutdown.go) from the
+	// confirmed quit until tea.Quit: at least until shutdownEnd, and
+	// until closed, the player's close answered or given up on.
+	shutdown    bool
+	shutdownEnd time.Time
+	closed      bool
 }
 
 // New returns a radio Model driving p.
@@ -321,6 +338,7 @@ func New(p playback.Player, opts Options) Model {
 		stack:        []frame{{kind: viewStations}},
 		volumeBusy:   true, // Init reads the volume
 		fx:           effects{on: opts.Effects},
+		boot:         !opts.SkipBoot,
 		configSource: opts.Config,
 		configSaves:  &configSaves{},
 
@@ -418,11 +436,13 @@ func (m Model) action(op string, fn func(context.Context) error) tea.Cmd {
 	}
 }
 
-// quitCmd closes the player and quits, once the quit modal is answered
-// (see quit.go), but never waits longer than closeTimeout: a stuck player
-// must not keep the UI (and the terminal in raw mode) from exiting. The caller may still wait for Close afterwards,
-// once the terminal is restored.
-func (m Model) quitCmd() tea.Cmd {
+// closeCmd closes the player once the quit is confirmed (see
+// shutdown.go) and reports it with a closedMsg, but never waits longer
+// than closeTimeout: a stuck player must not keep the UI (and the
+// terminal in raw mode) from exiting, so a timeout reports closedMsg
+// too. The caller may still wait for Close afterwards, once the terminal
+// is restored.
+func (m Model) closeCmd() tea.Cmd {
 	return func() tea.Msg {
 		closed := make(chan struct{})
 		go func() {
@@ -435,7 +455,7 @@ func (m Model) quitCmd() tea.Cmd {
 		case <-closed:
 		case <-timer.C:
 		}
-		return tea.QuitMsg{}
+		return closedMsg{}
 	}
 }
 
@@ -490,7 +510,9 @@ func (m Model) animInterval() time.Duration {
 
 // tickInterval is the time to the next frame: fastTick while something
 // moves, else idleTick, paced by the signal effects while they run (see
-// effects.interval) and at most introTick during an intro.
+// effects.interval) and the idle emblem's glitch (see idleGlitch.interval),
+// at most introTick during an intro, and cut to the boot's or the
+// shutdown's frames and its end (see splashInterval).
 func (m Model) tickInterval() time.Duration {
 	d := idleTick
 	if m.tickFast {
@@ -499,11 +521,14 @@ func (m Model) tickInterval() time.Duration {
 	if m.fxActive() {
 		d = m.fx.interval(m.now(), d)
 	}
+	if m.idleActive() {
+		d = m.idle.interval(m.now(), d)
+	}
 	if m.introAnimating() {
 		end := m.intro.start.Add(introDur)
 		d = min(d, max(min(introTick, end.Sub(m.now())), minWake))
 	}
-	return d
+	return m.splashInterval(d)
 }
 
 func (m Model) animating() bool {

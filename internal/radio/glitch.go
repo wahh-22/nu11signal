@@ -105,10 +105,11 @@ func span(h uint64, lo, hi time.Duration) time.Duration {
 }
 
 // fxActive reports whether the effects run now: on, not while the SEARCH
-// input or the NEW PLAYLIST name takes the keys, and not on the tiny
-// layout or the auth error screen.
+// input or the NEW PLAYLIST name takes the keys, not during the shutdown
+// (its own glitch draws, see splashGlitch), and not on the tiny layout or
+// the auth error screen.
 func (m Model) fxActive() bool {
-	return m.fx.on && !m.typing() && m.auth != authFailed &&
+	return m.fx.on && !m.typing() && !m.shutdown && m.auth != authFailed &&
 		m.width >= tinyMinWidth && m.height >= tinyMinHeight
 }
 
