@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -404,5 +405,20 @@ func TestSplashSurvivesNoRoom(t *testing.T) {
 		if got := splash(80, h); len(got) > max(h, 1) {
 			t.Fatalf("splash(80, %d) drew %d lines", h, len(got))
 		}
+	}
+}
+
+// The boot glitch draws no letters or digits: its noise is shades and
+// blocks only, as many cells as a periodic burst corrupts.
+func TestBootNoiseIsBlocksOnly(t *testing.T) {
+	for _, g := range bootNoiseGlyphs {
+		for _, r := range g {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				t.Fatalf("boot noise glyph %q is text", g)
+			}
+		}
+	}
+	if bootNoiseMin != 4 || bootNoiseSpan != 7 {
+		t.Fatalf("boot noise %d..%d cells; want a burst's 4..10", bootNoiseMin, bootNoiseMin+bootNoiseSpan-1)
 	}
 }

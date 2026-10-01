@@ -78,11 +78,23 @@ func (m Model) bootInterval(d time.Duration) time.Duration {
 	return min(d, max(m.bootEnd.Sub(m.now()), minWake))
 }
 
+// bootNoiseGlyphs are the boot glitch's noise: shades and blocks only,
+// so no stray letters or digits flash over the emblem.
+var bootNoiseGlyphs = []string{"░", "▒", "▓", "█", "▚", "▞"}
+
+// The boot glitch corrupts bootNoiseMin..bootNoiseMin+bootNoiseSpan-1
+// cells a frame, as many as a periodic burst (see effects.look).
+const (
+	bootNoiseMin  = 4
+	bootNoiseSpan = 7
+)
+
 // bootGlitch draws a burst over the splash's body in lines, one look per
-// tick frame, from the seed: 1..3 of its drawn rows torn 1..2 cells
-// sideways, 6..12 noise cells over the drawn cells of those rows, and on
-// one frame in three a static bar across a row of the body. The header,
-// the status line and the footer are left clean.
+// tick frame, from the seed, as intense as a periodic burst: 1..3 of its
+// drawn rows torn 1..2 cells sideways, bootNoiseMin.. noise cells (see
+// bootNoiseGlyphs) over the drawn cells of those rows, and on one frame
+// in three a static bar across a row of the body. The header, the status
+// line and the footer are left clean.
 func (m Model) bootGlitch(lines []string) {
 	lo, hi := splashTop, len(lines)-2
 	var drawn []int
@@ -101,7 +113,7 @@ func (m Model) bootGlitch(lines []string) {
 		y := drawn[h%n]
 		lines[y] = shift(lines[y], int(h>>8%2)+1, h>>16%2 == 0)
 	}
-	for i := range 6 + r>>16%7 {
+	for i := range bootNoiseMin + r>>16%bootNoiseSpan {
 		h := mix(r, 4, i)
 		y := drawn[h%n]
 		line := lines[y]
@@ -110,7 +122,7 @@ func (m Model) bootGlitch(lines []string) {
 		if w <= x0 {
 			continue
 		}
-		glyph := noiseGlyphs[h>>32%uint64(len(noiseGlyphs))]
+		glyph := bootNoiseGlyphs[h>>32%uint64(len(bootNoiseGlyphs))]
 		lines[y] = overlay(line, x0+int(h>>8%uint64(w-x0)), noiseStyles[h>>48%uint64(len(noiseStyles))].Render(glyph))
 	}
 	if r>>8%3 == 0 {

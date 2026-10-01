@@ -6,7 +6,7 @@ User feedback 2026-10-01: (1) quitting while music plays makes a pop like a mic 
 ## Tasks
 - [x] B1 — Boot splash: on launch the body shows the large emblem (compact/text fallbacks as today) for a short boot (~1.5 s, injected clock), glitching from the first frame (burst-style tears/noise over the emblem, deterministic from the seed), with a boot line under it (e.g. `B O O T I N G   N U 1 1 S I G N A L . . .`) instead of the LINKING line; then the normal UI, whether or not Apple Music is linked yet (LINKING stays in the header only). Respect `x`/`--calm` (no glitch when effects are off; the splash still shows). Any key during boot skips it. Route: delegated writer (with B2).
 - [x] B2 — Quit modal buttons in the HUD bracket style: QUIT as the filled primary button (enter's action), STAY as a cyan bracket button, hover/focus like the player buttons. Route: delegated writer (with B1).
-- [ ] B3 — Quiet exit: investigate and remove the pop when quitting during playback (fade the app volume out and pause before tearing down the tap/player). Route: exploration, then delegated writer.
+- [x] B3 — Quiet exit: investigate and remove the pop when quitting during playback (fade the app volume out and pause before tearing down the tap/player). Route: exploration, then delegated writer.
 
 ## Progress
 - Created 2026-10-01 on branch `feat/boot-splash` from main cdb479d.
@@ -23,3 +23,5 @@ User feedback 2026-10-01: (1) quitting while music plays makes a pop like a mic 
 - Review/commit B1+B2 as a work unit; confirm B3 by ear, then review/commit it as its own work unit.
 - B1+B2 commit `386713d`. Review (main..386713d): high, 770 lines, consent granted, 4 lenses, lineage `review-26f5f07588bb13ca`, APPROVED, acknowledged (burned). Advisories (not scheduled): tiny-layout boot swallows the first key; boot glitch precedence/naming; quit modal width literals; boot resize untested.
 - B3 commit `2901c27`. Review (386713d..2901c27): medium, 417 lines, consent granted, consolidated lens, lineage `review-90fc7d166b5f0647`, APPROVED, acknowledged (burned). Advisory: if the player does not report paused within 0.15 s teardown proceeds anyway (gain is already 0, so silent by design); fading-word selection untested. Pending: user confirms by ear that the pop is gone.
+- B3 confirmed by ear 2026-10-01: no pop on quit during playback.
+- [x] B4 — User feedback: the boot glitch was too aggressive and flashed letters. Its noise is now shades/blocks only (`bootNoiseGlyphs`) and as many cells as a periodic burst (4..10, `bootNoiseMin`/`bootNoiseSpan`); tears and static bar already matched. Route: inline. RED: TestBootNoiseIsBlocksOnly undefined symbols; GREEN: `go test -race ./...` pass.
