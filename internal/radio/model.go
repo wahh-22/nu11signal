@@ -191,7 +191,7 @@ type Model struct {
 	tab           int
 	tabsFrom      focusArea
 	// help shows the KEYS overlay (see help.go), which takes every key
-	// but keyHelp and esc (closing it) and ctrl+c (quitting).
+	// but keyHelp and esc (closing it) and ctrl+c (asking to quit).
 	help bool
 	// settings shows the SETTINGS overlay (see settings.go), its cursor
 	// on the theme row settingsCursor. theme is the theme applied (see
@@ -203,6 +203,9 @@ type Model struct {
 	theme          string
 	themePicked    bool
 	settingsFile   config.Config
+	// quitAsk shows the quit modal (see quit.go) over whatever is on
+	// screen; it takes every key and every click until it is answered.
+	quitAsk bool
 
 	// favs caches the favorite state of songs by id, and favSeq numbers
 	// its reads and changes (see library.go).
@@ -415,9 +418,9 @@ func (m Model) action(op string, fn func(context.Context) error) tea.Cmd {
 	}
 }
 
-// quitCmd closes the player and quits, but never waits longer than
-// closeTimeout: a stuck player must not keep the UI (and the terminal in
-// raw mode) from exiting. The caller may still wait for Close afterwards,
+// quitCmd closes the player and quits, once the quit modal is answered
+// (see quit.go), but never waits longer than closeTimeout: a stuck player
+// must not keep the UI (and the terminal in raw mode) from exiting. The caller may still wait for Close afterwards,
 // once the terminal is restored.
 func (m Model) quitCmd() tea.Cmd {
 	return func() tea.Msg {

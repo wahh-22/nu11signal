@@ -447,7 +447,7 @@ func TestQuitClosesPlayer(t *testing.T) {
 		t.Run(k, func(t *testing.T) {
 			f := playbacktest.New()
 			m := loaded(t, f, newClock())
-			_, cmd := press(t, m, k)
+			_, cmd := press(t, m, k, "y")
 			msg := run(t, cmd)
 			if _, ok := msg.(tea.QuitMsg); !ok {
 				t.Fatalf("quit command returned %T, want tea.QuitMsg", msg)
@@ -668,7 +668,7 @@ func TestQuitDoesNotHangOnAStuckPlayer(t *testing.T) {
 	p := blockingCloser{Fake: playbacktest.New(), release: make(chan struct{})}
 	defer close(p.release)
 	m := New(p, Options{Now: newClock().now, CloseTimeout: 50 * time.Millisecond})
-	_, cmd := press(t, m, "q")
+	_, cmd := press(t, m, "q", "y")
 	if _, ok := run(t, cmd).(tea.QuitMsg); !ok {
 		t.Fatal("quit did not produce tea.QuitMsg")
 	}

@@ -8,10 +8,10 @@ import (
 
 // The KEYS overlay lists every binding (helpGroups, in keys.go) in a panel
 // over the whole body, the header and the footer left in place. keyHelp
-// opens it wherever q quits, and keyHelp or esc closes it; while it is
-// open every other key is ignored, q included, so a key pressed while
-// reading never acts on the hidden view; ctrl+c still quits. A click
-// closes it (see handleMouse).
+// opens it wherever q asks to quit, and keyHelp or esc closes it; while
+// it is open every other key is ignored, q included, so a key pressed
+// while reading never acts on the hidden view; ctrl+c still asks to quit
+// (see quit.go). A click closes it (see handleMouse).
 
 // helpOverlayHints replace the view's hints while the KEYS overlay is
 // open.

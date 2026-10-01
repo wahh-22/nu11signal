@@ -53,6 +53,7 @@ func (m Model) layout() ([]string, zones) {
 // baseLayout lays out the frame: its lines, at most width x height, and
 // the clickable zones drawn on them. The tiny layout and the auth error
 // screen have no zones: there is no room for buttons, or nothing to click.
+// The quit modal draws over any of them, its zones in place of theirs.
 func (m Model) baseLayout() ([]string, zones) {
 	w, h := m.width, m.height
 	if w <= 0 || h <= 0 {
@@ -69,6 +70,9 @@ func (m Model) baseLayout() ([]string, zones) {
 		lines, zs = m.renderCompact()
 	default:
 		lines, zs = m.renderFull()
+	}
+	if m.quitAsk {
+		lines, zs = m.withQuitModal(lines)
 	}
 	if len(lines) > h {
 		lines = lines[:h]
@@ -644,6 +648,8 @@ func keyCap(k string) string { return stAccent.Render("[" + k + "]") }
 func (m Model) hintLine(w int) string {
 	hints := playerHints
 	switch kind := m.top().kind; {
+	case m.quitAsk:
+		hints = quitModalHints
 	case m.help:
 		hints = helpOverlayHints
 	case m.settings:

@@ -57,7 +57,8 @@ const (
 	keyDelete    = "delete"
 	keyDeleteAlt = "ctrl+d"
 	// keyHelp opens the KEYS overlay (helpGroups) and closes it, wherever
-	// q quits: SEARCH and the NEW PLAYLIST name type it (see keysTyped).
+	// q asks to quit: SEARCH and the NEW PLAYLIST name type it (see
+	// keysTyped).
 	keyHelp = "?"
 	// keySettings opens the SETTINGS overlay (see settings.go) and closes
 	// it, wherever keyHelp opens KEYS.
@@ -111,7 +112,7 @@ var helpGroups = []helpGroup{
 	}},
 	{"APP", []helpEntry{
 		{"R", "RETRY A FAILED LOAD", []string{keyRetry}},
-		{"Q / CTRL+C", "QUIT (CTRL+C IN TEXT)", []string{keyQuit, keyCtrlC}},
+		{"Q / CTRL+C", "QUIT? (CTRL+C IN TEXT)", []string{keyQuit, keyCtrlC}},
 		{"S", "SETTINGS (THEMES)", []string{keySettings}},
 		{"?", "KEYS (THIS LIST)", []string{keyHelp}},
 	}},

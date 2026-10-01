@@ -120,9 +120,12 @@ func TestTheSettingsIgnoreOtherKeysButCtrlC(t *testing.T) {
 	if !m.settings || m.help || m.expanded || len(m.stack) != 1 || len(f.Calls()) != before {
 		t.Fatalf("keys acted under the settings: settings %v help %v stack %v calls %v", m.settings, m.help, stackKinds(m), f.Calls()[before:])
 	}
-	if _, cmd = press(t, m, "ctrl+c"); cmd == nil {
-		t.Fatal("ctrl+c did not quit under the settings")
+	m, cmd = press(t, m, "ctrl+c")
+	if cmd != nil || !m.quitAsk {
+		t.Fatal("ctrl+c did not ask to quit under the settings")
 	}
+	_, cmd = press(t, m, "y")
+	assertQuits(t, f, cmd)
 }
 
 func TestSIsTypedWhereTextIsTyped(t *testing.T) {

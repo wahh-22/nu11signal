@@ -112,9 +112,12 @@ func TestTheHelpIgnoresOtherKeysButCtrlC(t *testing.T) {
 	if !m.help || len(m.stack) != 1 || len(f.Calls()) != before {
 		t.Fatalf("keys acted under the help: help %v stack %v calls %v", m.help, stackKinds(m), f.Calls()[before:])
 	}
-	if _, cmd = press(t, m, "ctrl+c"); cmd == nil {
-		t.Fatal("ctrl+c did not quit under the help")
+	m, cmd = press(t, m, "ctrl+c")
+	if cmd != nil || !m.quitAsk {
+		t.Fatal("ctrl+c did not ask to quit under the help")
 	}
+	_, cmd = press(t, m, "y")
+	assertQuits(t, f, cmd)
 }
 
 func TestQuestionMarkIsTypedWhereTextIsTyped(t *testing.T) {
