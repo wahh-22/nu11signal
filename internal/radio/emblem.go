@@ -76,6 +76,13 @@ const (
 // other, for the command line to print (nu11signal --version).
 func EmblemRows() []string { return append([]string(nil), emblemCompact.rows...) }
 
+// EmblemArt is the large emblem cell by cell, for the README art
+// (tools/readmeart): its rows of block glyphs and, as wide, their masks
+// (r the ring, s the slash, a space nothing).
+func EmblemArt() (rows, mask []string) {
+	return append([]string(nil), emblemLarge.rows...), append([]string(nil), emblemLarge.mask...)
+}
+
 // textLines are the lines beside the emblem, plain: the name spaced out
 // on two lines, then the slants.
 func (e emblem) textLines() []string {

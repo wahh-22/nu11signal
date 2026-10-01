@@ -22,7 +22,7 @@
 # then refuses to build until that backup is restored or deleted, and backups
 # kept next to an existing dist/vVERSION are listed as a warning.
 #
-# Requires (see README.md, "Releasing"):
+# Requires (see docs/releasing.md):
 #   - a "Developer ID Application" certificate for the team in the keychain;
 #   - the Developer ID provisioning profile at $NU11SIGNAL_PROFILE
 #     (default signing/Nu11Signal_DeveloperID.provisionprofile);
@@ -124,7 +124,7 @@ if security find-identity -v -p codesigning | grep -F "\"$IDENTITY" | grep -qF "
   echo "    ok: signing identity \"$IDENTITY\" for team $TEAM_ID"
 else
   missing+=("signing identity \"$IDENTITY\" for team $TEAM_ID is not in the keychain.
-      Create a Developer ID Application certificate (README.md, Releasing, step 1);
+      Create a Developer ID Application certificate (docs/releasing.md, step 1);
       check with: security find-identity -v -p codesigning")
 fi
 
@@ -132,7 +132,7 @@ if [[ -f "$PROFILE" ]]; then
   echo "    ok: provisioning profile $PROFILE"
 else
   missing+=("Developer ID provisioning profile not found: $PROFILE
-      Create it for $TEAM_ID.$BUNDLE_ID and save it there (README.md, Releasing, step 2)")
+      Create it for $TEAM_ID.$BUNDLE_ID and save it there (docs/releasing.md, step 2)")
 fi
 
 if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
@@ -140,7 +140,7 @@ if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1
 else
   missing+=("notarytool keychain profile \"$NOTARY_PROFILE\" is missing or its credentials are rejected.
       Run: xcrun notarytool store-credentials $NOTARY_PROFILE --apple-id <id> --team-id $TEAM_ID
-      (README.md, Releasing, step 3)")
+      (docs/releasing.md, step 3)")
 fi
 
 if [[ -z "$(git status --porcelain --untracked-files=no)" ]]; then

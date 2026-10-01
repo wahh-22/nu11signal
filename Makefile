@@ -1,5 +1,5 @@
 # nu11signal build tooling. Signing is configured through the environment
-# (see README.md): NU11SIGNAL_BUNDLE_ID, NU11SIGNAL_TEAM_ID, NU11SIGNAL_PROFILE,
+# (see docs/building.md and docs/releasing.md): NU11SIGNAL_BUNDLE_ID, NU11SIGNAL_TEAM_ID, NU11SIGNAL_PROFILE,
 # NU11SIGNAL_SIGN_IDENTITY. Defaults live in helper/build.sh.
 
 export NU11SIGNAL_BUNDLE_ID NU11SIGNAL_TEAM_ID NU11SIGNAL_PROFILE NU11SIGNAL_SIGN_IDENTITY NU11SIGNAL_HELPER
