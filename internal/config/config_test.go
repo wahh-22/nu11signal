@@ -156,3 +156,52 @@ func TestSaveWritesThroughASymlink(t *testing.T) {
 		t.Fatalf("target after Save = %+v, %v; want theme BLUE", got, err)
 	}
 }
+
+func TestUpdateCheck(t *testing.T) {
+	tests := []struct {
+		content string
+		want    bool
+	}{
+		{`{}`, true},
+		{`{"update_check": true}`, true},
+		{`{"update_check": false}`, false},
+	}
+	for _, tt := range tests {
+		c, err := NewFile(write(t, tt.content)).Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := c.UpdateCheckOn(); got != tt.want {
+			t.Errorf("%s: UpdateCheckOn() = %v; want %v", tt.content, got, tt.want)
+		}
+	}
+}
+
+func TestSaveKeepsAndRemovesUpdateCheck(t *testing.T) {
+	path := write(t, `{"update_check": false, "colors": "neon"}`)
+	f := NewFile(path)
+	c, err := f.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Theme = "BLUE"
+	if err := f.Save(c); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	data, _ := os.ReadFile(path)
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["update_check"] != false || got["theme"] != "BLUE" || got["colors"] != "neon" {
+		t.Fatalf("saved %s; want update_check false kept beside theme and colors", data)
+	}
+	c.UpdateCheck = nil
+	if err := f.Save(c); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(path)
+	if strings.Contains(string(data), "update_check") {
+		t.Fatalf("saved %s; want update_check removed when unset", data)
+	}
+}

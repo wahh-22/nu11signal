@@ -16,8 +16,9 @@ import (
 // closes it. Its THEMES section lists the themes, the active one marked
 // ◉: ↑↓ move the cursor, enter (or a click on a row) applies the theme
 // at once, the overlay staying open to compare, and saves the choice to
-// the settings file. Every other key is ignored, ctrl+c still asks to
-// quit; a click off the rows closes it.
+// the settings file. A newer release, when one is known, heads the panel
+// in an UPDATE line (see release.go). Every other key is ignored, ctrl+c
+// still asks to quit; a click off the rows closes it.
 
 // settingsOverlayHints replace the view's hints while SETTINGS is open.
 var settingsOverlayHints = []hint{
@@ -139,9 +140,14 @@ func (m Model) saveConfigCmd(c config.Config) tea.Cmd {
 // settingsPanel frames the SETTINGS overlay, w x h cells, with the zones
 // of its theme rows relative to the panel.
 func (m Model) settingsPanel(w, h int) ([]string, zones) {
-	body := []string{" " + stHeading.Render("▞ THEMES")}
+	var body []string
 	var zs zones
 	iw := w - 2
+	// A newer release heads the panel (see release.go).
+	if v, how, ok := m.releaseNotice(); ok {
+		body = append(body, " "+stAccentBold.Render(fit("UPDATE "+v+" // "+how, max(iw-1, 0))), "")
+	}
+	body = append(body, " "+stHeading.Render("▞ THEMES"))
 	for i, t := range themes {
 		mark := "○"
 		if t.name == m.theme {

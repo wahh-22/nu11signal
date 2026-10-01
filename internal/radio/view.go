@@ -623,9 +623,14 @@ func (m Model) stationRow(i int, selected bool, w int) string {
 	return fit(fit(text, textWidth)+stOnAir.Render(mark), w)
 }
 
+// statusLine is the line over the hints: the status message while one
+// shows, else a newer release (see release.go), else idleStatus.
 func (m Model) statusLine(w int) string {
 	if m.status != "" {
 		return stWarn.Render("▲ " + strings.ToUpper(m.status))
+	}
+	if v, how, ok := m.releaseNotice(); ok {
+		return stAccentBold.Render(fit("◢◤◢◤ UPDATE "+v+" AVAILABLE // "+how, w))
 	}
 	return stDim.Render(fit("◢◤◢◤ "+m.idleStatus(), w))
 }

@@ -159,6 +159,11 @@ your terminal's font to it for the intended look; any monospaced font works. Rel
 [GitHub Releases](https://github.com/wahh-22/nu11signal/releases); see
 [Install](docs/install.md).
 
+A release build checks GitHub once a day for a newer release and shows the
+upgrade command on its status line; turn it off with
+`NU11SIGNAL_NO_UPDATE_CHECK=1` or `"update_check": false` (see
+[Update check](docs/usage.md#update-check)).
+
 From a source checkout, try the UI against a simulated player, or build and
 sign your own (see [Building from source](docs/building.md)):
 
@@ -173,7 +178,7 @@ bin/nu11signal     # play for real
 | Guide | What it covers |
 |-------|----------------|
 | [Install](docs/install.md) | Homebrew, release archives, the Kode Mono font |
-| [Usage](docs/usage.md) | Browsing the catalog, editing the library, every key, the mouse, settings |
+| [Usage](docs/usage.md) | Browsing the catalog, editing the library, every key, the mouse, settings, the update check |
 | [Signal effects and rain](docs/effects.md) | Glitch bursts, boot and shutdown splashes, content intros, the rain visualizer |
 | [App volume and spectrum](docs/audio.md) | The Core Audio tap behind `VOL`, and the live spectrum that drives the rain |
 | [Architecture](docs/architecture.md) | Go UI and Swift helper, helper lookup, the JSON lines protocol |

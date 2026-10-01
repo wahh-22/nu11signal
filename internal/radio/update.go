@@ -71,6 +71,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})), nil
 	case configMsg:
 		return m.onConfig(msg), nil
+	case releaseMsg:
+		return m.onRelease(msg), nil
 	case configSavedMsg:
 		if msg.err != nil {
 			m.setStatus("SETTINGS NOT SAVED // " + msg.err.Error())

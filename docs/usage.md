@@ -2,7 +2,7 @@
 
 [← Back to the README](../README.md) · [Documentation index](../README.md#documentation)
 
-Browsing, editing your library, every key and mouse binding, and the settings.
+Browsing, editing your library, every key and mouse binding, the settings, and the update check.
 
 ## Browsing the catalog
 
@@ -331,3 +331,42 @@ file renamed over it), private (`0600`, its directory `0700`), keeping the
 fields it does not know. A file that is not valid JSON is left alone and
 the choice is not saved (the status line says so); a theme name nu11signal
 does not know starts `NIGHT CITY` silently.
+
+When a newer release is known (see [Update check](#update-check)), an
+`UPDATE` line heads the panel with the version and how to upgrade.
+
+## Update check
+
+A release build asks GitHub once at launch, in the background, whether a
+newer release exists. When one does, the status line over the key hints
+reads, until you upgrade:
+
+```text
+◢◤◢◤ UPDATE v0.3.1 AVAILABLE // brew upgrade --cask nu11signal
+```
+
+with the Homebrew command when the binary lives under Homebrew (a
+`Caskroom`, or `/opt/homebrew`), else the release page's URL; SETTINGS
+repeats it on its first line. A status message still takes the line while
+it shows. There is nothing to dismiss, and a failed check (no network, a
+rate limit) shows nothing. Startup never waits for it.
+
+The answer is cached for 24 hours in `update.json` beside `config.json`
+(`~/Library/Application Support/nu11signal/update.json` on macOS), written
+atomically and private (`0600`), so the GitHub API
+(`/repos/wahh-22/nu11signal/releases/latest`, 3 s timeout) is asked at most
+once a day; a missing or corrupt cache is simply asked again. Pre-releases
+are never offered.
+
+No check is made:
+
+- with `NU11SIGNAL_NO_UPDATE_CHECK=1` in the environment;
+- with `"update_check": false` in `config.json` (kept when SETTINGS saves a
+  theme):
+
+  ```json
+  {"theme": "BLUE", "update_check": false}
+  ```
+
+- in `--demo`, which stays offline;
+- in a build without a release version (`dev`, a plain `go build`).

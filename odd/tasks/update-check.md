@@ -10,7 +10,13 @@ On launch, find out whether a newer release exists and, if so, tell the user in 
 - Install-method awareness: Homebrew command shown when the binary lives under a Homebrew prefix/Caskroom; otherwise point to the releases page URL.
 
 ## Tasks
-- [ ] U1 — Update check package + cache + opt-outs + TUI notice + docs. Route: delegated writer.
+- [x] U1 — Update check package + cache + opt-outs + TUI notice + docs. Route: delegated writer (writer trigger: 2+ non-trivial files across internal/update, internal/radio, cmd/nu11signal). Commit: pending (parent).
 
 ## Progress
 - Created 2026-10-01 on branch `feat/update-check` from main.
+- U1 implemented (uncommitted): `internal/update` (Release, Checker, GitHub adapter, Cached 24 h `update.json`, strict semver `Newer`/`Valid`, `UpgradeCommand`); `config.Config.UpdateCheck *bool` (`UpdateCheckOn`, kept by Save); `cmd/nu11signal` `openUpdates` (opt-outs: demo, non-semver version, `NU11SIGNAL_NO_UPDATE_CHECK=1`, `"update_check": false`, no config dir) passed to `runUI`, upgrade command from the resolved executable; radio `Options.Updates/Version/Upgrade`, check from Init (`checkReleaseCmd`), notice on the idle status line (accent bold) and an UPDATE line heading SETTINGS (chosen over KEYS: SETTINGS is the app-state panel; KEYS stays a pure binding list). Docs: usage.md "Update check", README mention.
+- Decisions: a pre-release latest is never offered; equal core with a pre-release current is an update; on a failed refresh a stale cache is still answered; demo stays offline.
+- Evidence: RED observed per package (undefined symbols / unknown fields) before implementation; GREEN: go build, go test -race ./..., go vet, gofmt -l (empty), make test-scripts (34 passed). Goldens unchanged.
+
+## Next step
+Parent: review, work-unit commit `feat(update): check for a newer release at launch`, RDD assess.

@@ -1,7 +1,7 @@
 // Package config reads the user's settings file, config.json in the
 // nu11signal directory of the user's config directory:
 //
-//	{"visualizer": "rain", "theme": "BLUE"}
+//	{"visualizer": "rain", "theme": "BLUE", "update_check": false}
 //
 // The file is optional: a missing one is the defaults. nu11signal writes
 // it only when a setting is changed in the app (Save), keeping the fields
@@ -28,7 +28,14 @@ type Config struct {
 	// Theme names the UI's color theme, as SETTINGS lists it; the UI
 	// falls back to its default for a name it does not know.
 	Theme string `json:"theme,omitempty"`
+	// UpdateCheck turns the launch check for a newer release off when
+	// false; nil (left out) is on. See UpdateCheckOn.
+	UpdateCheck *bool `json:"update_check,omitempty"`
 }
+
+// UpdateCheckOn reports whether the settings allow the update check: on
+// unless "update_check" is false.
+func (c Config) UpdateCheckOn() bool { return c.UpdateCheck == nil || *c.UpdateCheck }
 
 // Source loads and saves the settings.
 type Source interface {
@@ -105,7 +112,7 @@ func (f *File) Save(c Config) error {
 		return err
 	}
 	// Known fields are replaced, or removed when c leaves them empty.
-	for _, name := range []string{"visualizer", "theme"} {
+	for _, name := range []string{"visualizer", "theme", "update_check"} {
 		delete(fields, name)
 	}
 	for k, v := range set {
