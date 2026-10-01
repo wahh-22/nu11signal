@@ -436,7 +436,8 @@ const nowPlayingMargin = 1
 // visualizer) depend on the width and the height. The head is the feed
 // and the status tag: the panel's frame label already says NOW PLAYING.
 // The content intro compares the artist, album and head rows (see
-// introFieldRows).
+// introFieldRows); the emblem right of the artist and the album (see
+// npemblem.go) takes the rows down to the blank one.
 const (
 	npHeadRow = iota
 	_
@@ -453,10 +454,7 @@ const (
 // row (LOOP and EXPAND included) over the volume row (see hudControls).
 func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	title, artist := m.titleLines()
-	album := ""
-	if m.hasState && !m.signalLost() {
-		album = stMuted.Render(strings.ToUpper(m.state.Album))
-	}
+	album := m.npAlbum()
 	feed, tag := m.feedLine(), m.statusTag()
 	if room := m.headFeedWidth(iw); ansi.StringWidth(feed) > room {
 		// The narrower panel beside the list cuts the feed and keeps the
@@ -474,6 +472,10 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	var zs zones
 	zs.addAt(nowPlayingMargin, npTitleRow, hz)
 	lines[npTitleRow], lines[npArtistRow], lines[npAlbumRow] = " "+title, " "+artist, " "+album
+	// The emblem right of the song info, where it fits (see npemblem.go).
+	if a, ok := npEmblemFor(iw, ansi.StringWidth(lines[npArtistRow]), ansi.StringWidth(lines[npAlbumRow])); ok {
+		m.drawNPEmblem(lines, a)
+	}
 	progress, barW := m.progressLine(inner)
 	if m.seekable() {
 		zs.add(zoneSeek, nowPlayingMargin, npProgressRow, barW)

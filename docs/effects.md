@@ -80,6 +80,17 @@ between them. Playing again brings the rain back, its drops where they
 were. The emblem and its glitch come from the seed and the animation
 frames, and the signal effects still run over them.
 
+NOW PLAYING also keeps the compact emblem, with `N U 1 1 / S I G N A L`
+and the slants beside it, right-aligned on the artist, album and blank
+rows under the title, its right edge under the `[<3]` button's. It is
+always there (playing, paused, nothing loaded), expanded or beside the
+list, where it fits at least two cells right of the artist and the album:
+the emblem alone where its text does not fit, nothing where neither does,
+never cutting the song info. It is not clickable. With the effects on it
+glitches like the idle emblem, every 4–7 s for 0.15–0.25 s, on a schedule
+of its own (never in step with the idle emblem or the bursts), inside its
+own cells; it never makes the artist or album scramble in.
+
 The other visualizers (bars, oscilloscope, synthwave, random) and the `v`
 key are gone. A `nu11signal/config.json` under `os.UserConfigDir()`
 (`~/Library/Application Support/nu11signal/config.json` on macOS) is still

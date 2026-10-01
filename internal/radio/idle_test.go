@@ -335,7 +335,12 @@ func TestIdleGlitchOffWithTheEffectsOff(t *testing.T) {
 func TestIdleTickLandsOnTheIdleGlitch(t *testing.T) {
 	c := newClock()
 	m := idleFxModel(t, c)
-	m.fx.nextBurst = c.t.Add(time.Hour) // keep the global bursts out of the way
+	// Keep the global bursts and the NOW PLAYING emblem's glitch out of the way.
+	calm := func() {
+		m.fx.nextBurst = c.t.Add(time.Hour)
+		m.npGlitch = idleGlitch{next: c.t.Add(time.Hour)}
+	}
+	calm()
 	if m.tickFast {
 		t.Fatal("paused: still on the fast tick")
 	}
@@ -347,11 +352,11 @@ func TestIdleTickLandsOnTheIdleGlitch(t *testing.T) {
 		for c.t.Add(m.tickInterval()).Before(m.idle.next) {
 			c.advance(m.tickInterval())
 			m = tick(t, m)
-			m.fx.nextBurst = c.t.Add(time.Hour)
+			calm()
 		}
 		c.advance(m.tickInterval())
 		m = tick(t, m)
-		m.fx.nextBurst = c.t.Add(time.Hour)
+		calm()
 		if !m.idle.on(c.t) {
 			t.Fatalf("tick at %v missed the idle glitch at %v", c.t, m.idle.start)
 		}
@@ -361,7 +366,7 @@ func TestIdleTickLandsOnTheIdleGlitch(t *testing.T) {
 			}
 			c.advance(m.tickInterval())
 			m = tick(t, m)
-			m.fx.nextBurst = c.t.Add(time.Hour)
+			calm()
 		}
 		// It lands on the end, or minWake past it when the end came closer
 		// than that (no spinning).

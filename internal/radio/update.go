@@ -230,6 +230,7 @@ func (m Model) onTick(msg tickMsg) (tea.Model, tea.Cmd) {
 	m = m.endBootOnTime()
 	m.fx = m.fx.advance(m.now(), m.seed, m.fxActive())
 	m.idle = m.idle.advance(m.now(), m.seed, m.idleActive())
+	m.npGlitch = m.npGlitch.advance(m.now(), mix(m.seed, saltNPGlitch), m.npActive())
 	m = m.trackPlay().pollLevels()
 	if m.animDue(msg) {
 		m = m.animate()
