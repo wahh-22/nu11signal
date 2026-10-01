@@ -45,6 +45,8 @@ func TestStartupReadsTheVolume(t *testing.T) {
 	f := playbacktest.New()
 	f.VolumeResult = 0.4
 	m := newModel(t, f, newClock())
+	// Past the startup screen, which has no volume row.
+	m, _ = step(t, m, run(t, m.authorizeCmd()))
 	out := make(chan tea.Msg, 16)
 	launch(m.Init(), out)
 	deadline := time.After(2 * time.Second)

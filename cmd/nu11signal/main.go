@@ -5,7 +5,8 @@
 // helper.Locate), never in the working directory; with --demo it runs
 // against an in-process simulated player instead. --calm (or
 // NU11SIGNAL_CALM=1) starts with the signal effects off; x toggles them.
-// --version prints the release version stamped at link time.
+// --version prints the release version stamped at link time: beside the
+// null emblem on a terminal, the bare version line otherwise.
 package main
 
 import (
@@ -16,6 +17,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -39,8 +41,11 @@ const calmEnv = "NU11SIGNAL_CALM"
 
 func main() {
 	os.Exit(run(os.Args[1:], deps{
-		stdout:       os.Stdout,
-		stderr:       os.Stderr,
+		stdout: os.Stdout,
+		stderr: os.Stderr,
+		stdoutTerminal: func() bool {
+			return isTerminal(os.Stdout)
+		},
 		locateHelper: helper.Locate,
 		startHelper:  startHelper,
 		runUI:        runUI,
@@ -50,6 +55,9 @@ func main() {
 // deps are run's side effects, injected so its exit paths are testable.
 type deps struct {
 	stdout, stderr io.Writer
+	// stdoutTerminal reports whether stdout is a terminal (nil: it is
+	// not), which --version draws the emblem on.
+	stdoutTerminal func() bool
 	// locateHelper finds the helper executable (helper.Locate).
 	locateHelper func() (string, error)
 	// startHelper launches the helper at path; ctx bounds only startup.
@@ -74,7 +82,7 @@ func run(args []string, d deps) int {
 		return 2
 	}
 	if opts.version {
-		printVersion(d.stdout)
+		printVersion(d.stdout, d.stdoutTerminal != nil && d.stdoutTerminal())
 		return 0
 	}
 	calm := opts.calm || os.Getenv(calmEnv) == "1"
@@ -156,8 +164,34 @@ func parseFlags(args []string, output io.Writer) (options, error) {
 	return opts, nil
 }
 
-func printVersion(w io.Writer) {
-	fmt.Fprintln(w, version)
+// printVersion writes the version: on a terminal, the compact null
+// emblem with NU11SIGNAL and the version (v-prefixed when it is a
+// number) beside it; elsewhere the bare version line, which scripts and
+// release.sh read.
+func printVersion(w io.Writer, terminal bool) {
+	if !terminal {
+		fmt.Fprintln(w, version)
+		return
+	}
+	shown := version
+	if shown != "" && shown[0] >= '0' && shown[0] <= '9' {
+		shown = "v" + shown
+	}
+	text := []string{"NU11SIGNAL", shown}
+	var b strings.Builder
+	for i, row := range radio.EmblemRows() {
+		if i < len(text) {
+			row += "   " + text[i]
+		}
+		b.WriteString(strings.TrimRight(row, " ") + "\n")
+	}
+	io.WriteString(w, b.String())
+}
+
+// isTerminal reports whether f is a terminal (a character device).
+func isTerminal(f *os.File) bool {
+	fi, err := f.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
 }
 
 func openPlayer(demoMode bool, d deps) (playback.Player, error) {
