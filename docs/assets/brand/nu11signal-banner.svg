@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-label="nu11signal: the null emblem beside N U 1 1 / S I G N A L">
+<rect x="1.5" y="1.5" width="1197" height="357" rx="16" fill="#0A0A0A" stroke="#FF5F57" stroke-opacity="0.45" stroke-width="3"/>
+<path d="M20 48V20H48" fill="none" stroke="#5EF6FF" stroke-width="3"/>
+<path d="M1180 48V20H1152" fill="none" stroke="#5EF6FF" stroke-width="3"/>
+<path d="M20 312V340H48" fill="none" stroke="#5EF6FF" stroke-width="3"/>
+<path d="M1180 312V340H1152" fill="none" stroke="#5EF6FF" stroke-width="3"/>
+<text x="44" y="52" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="15" letter-spacing="3" fill="#9A3B37">SIG ▂▄▆█  //  AUTH OK</text>
+<text x="1156" y="52" text-anchor="end" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="15" letter-spacing="3" fill="#9A3B37">NODE 7F // NC-GRID</text>
+<rect class="px" x="370.8" y="100" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="390.8" y="80" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="410.8" y="80" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="430.8" y="80" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="450.8" y="80" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="470.8" y="100" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="490.8" y="100" width="20" height="20" fill="#FCEE0A"/>
+<rect class="px" x="510.8" y="80" width="20" height="20" fill="#FCEE0A"/>
+<rect class="px" x="330.8" y="140" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="350.8" y="120" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="370.8" y="120" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="450.8" y="140" width="20" height="20" fill="#FCEE0A"/>
+<rect class="px" x="470.8" y="120" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="490.8" y="120" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="510.8" y="140" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="330.8" y="160" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="350.8" y="160" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="410.8" y="180" width="20" height="20" fill="#FCEE0A"/>
+<rect class="px" x="430.8" y="160" width="20" height="20" fill="#FCEE0A"/>
+<rect class="px" x="490.8" y="160" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="510.8" y="160" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="330.8" y="200" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="350.8" y="200" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="370.8" y="220" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="390.8" y="200" width="20" height="20" fill="#FCEE0A"/>
+<rect class="px" x="470.8" y="220" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="490.8" y="200" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="510.8" y="200" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="330.8" y="260" width="20" height="20" fill="#FCEE0A"/>
+<rect class="px" x="350.8" y="240" width="20" height="20" fill="#FCEE0A"/>
+<rect class="px" x="370.8" y="240" width="20" height="20" fill="#FF5F57"/>
+<rect class="px" x="390.8" y="240" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="410.8" y="240" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="430.8" y="240" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="450.8" y="240" width="20" height="40" fill="#FF5F57"/>
+<rect class="px" x="470.8" y="240" width="20" height="20" fill="#FF5F57"/>
+<text x="578.8" y="152.8" textLength="184.8" lengthAdjust="spacingAndGlyphs" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="44" font-weight="bold" fill="#FF5F57">N U 1 1</text>
+<text x="578.8" y="192.8" textLength="290.4" lengthAdjust="spacingAndGlyphs" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="44" font-weight="bold" fill="#FF5F57">S I G N A L</text>
+<polygon points="605.2,206 605.2,234 578.8,234" fill="#FCEE0A"/>
+<polygon points="605.2,206 631.6,206 605.2,234" fill="#FCEE0A"/>
+<polygon points="658,206 658,234 631.6,234" fill="#FCEE0A"/>
+<polygon points="658,206 684.4,206 658,234" fill="#FCEE0A"/>
+<polygon points="710.8,206 710.8,234 684.4,234" fill="#FCEE0A"/>
+<polygon points="710.8,206 737.2,206 710.8,234" fill="#FCEE0A"/>
+<polygon points="763.6,206 763.6,234 737.2,234" fill="#FCEE0A"/>
+<polygon points="763.6,206 790,206 763.6,234" fill="#FCEE0A"/>
+<polygon points="816.4,206 816.4,234 790,234" fill="#FCEE0A"/>
+<polygon points="816.4,206 842.8,206 816.4,234" fill="#FCEE0A"/>
+<text x="600" y="320" text-anchor="middle" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="16" letter-spacing="6" fill="#5EF6FF">APPLE MUSIC  //  TERMINAL RADIO</text>
+</svg>
