@@ -1,3 +1,11 @@
+```text
+  ▄████▄▄▀
+▄█▀   ▄▀█▄   N U 1 1
+██  ▄▀  ██   S I G N A L
+▀█▄▀   ▄█▀   ◢◤◢◤◢◤◢◤◢◤
+▄▀▀████▀
+```
+
 # Nu11Signal
 
 A lightweight terminal player for Apple Music, styled after a neon cyberpunk

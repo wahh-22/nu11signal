@@ -103,6 +103,11 @@ func (m Model) renderFull() ([]string, zones) {
 		lines = append(lines, panel...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
+	if m.linking() {
+		// The startup screen: nothing in the body is clickable.
+		lines = append(lines, splash(w, bodyH)...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
 	// The panels go under the zones drawn in them, which stay on top.
 	if m.expanded {
 		// NOW PLAYING takes the list panel's place too.
@@ -176,7 +181,9 @@ func (m Model) listBodyWidth() int {
 }
 
 // renderCompact stacks the screen in one column: the nav bar takes the
-// header rule, the title line ends in the [<3] button, then the artist
+// header rule and, while access is linking, the startup screen (see
+// splash) the rest down to the status line; else the title line ends in
+// the [<3] button, then the artist
 // line, the transport row (packed), the volume row beside it while it fits
 // and the rule over the list, which the expanded player leaves out. The
 // one-row HUD of the full layout (hudRowCount) never fits here, narrower
@@ -196,6 +203,10 @@ func (m Model) renderCompact() ([]string, zones) {
 		zs.addBox(zonePanelOverlay, 0, len(lines), w, m.height-4)
 		zs.addAt(0, len(lines), pz)
 		lines = append(lines, panel...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
+	if m.linking() {
+		lines = append(lines, splash(w, m.height-4)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
 	// The player lines (title to buttons) and the list below them are the

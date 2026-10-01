@@ -125,17 +125,22 @@ func introQuiet(msg tea.Msg) bool {
 // before msg, did not (see the top of this file). The cells of an intro
 // still running go on scrambling where their text stayed, in the new one
 // or, with nothing new, in the same one.
+//
+// The first size, while access is linking, is compared with the empty
+// frame before it: the startup screen scrambles in (see splash).
 func (m Model) withIntro(prev Model, msg tea.Msg) Model {
-	if introQuiet(msg) {
+	_, sized := msg.(tea.WindowSizeMsg)
+	first := sized && prev.width <= 0 && prev.height <= 0 && m.linking()
+	if introQuiet(msg) && !first {
 		return m
 	}
 	if _, ok := msg.(tea.KeyPressMsg); ok && prev.typing() && m.typing() {
 		return m
 	}
-	if !m.introOn() || prev.width != m.width || prev.height != m.height {
+	if !m.introOn() || (!first && (prev.width != m.width || prev.height != m.height)) {
 		return m
 	}
-	before, _ := prev.baseLayout()
+	before, _ := prev.baseLayout() // none for the first size
 	after, zs := m.baseLayout()
 	now := m.now()
 	cells := map[int][]int{}
@@ -185,7 +190,8 @@ func (in intro) carried(now time.Time, before, after []string) (cells map[int][]
 type rowSpan struct{ y, x0, x1 int }
 
 // introRegions are the rows compared for new content: the KEYS or
-// SETTINGS overlay's inside while one is open (it hides the rest);
+// SETTINGS overlay's inside while one is open (it hides the rest); the
+// startup screen's body while access is linking (see splashRegion);
 // otherwise the list panel's inside, and the NOW PLAYING field rows in
 // the full layout; never the rows of the SEARCH input or the NEW
 // PLAYLIST name, where their zones put them.
@@ -208,6 +214,9 @@ func (m Model) introRegions(zs zones) [][]rowSpan {
 			rows = append(rows, rowSpan{z.y, z.x + 1, z.x + z.w - 1})
 		}
 		return [][]rowSpan{rows}
+	}
+	if m.linking() {
+		return [][]rowSpan{m.splashRegion()}
 	}
 	var inputs []int
 	for _, id := range []string{zoneInput, zoneNameInput} {

@@ -54,10 +54,47 @@ func TestVersionDefaultsToDev(t *testing.T) {
 	}
 }
 
+// Off a terminal (a pipe, a file, release.sh's check) --version prints
+// the bare version line, byte for byte as before the emblem.
 func TestPrintVersion(t *testing.T) {
 	var out bytes.Buffer
-	printVersion(&out)
+	printVersion(&out, false)
 	if got, want := out.String(), version+"\n"; got != want {
 		t.Fatalf("printVersion wrote %q; want %q", got, want)
+	}
+}
+
+// On a terminal it prints the compact emblem with the name and the
+// version beside it.
+func TestPrintVersionOnATerminal(t *testing.T) {
+	for _, tt := range []struct{ version, want string }{
+		{"dev", " ▄▀▀▄▀   NU11SIGNAL\n█ ▄▀ █   dev\n▄▀▄▄▀\n"},
+		{"0.3.0", " ▄▀▀▄▀   NU11SIGNAL\n█ ▄▀ █   v0.3.0\n▄▀▄▄▀\n"},
+	} {
+		saved := version
+		version = tt.version
+		var out bytes.Buffer
+		printVersion(&out, true)
+		version = saved
+		if got := out.String(); got != tt.want {
+			t.Errorf("printVersion(%s) on a terminal wrote\n%s\nwant\n%s", tt.version, got, tt.want)
+		}
+	}
+}
+
+func TestRunVersionAsksWhetherStdoutIsATerminal(t *testing.T) {
+	for _, terminal := range []bool{false, true} {
+		var out bytes.Buffer
+		code := run([]string{"--version"}, deps{stdout: &out, stderr: io.Discard, stdoutTerminal: func() bool { return terminal }})
+		if code != 0 {
+			t.Fatalf("run(--version) = %d; want 0", code)
+		}
+		if got := out.String() == version+"\n"; got == terminal {
+			t.Errorf("terminal %v: run(--version) wrote %q", terminal, out.String())
+		}
+	}
+	var out bytes.Buffer
+	if run([]string{"--version"}, deps{stdout: &out, stderr: io.Discard}); out.String() != version+"\n" {
+		t.Errorf("without a terminal check run(--version) wrote %q; want the bare version", out.String())
 	}
 }
