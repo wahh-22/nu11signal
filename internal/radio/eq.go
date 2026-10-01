@@ -1,7 +1,5 @@
 package radio
 
-import "strings"
-
 // eqBands is the number of bars the equalizer tracks; narrow views show a
 // prefix of them.
 const eqBands = 48
@@ -67,35 +65,6 @@ func (e eq) total() float64 {
 		sum += v
 	}
 	return sum
-}
-
-var eqGlyphs = []rune(" ▁▂▃▄▅▆▇█")
-
-// render draws the bands as height rows of block glyphs, top row first,
-// one band every other column so the bars read as a spectrum. Every row is
-// exactly width cells; bands beyond eqBands are left blank.
-func (e eq) render(width, height int) []string {
-	if width <= 0 || height <= 0 {
-		return nil
-	}
-	steps := len(eqGlyphs) - 1
-	rows := make([]string, height)
-	for r := range height {
-		var b strings.Builder
-		floor := (height - 1 - r) * steps // eighths below this row
-		for c := range width {
-			band := c / 2
-			if c%2 == 1 || band >= eqBands {
-				b.WriteByte(' ')
-				continue
-			}
-			level := int(e[band]*float64(height*steps) + 0.5)
-			fill := min(max(level-floor, 0), steps)
-			b.WriteRune(eqGlyphs[fill])
-		}
-		rows[r] = b.String()
-	}
-	return rows
 }
 
 // mix hashes its inputs with SplitMix64 finalization rounds.

@@ -1,9 +1,6 @@
 package radio
 
 import (
-	"cmp"
-	"math"
-	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -13,46 +10,27 @@ import (
 )
 
 // Signal effects: the screen now and then seems to lose the signal. Every
-// burstGapMin..burstGapMax a sharp burst of burstMin..burstMax tears a few
-// rows sideways, corrupts a handful of cells and may run a static bar;
+// burstGapMin..burstGapMax a short burst of burstMin..burstMax tears a
+// row or few sideways, corrupts a handful of cells and may run a static
+// bar;
 // one burst in noSignalOdds also flashes NO SIGNAL, framed in red static.
-// Midway between two bursts a slow text wave runs: for waveMin..waveMax
-// about waveShare of the letters on screen sweep into scrambled glyphs,
-// like the title on a song change, each cell keeping its own style, hold,
-// and type themselves back in one by one; the words stay partly readable.
 //
 // Everything is drawn over the finished frame (see Model.decorate), cell
 // for cell, so no line changes width and the clickable zones, laid out
 // from the undecorated frame, stay where they are. Timings and glyphs come
 // from the seed, the injected clock and the frame counter: tests replay
 // them exactly. No timer is added: the animation tick sleeps until the
-// next effect is due, and runs fast only while one animates (see
+// next burst is due, and runs fast only while one animates (see
 // effects.interval).
 const (
-	burstGapMin  = 20 * time.Second
-	burstGapMax  = 45 * time.Second
+	burstGapMin  = 10 * time.Second
+	burstGapMax  = 22 * time.Second
 	burstMin     = 600 * time.Millisecond
 	burstMax     = 1000 * time.Millisecond
 	noSignalOdds = 4
-	// A text wave scrambles waveShare of the letters for waveMin..waveMax.
-	// Each word starts at its own moment before waveRamp of the wave,
-	// sooner on the left so the wave sweeps across, holds, and resolves
-	// at its own moment from waveResolve on, most early, a few lingering.
-	// A word's letters turn one after another, left to right, over
-	// waveLetters of the wave; a scrambled cell shows a new glyph every
-	// waveGlyph, each cell at its own phase.
-	waveMin     = 1000 * time.Millisecond
-	waveMax     = 2000 * time.Millisecond
-	waveShare   = 0.40
-	waveRamp    = 0.35
-	waveResolve = 0.5
-	waveLetters = 0.1
-	waveGlyph   = 160 * time.Millisecond
 	// burstTick is the frame time during a burst (about 15 fps, playing
-	// or not), waveTick during a text wave (10 fps; while a song plays it
-	// rides its 10 fps tick). minWake keeps a late tick from spinning.
+	// or not). minWake keeps a late tick from spinning.
 	burstTick = 66 * time.Millisecond
-	waveTick  = 100 * time.Millisecond
 	minWake   = 10 * time.Millisecond
 )
 
@@ -62,10 +40,9 @@ const (
 	saltBurstLen
 	saltNoSignal
 	// 104 and 105 belonged to the retired status line alerts; skipping
-	// them keeps the streams below, and so every frame, as they were.
+	// them keeps the burst stream, and so every frame, as it was (107
+	// and 108 were the retired text wave's).
 	saltBurst uint64 = iota + 103
-	saltWaveLen
-	saltWave
 )
 
 // effects is the schedule of the signal effects. It is a value type:
@@ -81,12 +58,6 @@ type effects struct {
 	nextBurst            time.Time
 	burstStart, burstEnd time.Time
 	noSignal             bool
-	// waveSeq numbers the text waves; the latest runs from waveStart to
-	// waveEnd. nextWave, midway between the last burst (or the start)
-	// and the next, is zero once that wave ran.
-	waveSeq            uint64
-	nextWave           time.Time
-	waveStart, waveEnd time.Time
 }
 
 // advance moves the schedule to now. While the effects are not active
@@ -95,27 +66,17 @@ type effects struct {
 func (e effects) advance(now time.Time, seed uint64, active bool) effects {
 	if !active {
 		e.nextBurst, e.burstEnd = time.Time{}, time.Time{}
-		e.nextWave, e.waveEnd = time.Time{}, time.Time{}
 		return e
 	}
 	if e.nextBurst.IsZero() {
 		e.nextBurst = now.Add(span(mix(seed, saltBurstGap, e.burstSeq), burstGapMin, burstGapMax))
-		e.nextWave = midway(now, e.nextBurst)
 	}
-	switch {
-	case !now.Before(e.nextBurst):
-		// A wave still pending (a very late tick) gives way to the burst.
+	if !now.Before(e.nextBurst) {
 		e.burstSeq++
 		e.burstStart = now
 		e.burstEnd = now.Add(span(mix(seed, saltBurstLen, e.burstSeq), burstMin, burstMax))
 		e.noSignal = mix(seed, saltNoSignal, e.burstSeq)%noSignalOdds == 0
 		e.nextBurst = e.burstEnd.Add(span(mix(seed, saltBurstGap, e.burstSeq), burstGapMin, burstGapMax))
-		e.nextWave = midway(e.burstEnd, e.nextBurst)
-	case !e.nextWave.IsZero() && !now.Before(e.nextWave):
-		e.waveSeq++
-		e.waveStart = now
-		e.waveEnd = now.Add(span(mix(seed, saltWaveLen, e.waveSeq), waveMin, waveMax))
-		e.nextWave = time.Time{}
 	}
 	return e
 }
@@ -124,35 +85,18 @@ func (e effects) bursting(now time.Time) bool {
 	return !now.Before(e.burstStart) && now.Before(e.burstEnd)
 }
 
-func (e effects) waving(now time.Time) bool {
-	return !now.Before(e.waveStart) && now.Before(e.waveEnd)
-}
-
 // interval is the time to the next frame, d without the effects:
-// burstTick during a burst; during a text wave d when it is already as
-// fast as waveTick (the playing tick), else waveTick; either cut short at
-// the effect's end. Otherwise d cut short so that the next wave or burst
-// starts on time.
+// burstTick during a burst, cut short at its end; otherwise d cut short
+// so that the next burst starts on time.
 func (e effects) interval(now time.Time, d time.Duration) time.Duration {
 	if e.bursting(now) {
 		return max(min(burstTick, e.burstEnd.Sub(now)), minWake)
 	}
-	if e.waving(now) {
-		if d <= waveTick {
-			return d
-		}
-		return max(min(waveTick, e.waveEnd.Sub(now)), minWake)
-	}
-	for _, next := range []time.Time{e.nextWave, e.nextBurst} {
-		if !next.IsZero() {
-			d = min(d, max(next.Sub(now), minWake))
-		}
+	if !e.nextBurst.IsZero() {
+		d = min(d, max(e.nextBurst.Sub(now), minWake))
 	}
 	return d
 }
-
-// midway is the time halfway from a to b.
-func midway(a, b time.Time) time.Time { return a.Add(b.Sub(a) / 2) }
 
 // span maps a hash to a duration in [lo, hi).
 func span(h uint64, lo, hi time.Duration) time.Duration {
@@ -188,68 +132,16 @@ func (m Model) toggleEffects() Model {
 func (m Model) decorate(lines []string) []string {
 	now := m.now()
 	out := append([]string(nil), lines...)
-	spared := -1
 	frame := out
 	if m.status != "" && len(out) > 2 {
-		// A real status stays readable: text waves spare the status line
-		// and bursts the status and hint lines while one is showing.
-		spared = len(out) - 2
+		// A real status stays readable: bursts spare the status and hint
+		// lines while one is showing.
 		frame = out[:len(out)-2]
-	}
-	if m.fx.waving(now) {
-		m.textWave(out, spared, now)
 	}
 	if m.fx.bursting(now) {
 		m.burst(frame)
 	}
 	return out
-}
-
-// textRun is a word on line y: the cells of xs, next to each other.
-type textRun struct {
-	y  int
-	xs []int
-}
-
-// textWords finds the words in lines, but on line spared: the runs of
-// text cells with nothing between them. A text cell is one printable, one
-// cell wide character that is not a space, a border or a shade; a wide or
-// combined character ends a word, so it is never split. A line whose
-// characters do not add up to its width is left out.
-func textWords(lines []string, spared int) []textRun {
-	var words []textRun
-	for y, line := range lines {
-		if y == spared {
-			continue
-		}
-		var found []textRun
-		cur := textRun{y: y}
-		flush := func() {
-			if len(cur.xs) > 0 {
-				found = append(found, cur)
-			}
-			cur = textRun{y: y}
-		}
-		rs := []rune(ansi.Strip(line))
-		x := 0
-		for i, r := range rs {
-			w := runeWidth(r)
-			combined := i+1 < len(rs) && runeWidth(rs[i+1]) == 0
-			switch {
-			case w == 0:
-			case w == 1 && textRune(r) && !combined:
-				cur.xs = append(cur.xs, x)
-			default:
-				flush()
-			}
-			x += w
-		}
-		flush()
-		if x == ansi.StringWidth(line) {
-			words = append(words, found...)
-		}
-	}
-	return words
 }
 
 // runeWidth is the cell width of r, printable ASCII without a lookup.
@@ -260,90 +152,10 @@ func runeWidth(r rune) int {
 	return ansi.StringWidth(string(r))
 }
 
-// textRune reports whether r is text: printable, not a space, not a box
-// drawing border or a block shade, and not braille (the oscilloscope's
-// trace, see scopeViz).
+// textRune reports whether r is text: printable, not a space, and not a
+// box drawing border or a block shade.
 func textRune(r rune) bool {
-	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F) && (r < 0x2800 || r > 0x28FF)
-}
-
-// textWave scrambles the letters of the live text wave in lines, but on
-// line spared. All the text cells are ranked by a hash of the wave and
-// their place and the first waveShare of them scramble, so words stay
-// partly readable. A chosen cell turns in its word's window (see
-// waveWindow), the word's letters one after another; it holds a noise
-// glyph or a letter, a new one every waveGlyph. Only the characters of the
-// chosen cells change: every cell keeps its style, and the others their
-// text too.
-func (m Model) textWave(lines []string, spared int, now time.Time) {
-	words := textWords(lines, spared)
-	if len(words) == 0 {
-		return
-	}
-	type pick struct {
-		word, letter int
-		h            uint64
-	}
-	var picks []pick
-	for i, w := range words {
-		for j, x := range w.xs {
-			picks = append(picks, pick{i, j, mix(m.seed, saltWave, m.fx.waveSeq, uint64(w.y), uint64(x), 1)})
-		}
-	}
-	slices.SortFunc(picks, func(a, b pick) int { return cmp.Compare(a.h, b.h) })
-	chosen := make([][]bool, len(words))
-	for i, w := range words {
-		chosen[i] = make([]bool, len(w.xs))
-	}
-	for _, pk := range picks[:int(math.Ceil(waveShare*float64(len(picks))))] {
-		chosen[pk.word][pk.letter] = true
-	}
-
-	elapsed := now.Sub(m.fx.waveStart)
-	p := float64(elapsed) / float64(m.fx.waveEnd.Sub(m.fx.waveStart))
-	width := float64(max(m.width, 1))
-	repl := map[int]map[int]rune{}
-	for i, w := range words {
-		h := mix(m.seed, saltWave, m.fx.waveSeq, uint64(w.y), uint64(w.xs[0]))
-		on, off := waveWindow(h, min(float64(w.xs[0])/width, 1))
-		n := float64(len(w.xs))
-		for j, x := range w.xs {
-			// The letters turn in, and back, one after another.
-			lag := waveLetters * float64(j) / n
-			if !chosen[i][j] || p < on+lag || p >= off+lag {
-				continue
-			}
-			// Each cell changes glyph every waveGlyph at its own phase,
-			// so the flicker ripples instead of jumping all at once.
-			phase := time.Duration(mix(h, 2, uint64(j)) % uint64(waveGlyph))
-			c := mix(h, uint64((elapsed+phase)/waveGlyph), uint64(j))
-			glyph := glitchGlyphs[c>>16%uint64(len(glitchGlyphs))]
-			if c>>8%3 == 0 {
-				glyph = rune('A' + c>>24%26)
-			}
-			if repl[w.y] == nil {
-				repl[w.y] = map[int]rune{}
-			}
-			repl[w.y][x] = glyph
-		}
-	}
-	for y, cells := range repl {
-		lines[y] = setCells(lines[y], cells)
-	}
-}
-
-// waveWindow is when, as shares of the wave, the first letter of a word
-// with hash h starting at column share col scrambles and resolves. The
-// start falls before waveRamp (less the letters' lag), mostly by column
-// so the wave sweeps from the left, a few words at once. The resolve falls
-// in [waveResolve, 1) (less the lag), eased: a power of the draw bunches
-// most words early in the window and leaves a few to linger.
-func waveWindow(h uint64, col float64) (on, off float64) {
-	sweep := min(max(0.75*col+0.35*unit(mix(h, 3))-0.1, 0), 1)
-	on = (waveRamp - waveLetters) * sweep
-	u := 0.7*unit(mix(h, 1)) + 0.3*col
-	off = waveResolve + (1-waveResolve-waveLetters)*math.Pow(u, 1.6)
-	return on, off
+	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F)
 }
 
 // setCells replaces the characters of the one cell wide cells of line at
@@ -390,9 +202,10 @@ type burstLook struct {
 	sign    bool
 }
 
-// look is what the latest burst draws on animation frame frame of a frame
-// of n lines: 2..4 rows torn 1..3 cells sideways, a static bar on half
-// the frames, 6..14 corrupted cells (three times as many with NO SIGNAL)
+// look is what the latest burst draws on tick frame (every redraw, not
+// the animation steps: see Model.animate) of a frame of n lines: 1..3
+// rows torn 1..2 cells sideways, a static bar on one
+// frame in three, 4..10 corrupted cells (twice as many with NO SIGNAL)
 // and, on a NO SIGNAL burst, the sign. It changes every frame.
 func (e effects) look(seed, frame uint64, n int) burstLook {
 	l := burstLook{bar: -1, sign: e.noSignal}
@@ -401,16 +214,16 @@ func (e effects) look(seed, frame uint64, n int) burstLook {
 	}
 	r := mix(seed, saltBurst, e.burstSeq, frame)
 	rows := uint64(n)
-	for i := range 2 + r%3 {
+	for i := range 1 + r%3 {
 		h := mix(r, 1, i)
-		l.tears = append(l.tears, tear{y: int(h % rows), k: int(h>>8%3) + 1, right: h>>16%2 == 0})
+		l.tears = append(l.tears, tear{y: int(h % rows), k: int(h>>8%2) + 1, right: h>>16%2 == 0})
 	}
-	if r>>8%2 == 0 {
+	if r>>8%3 == 0 {
 		l.bar, l.barSeed = int(mix(r, 2)%rows), mix(r, 3)
 	}
-	noise := 6 + r>>16%9
+	noise := 4 + r>>16%7
 	if e.noSignal {
-		noise *= 3
+		noise *= 2
 	}
 	for i := range noise {
 		l.noise = append(l.noise, mix(r, 4, i))

@@ -114,7 +114,7 @@ func (m Model) stepBars() Model {
 		return m
 	}
 	playing := m.isPlaying()
-	m.bars = m.bars.step(playing, m.seed, m.frame)
+	m.bars = m.bars.step(playing, m.seed, m.animFrame)
 	m.barsDecorative = playing
 	return m
 }

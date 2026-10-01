@@ -21,8 +21,8 @@ type Options struct {
 	Now func() time.Time
 	// Seed drives the decorative EQ and glitch animations.
 	Seed uint64
-	// Effects starts the signal effects on: glitch bursts and text waves
-	// (see glitch.go). Off by default, and in tests, so frames stay fixed;
+	// Effects starts the signal effects on: glitch bursts and content
+	// intros (see glitch.go and intro.go). Off by default, and in tests, so frames stay fixed;
 	// keyEffects toggles them.
 	Effects bool
 	// CallTimeout bounds every Player call (default 8s).
@@ -32,8 +32,8 @@ type Options struct {
 	CloseTimeout time.Duration
 	// Recents keeps recent search terms; nil keeps them in memory only.
 	Recents history.Recents
-	// Config is the settings file, read once at startup (the visualizer,
-	// see viz.go); nil keeps the defaults.
+	// Config is the settings file, read once at startup (see onConfig);
+	// nil keeps the defaults.
 	Config config.Source
 }
 
@@ -58,7 +58,7 @@ const (
 // (tea.WithFPS). Bubble Tea's default, 60, wakes the process 60 times a
 // second even when nothing changed, most of its idle cost; 20 frames a
 // second is a frame period (50 ms) no longer than any animation step
-// (fastTick, waveTick, burstTick), so no animation frame is
+// (fastTick, introTick, burstTick), so no animation frame is
 // skipped, and it keeps a key press on screen within 50 ms.
 const RenderFPS = 20
 
@@ -228,8 +228,14 @@ type Model struct {
 	loopUntil   time.Time
 	loopSeq     uint64
 
-	frame uint64
-	bars  eq
+	// frame counts the ticks, every redraw of the effects included (a
+	// burst looks different on each); animFrame counts the animation
+	// steps, taken at the animation's own pace whatever the redraws (see
+	// animate), and animAt is when the latest one was due.
+	frame     uint64
+	animFrame uint64
+	animAt    time.Time
+	bars      eq
 	// levels delivers the player's spectrum readings (nil when it cannot
 	// measure); spectrum is the latest, taken at spectrumAt. playSince is
 	// when playback started (zero while it does not play). barsDecorative
@@ -242,11 +248,9 @@ type Model struct {
 	barsDecorative bool
 	barsHandover   int
 	glitch         int
-	// viz is the visualizer the spectrum area draws, vizKind which one;
-	// vizMode is the setting, from configSource (see vizstate.go).
-	viz          visualizer
-	vizKind      vizKind
-	vizMode      vizMode
+	// rain is the visualizer the spectrum area draws (see viz.go);
+	// configSource the settings file (see vizstate.go).
+	rain         rainViz
 	configSource config.Source
 	// tickGen identifies the live tick chain; ticks from older chains are
 	// dropped so rescheduling never doubles the frame rate.
@@ -296,7 +300,6 @@ func New(p playback.Player, opts Options) Model {
 		stack:        []frame{{kind: viewStations}},
 		volumeBusy:   true, // Init reads the volume
 		fx:           effects{on: opts.Effects},
-		viz:          barsViz{},
 		configSource: opts.Config,
 
 		input:         in,
@@ -309,7 +312,7 @@ func New(p playback.Player, opts Options) Model {
 // Init authorizes, loads recent searches and the settings, reads the volume, starts
 // listening to the player, and starts animating.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.loadConfigCmd(), m.readVolumeCmd(0), m.waitStates(), m.waitErrors(), tickAfter(idleTick, m.tickGen))
+	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.loadConfigCmd(), m.readVolumeCmd(0), m.waitStates(), m.waitErrors(), tickAfter(idleTick, tickMsg{gen: m.tickGen}))
 }
 
 // Messages produced by the model's commands.
@@ -345,7 +348,13 @@ type (
 	statesClosedMsg struct{}
 	playerErrMsg    struct{ err error }
 	errorsClosedMsg struct{}
-	tickMsg         struct{ gen uint64 }
+	// tickMsg is a frame of tick chain gen; redraw says the effects
+	// brought it early, so it steps the animation only when due (see
+	// animate).
+	tickMsg struct {
+		gen    uint64
+		redraw bool
+	}
 )
 
 func (m Model) ctx() (context.Context, context.CancelFunc) {
@@ -432,7 +441,23 @@ func (m Model) waitErrors() tea.Cmd {
 func (m *Model) scheduleTick() tea.Cmd {
 	m.tickGen++
 	m.tickFast = m.animating()
-	return tickAfter(m.tickInterval(), m.tickGen)
+	return tickAfter(m.tickInterval(), m.nextTick())
+}
+
+// nextTick is the tick the chain scheduled now delivers: a redraw when
+// the effects brought it before the animation's own interval (see
+// animate).
+func (m Model) nextTick() tickMsg {
+	return tickMsg{gen: m.tickGen, redraw: m.tickInterval() < m.animInterval()}
+}
+
+// animInterval is the animation's own pace: fastTick while something
+// moves, else idleTick.
+func (m Model) animInterval() time.Duration {
+	if m.tickFast {
+		return fastTick
+	}
+	return idleTick
 }
 
 // tickInterval is the time to the next frame: fastTick while something
@@ -453,12 +478,12 @@ func (m Model) tickInterval() time.Duration {
 	return d
 }
 
-func tickAfter(d time.Duration, gen uint64) tea.Cmd {
-	return tea.Tick(d, func(time.Time) tea.Msg { return tickMsg{gen: gen} })
+func (m Model) animating() bool {
+	return m.isPlaying() || !m.bars.flat() || m.glitch > 0 || m.introAnimating()
 }
 
-func (m Model) animating() bool {
-	return m.isPlaying() || !m.bars.flat() || !m.viz.Idle() || m.glitch > 0 || m.introAnimating()
+func tickAfter(d time.Duration, msg tickMsg) tea.Cmd {
+	return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 }
 
 func (m Model) isPlaying() bool {

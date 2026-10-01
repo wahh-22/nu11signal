@@ -40,25 +40,3 @@ func TestEQDecaysToFlatWhenNotPlaying(t *testing.T) {
 		t.Fatalf("eq not flat after paused frames: %v", e)
 	}
 }
-
-func TestEQRenderShape(t *testing.T) {
-	var e eq
-	for frame := uint64(0); frame < 5; frame++ {
-		e = e.step(true, 3, frame)
-	}
-	rows := e.render(10, 3)
-	if len(rows) != 3 {
-		t.Fatalf("got %d rows, want 3", len(rows))
-	}
-	for i, r := range rows {
-		if n := len([]rune(r)); n != 10 {
-			t.Errorf("row %d has %d cells, want 10: %q", i, n, r)
-		}
-	}
-	if rows := e.render(0, 0); len(rows) != 0 {
-		t.Errorf("zero size rendered %d rows", len(rows))
-	}
-	if rows := e.render(-1, -1); len(rows) != 0 {
-		t.Errorf("negative size rendered %d rows", len(rows))
-	}
-}

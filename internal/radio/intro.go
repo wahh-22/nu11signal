@@ -1,6 +1,7 @@
 package radio
 
 import (
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -11,8 +12,9 @@ import (
 
 // Content intros: text that was not on screen — another tab or page, a
 // list or search results arriving, the playlist picker or editor opening,
-// a new artist, album or feed in NOW PLAYING — scrambles in with the
-// glyphs of the song title's glitch and resolves left to right over
+// a new artist, album or feed in NOW PLAYING — scrambles in softly, about
+// introShare of its cells in light glyphs (introGlyphs: letters, digits,
+// a few thin symbols), and resolves left to right, easing out, over
 // introDur, each cell keeping its style.
 //
 // What is new is found by comparing frames, but only where content lives
@@ -39,15 +41,29 @@ import (
 // draw over the finished frame with setCells, so no width or zone
 // changes, and the tick runs at introTick only while one animates.
 const (
-	introDur = 400 * time.Millisecond
-	// Every new cell stays scrambled for introHold of the intro, then
-	// resolves at its column's share of the rest, give or take
-	// introJitter; a scrambled cell shows a new glyph every introGlyph.
-	introHold   = 0.3
+	introDur = 900 * time.Millisecond
+	// introShare of the new cells scramble, each cell's lot drawn from
+	// the seed (see introScrambles); the others show their text at once.
+	// A scrambled cell stays so for introHold of the intro, then resolves
+	// as the eased front (see introResolve) passes its column, give or
+	// take introJitter. It shows a new glyph every introGlyph, each at its
+	// own phase, so the text drifts instead of jumping; the tick runs at
+	// introTick, the renderer's frame, so every change and every step of
+	// the front reaches the screen.
+	introShare  = 0.5
+	introHold   = 0.2
 	introJitter = 0.1
-	introGlyph  = 50 * time.Millisecond
+	introGlyph  = 140 * time.Millisecond
 	introTick   = 50 * time.Millisecond
 )
+
+// introGlyphs are what a scrambled cell shows: uppercase letters, digits
+// and a few thin symbols, no blocks or shades (the title glitch and the
+// bursts keep theirs, see glitchGlyphs and noiseGlyphs).
+var introGlyphs = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=:/<>")
+
+// introScrambles reports whether the new cell with hash h scrambles.
+func introScrambles(h uint64) bool { return unit(mix(h, 2)) < introShare }
 
 const saltIntro uint64 = 401
 
@@ -296,10 +312,11 @@ func rowText(cells []rune, r rowSpan) string {
 	return b.String()
 }
 
-// drawIntro scrambles the cells of the running intro in lines: each holds
-// a glitch glyph, a new one every introGlyph, until its moment to resolve,
-// the columns from the left to the right (see introResolve). A cell that
-// no longer holds text is left alone.
+// drawIntro scrambles the cells of the running intro in lines, those
+// whose lot says so (see introScrambles): each holds an intro glyph, a
+// new one every introGlyph at its own phase, until its moment to
+// resolve, the columns from the left to the right (see introResolve). A
+// cell that no longer holds text is left alone.
 func (m Model) drawIntro(lines []string) {
 	now := m.now()
 	if !m.intro.running(now) {
@@ -316,7 +333,7 @@ func (m Model) drawIntro(lines []string) {
 	}
 	elapsed := now.Sub(m.intro.start)
 	p := float64(elapsed) / float64(introDur)
-	n := uint64(len(glitchGlyphs))
+	n := uint64(len(introGlyphs))
 	for y, xs := range m.intro.cells {
 		if y >= len(lines) {
 			continue
@@ -328,11 +345,11 @@ func (m Model) drawIntro(lines []string) {
 				continue
 			}
 			h := mix(m.seed, saltIntro, m.intro.seq, uint64(y), uint64(x))
-			if p >= introResolve(h, float64(x-lo)/float64(max(hi-lo, 1))) {
+			if !introScrambles(h) || p >= introResolve(h, float64(x-lo)/float64(max(hi-lo, 1))) {
 				continue
 			}
 			phase := time.Duration(h % uint64(introGlyph))
-			repl[x] = glitchGlyphs[mix(h, uint64((elapsed+phase)/introGlyph))%n]
+			repl[x] = introGlyphs[mix(h, uint64((elapsed+phase)/introGlyph))%n]
 		}
 		if len(repl) > 0 {
 			lines[y] = setCells(lines[y], repl)
@@ -342,6 +359,9 @@ func (m Model) drawIntro(lines []string) {
 
 // introResolve is when, as a share of the intro, the cell with hash h at
 // column share col resolves: after introHold, the further right the later.
+// The front eases out, 1-(1-t)² of the columns resolved at share t of the
+// resolve: it sweeps the left fast and settles gently on the right.
 func introResolve(h uint64, col float64) float64 {
-	return introHold + (1-introHold-introJitter)*col + introJitter*unit(mix(h, 1))
+	eased := 1 - math.Sqrt(1-min(max(col, 0), 1))
+	return introHold + (1-introHold-introJitter)*eased + introJitter*unit(mix(h, 1))
 }
