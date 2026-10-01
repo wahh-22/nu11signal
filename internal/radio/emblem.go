@@ -172,7 +172,7 @@ func splash(w, h int) []string {
 		}
 	}
 	block = append(block, strings.Repeat(" ", max((w-ansi.StringWidth(line))/2, 0))+stMuted.Render(line))
-	lines := make([]string, max((h-len(block))/2, 0), h)
+	lines := make([]string, max((h-len(block))/2, 0), max(h, 0))
 	lines = append(lines, block...)
 	for len(lines) < h {
 		lines = append(lines, "")

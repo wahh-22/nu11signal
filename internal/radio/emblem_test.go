@@ -222,3 +222,13 @@ func TestLinkingBlueGolden80x24(t *testing.T) {
 	useTheme(t, "BLUE")
 	assertGolden(t, "linking_blue_80x24.golden", m.View().Content)
 }
+
+func TestSplashSurvivesNoRoom(t *testing.T) {
+	// A body with no rows left (a terminal at the full layout's edge)
+	// draws nothing instead of panicking.
+	for _, h := range []int{-3, 0, 1} {
+		if got := splash(80, h); len(got) > max(h, 1) {
+			t.Fatalf("splash(80, %d) drew %d lines", h, len(got))
+		}
+	}
+}
