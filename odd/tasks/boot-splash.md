@@ -22,3 +22,4 @@ User feedback 2026-10-01: (1) quitting while music plays makes a pop like a mic 
 ## Next step
 - Review/commit B1+B2 as a work unit; confirm B3 by ear, then review/commit it as its own work unit.
 - B1+B2 commit `386713d`. Review (main..386713d): high, 770 lines, consent granted, 4 lenses, lineage `review-26f5f07588bb13ca`, APPROVED, acknowledged (burned). Advisories (not scheduled): tiny-layout boot swallows the first key; boot glitch precedence/naming; quit modal width literals; boot resize untested.
+- B3 commit `2901c27`. Review (386713d..2901c27): medium, 417 lines, consent granted, consolidated lens, lineage `review-90fc7d166b5f0647`, APPROVED, acknowledged (burned). Advisory: if the player does not report paused within 0.15 s teardown proceeds anyway (gain is already 0, so silent by design); fading-word selection untested. Pending: user confirms by ear that the pop is gone.
