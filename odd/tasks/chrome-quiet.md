@@ -9,3 +9,5 @@ Drop the NIGHT CITY RADIO subtitle, push the key hint footer into the background
 
 ## Progress
 - Created 2026-10-01 on branch `feat/chrome-quiet` from main 4452172.
+- C1 review: commit `4185ab0`, medium, 141 lines, consent granted, consolidated lens, lineage `review-02301bc81a078fb2`, APPROVED, acknowledged (burned). Advisory: keyCap may be orphaned; header test covers only the wide variant.
+- C2: font comparison published at https://claude.ai/artifact/Rs4T6S9nA2g4YeafVvqh72 (Kode Mono recommended); awaiting the user's pick.
