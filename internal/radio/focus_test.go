@@ -618,6 +618,10 @@ func TestFitHintsMatchesRestylingEveryCandidate(t *testing.T) {
 		return strings.Join(parts, "  ")
 	}
 	reference := func(hints []hint, w int) string {
+		// SETTINGS goes first, before any hint is shortened.
+		if ansi.StringWidth(join(hints)) > w {
+			hints = slices.DeleteFunc(slices.Clone(hints), func(h hint) bool { return h == settingsHint })
+		}
 		if ansi.StringWidth(join(hints)) > w {
 			hints = shortHints(hints)
 		}

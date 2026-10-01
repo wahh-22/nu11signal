@@ -1,6 +1,7 @@
 package radio
 
 import (
+	"image/color"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -8,34 +9,107 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Night City palette. The terminal's own background is left alone; only the
-// selected row gets a dark fill.
+// A theme is the palette every style of the UI is drawn from, by role.
+// The terminal's own background is left alone; only the selected row gets
+// a dark fill.
+type theme struct {
+	// name is the theme as SETTINGS lists it and config.json stores it.
+	name string
+	// red draws titles, labels and hints; redDeep the focused frames;
+	// cyan and yellow the highlights (yellow also the active fills);
+	// dim and muted what sits behind; selectBg fills the selected row and
+	// ink is the text on a fill; alert draws what must read as danger
+	// (the NO SIGNAL sign).
+	red, redDeep, cyan, yellow, dim, muted, selectBg, ink, alert string
+}
+
+// themes are the themes SETTINGS offers, the default first.
+var themes = []theme{
+	{
+		name: "NIGHT CITY",
+		red:  "#FF5F57", redDeep: "#E8554E", cyan: "#5EF6FF", yellow: "#FCEE0A",
+		dim: "#5A1E1E", muted: "#9A3B37", selectBg: "#0E2A2F", ink: "#0A0A0A",
+		alert: "#FF5F57",
+	},
+	{
+		// BLUE is the gentleman-blue palette.
+		name: "BLUE",
+		red:  "#347AFF", redDeep: "#2A62CC", cyan: "#5CE1FF", yellow: "#FFD23D",
+		dim: "#1C2C54", muted: "#4A5578", selectBg: "#10182E", ink: "#05070F",
+		alert: "#FF3D81",
+	},
+}
+
+// themeNamed is the theme called name, case aside.
+func themeNamed(name string) (theme, bool) {
+	for _, t := range themes {
+		if strings.EqualFold(t.name, strings.TrimSpace(name)) {
+			return t, true
+		}
+	}
+	return theme{}, false
+}
+
+// The palette and the styles drawn from it are package state, rebuilt by
+// applyTheme: every renderer reads them, and threading a theme through
+// all of them would touch nearly every function of the package for a
+// value that changes only when SETTINGS applies one. Only Update (the
+// program's event loop, which also draws) and New change it; tests run
+// one at a time (none calls t.Parallel) and put NIGHT CITY back after
+// changing it.
 var (
-	colRed      = lipgloss.Color("#FF5F57")
-	colRedDeep  = lipgloss.Color("#E8554E")
-	colCyan     = lipgloss.Color("#5EF6FF")
-	colYellow   = lipgloss.Color("#FCEE0A")
-	colDim      = lipgloss.Color("#5A1E1E")
-	colMuted    = lipgloss.Color("#9A3B37")
-	colSelectBg = lipgloss.Color("#0E2A2F")
-	colInk      = lipgloss.Color("#0A0A0A")
+	colRed, colRedDeep, colCyan, colYellow  color.Color
+	colDim, colMuted, colSelectBg, colInk   color.Color
+	colAlert                                color.Color
+	stRed, stRedBold, stFrame, stFrameDim   lipgloss.Style
+	stCyan, stCyanBold, stYellow, stYellowB lipgloss.Style
+	stDim, stMuted, stSelected, stAlert     lipgloss.Style
+	stAlertBold                             lipgloss.Style
+	// stButtonOn fills the active button: dark ink on the yellow.
+	stButtonOn lipgloss.Style
 )
 
-var (
-	stRed      = lipgloss.NewStyle().Foreground(colRed)
-	stRedBold  = stRed.Bold(true)
-	stFrame    = lipgloss.NewStyle().Foreground(colRedDeep)
+func init() { applyTheme(themes[0]) }
+
+// applyTheme rebuilds the palette, every style and the visualizer's
+// inks from t. The text inputs copy their styles: the Model sets them
+// again (see Model.setTheme).
+func applyTheme(t theme) {
+	colRed = lipgloss.Color(t.red)
+	colRedDeep = lipgloss.Color(t.redDeep)
+	colCyan = lipgloss.Color(t.cyan)
+	colYellow = lipgloss.Color(t.yellow)
+	colDim = lipgloss.Color(t.dim)
+	colMuted = lipgloss.Color(t.muted)
+	colSelectBg = lipgloss.Color(t.selectBg)
+	colInk = lipgloss.Color(t.ink)
+	colAlert = lipgloss.Color(t.alert)
+
+	stRed = lipgloss.NewStyle().Foreground(colRed)
+	stRedBold = stRed.Bold(true)
+	stFrame = lipgloss.NewStyle().Foreground(colRedDeep)
 	stFrameDim = lipgloss.NewStyle().Foreground(colDim)
-	stCyan     = lipgloss.NewStyle().Foreground(colCyan)
+	stCyan = lipgloss.NewStyle().Foreground(colCyan)
 	stCyanBold = stCyan.Bold(true)
-	stYellow   = lipgloss.NewStyle().Foreground(colYellow)
-	stYellowB  = stYellow.Bold(true)
-	stDim      = lipgloss.NewStyle().Foreground(colDim)
-	stMuted    = lipgloss.NewStyle().Foreground(colMuted)
+	stYellow = lipgloss.NewStyle().Foreground(colYellow)
+	stYellowB = stYellow.Bold(true)
+	stDim = lipgloss.NewStyle().Foreground(colDim)
+	stMuted = lipgloss.NewStyle().Foreground(colMuted)
 	stSelected = lipgloss.NewStyle().Foreground(colCyan).Background(colSelectBg).Bold(true)
-	// stButtonOn fills the active button: dark ink on neon yellow.
+	stAlert = lipgloss.NewStyle().Foreground(colAlert)
+	stAlertBold = stAlert.Bold(true)
 	stButtonOn = lipgloss.NewStyle().Foreground(colInk).Background(colYellow).Bold(true)
-)
+
+	vizInks = []ink{
+		inkNone:    {},
+		inkYellow:  inkOf(stYellow),
+		inkRedBold: inkOf(stRedBold),
+		inkRed:     inkOf(stRed),
+		inkMuted:   inkOf(stMuted),
+		inkDim:     inkOf(stDim),
+	}
+	noiseStyles = []lipgloss.Style{stRed, stCyan, stYellow, stFrameDim}
+}
 
 func inputStyles() textinput.Styles {
 	s := textinput.DefaultDarkStyles()

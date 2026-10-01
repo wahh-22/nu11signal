@@ -1,6 +1,7 @@
 package radio
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -21,9 +22,9 @@ func statusOf(m Model) string {
 	return strings.TrimRight(lines[len(lines)-2], " ")
 }
 
-// crumbOf is the breadcrumb at the right of the nav bar: the text
+// nodeOf is the flavor text at the right of the nav bar: the text
 // between the rule and its closing "──".
-func crumbOf(t *testing.T, m Model) string {
+func nodeOf(t *testing.T, m Model) string {
 	t.Helper()
 	nav := strings.TrimSuffix(strings.TrimRight(navOf(m), " "), "──")
 	i := strings.LastIndex(nav, "─ ")
@@ -33,55 +34,82 @@ func crumbOf(t *testing.T, m Model) string {
 	return strings.TrimSpace(nav[i+len("─ "):])
 }
 
-func TestTheNavBarNamesWhereYouAre(t *testing.T) {
+var nodePattern = regexp.MustCompile(`^NODE [0-9A-F]{2} // NC-GRID$`)
+
+func TestTheNavBarShowsANetNode(t *testing.T) {
 	f := playbacktest.New()
 	f.SearchCatalogResult = catalog()
-	f.SongAlbumResult = discovery()
 	root := loaded(t, f, newClock())
-
-	check := func(name string, m Model, want string) {
+	want := nodeOf(t, root)
+	if !nodePattern.MatchString(want) {
+		t.Fatalf("nav %q; want a NODE xx // NC-GRID readout, got %q", navOf(root), want)
+	}
+	// The readout is flavor, not a breadcrumb: the same wherever the list
+	// panel is.
+	check := func(name string, m Model) {
 		t.Helper()
-		if got := crumbOf(t, m); got != want {
-			t.Errorf("%s: breadcrumb %q; want %q (nav %q)", name, got, want, navOf(m))
+		nav := navOf(m)
+		if got := nodeOf(t, m); got != want {
+			t.Errorf("%s: node %q; want %q (nav %q)", name, got, want, nav)
 		}
-		if strings.Contains(navOf(m), "RDO-77") {
-			t.Errorf("%s: the nav bar still shows the serial code: %q", name, navOf(m))
+		if strings.Contains(nav, "PLAYLISTS //") || strings.Contains(nav, "SEARCH //") {
+			t.Errorf("%s: the nav bar still shows a breadcrumb: %q", name, nav)
 		}
 	}
-	check("root", root, "PLAYLISTS")
-	page := openStation(t, root, 0)
-	check("library playlist", page, "PLAYLISTS // NIGHT DRIVE")
-	page.setCursor(1) // the first track
-	picker, _ := press(t, page, "a")
-	check("picker", picker, "PLAYLISTS // ADD TO PLAYLIST")
-
+	check("page", openStation(t, root, 0))
 	search, _ := press(t, root, "/")
-	check("search", search, "SEARCH")
-	found := searchFor(t, root, "daft")
-	results, _ := press(t, found, "enter")
-	check("results", results, "SEARCH // RESULTS")
-	artist, _ := press(t, found, "down", "down", "down", "enter")
-	check("artist", artist, "SEARCH // DAFT PUNK")
-	check("song", openSong(t, f, 0), "SEARCH // DISCOVERY")
+	check("search", search)
+	results, _ := press(t, searchFor(t, root, "daft"), "enter")
+	check("results", results)
 }
 
-func TestTheBreadcrumbIsCutToFit(t *testing.T) {
-	f := playbacktest.New()
-	detail := nightDrive()
-	detail.Playlist.Name = "Songs For The Longest Drive Through Night City Ever"
-	f.LibraryPlaylistResult = detail
-	m := openStation(t, loaded(t, f, newClock()), 0)
-	nav := navOf(m)
-	if w := ansi.StringWidth(nav); w > 80 {
-		t.Fatalf("nav %d cells: %q", w, nav)
+func TestTheNetNodeFollowsTheSeed(t *testing.T) {
+	node := func(seed uint64) string {
+		m := New(playbacktest.New(), Options{Now: newClock().now, Seed: seed})
+		m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+		return nodeOf(t, m)
 	}
-	if !strings.Contains(nav, "PLAYLISTS // SONGS FOR") || !strings.Contains(nav, "…") || !strings.HasSuffix(strings.TrimRight(nav, " "), "──") {
-		t.Fatalf("nav %q; want the breadcrumb cut with … inside its frame", nav)
+	if a, b := node(2077), node(2077); a != b {
+		t.Fatalf("seed 2077 gave %q then %q", a, b)
 	}
-	// With no room left, the breadcrumb goes, the bar stays whole.
-	m, _ = step(t, m, tea.WindowSizeMsg{Width: 44, Height: 14})
-	if nav := navOf(m); strings.Contains(nav, "PLAYLISTS //") || !strings.Contains(nav, "BACK") {
-		t.Fatalf("narrow nav %q; want the tabs without the breadcrumb", nav)
+	seen := map[string]bool{}
+	for seed := range uint64(32) {
+		n := node(seed)
+		if !nodePattern.MatchString(n) {
+			t.Fatalf("seed %d: node %q", seed, n)
+		}
+		seen[n] = true
+	}
+	if len(seen) < 4 {
+		t.Fatalf("32 seeds gave only %d nodes: %v", len(seen), seen)
+	}
+}
+
+func TestTheNetNodeIsCutToFit(t *testing.T) {
+	m := openStation(t, loaded(t, playbacktest.New(), newClock()), 0)
+	full := nodeOf(t, m)
+	var cut, gone bool
+	for w := 44; w <= 80; w++ {
+		m, _ = step(t, m, tea.WindowSizeMsg{Width: w, Height: 24})
+		nav := navOf(m)
+		if got := ansi.StringWidth(nav); got > w {
+			t.Fatalf("at %d cells nav %d cells: %q", w, got, nav)
+		}
+		if !strings.Contains(nav, "BACK") {
+			t.Fatalf("at %d cells nav %q lost the bar", w, nav)
+		}
+		switch got := nodeOf(t, m); {
+		case got == full:
+		case strings.HasSuffix(got, "…") && strings.HasPrefix(full, strings.TrimSuffix(got, "…")):
+			cut = true
+		case !strings.Contains(nav, "NODE"):
+			gone = true
+		default:
+			t.Fatalf("at %d cells nav %q; want the node whole, cut with … or gone", w, nav)
+		}
+	}
+	if !cut || !gone {
+		t.Fatalf("cut %v gone %v; want both between 44 and 80 cells", cut, gone)
 	}
 }
 

@@ -58,14 +58,8 @@ const (
 	inkDim
 )
 
-var vizInks = []ink{
-	inkNone:    {},
-	inkYellow:  inkOf(stYellow),
-	inkRedBold: inkOf(stRedBold),
-	inkRed:     inkOf(stRed),
-	inkMuted:   inkOf(stMuted),
-	inkDim:     inkOf(stDim),
-}
+// vizInks are the inks by number, from the theme (see applyTheme).
+var vizInks []ink
 
 // canvas is a w x h grid of one-cell glyphs, each with an ink, that
 // renders to styled lines.

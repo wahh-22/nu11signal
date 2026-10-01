@@ -27,6 +27,8 @@ type configSource struct {
 
 func (s configSource) Load() (config.Config, error) { return s.cfg, s.err }
 
+func (configSource) Save(config.Config) error { return nil }
+
 // withConfig is a loaded model that read src at startup.
 func withConfig(t *testing.T, f *playbacktest.Fake, c *clock, src config.Source) Model {
 	t.Helper()
@@ -703,19 +705,20 @@ func TestRainGolden80x24(t *testing.T) {
 }
 
 // barsPalette are the escape codes the bars colored with, and the theme's
-// dim reds the rain's trails use.
-var barsPalette = func() map[string]bool {
+// dim reds the rain's trails use, in the theme applied.
+func barsPalette() map[string]bool {
 	ok := map[string]bool{}
 	for _, st := range []lipgloss.Style{stRed, stRedBold, stYellow, stMuted, stDim} {
 		k := inkOf(st)
 		ok[k.pre], ok[k.post] = true, true
 	}
 	return ok
-}()
+}
 
 var sgrPattern = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
 
 func TestRainUsesTheBarsPalette(t *testing.T) {
+	palette := barsPalette()
 	bright := []string{inkOf(stYellow).pre, inkOf(stRedBold).pre, inkOf(stRed).pre}
 	for _, real := range []bool{true, false} {
 		t.Run(fmt.Sprintf("real=%v", real), func(t *testing.T) {
@@ -725,7 +728,7 @@ func TestRainUsesTheBarsPalette(t *testing.T) {
 				out.WriteString(strings.Join(v.Render(40, 12), "\n"))
 			}
 			for _, seq := range sgrPattern.FindAllString(out.String(), -1) {
-				if !barsPalette[seq] {
+				if !palette[seq] {
 					t.Fatalf("escape %q is not in the bars' palette", seq)
 				}
 			}

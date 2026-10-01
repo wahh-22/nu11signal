@@ -182,7 +182,8 @@ func setCells(line string, cells map[int]rune) string {
 // noiseGlyphs replace cells during a burst.
 var noiseGlyphs = []string{"░", "▒", "▓", "█", "▚", "▞", "0", "1", "3", "7", "A", "C", "E", "F"}
 
-var noiseStyles = []lipgloss.Style{stRed, stCyan, stYellow, stFrameDim}
+// noiseStyles color the noise cells, from the theme (see applyTheme).
+var noiseStyles []lipgloss.Style
 
 // tear is row y torn k cells sideways.
 type tear struct {
@@ -256,8 +257,8 @@ func (m Model) burst(lines []string) {
 	}
 }
 
-// noSignalFlash draws the NO SIGNAL sign in bold red, framed in red
-// static, in the middle of the frame:
+// noSignalFlash draws the NO SIGNAL sign in the bold alert color (red),
+// framed in its static, in the middle of the frame:
 //
 //	▓▒░▒▓░▒▓▒░▓▒░▒▓░▒▓▒░▓▒░▒▓
 //	▒▓   N O   S I G N A L  ▓▒
@@ -268,9 +269,9 @@ func (m Model) noSignalFlash(lines []string, r uint64) {
 	x := max((m.width-signW)/2, 0)
 	y := max(len(lines)/2-1, 0)
 	rows := []string{
-		stRed.Render(static(signW, mix(r, 5))),
-		stRed.Render("▒▓") + stRedBold.Render(sign) + stRed.Render("▓▒"),
-		stRed.Render(static(signW, mix(r, 6))),
+		stAlert.Render(static(signW, mix(r, 5))),
+		stAlert.Render("▒▓") + stAlertBold.Render(sign) + stAlert.Render("▓▒"),
+		stAlert.Render(static(signW, mix(r, 6))),
 	}
 	for i, row := range rows {
 		if y+i < len(lines) {

@@ -343,6 +343,7 @@ PLAYLISTS (and anywhere the key is not taken by the view):
 | `x` | Turn the signal effects off or on (see [Signal effects](#signal-effects)) |
 | `q` / `ctrl+c` | Quit |
 | `?` | Open or close KEYS, the list of every key (see below) |
+| `s` | Open or close SETTINGS, the color themes (see [Settings](#settings)) |
 
 SEARCH (typing goes to the input, so letter shortcuts are off):
 
@@ -419,16 +420,17 @@ list, as it was left (on SEARCH, the same row or the input).
 The footer names the keys of the side and view in focus; when it does not
 fit, it keeps the essential ones first (on the playlists: `enter`, `/`,
 `space`, `→`) and always `[?] KEYS` and quit (where `?` is typed, on SEARCH
-and in the NEW PLAYLIST name, only quit).
+and in the NEW PLAYLIST name, only quit). `[S] SETTINGS` shows only where
+the whole footer fits.
 
 `?` opens KEYS, every binding grouped (PLAYBACK, NAVIGATION, VIEW, SEARCH,
 APP) in a panel over the body, wherever `q` quits (on SEARCH and in the
 NEW PLAYLIST name `?` is typed). `?` or `esc` (or a click) closes it; while
 it is open the other keys do nothing, `q` included, and `ctrl+c` quits.
 
-The HUD names live state: the nav bar ends in a breadcrumb of where you
-are (`PLAYLISTS // TOCAYO`, `SEARCH // RESULTS`, `SEARCH // DAFT PUNK`, cut
-to fit); the NOW PLAYING frame says where the rain's levels come from
+The HUD names live state: the nav bar ends in the Night City net node the
+radio is patched through (`NODE 7F // NC-GRID`, flavor, fixed for a session
+by its seed, cut to fit); the NOW PLAYING frame says where the rain's levels come from
 (`SPECTRUM LIVE` from the player's readings, `SPECTRUM SIM` animated,
 `SPECTRUM HOLD` paused or stopped); and with no message the status line
 names the song `n` moves to (`UP NEXT // RESONANCE · HOME`) when the song
@@ -496,9 +498,39 @@ animation frames, from the seed: the signal effects run over it.
 The other visualizers (bars, oscilloscope, synthwave, random) and the `v`
 key are gone. A `nu11signal/config.json` under `os.UserConfigDir()`
 (`~/Library/Application Support/nu11signal/config.json` on macOS) is still
-read, once at startup and never written, but its `"visualizer"` value,
+read once at startup (it also holds the theme, see [Settings](#settings)),
+but its `"visualizer"` value,
 whatever it names, is accepted and ignored without a notice; a file that is
 not valid JSON says so once on the status line.
+
+## Settings
+
+`s` opens SETTINGS, a panel over the body like KEYS, wherever `?` opens
+KEYS (on SEARCH and in the NEW PLAYLIST name `s` is typed). Its THEMES
+section lists the color themes, the active one marked `◉`:
+
+| Theme | Look |
+|-------|------|
+| `NIGHT CITY` | The default: neon red frames and text, cyan and yellow highlights |
+| `BLUE` | The gentleman-blue palette: electric blue frames and text, cyan and yellow highlights, pink alerts |
+
+`↑`/`↓` move, `enter` (or a click on a row) applies the theme at once, the
+whole UI recolored (frames, text, buttons, the rain, the signal effects),
+and the panel stays open to compare; `s` or `esc` (or a click off the rows)
+closes it. The other keys do nothing while it is open; `ctrl+c` quits.
+
+The choice is saved to `"theme"` in `nu11signal/config.json` under
+`os.UserConfigDir()` and applied at the next start:
+
+```json
+{"theme": "BLUE"}
+```
+
+The file is written only when a theme is chosen, atomically (a temporary
+file renamed over it), private (`0600`, its directory `0700`), keeping the
+fields it does not know. A file that is not valid JSON is left alone and
+the choice is not saved (the status line says so); a theme name nu11signal
+does not know starts `NIGHT CITY` silently.
 
 ## Mouse
 

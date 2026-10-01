@@ -578,14 +578,6 @@ func (p trackPage) headAlbum() playback.Album {
 	return a
 }
 
-// name is the title heading the page, as the breadcrumb names it.
-func (p trackPage) name() string {
-	if p.kind == viewPlaylist {
-		return p.headPlaylist().Name
-	}
-	return p.headAlbum().Title
-}
-
 // trackHead is the head of the track page on top: the title, then the
 // artist (or curator), then the genre and year of an album.
 func (m Model) trackHead() []string {

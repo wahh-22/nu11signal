@@ -37,7 +37,7 @@ func (m Model) helpKey(k string) (next Model, ok bool) {
 			m.help = false
 		}
 		return m, true
-	case k == keyHelp && m.auth != authFailed && !m.keysTyped():
+	case k == keyHelp && !m.settings && m.auth != authFailed && !m.keysTyped():
 		m.help = true
 		return m, true
 	}

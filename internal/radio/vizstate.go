@@ -24,15 +24,27 @@ func (m Model) loadConfigCmd() tea.Cmd {
 	}
 }
 
-// onConfig applies the settings. The only one, the visualizer, is read
-// and ignored: the rain is the only visualizer (see viz.go), and a name
-// from before, of a visualizer since retired, is no error. A file that
-// cannot be read says so once.
+// onConfig applies the settings. The theme is applied, the default for a
+// name no theme has (silently: a theme since renamed is no error), unless
+// SETTINGS already chose one. The visualizer is read and ignored: the
+// rain is the only visualizer (see viz.go), and a name from before, of a
+// visualizer since retired, is no error. A file that cannot be read says
+// so once.
 func (m Model) onConfig(msg configMsg) Model {
 	if msg.err != nil {
 		m.setStatus("CONFIG UNREADABLE // " + msg.err.Error())
+		return m
 	}
-	return m
+	m.settingsFile = msg.cfg
+	if m.themePicked {
+		m.settingsFile.Theme = m.theme
+		return m
+	}
+	t, ok := themeNamed(msg.cfg.Theme)
+	if !ok {
+		t = themes[0]
+	}
+	return m.setTheme(t)
 }
 
 // stepViz advances the rain a frame, after the bars (stepBars).

@@ -59,6 +59,9 @@ const (
 	// keyHelp opens the KEYS overlay (helpGroups) and closes it, wherever
 	// q quits: SEARCH and the NEW PLAYLIST name type it (see keysTyped).
 	keyHelp = "?"
+	// keySettings opens the SETTINGS overlay (see settings.go) and closes
+	// it, wherever keyHelp opens KEYS.
+	keySettings = "s"
 )
 
 // helpEntry is one line of the KEYS overlay: the keys as shown, what
@@ -109,6 +112,7 @@ var helpGroups = []helpGroup{
 	{"APP", []helpEntry{
 		{"R", "RETRY A FAILED LOAD", []string{keyRetry}},
 		{"Q / CTRL+C", "QUIT (CTRL+C IN TEXT)", []string{keyQuit, keyCtrlC}},
+		{"S", "SETTINGS (THEMES)", []string{keySettings}},
 		{"?", "KEYS (THIS LIST)", []string{keyHelp}},
 	}},
 }
@@ -137,6 +141,7 @@ var playerHints = []hint{
 	{"O", "LOOP"},
 	{"↑↓", "MOVE"},
 	{"X", "FX"},
+	settingsHint,
 	helpHint,
 	{"Q", "QUIT"},
 }
@@ -163,13 +168,13 @@ func playerFocusHints(expanded, typing bool) []hint {
 	}, quitHints(typing)...)
 }
 
-// quitHints end a footer: KEYS and Q QUIT, or only CTRL+C QUIT where
+// quitHints end a footer: SETTINGS, KEYS and Q QUIT, or only CTRL+C QUIT where
 // typing takes q and ?.
 func quitHints(typing bool) []hint {
 	if typing {
 		return []hint{{"CTRL+C", "QUIT"}}
 	}
-	return []hint{helpHint, {"Q", "QUIT"}}
+	return []hint{settingsHint, helpHint, {"Q", "QUIT"}}
 }
 
 // tabsFocusHints replace the view's hints while the nav tabs have the
@@ -198,6 +203,7 @@ var artistHints = []hint{
 	{"A", "ADD"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
+	settingsHint,
 	helpHint,
 	{"Q", "QUIT"},
 }
@@ -215,6 +221,7 @@ var resultsHints = []hint{
 	{"G", "ALBUM"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
+	settingsHint,
 	helpHint,
 	{"Q", "QUIT"},
 }
@@ -230,6 +237,7 @@ var trackHints = []hint{
 	{"A", "ADD"},
 	{"N/P", "NEXT/PREV"},
 	{"/", "SCAN"},
+	settingsHint,
 	helpHint,
 	{"Q", "QUIT"},
 }
@@ -242,6 +250,7 @@ var pickerHints = []hint{
 	{"↑↓", "MOVE"},
 	{"ESC", "CANCEL"},
 	{"SPACE", "PLAY/PAUSE"},
+	settingsHint,
 	helpHint,
 	{"Q", "QUIT"},
 }

@@ -27,6 +27,12 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.settings {
+		if c, ok := msg.(tea.MouseClickMsg); ok && c.Button == tea.MouseLeft {
+			return m.settingsClick(c.X, c.Y)
+		}
+		return m, nil
+	}
 	switch msg := msg.(type) {
 	case tea.MouseClickMsg:
 		if msg.Button == tea.MouseLeft {

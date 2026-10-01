@@ -41,7 +41,7 @@ func (m Model) render() string {
 // never move the zones.
 func (m Model) layout() ([]string, zones) {
 	lines, zs := m.baseLayout()
-	if m.introOn() && !m.help {
+	if m.introOn() && !m.help && !m.settings {
 		m.drawIntro(lines)
 	}
 	if m.fxActive() {
@@ -92,6 +92,13 @@ func (m Model) renderFull() ([]string, zones) {
 		// The KEYS overlay takes the whole body; nothing under it is
 		// clickable (see handleMouse).
 		lines = append(lines, m.helpPanel(w, bodyH)...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
+	if m.settings {
+		// SETTINGS takes the whole body too; only its rows are clickable.
+		panel, pz := m.settingsPanel(w, bodyH)
+		zs.addAt(0, top, pz)
+		lines = append(lines, panel...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
 	// The panels go under the zones drawn in them, which stay on top.
@@ -179,6 +186,12 @@ func (m Model) renderCompact() ([]string, zones) {
 	lines := []string{m.headerLeft(false) + "  " + m.statusTag(), nav}
 	if m.help {
 		lines = append(lines, m.helpPanel(w, m.height-4)...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
+	if m.settings {
+		panel, pz := m.settingsPanel(w, m.height-4)
+		zs.addAt(0, len(lines), pz)
+		lines = append(lines, panel...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
 	// The player lines (title to buttons) and the list below them are the
@@ -285,20 +298,20 @@ func (m Model) header(w int) ([]string, zones) {
 }
 
 // navLine is the header rule carrying the nav bar: the PLAYLISTS and
-// SEARCH tabs and, on a page, BACK. The breadcrumb stays at the right
-// edge, cut with … to the room left, while at least minCrumb cells of it
-// fit.
+// SEARCH tabs and, on a page, BACK. The net node readout (netNode) stays
+// at the right edge, cut with … to the room left, while at least
+// minNode cells of it fit.
 //
-//	▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ── PLAYLISTS // TOCAYO ──
+//	▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ──── NODE 7F // NC-GRID ──
 func (m Model) navLine(w int) (string, zones) {
 	const (
-		mark     = "▓▒░"
-		gap      = " "
-		crumbEnd = "──"
-		// minRule is the rule kept between the bar and the breadcrumb,
-		// and minCrumb the fewest cells of its text worth drawing.
-		minRule  = 1
-		minCrumb = 6
+		mark    = "▓▒░"
+		gap     = " "
+		nodeEnd = "──"
+		// minRule is the rule kept between the bar and the readout, and
+		// minNode the fewest cells of its text worth drawing.
+		minRule = 1
+		minNode = 6
 	)
 	lead := ansi.StringWidth(mark + gap)
 	gapW := ansi.StringWidth(gap)
@@ -308,35 +321,23 @@ func (m Model) navLine(w int) (string, zones) {
 	rest := max(w-lead-ansi.StringWidth(bar)-gapW, 0)
 	tail := stFrameDim.Render(strings.Repeat("─", rest))
 	// The text sits between a space on each side and the closing rule.
-	if room := rest - minRule - ansi.StringWidth(crumbEnd) - 2; room >= minCrumb {
-		crumb := " " + ansi.Truncate(m.breadcrumb(), room, "…") + " "
-		tail = stFrameDim.Render(strings.Repeat("─", rest-ansi.StringWidth(crumb+crumbEnd))) +
-			stMuted.Render(crumb) + stFrameDim.Render(crumbEnd)
+	if room := rest - minRule - ansi.StringWidth(nodeEnd) - 2; room >= minNode {
+		node := " " + ansi.Truncate(m.netNode(), room, "…") + " "
+		tail = stFrameDim.Render(strings.Repeat("─", rest-ansi.StringWidth(node+nodeEnd))) +
+			stMuted.Render(node) + stFrameDim.Render(nodeEnd)
 	}
 	return stYellow.Render(mark) + gap + bar + gap + tail, zs
 }
 
-// breadcrumb names where the list panel is, upper case: the branch (the
-// lit tab, PLAYLISTS or SEARCH), then the editor over the list or the
-// page on top by its name.
-func (m Model) breadcrumb() string {
-	crumbs := []string{"PLAYLISTS"}
-	if !m.onPlaylistsBranch() {
-		crumbs[0] = "SEARCH"
-	}
-	f := m.top()
-	switch {
-	case m.editor.mode != editClosed:
-		crumbs = append(crumbs, m.editorTitle())
-	case f.kind == viewResults:
-		crumbs = append(crumbs, "RESULTS")
-	case f.kind == viewArtist:
-		crumbs = append(crumbs, f.artist.artistTitle())
-	case f.kind == viewAlbum || f.kind == viewPlaylist:
-		crumbs = append(crumbs, f.tracks.name())
-	}
-	return strings.ToUpper(cleanLine(strings.Join(crumbs, " // ")))
+// netNode is the nav bar's flavor text: the Night City net node the radio
+// is patched through, one byte of the Model's seed in hex, so a session
+// keeps its node and a fixed seed draws a fixed frame.
+func (m Model) netNode() string {
+	return fmt.Sprintf("NODE %02X // NC-GRID", mix(m.seed, netNodeSalt)&0xFF)
 }
+
+// netNodeSalt keeps netNode apart from the other hashes of the seed.
+const netNodeSalt = 0x4E43
 
 // spectrumCode is the NOW PLAYING panel's bottom label: where the rain's
 // levels come from, the player's readings (LIVE), the decorative
@@ -625,6 +626,8 @@ func (m Model) hintLine(w int) string {
 	switch kind := m.top().kind; {
 	case m.help:
 		hints = helpOverlayHints
+	case m.settings:
+		hints = settingsOverlayHints
 	case m.focus == areaTabs:
 		hints = tabsFocusHints(m.keysTyped())
 	case m.focus == areaPlayer:
@@ -650,13 +653,19 @@ func (m Model) hintLine(w int) string {
 	return fitHints(hints, w)
 }
 
-// fitHints joins hints into a line of at most w cells, shortening their
-// keys and then dropping lower-priority ones (never the last, nor the
+// fitHints joins hints into a line of at most w cells, leaving out
+// SETTINGS, then shortening their keys and then dropping lower-priority ones (never the last, nor the
 // KEYS hint right before it, but when only the two are left) until it
 // fits. Each hint is styled once: the View runs on every frame, and
 // styling every candidate line anew made the hints most of its cost.
 func fitHints(hints []hint, w int) string {
 	parts, width := renderHints(hints)
+	if i := slices.Index(hints, settingsHint); i >= 0 && width > w {
+		// SETTINGS shows only where the whole footer fits: it goes
+		// before any other hint is shortened or dropped.
+		hints = slices.Delete(slices.Clone(hints), i, i+1)
+		parts, width = renderHints(hints)
+	}
 	if width > w {
 		parts, width = renderHints(shortHints(hints))
 	}

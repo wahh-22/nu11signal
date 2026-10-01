@@ -193,6 +193,16 @@ type Model struct {
 	// help shows the KEYS overlay (see help.go), which takes every key
 	// but keyHelp and esc (closing it) and ctrl+c (quitting).
 	help bool
+	// settings shows the SETTINGS overlay (see settings.go), its cursor
+	// on the theme row settingsCursor. theme is the theme applied (see
+	// setTheme); themePicked means SETTINGS chose one, which the settings
+	// file read at startup no longer overrides. settingsFile is the
+	// settings as last read or saved, what a save starts from.
+	settings       bool
+	settingsCursor int
+	theme          string
+	themePicked    bool
+	settingsFile   config.Config
 
 	// favs caches the favorite state of songs by id, and favSeq numbers
 	// its reads and changes (see library.go).
@@ -297,7 +307,7 @@ func New(p playback.Player, opts Options) Model {
 	if src, ok := p.(playback.LevelSource); ok {
 		levels = src.Levels()
 	}
-	return Model{
+	m := Model{
 		player:       p,
 		levels:       levels,
 		now:          opts.Now,
@@ -314,6 +324,9 @@ func New(p playback.Player, opts Options) Model {
 		recentsStore:  opts.Recents,
 		recentsWrites: newRecentsWriter(opts.Recents),
 	}
+	// A new Model starts on the default theme until the settings file
+	// names another (see onConfig).
+	return m.setTheme(themes[0])
 }
 
 // Init authorizes, loads recent searches and the settings, reads the volume, starts

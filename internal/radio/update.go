@@ -58,6 +58,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})), nil
 	case configMsg:
 		return m.onConfig(msg), nil
+	case configSavedMsg:
+		if msg.err != nil {
+			m.setStatus("SETTINGS NOT SAVED // " + msg.err.Error())
+		}
+		return m, nil
 	case recentsMsg:
 		return m.onRecents(msg), nil
 	case recentSavedMsg:
@@ -267,6 +272,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if next, ok := m.helpKey(k); ok {
 		return next, nil
+	}
+	if next, cmd, ok := m.settingsKey(k); ok {
+		return next, cmd
 	}
 	if m.auth != authFailed {
 		if m.focus == areaTabs {

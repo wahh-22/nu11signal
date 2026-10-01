@@ -117,8 +117,9 @@ func openRecents(demoMode bool) history.Recents {
 }
 
 // openConfig returns the settings file in the user's config directory,
-// read by the demo too (it only chooses how the UI looks); nil, the
-// defaults, on a system without a config directory.
+// read at startup and written when SETTINGS chooses a theme, by the demo
+// too (it only chooses how the UI looks); nil, the defaults for the
+// session, on a system without a config directory.
 func openConfig() config.Source {
 	path, err := config.DefaultPath()
 	if err != nil {

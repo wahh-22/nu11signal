@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,7 +26,7 @@ func TestLoad(t *testing.T) {
 	}{
 		{"a visualizer", `{"visualizer": "synthwave"}`, Config{Visualizer: "synthwave"}, false},
 		{"the name as written", `{"visualizer": "SynthWave"}`, Config{Visualizer: "SynthWave"}, false},
-		{"unknown fields are ignored", `{"visualizer": "rain", "theme": "neon"}`, Config{Visualizer: "rain"}, false},
+		{"unknown fields are ignored", `{"visualizer": "rain", "colors": "neon"}`, Config{Visualizer: "rain"}, false},
 		{"no visualizer", `{}`, Config{}, false},
 		{"an empty file", ``, Config{}, true},
 		{"not JSON", `visualizer = rain`, Config{}, true},
@@ -75,5 +76,64 @@ func TestDefaultPath(t *testing.T) {
 	}
 	if !strings.HasSuffix(path, filepath.Join("nu11signal", "config.json")) {
 		t.Fatalf("DefaultPath() = %q", path)
+	}
+}
+
+func TestLoadReadsTheTheme(t *testing.T) {
+	got, err := NewFile(write(t, `{"visualizer": "rain", "theme": "BLUE"}`)).Load()
+	if err != nil || got != (Config{Visualizer: "rain", Theme: "BLUE"}) {
+		t.Fatalf("Load() = %+v, %v; want the visualizer and the theme", got, err)
+	}
+}
+
+func TestSaveRoundTripsPrivately(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nu11signal")
+	path := filepath.Join(dir, "config.json")
+	f := NewFile(path)
+	want := Config{Visualizer: "rain", Theme: "BLUE"}
+	if err := f.Save(want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.Load()
+	if err != nil || got != want {
+		t.Fatalf("Load() after Save = %+v, %v; want %+v", got, err, want)
+	}
+	for p, mode := range map[string]os.FileMode{dir: 0o700, path: 0o600} {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := info.Mode().Perm(); got != mode {
+			t.Errorf("%s mode %o; want %o", p, got, mode)
+		}
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 1 {
+		t.Fatalf("Save left %d files in %s: %v; want only config.json", len(entries), dir, entries)
+	}
+}
+
+func TestSaveKeepsUnknownFields(t *testing.T) {
+	path := write(t, `{"visualizer": "rain", "future": {"a": 1}, "theme": "NIGHT CITY"}`)
+	if err := NewFile(path).Save(Config{Visualizer: "rain", Theme: "BLUE"}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("saved file is not JSON: %v\n%s", err, data)
+	}
+	if raw["theme"] != "BLUE" || raw["visualizer"] != "rain" || raw["future"] == nil {
+		t.Fatalf("saved %s; want the new theme, the visualizer and the unknown field", data)
+	}
+}
+
+func TestSaveRefusesToOverwriteABrokenFile(t *testing.T) {
+	path := write(t, `visualizer = rain`)
+	if err := NewFile(path).Save(Config{Theme: "BLUE"}); err == nil {
+		t.Fatal("Save over an unparsable file succeeded")
+	}
+	if data, _ := os.ReadFile(path); string(data) != `visualizer = rain` {
+		t.Fatalf("Save changed the unparsable file to %q", data)
 	}
 }
