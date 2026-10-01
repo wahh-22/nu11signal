@@ -24,6 +24,7 @@ const cols, rows = 80, 24
 var screens = []screen{
 	{"night-city", "view_night_city_ansi_80x24.golden", "", "NIGHT CITY", night, red},
 	{"blue", "view_blue_80x24.golden", "", "BLUE", "#05070F", "#347AFF"},
+	{"matrix", "view_matrix_80x24.golden", "", "MATRIX", "#000000", "#00C832"},
 	{"boot", "boot_blue_80x24.golden", "", "BOOT", "#05070F", "#347AFF"},
 	{"search", "night_city_ansi_views_80x24.golden", "search", "SEARCH", night, red},
 	{"keys", "night_city_ansi_views_80x24.golden", "help", "KEYS", night, red},
