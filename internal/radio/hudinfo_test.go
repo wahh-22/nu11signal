@@ -163,16 +163,16 @@ func onAir(t *testing.T, f *playbacktest.Fake, id string, repeat playback.Repeat
 
 func TestTheStatusLineNamesTheSongUpNext(t *testing.T) {
 	m := onAir(t, playbacktest.New(), "i.1", playback.RepeatOff)
-	if got, want := statusOf(m), "░▒▓ UP NEXT // RESONANCE · HOME"; got != want {
+	if got, want := statusOf(m), "◢◤◢◤ UP NEXT // RESONANCE · HOME"; got != want {
 		t.Fatalf("status %q; want %q", got, want)
 	}
 	m = onAir(t, playbacktest.New(), "i.2", playback.RepeatOff)
-	if got, want := statusOf(m), "░▒▓ UP NEXT // TURBO KILLER · CARPENTER BRUT"; got != want {
+	if got, want := statusOf(m), "◢◤◢◤ UP NEXT // TURBO KILLER · CARPENTER BRUT"; got != want {
 		t.Fatalf("status %q; want %q", got, want)
 	}
 	// On the last song NEXT starts the list over while it repeats.
 	m = onAir(t, playbacktest.New(), "i.3", playback.RepeatAll)
-	if got, want := statusOf(m), "░▒▓ UP NEXT // NIGHTCALL · KAVINSKY"; got != want {
+	if got, want := statusOf(m), "◢◤◢◤ UP NEXT // NIGHTCALL · KAVINSKY"; got != want {
 		t.Fatalf("last song: status %q; want %q", got, want)
 	}
 }
@@ -183,7 +183,7 @@ func TestUpNextSkipsTheSongsLeftOutOfTheQueue(t *testing.T) {
 	m := onAir(t, f, "i.1", playback.RepeatOff)
 	// The skipped notice holds the line first.
 	m.status = ""
-	if got, want := statusOf(m), "░▒▓ UP NEXT // TURBO KILLER · CARPENTER BRUT"; got != want {
+	if got, want := statusOf(m), "◢◤◢◤ UP NEXT // TURBO KILLER · CARPENTER BRUT"; got != want {
 		t.Fatalf("status %q; want %q", got, want)
 	}
 }
@@ -191,23 +191,23 @@ func TestUpNextSkipsTheSongsLeftOutOfTheQueue(t *testing.T) {
 func TestTheStatusLineFallsBackToTheVolumeAndEffects(t *testing.T) {
 	// A song the model did not queue: nothing known to follow it.
 	m := playingModel(t, playbacktest.New())
-	if got, want := statusOf(m), "░▒▓ FX OFF"; got != want {
+	if got, want := statusOf(m), "◢◤◢◤ FX OFF"; got != want {
 		t.Fatalf("no volume mode: status %q; want %q", got, want)
 	}
 	m, _, _ = appPlaying(t)
-	if got, want := statusOf(m), "░▒▓ APP VOLUME // FX OFF"; got != want {
+	if got, want := statusOf(m), "◢◤◢◤ APP VOLUME // FX OFF"; got != want {
 		t.Fatalf("app volume: status %q; want %q", got, want)
 	}
 	m, _ = press(t, m, "x")
 	m.status = ""
-	if got, want := statusOf(m), "░▒▓ APP VOLUME // FX ON"; got != want {
+	if got, want := statusOf(m), "◢◤◢◤ APP VOLUME // FX ON"; got != want {
 		t.Fatalf("fx on: status %q; want %q", got, want)
 	}
 	s := appState(playback.StatusPlaying)
 	s.VolumeMode = playback.VolumeSystem
 	m, _ = step(t, m, stateMsg{state: s})
 	m.status = ""
-	if got, want := statusOf(m), "░▒▓ SYS VOLUME // FX ON"; got != want {
+	if got, want := statusOf(m), "◢◤◢◤ SYS VOLUME // FX ON"; got != want {
 		t.Fatalf("system volume: status %q; want %q", got, want)
 	}
 	// The last song of a list that does not repeat: nothing follows.

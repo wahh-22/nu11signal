@@ -599,7 +599,7 @@ func (m Model) statusLine(w int) string {
 	if m.status != "" {
 		return stWarn.Render("▲ " + strings.ToUpper(m.status))
 	}
-	return stDim.Render(fit("░▒▓ "+m.idleStatus(), w))
+	return stDim.Render(fit("◢◤◢◤ "+m.idleStatus(), w))
 }
 
 // idleStatus is the status line without a message: the song NEXT moves
