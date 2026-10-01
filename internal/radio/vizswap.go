@@ -18,9 +18,10 @@ import (
 // swapThreshold), lower toward the area's edges: at the swap's eased
 // progress p a cell under p shows the rain, the others the emblem, so the
 // emblem leaves from its edges inward and comes back from its middle
-// outward. The cells within swapBand of p, the moving edge, glitch: block
-// noise (bootNoiseGlyphs) over the emblem's drawn cells, else, on one
-// cell in two each frame, a rain glyph in a bright rain ink. Both
+// outward. The cells within swapBand of p, the moving edge, glitch:
+// Braille noise (emblemNoiseGlyphs) over the emblem's drawn cells,
+// else, on one cell in two each frame, a rain glyph in a bright rain
+// ink. Both
 // pictures stay live underneath: the rain keeps stepping at its pace
 // while playing and the emblem keeps its soft glitch (see idleRows).
 //
@@ -168,7 +169,11 @@ func (m Model) swapRows(w, h int, l float64) []string {
 		for x := range w {
 			th := swapThreshold(m.seed, x, y, w, h)
 			if math.Abs(th-p) < swapBand {
-				if g, ok := m.swapGlitch(frame, x, y, x < len(plain) && plain[x] != ' '); ok {
+				under := ' '
+				if x < len(plain) {
+					under = plain[x]
+				}
+				if g, ok := m.swapGlitch(frame, x, y, under); ok {
 					flush(x)
 					b.WriteString(ansi.ResetStyle + g)
 					run, src = x+1, ""
@@ -190,13 +195,14 @@ func (m Model) swapRows(w, h int, l float64) []string {
 	return out
 }
 
-// swapGlitch is the glyph cell x, y of the moving edge draws on frame:
-// block noise over a drawn emblem cell, else a rain glyph in a bright
-// rain ink on one frame in two; false when it draws its picture.
-func (m Model) swapGlitch(frame uint64, x, y int, drawn bool) (string, bool) {
+// swapGlitch is the glyph cell x, y of the moving edge draws on frame
+// over under, the emblem's cell there: Braille noise over a drawn emblem
+// cell, else a rain glyph in a bright rain ink on one frame in two;
+// false when it draws its picture.
+func (m Model) swapGlitch(frame uint64, x, y int, under rune) (string, bool) {
 	h := mix(m.seed, saltSwap, frame, uint64(x), uint64(y))
-	if drawn {
-		g := bootNoiseGlyphs[h>>8%uint64(len(bootNoiseGlyphs))]
+	if under != ' ' {
+		g := emblemNoise(h>>8, under)
 		return noiseStyles[h>>24%uint64(len(noiseStyles))].Render(g), true
 	}
 	if h%2 == 0 {

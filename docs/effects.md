@@ -15,9 +15,11 @@ on the status line is never glitched. The effects are drawn over the
 frame, so clicks and keys work during a burst.
 
 At launch nu11signal boots: for about 1.5 s the body shows the null
-emblem (compact, or its text alone, on a small terminal) with
+emblem, a slashed zero drawn in Braille dots with `N U 1 1 / S I G N A L`
+and five thin Braille bars beside it (compact, or its text alone, on a
+small terminal), with
 `BOOTING NU11SIGNAL...`, spaced out and bright, under it, glitching from the first frame (torn
-emblem rows, noise cells, now and then a static bar, at about 15 fps), then
+emblem rows, dense Braille noise cells, now and then a static bar, at about 15 fps), then
 the normal UI scrambles in, whether Apple Music has linked yet or not
 (`LINKING` stays in the header until it does). Any key or click skips the
 boot (the key does nothing else, but `q` and `ctrl+c` ask to quit); refused
@@ -70,10 +72,10 @@ animation tick slows down to once a second.
 
 While no music plays (paused, stopped, nothing loaded) the spectrum area
 shows the null emblem with `N U 1 1 / S I G N A L` beside it, centered,
-in place of the rain: the large emblem where it fits (the expanded player
-included), else the compact one, else the emblem without its text, else
+in place of the rain: the large emblem where it fits (the expanded player),
+else the compact one (the 80x24 player), else the emblem without its text, else
 nothing, on blank cells. With the effects on the emblem glitches all the
-time, softly: every frame zero to two block cells flicker over it and, on
+time, softly: every frame zero to two dense Braille cells flicker over it and, on
 about one frame in six, one emblem row tears a cell sideways. The tick
 runs at about 6.7 fps (150 ms) while the emblem is shown with the effects
 on, instead of once a second; with the effects off the emblem is still and
@@ -84,7 +86,7 @@ When music starts or stops the area does not cut: over 0.7 s the emblem
 breaks up into the rain, or the rain settles into the emblem. Each cell
 turns at its own seeded moment, biased so the emblem leaves from the
 area's edges inward and comes back from its middle outward; the cells at
-the moving edge glitch, block noise over the emblem and bright rain
+the moving edge glitch, Braille noise over the emblem and bright rain
 glyphs elsewhere. The rain keeps falling and the emblem keeps its glitch
 underneath, the tick runs at the burst's pace (about 15 fps) until the
 switch ends, and a flip halfway turns it around from where it stands.

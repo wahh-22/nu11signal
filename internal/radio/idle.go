@@ -16,8 +16,9 @@ import (
 //
 // With the signal effects active (see fxActive) the emblem glitches all
 // the time, softly: every idle frame (idleFrameTick, from the clock, not
-// the tick count) draws 0..idleNoiseMax block noise cells
-// (bootNoiseGlyphs) over the emblem's drawn cells and, on one frame in
+// the tick count) draws 0..idleNoiseMax Braille noise cells
+// (emblemNoiseGlyphs, never the glyph a cell shows) over the emblem's
+// drawn cells and, on one frame in
 // idleTearOdds, tears one emblem row 1 cell sideways, inside its box (see
 // idleArt.box); most frames change one or two cells and never draw
 // letters over it. Nothing is drawn behind it. Everything comes from the
@@ -180,8 +181,8 @@ func (m Model) idleRows(w, h int) []string {
 
 // idleGlitchDraw draws a frame's soft glitch, from r, over segs, the
 // emblem's rows in its box from column x0 of the area: on one frame in
-// idleTearOdds one row torn 1 cell sideways, then 0..idleNoiseMax block
-// noise cells over the emblem's drawn cells (its mask's).
+// idleTearOdds one row torn 1 cell sideways, then 0..idleNoiseMax
+// Braille noise cells over the emblem's drawn cells (its mask's).
 func idleGlitchDraw(segs []string, a idleArt, x0 int, r uint64) {
 	if r>>8%idleTearOdds == 0 {
 		i := int(r >> 16 % uint64(len(segs)))
@@ -200,7 +201,7 @@ func idleGlitchDraw(segs []string, a idleArt, x0 int, r uint64) {
 	for j := range r % (idleNoiseMax + 1) {
 		h := mix(r, 4, j)
 		c := drawn[h%n]
-		glyph := bootNoiseGlyphs[h>>32%uint64(len(bootNoiseGlyphs))]
+		glyph := emblemNoise(h>>32, cellRune(segs[c.i], c.x))
 		segs[c.i] = overlay(segs[c.i], c.x, noiseStyles[h>>48%uint64(len(noiseStyles))].Render(glyph))
 	}
 }

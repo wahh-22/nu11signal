@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -36,23 +37,59 @@ func wellFormed(t *testing.T, name string, data []byte) {
 	}
 }
 
-// The large emblem has 36 drawn cells (8+7+6+7+8), one rect each.
-const emblemCells = 36
+// The large emblem raises 292 Braille dots and the bars beside it 60
+// (five ⣠⡾⠋, 12 dots each): one circle each.
+const emblemDotCount, barDotCount = 292, 60
 
-func TestEmblemArtIsOneRectPerDrawnCell(t *testing.T) {
-	for name, data := range map[string][]byte{"banner": banner(), "emblem": emblemIcon()} {
-		wellFormed(t, name, data)
-		if n := strings.Count(string(data), `<rect class="px"`); n != emblemCells {
-			t.Errorf("%s: %d emblem rects, want %d", name, n, emblemCells)
+func TestEmblemArtIsOneDotPerRaisedBrailleDot(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		data []byte
+		want int
+	}{
+		{"banner", banner(), emblemDotCount + barDotCount},
+		{"emblem", emblemIcon(), emblemDotCount},
+	} {
+		wellFormed(t, tt.name, tt.data)
+		if n := strings.Count(string(tt.data), `<circle class="dot"`); n != tt.want {
+			t.Errorf("%s: %d emblem dots, want %d", tt.name, n, tt.want)
 		}
-		if !strings.Contains(string(data), yellow) || !strings.Contains(string(data), red) {
-			t.Errorf("%s: want the ring in %s and the slash in %s", name, red, yellow)
+		if !strings.Contains(string(tt.data), yellow) || !strings.Contains(string(tt.data), red) {
+			t.Errorf("%s: want the ring in %s and the slash in %s", tt.name, red, yellow)
+		}
+		if strings.ContainsFunc(string(tt.data), braille) {
+			t.Errorf("%s: Braille drawn as text, not as dots", tt.name)
 		}
 	}
-	if n := strings.Count(string(banner()), "<polygon"); n != 10 {
-		t.Errorf("banner: %d slants, want 10", n)
+	if strings.Contains(string(banner()), "<polygon") {
+		t.Error("banner: still draws the slants")
 	}
 }
+
+// brailleDots places the raised dots of a Braille cell on its 2 x 4
+// grid, dot 1 top left down to dot 7, dot 4 top right down to dot 8.
+func TestBrailleDotsFollowTheBrailleNumbering(t *testing.T) {
+	for _, tt := range []struct {
+		r    rune
+		want [][2]int
+	}{
+		{'⠁', [][2]int{{0, 0}}},
+		{'⠈', [][2]int{{1, 0}}},
+		{'⡀', [][2]int{{0, 3}}},
+		{'⢀', [][2]int{{1, 3}}},
+		{'⠋', [][2]int{{0, 0}, {0, 1}, {1, 0}}},
+	} {
+		if got := dotsOf(tt.r); !slices.Equal(got, tt.want) {
+			t.Errorf("dotsOf(%q) = %v, want %v", tt.r, got, tt.want)
+		}
+	}
+	if len(dotsOf('⣿')) != 8 || len(dotsOf('⠀')) != 0 || dotsOf('A') != nil {
+		t.Error("dotsOf: want 8 dots for ⣿, none for the blank pattern or a letter")
+	}
+}
+
+// braille reports whether r is a Braille pattern.
+func braille(r rune) bool { return r >= 0x2800 && r <= 0x28FF }
 
 func TestParseLineSplitsSpansBySGRStyle(t *testing.T) {
 	line := "ab\x1b[1;38;2;255;95;87mN\x1b[m \x1b[38;2;1;2;3;48;2;4;5;6mx<\x1b[m"
@@ -82,6 +119,14 @@ func TestScreensRenderWellFormedFromTheGoldens(t *testing.T) {
 		wellFormed(t, s.name, data)
 		if !strings.Contains(string(data), "<text") {
 			t.Errorf("%s: no text drawn", s.name)
+		}
+		// Braille cells (the emblem) are drawn as dots, so the screens
+		// read right without a font that has them.
+		if strings.ContainsFunc(string(data), braille) {
+			t.Errorf("%s: Braille drawn as text, not as dots", s.name)
+		}
+		if s.name == "boot" && !strings.Contains(string(data), `<circle class="dot"`) {
+			t.Errorf("%s: the emblem draws no dots", s.name)
 		}
 	}
 }

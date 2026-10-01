@@ -44,12 +44,15 @@ func rainCells(rows, rain []string) (shown, drawn int) {
 	return shown, drawn
 }
 
-// noiseCells counts the block noise glyphs in rows.
-func noiseCells(rows []string) int {
+// noiseCells counts the Braille noise glyphs in rows that the clean
+// art (its stripped rows) does not show there: the emblem is drawn in
+// Braille too, so its own cells do not count.
+func noiseCells(rows, clean []string) int {
 	n := 0
-	for _, r := range rows {
-		for _, cell := range cells(r) {
-			if slices.Contains(bootNoiseGlyphs, cell) {
+	for y, r := range rows {
+		was := cells(clean[y])
+		for x, cell := range cells(r) {
+			if slices.Contains(emblemNoiseGlyphs, cell) && (x >= len(was) || was[x] != cell) {
 				n++
 			}
 		}
@@ -99,7 +102,7 @@ func TestSwapDissolvesTheEmblemIntoTheRain(t *testing.T) {
 			if e == 0 || e == full {
 				t.Fatalf("level %.2f: %d of %d emblem cells, want a mix", l, e, full)
 			}
-			if noiseCells(rows) > idleNoiseMax+2 {
+			if noiseCells(rows, stripAll(art.lines(w, h))) > idleNoiseMax+2 {
 				glitched = true
 			}
 		}
@@ -162,7 +165,7 @@ func TestSwapSettlesTheRainIntoTheEmblem(t *testing.T) {
 			if e == 0 || e == full {
 				t.Fatalf("level %.2f: %d of %d emblem cells, want a mix", l, e, full)
 			}
-			if noiseCells(rows) > idleNoiseMax+2 {
+			if noiseCells(rows, stripAll(art.lines(w, h))) > idleNoiseMax+2 {
 				glitched = true
 			}
 		}

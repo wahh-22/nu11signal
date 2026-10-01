@@ -212,23 +212,56 @@ func (s screen) render(root string) ([]byte, error) {
 				fmt.Fprintf(&b, `<rect x="%s" y="%s" width="%s" height="%s" fill="%s"/>`+"\n",
 					num(x), num(ry), num(float64(sp.width)*cellW), num(cellH), bg)
 			}
-			text := strings.TrimLeft(sp.text, " ")
-			lead := len(sp.text) - len(text)
-			text = strings.TrimRight(text, " ")
-			if text == "" {
-				continue
+			for _, sg := range segments(sp.text) {
+				sx := x + float64(sg.col)*cellW
+				if sg.braille {
+					for i, r := range []rune(sg.text) {
+						brailleCell(&b, r, sx+float64(i)*cellW, ry, cellW/2, cellH/4, 1.9, fg)
+					}
+					continue
+				}
+				text := strings.TrimLeft(sg.text, " ")
+				lead := len(sg.text) - len(text)
+				text = strings.TrimRight(text, " ")
+				if text == "" {
+					continue
+				}
+				tw := ansi.StringWidth(text)
+				weight := ""
+				if sp.bold {
+					weight = ` font-weight="bold"`
+				}
+				fmt.Fprintf(&b, `<text x="%s" y="%s" textLength="%s" lengthAdjust="spacingAndGlyphs" fill="%s"%s>%s</text>`+"\n",
+					num(sx+float64(lead)*cellW), num(ry+15), num(float64(tw)*cellW), fg, weight, esc(text))
 			}
-			tw := ansi.StringWidth(text)
-			weight := ""
-			if sp.bold {
-				weight = ` font-weight="bold"`
-			}
-			fmt.Fprintf(&b, `<text x="%s" y="%s" textLength="%s" lengthAdjust="spacingAndGlyphs" fill="%s"%s>%s</text>`+"\n",
-				num(x+float64(lead)*cellW), num(ry+15), num(float64(tw)*cellW), fg, weight, esc(text))
 		}
 	}
 	b.WriteString("</g>\n")
 	return svgDoc(w, h, "nu11signal "+s.title+" screen, 80x24", b.String()), nil
+}
+
+// A segment is a run of a span's text, col cells into it: Braille
+// cells, which are drawn as dots so a screen reads right without a font
+// that has them, or anything else, drawn as text.
+type segment struct {
+	col     int
+	text    string
+	braille bool
+}
+
+// segments splits text into its runs of Braille and other cells.
+func segments(text string) []segment {
+	var out []segment
+	col := 0
+	for _, r := range text {
+		br := r >= 0x2800 && r <= 0x28FF
+		if n := len(out); n == 0 || out[n-1].braille != br {
+			out = append(out, segment{col: col, braille: br})
+		}
+		out[len(out)-1].text += string(r)
+		col += ansi.StringWidth(string(r))
+	}
+	return out
 }
 
 // orDefault is c, or def when c is the terminal default.

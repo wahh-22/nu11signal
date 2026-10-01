@@ -68,10 +68,12 @@ func TestIdleEmblemShowsCenteredInTheRainArea(t *testing.T) {
 			}
 			w, h := m.vizSize()
 			art, ok := idleArtFor(w, h)
-			if !ok || art.e.rows[0] != emblemLarge.rows[0] || !art.text {
-				t.Fatalf("idleArtFor(%d, %d) = %+v, %v; want the large emblem with its text", w, h, art, ok)
+			// The 27 x 8 area at 80x24 is narrower than the large block
+			// (30 cells): the compact emblem with its text.
+			if w != 27 || h != 8 || !ok || art.e.rows[0] != emblemCompact.rows[0] || !art.text {
+				t.Fatalf("idleArtFor(%d, %d) = %+v, %v; want the compact emblem with its text in 27 x 8", w, h, art, ok)
 			}
-			if wantX, wantY := (w-emblemLarge.blockWidth())/2, (h-len(emblemLarge.rows))/2; art.x != wantX || art.y != wantY {
+			if wantX, wantY := (w-emblemCompact.blockWidth())/2, (h-len(emblemCompact.rows))/2; art.x != wantX || art.y != wantY {
 				t.Fatalf("emblem at %d,%d, want centered at %d,%d", art.x, art.y, wantX, wantY)
 			}
 			rows := rainArea(t, m)
@@ -94,7 +96,7 @@ func TestPlayingBringsTheRainBack(t *testing.T) {
 		m, _ = step(t, m, tickMsg{gen: m.tickGen})
 	}
 	for _, r := range rainArea(t, m) {
-		if strings.ContainsAny(r, "▄▀█") || strings.Contains(r, "N U 1 1") {
+		if strings.ContainsFunc(r, brailleRune) || strings.Contains(r, "N U 1 1") {
 			t.Fatalf("playing rain area shows the emblem:\n%s", strings.Join(rainArea(t, m), "\n"))
 		}
 	}
@@ -212,8 +214,8 @@ func idleBox(rows []string, a idleArt, w, y int) string {
 
 // emblemChanges counts the cells of the emblem's box that rows change
 // from the clean art, a torn row compared with the clean row torn: it
-// fails on more than one torn row or a changed cell that is no block
-// noise glyph.
+// fails on more than one torn row or a changed cell that is no Braille
+// noise glyph (see emblemNoiseGlyphs).
 func emblemChanges(t *testing.T, rows []string, a idleArt, w, h int) int {
 	t.Helper()
 	clean := stripAll(a.lines(w, h))
@@ -242,8 +244,8 @@ func emblemChanges(t *testing.T, rows []string, a idleArt, w, h int) int {
 			torn++
 		}
 		for _, cell := range bestDiff {
-			if !slices.Contains(bootNoiseGlyphs, cell) {
-				t.Fatalf("idle glitch drew %q over the emblem, not a block glyph:\n%s", cell, strings.Join(rows, "\n"))
+			if !slices.Contains(emblemNoiseGlyphs, cell) {
+				t.Fatalf("idle glitch drew %q over the emblem, not a Braille noise glyph:\n%s", cell, strings.Join(rows, "\n"))
 			}
 		}
 		changes += len(bestDiff)
@@ -398,7 +400,7 @@ func TestPlayingRunsNoIdle(t *testing.T) {
 			t.Fatal("playing: the idle emblem is on")
 		}
 		for _, r := range rainArea(t, m) {
-			if strings.ContainsAny(r, "▄▀█") || strings.Contains(r, "N U 1 1") {
+			if strings.ContainsFunc(r, brailleRune) || strings.Contains(r, "N U 1 1") {
 				t.Fatal("playing: the rain area shows the emblem")
 			}
 		}

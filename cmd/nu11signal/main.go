@@ -164,10 +164,10 @@ func parseFlags(args []string, output io.Writer) (options, error) {
 	return opts, nil
 }
 
-// printVersion writes the version: on a terminal, the compact null
-// emblem with NU11SIGNAL and the version (v-prefixed when it is a
-// number) beside it; elsewhere the bare version line, which scripts and
-// release.sh read.
+// printVersion writes the version: on a terminal, the compact Braille
+// null emblem with NU11SIGNAL and the version (v-prefixed when it is a
+// number) beside it on its middle rows, 3 cells right of it; elsewhere
+// the bare version line, which scripts and release.sh read.
 func printVersion(w io.Writer, terminal bool) {
 	if !terminal {
 		fmt.Fprintln(w, version)
@@ -179,9 +179,11 @@ func printVersion(w io.Writer, terminal bool) {
 	}
 	text := []string{"NU11SIGNAL", shown}
 	var b strings.Builder
-	for i, row := range radio.EmblemRows() {
-		if i < len(text) {
-			row += "   " + text[i]
+	rows := radio.EmblemRows()
+	top := (len(rows) - len(text)) / 2
+	for i, row := range rows {
+		if t := i - top; t >= 0 && t < len(text) {
+			row += "   " + text[t]
 		}
 		b.WriteString(strings.TrimRight(row, " ") + "\n")
 	}

@@ -154,10 +154,12 @@ func runeWidth(r rune) int {
 	return ansi.StringWidth(string(r))
 }
 
-// textRune reports whether r is text: printable, not a space, and not a
-// box drawing border or a block shade.
+// textRune reports whether r is text: printable, not a space, not a box
+// drawing border or a block shade, and not a Braille pattern (the
+// emblem's cells, see emblem.go), so intros and text glitches leave art
+// alone.
 func textRune(r rune) bool {
-	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F)
+	return unicode.IsPrint(r) && !unicode.IsSpace(r) && (r < 0x2500 || r > 0x259F) && (r < 0x2800 || r > 0x28FF)
 }
 
 // setCells replaces the characters of the one cell wide cells of line at

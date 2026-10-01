@@ -324,13 +324,13 @@ func TestGlitchGolden80x24(t *testing.T) {
 }
 
 // textCell reports whether a base cell holds text a text glitch may
-// scramble: not blank, not a border or a shade.
+// scramble: not blank, not a border, a shade or a Braille cell.
 func textCell(s string) bool {
 	if s == "" || s == " " {
 		return false
 	}
 	r := []rune(s)[0]
-	return r < 0x2500 || r > 0x259F
+	return (r < 0x2500 || r > 0x259F) && (r < 0x2800 || r > 0x28FF)
 }
 
 // skeleton is line with every printable cell replaced by a dot: its escape

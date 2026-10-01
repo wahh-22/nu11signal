@@ -291,7 +291,7 @@ func calmlessModel(t *testing.T, f *playbacktest.Fake, c *clock) Model {
 }
 
 // With the effects on the shutdown splash glitches like the boot's, a
-// burst of tears, block noise and static over the body only, at
+// burst of tears, Braille noise and static over the body only, at
 // burstTick, drawing no letter or digit of its own; calm, it shows still.
 func TestShutdownGlitches(t *testing.T) {
 	c := newClock()
@@ -315,8 +315,8 @@ func TestShutdownGlitches(t *testing.T) {
 				t.Fatalf("frame %d glitched row %d outside the body", m.frame, y)
 			}
 		}
-		if !strings.ContainsAny(ansi.Strip(strings.Join(lines, "\n")), "░▒▓▚▞") {
-			t.Fatalf("frame %d of the shutdown has no noise cells", m.frame)
+		if emblemNoiseOver(lines, base) == 0 {
+			t.Fatalf("frame %d of the shutdown has no Braille noise cells", m.frame)
 		}
 		for y := range lines {
 			for _, r := range ansi.Strip(lines[y]) {
