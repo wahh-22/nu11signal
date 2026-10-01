@@ -2,7 +2,7 @@
 
 [← Back to the README](../README.md) · [Documentation index](../README.md#documentation)
 
-The glitch bursts, the boot and shutdown splashes, content intros, and the data rain visualizer.
+The glitch bursts, the boot and shutdown splashes, content intros, the data rain visualizer, and the idle emblem.
 
 ## Signal effects
 
@@ -66,7 +66,18 @@ In app volume mode (see [Spectrum](audio.md#spectrum)) it plays the music:
 
 Without readings (system volume, `--demo`, macOS before 15) it drizzles
 slowly and dimly instead. When paused the rain holds still and the
-animation tick slows down to once a second. It draws on the existing
+animation tick slows down to once a second.
+
+While no music plays (paused, stopped, nothing loaded) the spectrum area
+shows the null emblem with `N U 1 1 / S I G N A L` beside it, centered,
+in place of the rain: the large emblem where it fits (the expanded player
+included), else the compact one, else the emblem without its text, else
+nothing. With the effects on it glitches on its own, quieter schedule,
+apart from the bursts: every 4–7 s, for 0.15–0.25 s, one emblem row tears
+a cell sideways and one to three block cells flicker over it. The tick
+wakes only for those glitches, at about 15 fps, and stays at once a second
+between them. Playing again brings the rain back, its drops where they
+were. It draws on the existing
 animation frames, from the seed: the signal effects run over it.
 
 The other visualizers (bars, oscilloscope, synthwave, random) and the `v`

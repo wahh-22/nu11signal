@@ -8,7 +8,8 @@ import (
 
 // The null emblem: a block-drawn Ø, its ring in the label color and its
 // slash in the accent color, with the name beside it. The boot and
-// shutdown splashes draw it (see splash, boot.go and shutdown.go), and
+// shutdown splashes draw it (see splash, boot.go and shutdown.go), the
+// spectrum area shows it while no music plays (see idle.go), and
 // nu11signal --version prints the compact one (see EmblemRows).
 //
 //	  ▄████▄▄▀

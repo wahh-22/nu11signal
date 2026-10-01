@@ -125,7 +125,7 @@ func TestBootEndsOnTimeWhileLinking(t *testing.T) {
 		t.Fatalf("the calm boot ended after %v in %d ticks; want %v in at most 2", got, ticks, bootDur)
 	}
 	screen := plain(m)
-	if m.boot || strings.Contains(screen, bootLine) || strings.Contains(screen, "S I G N A L") {
+	if m.boot || strings.Contains(screen, bootLine) || splashBody(m) {
 		t.Fatalf("the boot did not end:\n%s", screen)
 	}
 	if !strings.Contains(screen, "NOW PLAYING") || !strings.Contains(screen, "LINKING") {
@@ -307,13 +307,26 @@ func TestAuthFailureEndsTheBootAtOnce(t *testing.T) {
 
 // Once the boot is over the normal view stays, access granted or not.
 func TestAuthorizedViewDropsTheEmblem(t *testing.T) {
-	screen := plain(loaded(t, playbacktest.New(), newClock()))
-	if strings.Contains(screen, bootLine) || strings.Contains(screen, "S I G N A L") {
+	m := loaded(t, playbacktest.New(), newClock())
+	screen := plain(m)
+	if strings.Contains(screen, bootLine) || splashBody(m) {
 		t.Fatalf("authorized view still shows the boot screen:\n%s", screen)
 	}
 	if !strings.Contains(screen, "NOW PLAYING") {
 		t.Fatalf("authorized view lacks the panels:\n%s", screen)
 	}
+}
+
+// splashBody reports whether m's list side shows the emblem's text, the
+// splash's body; the idle emblem in NOW PLAYING's spectrum area (see
+// idle.go) is not the splash.
+func splashBody(m Model) bool {
+	for _, l := range strings.Split(plain(m), "\n") {
+		if strings.Contains(ansi.Cut(l, 0, listPanelWidthFor(m.width)), "S I G N A L") {
+			return true
+		}
+	}
+	return false
 }
 
 // The splash body is not clickable: every zone is in the header.
