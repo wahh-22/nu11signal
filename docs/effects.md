@@ -72,13 +72,19 @@ While no music plays (paused, stopped, nothing loaded) the spectrum area
 shows the null emblem with `N U 1 1 / S I G N A L` beside it, centered,
 in place of the rain: the large emblem where it fits (the expanded player
 included), else the compact one, else the emblem without its text, else
-nothing. With the effects on it glitches on its own, quieter schedule,
-apart from the bursts: every 4–7 s, for 0.15–0.25 s, one emblem row tears
-a cell sideways and one to three block cells flicker over it. The tick
-wakes only for those glitches, at about 15 fps, and stays at once a second
-between them. Playing again brings the rain back, its drops where they
-were. The emblem and its glitch come from the seed and the animation
-frames, and the signal effects still run over them.
+nothing. Behind it, never over the emblem or its text, a sparse field of
+the rain's glyphs (hex digits, half-width katakana) sits at random cells,
+about 6% of them, mostly dim, now and then a brighter one; they do not
+fall. With the effects on the field flickers, each cell appearing,
+changing and going out on its own 0.6–1.8 s life, and the emblem glitches
+all the time, softly: every frame zero to two block cells flicker over it
+and, on about one frame in six, one emblem row tears a cell sideways. The
+tick runs at about 6.7 fps (150 ms) while the emblem is shown with the
+effects on, instead of once a second; with the effects off the emblem and
+the field are still and the tick stays at once a second. Playing again
+brings the rain back, its drops where they were. The emblem, the field
+and the glitch come from the seed and the clock, and the signal effects
+still run over them.
 
 The other visualizers (bars, oscilloscope, synthwave, random) and the `v`
 key are gone. A `nu11signal/config.json` under `os.UserConfigDir()`

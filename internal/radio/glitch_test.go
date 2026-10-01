@@ -225,8 +225,9 @@ func TestTickRateRisesOnlyDuringBursts(t *testing.T) {
 	for range 20 {
 		m = tick(t, m) // let the EQ settle flat
 	}
-	// Between the effects the tick sleeps until the next one is due.
-	want := min(idleTick, m.fx.nextBurst.Sub(c.t))
+	// Between the effects the tick sleeps until the next one is due, or
+	// the idle emblem's next frame.
+	want := min(idleTick, m.fx.nextBurst.Sub(c.t), max(idleFrameWait(c.t), minWake))
 	if got := m.tickInterval(); got != want {
 		t.Fatalf("idle tick with effects = %v, want %v (to the next effect)", got, want)
 	}

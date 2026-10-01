@@ -283,11 +283,9 @@ type Model struct {
 	tickGen  uint64
 	tickFast bool
 	// fx schedules the signal effects (see glitch.go); intro is the
-	// latest content intro (see intro.go); idle schedules the idle
-	// emblem's glitch (see idle.go).
+	// latest content intro (see intro.go).
 	fx    effects
 	intro intro
-	idle  idleGlitch
 	// boot shows the boot splash (see boot.go) until bootEnd, set by the
 	// first size; zero until then.
 	boot    bool
@@ -510,8 +508,8 @@ func (m Model) animInterval() time.Duration {
 
 // tickInterval is the time to the next frame: fastTick while something
 // moves, else idleTick, paced by the signal effects while they run (see
-// effects.interval) and the idle emblem's glitch (see idleGlitch.interval),
-// at most introTick during an intro, and cut to the boot's or the
+// effects.interval) and, when nothing runs faster, landing on the idle
+// emblem's frames (see idleFrameWait), at most introTick during an intro, and cut to the boot's or the
 // shutdown's frames and its end (see splashInterval).
 func (m Model) tickInterval() time.Duration {
 	d := idleTick
@@ -521,8 +519,10 @@ func (m Model) tickInterval() time.Duration {
 	if m.fxActive() {
 		d = m.fx.interval(m.now(), d)
 	}
-	if m.idleActive() {
-		d = m.idle.interval(m.now(), d)
+	if m.idleActive() && d >= idleFrameTick {
+		// Land on the idle emblem's frames; a faster pace (a burst, an
+		// intro) already redraws often enough.
+		d = max(idleFrameWait(m.now()), minWake)
 	}
 	if m.introAnimating() {
 		end := m.intro.start.Add(introDur)

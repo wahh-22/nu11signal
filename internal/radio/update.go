@@ -229,7 +229,6 @@ func (m Model) onTick(msg tickMsg) (tea.Model, tea.Cmd) {
 	m.frame++
 	m = m.endBootOnTime()
 	m.fx = m.fx.advance(m.now(), m.seed, m.fxActive())
-	m.idle = m.idle.advance(m.now(), m.seed, m.idleActive())
 	m = m.trackPlay().pollLevels()
 	if m.animDue(msg) {
 		m = m.animate()
