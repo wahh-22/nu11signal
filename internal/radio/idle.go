@@ -14,14 +14,13 @@ import (
 // the sizes it falls back through). The rain keeps its drops, held still
 // while paused, and comes back as playback does.
 //
-// With the signal effects active (see fxActive) the emblem glitches all
-// the time, softly: every idle frame (idleFrameTick, from the clock, not
-// the tick count) draws 0..idleNoiseMax Braille noise cells
-// (emblemNoiseGlyphs, never the glyph a cell shows) over the emblem's
-// drawn cells and, on one frame in
-// idleTearOdds, tears one emblem row 1 cell sideways, inside its box (see
-// idleArt.box); most frames change one or two cells and never draw
-// letters over it. Nothing is drawn behind it. Everything comes from the
+// With the signal effects active (see fxActive) the block glitches all
+// the time: every idle frame (idleFrameTick, from the clock, not the tick
+// count) draws idleNoiseMin..idleNoiseMax Braille noise cells
+// (emblemNoiseGlyphs, never the glyph a cell shows) over the block's
+// drawn cells, the emblem, the name and the bars alike, and, on one frame
+// in idleTearOdds, tears one of its rows 1 cell sideways, inside its box
+// (see idleArt.box); it never draws letters over it. Nothing is drawn behind it. Everything comes from the
 // seed and the idle frame, drawn inside the area, so nothing else moves.
 // When playback starts or stops the area dissolves between the emblem
 // and the rain instead of cutting (see vizswap.go).
@@ -33,10 +32,11 @@ import (
 // clean art, still, and the tick stays at idleTick.
 const (
 	idleFrameTick = 150 * time.Millisecond
-	// idleNoiseMax is the most noise cells a frame draws over the emblem;
-	// one frame in idleTearOdds also tears a row.
-	idleNoiseMax = 2
-	idleTearOdds = 6
+	// idleNoiseMin..idleNoiseMax are the noise cells a frame draws over
+	// the block; one frame in idleTearOdds also tears a row.
+	idleNoiseMin = 1
+	idleNoiseMax = 4
+	idleTearOdds = 3
 )
 
 // Salts keep the idle look's streams apart from the other effects'.
@@ -179,10 +179,11 @@ func (m Model) idleRows(w, h int) []string {
 	return lines
 }
 
-// idleGlitchDraw draws a frame's soft glitch, from r, over segs, the
-// emblem's rows in its box from column x0 of the area: on one frame in
-// idleTearOdds one row torn 1 cell sideways, then 0..idleNoiseMax
-// Braille noise cells over the emblem's drawn cells (its mask's).
+// idleGlitchDraw draws a frame's glitch, from r, over segs, the block's
+// rows in its box from column x0 of the area: on one frame in
+// idleTearOdds one row torn 1 cell sideways, then idleNoiseMin..
+// idleNoiseMax Braille noise cells over the block's drawn cells, the
+// emblem's (its mask's) and, beside it, the name's and the bars'.
 func idleGlitchDraw(segs []string, a idleArt, x0 int, r uint64) {
 	if r>>8%idleTearOdds == 0 {
 		i := int(r >> 16 % uint64(len(segs)))
@@ -190,15 +191,15 @@ func idleGlitchDraw(segs []string, a idleArt, x0 int, r uint64) {
 	}
 	type cell struct{ x, i int }
 	var drawn []cell
-	for i, mask := range a.e.mask {
-		for x, k := range []rune(mask) {
-			if k != ' ' {
+	for i, line := range a.plain() {
+		for x, ch := range []rune(line) {
+			if ch != ' ' && ch != '\u2800' {
 				drawn = append(drawn, cell{a.x - x0 + x, i})
 			}
 		}
 	}
 	n := uint64(len(drawn))
-	for j := range r % (idleNoiseMax + 1) {
+	for j := range idleNoiseMin + r%(idleNoiseMax-idleNoiseMin+1) {
 		h := mix(r, 4, j)
 		c := drawn[h%n]
 		glyph := emblemNoise(h>>32, cellRune(segs[c.i], c.x))

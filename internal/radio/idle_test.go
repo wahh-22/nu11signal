@@ -425,3 +425,41 @@ func TestIdleGolden80x24(t *testing.T) {
 	}
 	assertGolden(t, "idle_80x24.golden", ansi.Strip(m.View().Content))
 }
+
+// The idle glitch reaches the whole block, the name and the bars beside
+// the emblem too, and every frame corrupts at least idleNoiseMin cells.
+func TestIdleGlitchReachesTheText(t *testing.T) {
+	c := newClock()
+	m := idleFxModel(t, c)
+	w, h := m.vizSize()
+	art, ok := idleArtFor(w, h)
+	if !ok || !art.text {
+		t.Fatalf("the idle area %dx%d shows no emblem with its text", w, h)
+	}
+	clean := art.lines(w, h)
+	textFrom := art.x + art.e.width()
+	onText := 0
+	for i := range 60 {
+		rows := rainArea(t, m)
+		changed := 0
+		for y := art.y; y < art.y+len(art.e.rows); y++ {
+			got, want := cells(rows[y]), cells(clean[y])
+			for x := range min(len(got), len(want)) {
+				if got[x] != want[x] && slices.Contains(emblemNoiseGlyphs, got[x]) {
+					changed++
+					if x >= textFrom {
+						onText++
+					}
+				}
+			}
+		}
+		if changed < idleNoiseMin {
+			t.Fatalf("frame %d: %d noise cells, want at least %d", i, changed, idleNoiseMin)
+		}
+		c.advance(m.tickInterval())
+		m = m.tickAt(t, c)
+	}
+	if onText == 0 {
+		t.Fatal("the idle glitch never touched the name or the bars")
+	}
+}

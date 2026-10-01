@@ -74,9 +74,10 @@ While no music plays (paused, stopped, nothing loaded) the spectrum area
 shows the null emblem with `N U 1 1 / S I G N A L` beside it, centered,
 in place of the rain: the large emblem where it fits (the expanded player),
 else the compact one (the 80x24 player), else the emblem without its text, else
-nothing, on blank cells. With the effects on the emblem glitches all the
-time, softly: every frame zero to two dense Braille cells flicker over it and, on
-about one frame in six, one emblem row tears a cell sideways. The tick
+nothing, on blank cells. With the effects on the whole block glitches all
+the time: every frame one to four dense Braille cells flicker over the
+emblem, the name and the bars and, on about one frame in three, one of its
+rows tears a cell sideways. The tick
 runs at about 6.7 fps (150 ms) while the emblem is shown with the effects
 on, instead of once a second; with the effects off the emblem is still and
 the tick stays at once a second. The emblem and the glitch come from the
