@@ -26,7 +26,7 @@ func (m Model) View() tea.View {
 	v.AltScreen = true
 	// Clicks, releases and the wheel; motion is not needed (no hover).
 	v.MouseMode = tea.MouseModeCellMotion
-	v.WindowTitle = "NU11SIGNAL // NIGHT CITY RADIO"
+	v.WindowTitle = "NU11SIGNAL"
 	return v
 }
 
@@ -185,7 +185,7 @@ func (m Model) renderCompact() ([]string, zones) {
 	w := m.width
 	nav, zs := m.navLine(w)
 	zs = zs.shifted(0, 1)
-	lines := []string{m.headerLeft(false) + "  " + m.statusTag(), nav}
+	lines := []string{m.headerLeft() + "  " + m.statusTag(), nav}
 	if m.help {
 		zs.addBox(zonePanelOverlay, 0, len(lines), w, m.height-4)
 		lines = append(lines, m.helpPanel(w, m.height-4)...)
@@ -264,12 +264,8 @@ func (m Model) renderAuthError() []string {
 	return lines
 }
 
-func (m Model) headerLeft(wide bool) string {
-	sub := "NIGHT CITY RADIO"
-	if wide {
-		sub = spaced(sub)
-	}
-	return stAccent.Render("◢◤ ") + stLabelBold.Render("NU11SIGNAL") + stMuted.Render(" // ") + stLabel.Render(sub)
+func (m Model) headerLeft() string {
+	return stAccent.Render("◢◤ ") + stLabelBold.Render("NU11SIGNAL")
 }
 
 // header is the title line over the nav bar.
@@ -290,10 +286,7 @@ func (m Model) header(w int) ([]string, zones) {
 	right := auth + stDim.Render("  ▮  ") + stMuted.Render("SIG ") + sig +
 		stDim.Render("  ▮  ") + stNumber.Render(m.now().Format("15:04:05"))
 
-	left := m.headerLeft(true)
-	if ansi.StringWidth(left)+ansi.StringWidth(right)+2 > w {
-		left = m.headerLeft(false)
-	}
+	left := m.headerLeft()
 	gap := max(w-ansi.StringWidth(left)-ansi.StringWidth(right), 1)
 	top := left + strings.Repeat(" ", gap) + right
 
@@ -713,7 +706,9 @@ func renderHints(hs []hint) ([]renderedHint, int) {
 	parts := make([]renderedHint, len(hs))
 	width := 0
 	for i, h := range hs {
-		text := keyCap(h.key) + " " + stLabel.Render(h.label)
+		// The footer sits in the background: the content keeps the
+		// accent and label colors.
+		text := stMuted.Render("["+h.key+"]") + " " + stMuted.Render(h.label)
 		parts[i] = renderedHint{text: text, width: ansi.StringWidth(text)}
 		if i > 0 {
 			width += len(hintGap)
