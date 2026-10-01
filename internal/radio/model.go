@@ -133,6 +133,10 @@ type Model struct {
 	// playSeq numbers play requests; only the answer to the latest one
 	// may change playingStation.
 	playSeq uint64
+	// onAirQueue is the songs the latest confirmed play queued, in order
+	// (see onPlay); the status line names the one after the song playing
+	// (see upNext).
+	onAirQueue []playback.Song
 	// stationsFailed means loading the station list failed; r retries.
 	stationsFailed bool
 
@@ -186,6 +190,9 @@ type Model struct {
 	inputHadFocus bool
 	tab           int
 	tabsFrom      focusArea
+	// help shows the KEYS overlay (see help.go), which takes every key
+	// but keyHelp and esc (closing it) and ctrl+c (quitting).
+	help bool
 
 	// favs caches the favorite state of songs by id, and favSeq numbers
 	// its reads and changes (see library.go).
@@ -337,6 +344,7 @@ type (
 		seq     uint64
 		op      string
 		station string
+		queue   []playback.Song
 		report  playback.QueueReport
 		err     error
 	}

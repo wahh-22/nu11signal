@@ -600,7 +600,7 @@ func TestStationsFooterKeepsTheEssentialHintsAt80Columns(t *testing.T) {
 	m := playingModel(t, playbacktest.New())
 	lines := strings.Split(plain(m), "\n")
 	got := strings.TrimRight(lines[len(lines)-1], " ")
-	want := "[ENTER] OPEN  [/] SCAN  [SPACE] PLAY/PAUSE  [→] PLAYER  [,/.] SEEK  [Q] QUIT"
+	want := "[ENTER] OPEN  [/] SCAN  [SPACE] PLAY  [→] PLAYER  [,/.] SEEK  [?] KEYS  [Q] QUIT"
 	if got != want {
 		t.Fatalf("stations footer\n got %q\nwant %q", got, want)
 	}
@@ -621,9 +621,16 @@ func TestFitHintsMatchesRestylingEveryCandidate(t *testing.T) {
 		if ansi.StringWidth(join(hints)) > w {
 			hints = shortHints(hints)
 		}
+		// The last hint stays, and KEYS before it while there is another
+		// hint to drop.
+		keep := 1
+		if n := len(hints); n >= 2 && hints[n-2] == helpHint {
+			keep = 2
+		}
 		shown := append([]hint(nil), hints...)
 		for len(shown) > 1 && ansi.StringWidth(join(shown)) > w {
-			shown = append(shown[:len(shown)-2], shown[len(shown)-1])
+			drop := max(len(shown)-1-keep, 0)
+			shown = append(shown[:drop], shown[drop+1:]...)
 		}
 		return join(shown)
 	}

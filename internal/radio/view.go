@@ -41,7 +41,7 @@ func (m Model) render() string {
 // never move the zones.
 func (m Model) layout() ([]string, zones) {
 	lines, zs := m.baseLayout()
-	if m.introOn() {
+	if m.introOn() && !m.help {
 		m.drawIntro(lines)
 	}
 	if m.fxActive() {
@@ -88,13 +88,19 @@ func (m Model) renderFull() ([]string, zones) {
 	bodyH := h - 4
 	lines, zs := m.header(w)
 	top := len(lines)
+	if m.help {
+		// The KEYS overlay takes the whole body; nothing under it is
+		// clickable (see handleMouse).
+		lines = append(lines, m.helpPanel(w, bodyH)...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
 	// The panels go under the zones drawn in them, which stay on top.
 	if m.expanded {
 		// NOW PLAYING takes the list panel's place too.
 		playing, playingZones := m.nowPlaying(m.playerPanelWidth()-2, bodyH-2)
 		zs.addBox(zonePanelPlayer, 0, top, w, bodyH)
 		zs.addAt(1, top+1, playingZones.clip(w-2, bodyH-2))
-		lines = append(lines, panel("NOW PLAYING", "NC-NET 0x2077", playing, w, bodyH, true)...)
+		lines = append(lines, panel("NOW PLAYING", m.spectrumCode(), playing, w, bodyH, true)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
 	leftW := listPanelWidthFor(w)
@@ -102,7 +108,7 @@ func (m Model) renderFull() ([]string, zones) {
 
 	left, leftZones := m.listPanel(leftW, bodyH)
 	playing, playingZones := m.nowPlaying(rightW-2, bodyH-2)
-	right := panel("NOW PLAYING", "NC-NET 0x2077", playing, rightW, bodyH, m.focus == areaPlayer)
+	right := panel("NOW PLAYING", m.spectrumCode(), playing, rightW, bodyH, m.focus == areaPlayer)
 
 	zs.addBox(zonePanelList, 0, top, leftW, bodyH)
 	zs.addBox(zonePanelPlayer, leftW+1, top, rightW, bodyH)
@@ -171,6 +177,10 @@ func (m Model) renderCompact() ([]string, zones) {
 	nav, zs := m.navLine(w)
 	zs = zs.shifted(0, 1)
 	lines := []string{m.headerLeft(false) + "  " + m.statusTag(), nav}
+	if m.help {
+		lines = append(lines, m.helpPanel(w, m.height-4)...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
 	// The player lines (title to buttons) and the list below them are the
 	// panels, under the zones drawn in them.
 	var panels zones
@@ -275,18 +285,20 @@ func (m Model) header(w int) ([]string, zones) {
 }
 
 // navLine is the header rule carrying the nav bar: the PLAYLISTS and
-// SEARCH tabs and, on a page, BACK. The serial code stays
-// at the right edge while there is room for it.
+// SEARCH tabs and, on a page, BACK. The breadcrumb stays at the right
+// edge, cut with … to the room left, while at least minCrumb cells of it
+// fit.
 //
-//	▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ── RDO-77 // NC-NET ──
+//	▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ── PLAYLISTS // TOCAYO ──
 func (m Model) navLine(w int) (string, zones) {
 	const (
-		mark    = "▓▒░"
-		gap     = " "
-		code    = " RDO-77 // NC-NET "
-		codeEnd = "──"
-		// minRule is the rule kept between the bar and the code.
-		minRule = 1
+		mark     = "▓▒░"
+		gap      = " "
+		crumbEnd = "──"
+		// minRule is the rule kept between the bar and the breadcrumb,
+		// and minCrumb the fewest cells of its text worth drawing.
+		minRule  = 1
+		minCrumb = 6
 	)
 	lead := ansi.StringWidth(mark + gap)
 	gapW := ansi.StringWidth(gap)
@@ -295,10 +307,49 @@ func (m Model) navLine(w int) (string, zones) {
 	zs.addAt(lead, 0, bz)
 	rest := max(w-lead-ansi.StringWidth(bar)-gapW, 0)
 	tail := stFrameDim.Render(strings.Repeat("─", rest))
-	if codeW := ansi.StringWidth(code + codeEnd); rest >= codeW+minRule {
-		tail = stFrameDim.Render(strings.Repeat("─", rest-codeW)) + stMuted.Render(code) + stFrameDim.Render(codeEnd)
+	// The text sits between a space on each side and the closing rule.
+	if room := rest - minRule - ansi.StringWidth(crumbEnd) - 2; room >= minCrumb {
+		crumb := " " + ansi.Truncate(m.breadcrumb(), room, "…") + " "
+		tail = stFrameDim.Render(strings.Repeat("─", rest-ansi.StringWidth(crumb+crumbEnd))) +
+			stMuted.Render(crumb) + stFrameDim.Render(crumbEnd)
 	}
 	return stYellow.Render(mark) + gap + bar + gap + tail, zs
+}
+
+// breadcrumb names where the list panel is, upper case: the branch (the
+// lit tab, PLAYLISTS or SEARCH), then the editor over the list or the
+// page on top by its name.
+func (m Model) breadcrumb() string {
+	crumbs := []string{"PLAYLISTS"}
+	if !m.onPlaylistsBranch() {
+		crumbs[0] = "SEARCH"
+	}
+	f := m.top()
+	switch {
+	case m.editor.mode != editClosed:
+		crumbs = append(crumbs, m.editorTitle())
+	case f.kind == viewResults:
+		crumbs = append(crumbs, "RESULTS")
+	case f.kind == viewArtist:
+		crumbs = append(crumbs, f.artist.artistTitle())
+	case f.kind == viewAlbum || f.kind == viewPlaylist:
+		crumbs = append(crumbs, f.tracks.name())
+	}
+	return strings.ToUpper(cleanLine(strings.Join(crumbs, " // ")))
+}
+
+// spectrumCode is the NOW PLAYING panel's bottom label: where the rain's
+// levels come from, the player's readings (LIVE), the decorative
+// animation while playing (SIM), or nothing while paused or stopped
+// (HOLD, the bars falling).
+func (m Model) spectrumCode() string {
+	switch _, live := m.liveSpectrum(); {
+	case live:
+		return "SPECTRUM LIVE"
+	case m.isPlaying():
+		return "SPECTRUM SIM"
+	}
+	return "SPECTRUM HOLD"
 }
 
 func (m Model) statusTag() string {
@@ -538,20 +589,46 @@ func (m Model) statusLine(w int) string {
 	if m.status != "" {
 		return stYellow.Render("▲ " + strings.ToUpper(m.status))
 	}
-	return stDim.Render(fit("░▒▓ SYS NOMINAL // BUF 0x5EF6", w))
+	return stDim.Render(fit("░▒▓ "+m.idleStatus(), w))
+}
+
+// idleStatus is the status line without a message: the song NEXT moves
+// to, when the model knows it (see upNext), else which volume the
+// player drives (once it says) and whether the signal effects are on.
+func (m Model) idleStatus() string {
+	if s, ok := m.upNext(); ok {
+		next := "UP NEXT // " + strings.ToUpper(s.Title)
+		if s.Artist != "" {
+			next += " · " + strings.ToUpper(s.Artist)
+		}
+		return next
+	}
+	fx := "FX OFF"
+	if m.fx.on {
+		fx = "FX ON"
+	}
+	switch m.volumeMode {
+	case playback.VolumeApp:
+		return "APP VOLUME // " + fx
+	case playback.VolumeSystem:
+		return "SYS VOLUME // " + fx
+	}
+	return fx
 }
 
 func keyCap(k string) string { return stYellow.Render("[" + k + "]") }
 
-// hintLine lays out key hints, dropping lower-priority ones (never the last,
-// quit) until they fit.
+// hintLine lays out key hints, dropping lower-priority ones (never the
+// last, quit, nor KEYS before it) until they fit.
 func (m Model) hintLine(w int) string {
 	hints := playerHints
 	switch kind := m.top().kind; {
+	case m.help:
+		hints = helpOverlayHints
 	case m.focus == areaTabs:
-		hints = tabsFocusHints(kind == viewSearch || m.editor.mode == editName)
+		hints = tabsFocusHints(m.keysTyped())
 	case m.focus == areaPlayer:
-		hints = playerFocusHints(m.expanded, kind == viewSearch || m.editor.mode == editName)
+		hints = playerFocusHints(m.expanded, m.keysTyped())
 	case m.editor.mode == editPick:
 		hints = pickerHints
 	case m.editor.mode == editName:
@@ -574,7 +651,8 @@ func (m Model) hintLine(w int) string {
 }
 
 // fitHints joins hints into a line of at most w cells, shortening their
-// keys and then dropping lower-priority ones (never the last) until it
+// keys and then dropping lower-priority ones (never the last, nor the
+// KEYS hint right before it, but when only the two are left) until it
 // fits. Each hint is styled once: the View runs on every frame, and
 // styling every candidate line anew made the hints most of its cost.
 func fitHints(hints []hint, w int) string {
@@ -582,8 +660,12 @@ func fitHints(hints []hint, w int) string {
 	if width > w {
 		parts, width = renderHints(shortHints(hints))
 	}
+	keep := 1
+	if n := len(hints); n >= 2 && hints[n-2] == helpHint {
+		keep = 2
+	}
 	for len(parts) > 1 && width > w {
-		drop := len(parts) - 2
+		drop := max(len(parts)-1-keep, 0)
 		width -= parts[drop].width + len(hintGap)
 		parts = append(parts[:drop], parts[drop+1:]...)
 	}
@@ -619,12 +701,21 @@ func renderHints(hs []hint) ([]renderedHint, int) {
 	return parts, width
 }
 
-// shortHints names only DEL of the recent delete keys.
+// shortHints names only DEL of the recent delete keys, the space key
+// PLAY and the arrows walking the player or the tabs PICK: the room they
+// free keeps ESC BACK (on the pages), SEEK (on the playlists) and F
+// RESTORE (on the expanded player) beside KEYS and QUIT in an 80-column
+// footer.
 func shortHints(hs []hint) []hint {
 	out := slices.Clone(hs)
 	for i, h := range out {
-		if h.key == recentDeleteKeys {
+		switch {
+		case h.key == recentDeleteKeys:
 			out[i].key = "DEL"
+		case h.key == "SPACE" && h.label == "PLAY/PAUSE":
+			out[i].label = "PLAY"
+		case h.key == "←→" && h.label == "SELECT":
+			out[i].label = "PICK"
 		}
 	}
 	return out

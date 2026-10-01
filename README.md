@@ -342,6 +342,7 @@ PLAYLISTS (and anywhere the key is not taken by the view):
 | `r` | Retry loading the playlists after a failure |
 | `x` | Turn the signal effects off or on (see [Signal effects](#signal-effects)) |
 | `q` / `ctrl+c` | Quit |
+| `?` | Open or close KEYS, the list of every key (see below) |
 
 SEARCH (typing goes to the input, so letter shortcuts are off):
 
@@ -417,7 +418,23 @@ list, as it was left (on SEARCH, the same row or the input).
 
 The footer names the keys of the side and view in focus; when it does not
 fit, it keeps the essential ones first (on the playlists: `enter`, `/`,
-`space`, `→`) and always quit.
+`space`, `→`) and always `[?] KEYS` and quit (where `?` is typed, on SEARCH
+and in the NEW PLAYLIST name, only quit).
+
+`?` opens KEYS, every binding grouped (PLAYBACK, NAVIGATION, VIEW, SEARCH,
+APP) in a panel over the body, wherever `q` quits (on SEARCH and in the
+NEW PLAYLIST name `?` is typed). `?` or `esc` (or a click) closes it; while
+it is open the other keys do nothing, `q` included, and `ctrl+c` quits.
+
+The HUD names live state: the nav bar ends in a breadcrumb of where you
+are (`PLAYLISTS // TOCAYO`, `SEARCH // RESULTS`, `SEARCH // DAFT PUNK`, cut
+to fit); the NOW PLAYING frame says where the rain's levels come from
+(`SPECTRUM LIVE` from the player's readings, `SPECTRUM SIM` animated,
+`SPECTRUM HOLD` paused or stopped); and with no message the status line
+names the song `n` moves to (`UP NEXT // RESONANCE · HOME`) when the song
+playing is in the list nu11signal queued (after the last one, the first
+while the loop repeats), else the volume driven and the effects
+(`APP VOLUME // FX ON`).
 
 The list panel keeps one width in every view (the browse pages' width),
 leaving NOW PLAYING at least 30 columns.

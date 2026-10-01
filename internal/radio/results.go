@@ -90,8 +90,7 @@ func (m Model) resultsEnter() (Model, tea.Cmd) {
 	}
 	it := items[cur]
 	if it.Kind == playback.ItemSong {
-		ids, start := m.resultsQueue(cur)
-		return m.playSongs(ids, start)
+		return m.playSongs(m.resultsQueue(cur))
 	}
 	kind, ok := resultKinds[it.Kind]
 	if !ok {
@@ -116,9 +115,8 @@ func (m Model) resultsAlbum() (next Model, cmd tea.Cmd, ok bool) {
 // songs of the SONGS section, started at the song. A top result plays the
 // SONGS section too, from its copy there; a top song missing from SONGS
 // plays first, the section after it.
-func (m Model) resultsQueue(cur int) (ids []string, start int) {
+func (m Model) resultsQueue(cur int) (songs []playback.Song, start int) {
 	var top *playback.Song
-	var songs []playback.Song
 	n := 0
 	for _, s := range resultSections(m.top().results.found) {
 		for _, it := range s.items {
@@ -142,7 +140,7 @@ func (m Model) resultsQueue(cur int) (ids []string, start int) {
 			songs, start = append([]playback.Song{*top}, songs...), 0
 		}
 	}
-	return songIDs(songs), start
+	return songs, start
 }
 
 // resultKind is what the RESULTS page knows of one kind of row: how it

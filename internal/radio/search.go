@@ -385,7 +385,7 @@ func (m Model) searchEnter() (tea.Model, tea.Cmd) {
 			}
 			songs = append(songs, r.song)
 		}
-		next, play := m.playSongs(songIDs(songs), start)
+		next, play := m.playSongs(songs, start)
 		return next, tea.Batch(play, save)
 	}
 	m.input.SetValue(row.term)

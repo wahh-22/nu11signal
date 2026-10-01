@@ -283,24 +283,26 @@ func (m Model) tracksEnter() (Model, tea.Cmd) {
 		if it.playAll {
 			index = -1
 		}
-		ids, from := playableQueue(page.tracks(), index)
-		if len(ids) == 0 {
+		queue, from := playableQueue(page.tracks(), index)
+		if len(queue) == 0 {
 			m.setStatus("NONE OF THESE SONGS ARE IN THE APPLE MUSIC CATALOG")
 			return m, nil
 		}
+		ids := songIDs(queue)
 		m.playSeq++
-		return m, m.playCmd(m.playSeq, "PLAY", page.playlist.ID, func(ctx context.Context) (playback.QueueReport, error) {
+		return m, m.playCmd(m.playSeq, "PLAY", page.playlist.ID, queue, func(ctx context.Context) (playback.QueueReport, error) {
 			return m.player.PlaySongs(ctx, ids, from)
 		})
 	}
-	return m.playSongs(songIDs(m.top().tracks.tracks()), it.index)
+	return m.playSongs(m.top().tracks.tracks(), it.index)
 }
 
-// playSongs plays the catalog songs ids from ids[start], the rest queued
+// playSongs plays the catalog songs from songs[start], the rest queued
 // around it: a song picked from a list plays on into that list.
-func (m Model) playSongs(ids []string, start int) (Model, tea.Cmd) {
+func (m Model) playSongs(songs []playback.Song, start int) (Model, tea.Cmd) {
+	ids := songIDs(songs)
 	m.playSeq++
-	return m, m.playCmd(m.playSeq, "PLAY", "", func(ctx context.Context) (playback.QueueReport, error) {
+	return m, m.playCmd(m.playSeq, "PLAY", "", songs, func(ctx context.Context) (playback.QueueReport, error) {
 		return m.player.PlaySongs(ctx, ids, start)
 	})
 }
@@ -314,20 +316,20 @@ func songIDs(songs []playback.Song) []string {
 	return ids
 }
 
-// playableQueue is the catalog ids of songs, library-only ones left out,
-// and the position among them of songs[index] (the first of them for a
-// negative index).
-func playableQueue(songs []playback.Song, index int) (ids []string, start int) {
+// playableQueue is the catalog songs of songs, library-only ones left
+// out, and the position among them of songs[index] (the first of them
+// for a negative index).
+func playableQueue(songs []playback.Song, index int) (queue []playback.Song, start int) {
 	for i, s := range songs {
 		if s.LibraryOnly {
 			continue
 		}
 		if i == index {
-			start = len(ids)
+			start = len(queue)
 		}
-		ids = append(ids, s.ID)
+		queue = append(queue, s)
 	}
-	return ids, start
+	return queue, start
 }
 
 // trackItems lists the selectable rows of the track page on top, at the
@@ -549,6 +551,41 @@ func (m Model) trackCode() string {
 	return fmt.Sprintf("TRACKS %02d", len(page.tracks()))
 }
 
+// headPlaylist is the playlist heading a PLAYLIST page: the loaded one,
+// or the one selected until it loads.
+func (p trackPage) headPlaylist() playback.CatalogPlaylist {
+	if pl := p.playlistDetail.Playlist; pl.Name != "" {
+		return pl
+	}
+	return p.playlist
+}
+
+// headAlbum is the album heading an ALBUM or SONG page: the loaded one,
+// else the one selected, or the song's album until it loads (a song row
+// may not know its album, then the song stands in).
+func (p trackPage) headAlbum() playback.Album {
+	a := p.albumDetail.Album
+	switch {
+	case a.Title != "":
+	case p.song.ID != "":
+		a = playback.Album{Title: p.song.Album, Artist: p.song.Artist}
+		if a.Title == "" {
+			a.Title = p.song.Title
+		}
+	default:
+		a = p.album
+	}
+	return a
+}
+
+// name is the title heading the page, as the breadcrumb names it.
+func (p trackPage) name() string {
+	if p.kind == viewPlaylist {
+		return p.headPlaylist().Name
+	}
+	return p.headAlbum().Title
+}
+
 // trackHead is the head of the track page on top: the title, then the
 // artist (or curator), then the genre and year of an album.
 func (m Model) trackHead() []string {
@@ -556,10 +593,7 @@ func (m Model) trackHead() []string {
 	p := f.tracks
 	var title, by, facts string
 	if f.kind == viewPlaylist {
-		pl := p.playlistDetail.Playlist
-		if pl.Name == "" {
-			pl = p.playlist
-		}
+		pl := p.headPlaylist()
 		title, by, facts = pl.Name, pl.Curator, "PLAYLIST"
 		if p.library {
 			facts = "LIBRARY PLAYLIST"
@@ -569,19 +603,7 @@ func (m Model) trackHead() []string {
 		}
 	} else {
 		d := p.albumDetail
-		a := d.Album
-		switch {
-		case a.Title != "":
-		case p.song.ID != "":
-			// The song's album heads the page until it loads; a song row
-			// may not know its album, then the song stands in.
-			a = playback.Album{Title: p.song.Album, Artist: p.song.Artist}
-			if a.Title == "" {
-				a.Title = p.song.Title
-			}
-		default:
-			a = p.album
-		}
+		a := p.headAlbum()
 		title, by = a.Title, a.Artist
 		year := yearOf(a)
 		if year == "" && len(d.ReleaseDate) >= 4 {

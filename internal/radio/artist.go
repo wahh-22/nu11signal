@@ -114,7 +114,7 @@ func (m Model) artistEnter() (Model, tea.Cmd) {
 	it := items[cur]
 	switch it.kind {
 	case itemSong:
-		return m.playSongs(songIDs(m.top().artist.detail.TopSongs), it.index)
+		return m.playSongs(m.top().artist.detail.TopSongs, it.index)
 	case itemMore:
 		f := m.top()
 		f.artist.aboutOpen = !f.artist.aboutOpen

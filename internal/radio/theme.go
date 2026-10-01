@@ -73,7 +73,7 @@ func fit(s string, w int) string {
 //
 //	╱─▮ PLAYLISTS ─────┐
 //	│ ...              │
-//	└──────── RDO-77 ─╱
+//	└──────── BAND FM ─╱
 //
 // The result is exactly w cells wide and h lines tall (nothing when either
 // is too small to hold a frame).

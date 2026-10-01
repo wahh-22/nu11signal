@@ -3,6 +3,7 @@ package radio
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -264,6 +265,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if k == keyCtrlC {
 		return m, m.quitCmd()
 	}
+	if next, ok := m.helpKey(k); ok {
+		return next, nil
+	}
 	if m.auth != authFailed {
 		if m.focus == areaTabs {
 			if next, cmd, ok := m.handleTabsKey(k); ok {
@@ -387,21 +391,23 @@ func (m Model) openSelection() (tea.Model, tea.Cmd) {
 	return m.openLibraryPlaylist(m.stations[m.stationCursor()])
 }
 
-// playCmd runs play request number seq; the on-air station changes only
-// once the player confirms it (see onPlay).
-func (m Model) playCmd(seq uint64, op, station string, request func(context.Context) (playback.QueueReport, error)) tea.Cmd {
+// playCmd runs play request number seq, which queues the songs queue;
+// the on-air station and queue change only once the player confirms it
+// (see onPlay).
+func (m Model) playCmd(seq uint64, op, station string, queue []playback.Song, request func(context.Context) (playback.QueueReport, error)) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := m.ctx()
 		defer cancel()
 		report, err := request(ctx)
-		return playMsg{seq: seq, op: op, station: station, report: report, err: err}
+		return playMsg{seq: seq, op: op, station: station, queue: queue, report: report, err: err}
 	}
 }
 
 // onPlay settles a play request. Failures are always reported, but only
 // the latest request may set the on-air station or report the songs left
 // out of its queue: a superseded tune that confirms late must not
-// overwrite a newer one.
+// overwrite a newer one. The on-air queue is the songs it asked for, but
+// those the report left out; none when only the start song plays.
 func (m Model) onPlay(msg playMsg) Model {
 	if msg.err != nil {
 		m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
@@ -409,11 +415,47 @@ func (m Model) onPlay(msg playMsg) Model {
 	}
 	if msg.seq == m.playSeq {
 		m.playingStation = msg.station
+		m.onAirQueue = queued(msg.queue, msg.report)
 		if s := queueNotice(msg.report); s != "" {
 			m.setStatus(s)
 		}
 	}
 	return m
+}
+
+// queued is the songs of queue the player queued, as report tells: none
+// when it started the first alone, else all but the missing and skipped.
+func queued(queue []playback.Song, r playback.QueueReport) []playback.Song {
+	if r.StartedAlone {
+		return nil
+	}
+	return slices.DeleteFunc(slices.Clone(queue), func(s playback.Song) bool {
+		return slices.Contains(r.Missing, s.ID) || slices.Contains(r.Skipped, s.ID)
+	})
+}
+
+// upNext is the song NEXT moves to in the on-air queue: the one after the
+// song playing, or the first after the last while the player repeats.
+// ok is false unless the song playing is in that queue exactly once (the
+// player may have moved to a song the model did not queue), and when
+// nothing follows it.
+func (m Model) upNext() (playback.Song, bool) {
+	cur, ok := m.playingSong()
+	q := m.onAirQueue
+	if !ok || len(q) < 2 {
+		return playback.Song{}, false
+	}
+	same := func(s playback.Song) bool { return s.ID == cur.ID }
+	i := slices.IndexFunc(q, same)
+	switch {
+	case i < 0 || slices.IndexFunc(q[i+1:], same) >= 0:
+		return playback.Song{}, false
+	case i+1 < len(q):
+		return q[i+1], true
+	case m.state.Repeat == playback.RepeatOff:
+		return playback.Song{}, false
+	}
+	return q[0], true
 }
 
 // queueNotice is the status line for a play that left songs out of its
