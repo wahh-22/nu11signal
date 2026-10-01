@@ -6,71 +6,89 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// The null emblem: a block-drawn Ø, its ring in the label color and its
-// slash in the accent color, with the name beside it. The boot and
-// shutdown splashes draw it (see splash, boot.go and shutdown.go), the
-// spectrum area shows it while no music plays (see idle.go), and
-// nu11signal --version prints the compact one (see EmblemRows).
+// The null emblem: a Braille slashed zero, its ring in the label color
+// and its slash, crossing the whole 0 and sticking out top right and
+// bottom left, in the accent color, with the name beside it over five
+// thin accent bars. The boot and shutdown splashes draw it (see splash,
+// boot.go and shutdown.go), the spectrum area shows it while no music
+// plays (see idle.go), and nu11signal --version prints the compact one
+// (see EmblemRows).
 //
-//	  ▄████▄▄▀
-//	▄█▀   ▄▀█▄   N U 1 1
-//	██  ▄▀  ██   S I G N A L
-//	▀█▄▀   ▄█▀   ◢◤◢◤◢◤◢◤◢◤
-//	▄▀▀████▀
+//	         ⢀⣦⡀
+//	  ⢀⣴⣿⠿⠿⣿⣶⣿⠟
+//	  ⣾⡿⠁ ⢀⣼⣿⣷     N U 1 1
+//	 ⢸⣿⡇ ⣠⣿⠟⢹⣿⡇    S I G N A L
+//	 ⢸⣿⣇⣴⣿⠋ ⢸⣿⡇    ⣠⡾⠋⣠⡾⠋⣠⡾⠋⣠⡾⠋⣠⡾⠋
+//	  ⢿⣿⡟⠁ ⢀⣾⡿
+//	 ⣴⣿⠿⣿⣶⣶⣿⠟⠁
+//	⠈⠻⠁
 //
 //	        B O O T I N G   N U 1 1 S I G N A L . . .
 
-// An emblem is the Ø drawn cell by cell: rows of block glyphs, all as
-// wide, and for each a mask as wide naming what each cell draws, r the
-// ring, s the slash and a space nothing. Its text sits textGap cells
-// right of it, from row textRow down.
+// An emblem is the Ø drawn cell by cell: rows of one-cell Braille
+// patterns (U+2800..U+28FF, each a 2 x 4 dot grid), all as wide, and
+// for each a mask as wide naming what each cell draws, r the ring, s the
+// slash and a space nothing. Its text sits textGap cells right of it,
+// from row textRow down, on its middle rows.
 type emblem struct {
 	rows, mask []string
 	textRow    int
 }
 
-// emblemLarge and emblemCompact are the two sizes of the emblem; the
-// text sits on the rows the doc of the feature names, centered on the
-// emblem's height.
+// emblemLarge (12 x 8 cells) and emblemCompact (8 x 6) are the two sizes
+// of the emblem, drawn from a dot grid; the text sits on their three
+// middle rows.
 var (
 	emblemLarge = emblem{
 		rows: []string{
-			"  ▄████▄▄▀",
-			"▄█▀   ▄▀█▄",
-			"██  ▄▀  ██",
-			"▀█▄▀   ▄█▀",
-			"▄▀▀████▀  ",
+			"         ⢀⣦⡀",
+			"  ⢀⣴⣿⠿⠿⣿⣶⣿⠟ ",
+			"  ⣾⡿⠁ ⢀⣼⣿⣷  ",
+			" ⢸⣿⡇ ⣠⣿⠟⢹⣿⡇ ",
+			" ⢸⣿⣇⣴⣿⠋ ⢸⣿⡇ ",
+			"  ⢿⣿⡟⠁ ⢀⣾⡿  ",
+			" ⣴⣿⠿⣿⣶⣶⣿⠟⠁  ",
+			"⠈⠻⠁         ",
 		},
 		mask: []string{
-			"  rrrrrrss",
-			"rrr   srrr",
-			"rr  ss  rr",
-			"rrrs   rrr",
-			"ssrrrrrr  ",
+			"         sss",
+			"  rrrrrrrss ",
+			"  rrr ssrr  ",
+			" rrr sssrrr ",
+			" rrrsss rrr ",
+			"  rrss rrr  ",
+			" ssrrrrrrr  ",
+			"sss         ",
 		},
-		textRow: 1,
+		textRow: 2,
 	}
 	emblemCompact = emblem{
 		rows: []string{
-			" ▄▀▀▄▀",
-			"█ ▄▀ █",
-			"▄▀▄▄▀ ",
+			"   ⣀⣀ ⢠⣤",
+			" ⣠⣾⠟⠻⣷⣿⠁",
+			" ⣿⠃⢠⣾⠟⣿ ",
+			" ⣿⣴⡿⠃⢠⣿ ",
+			"⢀⣿⢿⣦⣴⡿⠋ ",
+			"⠛⠃ ⠉⠉   ",
 		},
 		mask: []string{
-			" rrrrs",
-			"r ss r",
-			"srrrr ",
+			"   rr ss",
+			" rrrrrss",
+			" rrsssr ",
+			" rsssrr ",
+			"ssrrrrr ",
+			"ss rr   ",
 		},
-		textRow: 0,
+		textRow: 1,
 	}
 )
 
-// The name beside the emblem, its spaced lines over the accent slants,
-// textGap cells right of it.
+// The name beside the emblem, its spaced lines over five thin Braille
+// bars in the accent color, textGap cells right of it.
 const (
 	textGap    = 3
 	emblemName = "NU11 SIGNAL"
-	emblemMark = "◢◤◢◤◢◤◢◤◢◤"
+	emblemMark = "⣠⡾⠋⣠⡾⠋⣠⡾⠋⣠⡾⠋⣠⡾⠋"
 )
 
 // EmblemRows are the plain rows of the compact emblem, as wide as each
@@ -78,14 +96,14 @@ const (
 func EmblemRows() []string { return append([]string(nil), emblemCompact.rows...) }
 
 // EmblemArt is the large emblem cell by cell, for the README art
-// (tools/readmeart): its rows of block glyphs and, as wide, their masks
+// (tools/readmeart): its rows of Braille cells and, as wide, their masks
 // (r the ring, s the slash, a space nothing).
 func EmblemArt() (rows, mask []string) {
 	return append([]string(nil), emblemLarge.rows...), append([]string(nil), emblemLarge.mask...)
 }
 
 // textLines are the lines beside the emblem, plain: the name spaced out
-// on two lines, then the slants.
+// on two lines, then the bars.
 func (e emblem) textLines() []string {
 	words := strings.Fields(emblemName)
 	return []string{spaced(words[0]), spaced(words[1]), emblemMark}
@@ -106,7 +124,7 @@ func (e emblem) blockWidth() int {
 
 // block renders the emblem and its text, one line per emblem row: the
 // ring in the label color, the slash in the accent color, the name in
-// bold label and the slants in the accent color. The lines are not
+// bold label and the bars in the accent color. The lines are not
 // padded on the right.
 func (e emblem) block() []string {
 	text := e.textLines()

@@ -63,13 +63,106 @@ func TestEmblemMasksMatchTheirRows(t *testing.T) {
 	}
 }
 
+// The emblem is a Braille slashed zero: the large one 12 x 8 cells, the
+// compact one 8 x 6, every drawn cell one Braille pattern, the ring in r
+// and the slash crossing it from the top right out to the bottom left.
+func TestEmblemIsTheBrailleSlashedZero(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		e           emblem
+		rows, mask  []string
+		textRow     int
+		wantW, want int
+	}{
+		{"large", emblemLarge, []string{
+			"         ⢀⣦⡀",
+			"  ⢀⣴⣿⠿⠿⣿⣶⣿⠟ ",
+			"  ⣾⡿⠁ ⢀⣼⣿⣷  ",
+			" ⢸⣿⡇ ⣠⣿⠟⢹⣿⡇ ",
+			" ⢸⣿⣇⣴⣿⠋ ⢸⣿⡇ ",
+			"  ⢿⣿⡟⠁ ⢀⣾⡿  ",
+			" ⣴⣿⠿⣿⣶⣶⣿⠟⠁  ",
+			"⠈⠻⠁         ",
+		}, []string{
+			"         sss",
+			"  rrrrrrrss ",
+			"  rrr ssrr  ",
+			" rrr sssrrr ",
+			" rrrsss rrr ",
+			"  rrss rrr  ",
+			" ssrrrrrrr  ",
+			"sss         ",
+		}, 2, 12, 8},
+		{"compact", emblemCompact, []string{
+			"   ⣀⣀ ⢠⣤",
+			" ⣠⣾⠟⠻⣷⣿⠁",
+			" ⣿⠃⢠⣾⠟⣿ ",
+			" ⣿⣴⡿⠃⢠⣿ ",
+			"⢀⣿⢿⣦⣴⡿⠋ ",
+			"⠛⠃ ⠉⠉   ",
+		}, []string{
+			"   rr ss",
+			" rrrrrss",
+			" rrsssr ",
+			" rsssrr ",
+			"ssrrrrr ",
+			"ss rr   ",
+		}, 1, 8, 6},
+	} {
+		if !slices.Equal(tt.e.rows, tt.rows) || !slices.Equal(tt.e.mask, tt.mask) || tt.e.textRow != tt.textRow {
+			t.Fatalf("%s emblem = %q %q text row %d; want %q %q text row %d", tt.name, tt.e.rows, tt.e.mask, tt.e.textRow, tt.rows, tt.mask, tt.textRow)
+		}
+		if tt.e.width() != tt.wantW || len(tt.e.rows) != tt.want {
+			t.Fatalf("%s emblem %d x %d; want %d x %d", tt.name, tt.e.width(), len(tt.e.rows), tt.wantW, tt.want)
+		}
+		for i, row := range tt.e.rows {
+			if ansi.StringWidth(row) != tt.wantW {
+				t.Errorf("%s row %d is %d cells wide", tt.name, i, ansi.StringWidth(row))
+			}
+			for _, r := range row {
+				if r != ' ' && !brailleRune(r) {
+					t.Errorf("%s row %d draws %q, not a Braille cell", tt.name, i, r)
+				}
+			}
+		}
+		// The text sits on the three middle rows.
+		if got := tt.e.textRow + len(tt.e.textLines()); got > len(tt.e.rows) {
+			t.Errorf("%s text runs to row %d of %d", tt.name, got, len(tt.e.rows))
+		}
+	}
+	if got, want := emblemLarge.textLines(), []string{"N U 1 1", "S I G N A L", "⣠⡾⠋⣠⡾⠋⣠⡾⠋⣠⡾⠋⣠⡾⠋"}; !slices.Equal(got, want) {
+		t.Fatalf("text lines %q; want %q", got, want)
+	}
+	if lw, cw := emblemLarge.blockWidth(), emblemCompact.blockWidth(); lw != 30 || cw != 26 {
+		t.Fatalf("block widths %d and %d; want 30 and 26", lw, cw)
+	}
+}
+
+// brailleRune reports whether r is a Braille pattern (U+2800..U+28FF).
+func brailleRune(r rune) bool { return r >= 0x2800 && r <= 0x28FF }
+
+// Braille cells are not text: the intros and the text glitches leave
+// the emblem alone, as they left its block glyphs.
+func TestBrailleIsNotText(t *testing.T) {
+	for _, r := range []rune{'⠀', '⢀', '⣿', '⠋', 0x28FF} {
+		if textRune(r) {
+			t.Errorf("textRune(%q) = true; want Braille kept out of the text", r)
+		}
+	}
+	for _, r := range []rune{'A', '7', '/', 'ｱ'} {
+		if !textRune(r) {
+			t.Errorf("textRune(%q) = false; want text", r)
+		}
+	}
+}
+
 // From the first frame the body is the large emblem with its text, and
 // the BOOTING line under it; the panels are not drawn. The header keeps
 // LINKING while access links.
 func TestBootShowsTheEmblemAndTheBootLine(t *testing.T) {
 	m := bootModel(t, newClock(), 80, 24, false)
 	screen := plain(m)
-	for _, want := range append(slices.Clone(emblemLarge.rows), "N U 1 1", "S I G N A L", "◢◤◢◤◢◤◢◤◢◤", bootLine, "LINKING") {
+	for _, want := range append(slices.Clone(emblemLarge.rows), "N U 1 1", "S I G N A L", "⣠⡾⠋⣠⡾⠋⣠⡾⠋⣠⡾⠋⣠⡾⠋", bootLine, "LINKING") {
 		if !strings.Contains(screen, strings.TrimRight(want, " ")) {
 			t.Errorf("boot screen lacks %q:\n%s", want, screen)
 		}
@@ -154,7 +247,7 @@ func TestBootCentersTheBlockAndTheLine(t *testing.T) {
 					t.Fatalf("emblem row %d at line %d reads %q; want it %d cells in", i, top+i, lines[top+i], left)
 				}
 			}
-			if got, want := lines[top+1], strings.Repeat(" ", left)+emblemLarge.rows[1]+"   N U 1 1"; got != want {
+			if got, want := lines[top+emblemLarge.textRow], strings.Repeat(" ", left)+emblemLarge.rows[emblemLarge.textRow]+"   N U 1 1"; got != want {
 				t.Fatalf("text row reads %q; want %q", got, want)
 			}
 			line := lines[top+len(emblemLarge.rows)+1]
@@ -171,25 +264,30 @@ func TestBootCentersTheBlockAndTheLine(t *testing.T) {
 // Where the large block does not fit the compact one takes its place,
 // and the line goes plain where its spaced form does not fit.
 func TestBootFallsBackToTheCompactEmblem(t *testing.T) {
-	screen := plain(bootModel(t, newClock(), 40, 10, false))
-	for _, row := range emblemCompact.rows {
-		if !strings.Contains(screen, strings.TrimRight(row, " ")) {
-			t.Fatalf("compact boot screen lacks %q:\n%s", row, screen)
+	// 40x13 leaves a 9-row body, short of the large emblem's 10 rows;
+	// 28x20 is narrower than its 30-cell block.
+	for _, sz := range []struct{ w, h int }{{40, 13}, {28, 20}} {
+		screen := plain(bootModel(t, newClock(), sz.w, sz.h, false))
+		for _, row := range emblemCompact.rows {
+			if !strings.Contains(screen, strings.TrimRight(row, " ")) {
+				t.Fatalf("%dx%d: compact boot screen lacks %q:\n%s", sz.w, sz.h, row, screen)
+			}
 		}
-	}
-	if strings.Contains(screen, strings.TrimSpace(emblemLarge.rows[1])) {
-		t.Fatalf("compact boot screen draws the large emblem:\n%s", screen)
-	}
-	if !strings.Contains(screen, "S I G N A L") || !strings.Contains(screen, "BOOTING NU11SIGNAL...") {
-		t.Fatalf("compact boot screen lacks its text:\n%s", screen)
+		if strings.Contains(screen, strings.TrimSpace(emblemLarge.rows[1])) {
+			t.Fatalf("%dx%d: compact boot screen draws the large emblem:\n%s", sz.w, sz.h, screen)
+		}
+		if !strings.Contains(screen, "S I G N A L") || !strings.Contains(screen, "BOOTING NU11SIGNAL...") {
+			t.Fatalf("%dx%d: compact boot screen lacks its text:\n%s", sz.w, sz.h, screen)
+		}
 	}
 }
 
 // Where neither emblem fits only the BOOTING line is left.
 func TestBootFallsBackToTheTextAlone(t *testing.T) {
-	lines := strings.Split(plain(bootModel(t, newClock(), 40, 7, false)), "\n")
+	// 40x11 leaves a 7-row body, short of the compact emblem's 8 rows.
+	lines := strings.Split(plain(bootModel(t, newClock(), 40, 11, false)), "\n")
 	body := strings.Join(lines[2:len(lines)-2], "\n")
-	if strings.ContainsAny(body, "▄▀█") || strings.Contains(body, "S I G N A L") {
+	if strings.ContainsFunc(body, brailleRune) || strings.Contains(body, "S I G N A L") {
 		t.Fatalf("text-only boot body draws the emblem:\n%s", body)
 	}
 	if !strings.Contains(body, "BOOTING NU11SIGNAL...") {
@@ -222,8 +320,8 @@ func TestBootGlitches(t *testing.T) {
 				t.Fatalf("frame %d glitched row %d outside the body", m.frame, y)
 			}
 		}
-		if !strings.ContainsAny(ansi.Strip(strings.Join(lines, "\n")), "░▒▓▚▞") {
-			t.Fatalf("frame %d of the boot has no noise cells", m.frame)
+		if n := emblemNoiseOver(lines, base); n == 0 {
+			t.Fatalf("frame %d of the boot has no Braille noise cells", m.frame)
 		}
 		frames[strings.Join(lines, "\n")] = true
 	}
@@ -353,22 +451,25 @@ func TestEmblemTakesTheThemeColors(t *testing.T) {
 			m := bootModel(t, newClock(), 80, 24, false)
 			useTheme(t, tt.theme)
 			screen := m.render()
-			ring, slash := stLabel.Render("▄████▄"), stAccent.Render("▄▀")
+			ring, slash := stLabel.Render("⢀⣴⣿⠿⠿⣿⣶"), stAccent.Render("⣿⠟")
 			if !strings.Contains(ring, tt.label) || !strings.Contains(slash, tt.accent) {
 				t.Fatalf("styles %q %q lack the theme colors", ring, slash)
 			}
 			if !strings.Contains(screen, ring+slash) {
-				t.Fatalf("the first emblem row is not ring then slash colored:\n%s", screen)
-			}
-			if !strings.Contains(screen, stLabel.Render("▄█▀")+"   "+stAccent.Render("▄")) {
 				t.Fatalf("the second emblem row is not ring then slash colored:\n%s", screen)
+			}
+			if !strings.Contains(screen, stLabel.Render("⣾⡿⠁")+" "+stAccent.Render("⢀⣼")+stLabel.Render("⣿⣷")) {
+				t.Fatalf("the third emblem row is not ring, slash, ring colored:\n%s", screen)
+			}
+			if !strings.Contains(screen, stAccent.Render("⣠⡾⠋⣠⡾⠋⣠⡾⠋⣠⡾⠋⣠⡾⠋")) {
+				t.Fatalf("the bars are not accent colored:\n%s", screen)
 			}
 		})
 	}
 }
 
 // The splash scrambles in on the first frame, its text only (the
-// emblem's block glyphs are not text cells), and the normal UI scrambles
+// emblem's and the bars' Braille cells are not text cells), and the normal UI scrambles
 // in when the boot ends.
 func TestBootScramblesIn(t *testing.T) {
 	c := newClock()
@@ -385,7 +486,7 @@ func TestBootScramblesIn(t *testing.T) {
 	for row, xs := range m.intro.cells {
 		cells := []rune(lines[row])
 		for _, x := range xs {
-			if x < len(cells) && cells[x] >= 0x2580 && cells[x] <= 0x259F {
+			if x < len(cells) && brailleRune(cells[x]) {
 				t.Fatalf("emblem cell %q at %d,%d scrambles", cells[x], x, row)
 			}
 		}
@@ -421,17 +522,43 @@ func TestSplashSurvivesNoRoom(t *testing.T) {
 	}
 }
 
-// The boot glitch draws no letters or digits: its noise is shades and
-// blocks only, as many cells as a periodic burst corrupts.
-func TestBootNoiseIsBlocksOnly(t *testing.T) {
-	for _, g := range bootNoiseGlyphs {
-		for _, r := range g {
-			if unicode.IsLetter(r) || unicode.IsDigit(r) {
-				t.Fatalf("boot noise glyph %q is text", g)
+// The emblem's glitch noise (boot, shutdown, idle, swap) draws no
+// letters or digits: it is dense Braille cells only, like the art it
+// corrupts, as many cells a frame as a periodic burst corrupts.
+func TestEmblemNoiseIsBrailleOnly(t *testing.T) {
+	if len(emblemNoiseGlyphs) < 4 {
+		t.Fatalf("emblem noise %q; want a few glyphs", emblemNoiseGlyphs)
+	}
+	for _, g := range emblemNoiseGlyphs {
+		rs := []rune(g)
+		if len(rs) != 1 || !brailleRune(rs[0]) || unicode.IsLetter(rs[0]) || unicode.IsDigit(rs[0]) || ansi.StringWidth(g) != 1 {
+			t.Fatalf("emblem noise glyph %q is not one Braille cell", g)
+		}
+	}
+	// A noise cell never draws the glyph it lands on, so it always shows.
+	for _, under := range emblemNoiseGlyphs {
+		for h := range uint64(64) {
+			if g := emblemNoise(h, []rune(under)[0]); g == under {
+				t.Fatalf("emblemNoise(%d, %q) drew the cell it covers", h, under)
 			}
 		}
 	}
 	if bootNoiseMin != 4 || bootNoiseSpan != 7 {
 		t.Fatalf("boot noise %d..%d cells; want a burst's 4..10", bootNoiseMin, bootNoiseMin+bootNoiseSpan-1)
 	}
+}
+
+// emblemNoiseOver counts the cells of lines that show an emblem noise
+// glyph base does not show there.
+func emblemNoiseOver(lines, base []string) int {
+	n := 0
+	for y := range lines {
+		got, was := cells(ansi.Strip(lines[y])), cells(ansi.Strip(base[y]))
+		for x, c := range got {
+			if slices.Contains(emblemNoiseGlyphs, c) && (x >= len(was) || was[x] != c) {
+				n++
+			}
+		}
+	}
+	return n
 }

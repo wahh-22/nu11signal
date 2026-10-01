@@ -492,15 +492,12 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 
 	if eqRows := vizRows(ih, len(lines)); eqRows > 0 {
 		// Sit the rain on the bottom edge of the panel; while no music
-		// plays, the idle emblem takes its place (see idle.go).
+		// plays, the idle emblem takes its place (see idle.go), the two
+		// swapping over a dissolve (see vizswap.go).
 		for len(lines)+eqRows < ih {
 			lines = append(lines, "")
 		}
-		area := m.idleRows
-		if m.isPlaying() {
-			area = m.rain.Render
-		}
-		for _, row := range area(inner, eqRows) {
+		for _, row := range m.spectrumRows(inner, eqRows) {
 			lines = append(lines, " "+row)
 		}
 	}

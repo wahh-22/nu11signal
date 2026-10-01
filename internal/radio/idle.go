@@ -14,72 +14,49 @@ import (
 // the sizes it falls back through). The rain keeps its drops, held still
 // while paused, and comes back as playback does.
 //
-// With the signal effects active (see fxActive) the emblem glitches now
-// and then, on a schedule of its own, apart from the bursts: every
-// idleGapMin..idleGapMax a glitch of idleGlitchMin..idleGlitchMax tears
-// one emblem row 1 cell sideways and draws 1..3 block noise cells
-// (bootNoiseGlyphs) over the emblem's drawn cells, a new look every tick
-// frame, from the seed, the glitch number and the frame. It is drawn
-// inside the area, so nothing else moves. Like the bursts it adds no
-// timer: the tick sleeps until the next glitch starts, runs at burstTick
-// while it draws and lands on its end (see idleGlitch.interval); between
-// glitches the paused tick stays at idleTick.
+// With the signal effects active (see fxActive) the block glitches all
+// the time: every idle frame (idleFrameTick, from the clock, not the tick
+// count) draws idleNoiseMin..idleNoiseMax Braille noise cells
+// (emblemNoiseGlyphs, never the glyph a cell shows) over the block's
+// drawn cells, the emblem, the name and the bars alike, and, on one frame
+// in idleTearOdds, tears one of its rows 1 cell sideways, inside its box
+// (see idleArt.box); it never draws letters over it. Nothing is drawn behind it. Everything comes from the
+// seed and the idle frame, drawn inside the area, so nothing else moves.
+// When playback starts or stops the area dissolves between the emblem
+// and the rain instead of cutting (see vizswap.go).
+//
+// The tick runs at idleFrameTick while it does, landing on each frame
+// (see idleFrameWait): about 6.7 wakeups a second instead of idleTick's
+// one, fewer than playing's fastTick and slow enough to read as a quiet
+// hum, not as motion. With the effects off the emblem is the
+// clean art, still, and the tick stays at idleTick.
 const (
-	idleGapMin    = 4 * time.Second
-	idleGapMax    = 7 * time.Second
-	idleGlitchMin = 150 * time.Millisecond
-	idleGlitchMax = 250 * time.Millisecond
+	idleFrameTick = 150 * time.Millisecond
+	// idleNoiseMin..idleNoiseMax are the noise cells a frame draws over
+	// the block; one frame in idleTearOdds also tears a row.
+	idleNoiseMin = 1
+	idleNoiseMax = 4
+	idleTearOdds = 3
 )
 
-// Salts keep the idle glitch's streams apart from the other effects'.
+// Salts keep the idle look's streams apart from the other effects'.
 const (
-	saltIdleGap uint64 = iota + 601
-	saltIdleLen
-	saltIdle
+	saltIdle uint64 = iota + 601
+	saltSwap
 )
 
-// idleGlitch is the idle emblem's glitch schedule, a value like effects:
-// glitch number seq runs from start to end, and the next starts at next,
-// zero while the glitch is not active.
-type idleGlitch struct {
-	seq              uint64
-	next, start, end time.Time
+// idleFrame is the idle frame at now: the number of idleFrameTicks since
+// the Unix epoch.
+func idleFrame(now time.Time) uint64 {
+	return uint64(now.UnixNano() / int64(idleFrameTick))
 }
 
-// advance moves the schedule to now. While not active nothing runs and
-// nothing is pending, so becoming active never fires a glitch at once.
-func (g idleGlitch) advance(now time.Time, seed uint64, active bool) idleGlitch {
-	if !active {
-		g.next, g.end = time.Time{}, time.Time{}
-		return g
-	}
-	if g.next.IsZero() {
-		g.next = now.Add(span(mix(seed, saltIdleGap, g.seq), idleGapMin, idleGapMax))
-	}
-	if !now.Before(g.next) {
-		g.seq++
-		g.start = now
-		g.end = now.Add(span(mix(seed, saltIdleLen, g.seq), idleGlitchMin, idleGlitchMax))
-		g.next = g.end.Add(span(mix(seed, saltIdleGap, g.seq), idleGapMin, idleGapMax))
-	}
-	return g
-}
-
-// on reports whether a glitch draws at now.
-func (g idleGlitch) on(now time.Time) bool {
-	return !now.Before(g.start) && now.Before(g.end)
-}
-
-// interval cuts d, the time to the next frame, to the glitch: burstTick
-// while one draws, landing on its end; else the next one's start.
-func (g idleGlitch) interval(now time.Time, d time.Duration) time.Duration {
-	if g.on(now) {
-		return min(d, max(min(burstTick, g.end.Sub(now)), minWake))
-	}
-	if !g.next.IsZero() {
-		d = min(d, max(g.next.Sub(now), minWake))
-	}
-	return d
+// idleFrameWait is the time from now to the next idle frame, in
+// (0, idleFrameTick].
+func idleFrameWait(now time.Time) time.Duration {
+	q := int64(idleFrameTick)
+	ns := now.UnixNano()
+	return time.Duration((ns/q+1)*q - ns)
 }
 
 // idleShown reports whether the idle emblem is on screen: no music
@@ -93,7 +70,7 @@ func (m Model) idleShown() bool {
 	return ok
 }
 
-// idleActive reports whether the idle glitch runs: the emblem shown and
+// idleActive reports whether the idle look moves: the emblem shown and
 // the signal effects active.
 func (m Model) idleActive() bool { return m.fxActive() && m.idleShown() }
 
@@ -144,6 +121,17 @@ func (a idleArt) plain() []string {
 	return lines
 }
 
+// box is the columns [x0, x1) of an area w wide that the emblem's rows
+// keep to themselves: the art and a cell on either side, the room a tear
+// moves it into.
+func (a idleArt) box(w int) (x0, x1 int) {
+	bw := a.e.width()
+	if a.text {
+		bw = a.e.blockWidth()
+	}
+	return max(a.x-1, 0), min(a.x+bw+1, w)
+}
+
 // lines renders the area w x h: the art at its place, every row padded
 // to w cells.
 func (a idleArt) lines(w, h int) []string {
@@ -160,9 +148,12 @@ func (a idleArt) lines(w, h int) []string {
 	return out
 }
 
-// idleRows is the spectrum area w x h while idle: the emblem (see
-// idleArtFor), glitched while the idle glitch draws; blank where no
-// emblem fits.
+// idleRows is the spectrum area w x h while idle: the emblem centered
+// (see idleArtFor), softly glitched within its box (see idleArt.box)
+// while the effects are active, on blank cells; blank where no emblem
+// fits. With the effects off it is the clean art, the same every time.
+// It glitches during a swap to the rain too, playing or not (see
+// vizswap.go), so the emblem it dissolves from keeps moving.
 func (m Model) idleRows(w, h int) []string {
 	a, ok := idleArtFor(w, h)
 	if !ok {
@@ -173,33 +164,48 @@ func (m Model) idleRows(w, h int) []string {
 		return out
 	}
 	lines := a.lines(w, h)
-	if m.idleActive() && m.idle.on(m.now()) {
-		m.idleGlitchDraw(lines, a)
+	if !m.fxActive() {
+		return lines
+	}
+	x0, x1 := a.box(w)
+	segs := make([]string, len(a.e.rows))
+	for i := range segs {
+		segs[i] = ansi.Cut(lines[a.y+i], x0, x1)
+	}
+	idleGlitchDraw(segs, a, x0, mix(m.seed, saltIdle, idleFrame(m.now())))
+	for i, seg := range segs {
+		lines[a.y+i] = overlay(lines[a.y+i], x0, seg)
 	}
 	return lines
 }
 
-// idleGlitchDraw draws the idle glitch's look on this frame over lines,
-// the area with art a: 1..3 block noise cells over the emblem's drawn
-// cells (its mask's), then one emblem row torn 1 cell sideways.
-func (m Model) idleGlitchDraw(lines []string, a idleArt) {
-	type cell struct{ x, y int }
+// idleGlitchDraw draws a frame's glitch, from r, over segs, the block's
+// rows in its box from column x0 of the area: on one frame in
+// idleTearOdds one row torn 1 cell sideways, then idleNoiseMin..
+// idleNoiseMax Braille noise cells over the block's drawn cells, the
+// emblem's (its mask's) and, beside it, the name's and the bars'.
+func idleGlitchDraw(segs []string, a idleArt, x0 int, r uint64) {
+	if r>>8%idleTearOdds == 0 {
+		i := int(r >> 16 % uint64(len(segs)))
+		segs[i] = shift(segs[i], 1, r>>24%2 == 0)
+	}
+	type cell struct{ x, i int }
 	var drawn []cell
-	for i, mask := range a.e.mask {
-		for x, k := range []rune(mask) {
-			if k != ' ' {
-				drawn = append(drawn, cell{a.x + x, a.y + i})
+	for i, line := range a.plain() {
+		for x, ch := range []rune(line) {
+			if ch != ' ' && ch != '\u2800' {
+				drawn = append(drawn, cell{a.x - x0 + x, i})
 			}
 		}
 	}
-	r := mix(m.seed, saltIdle, m.idle.seq, m.frame)
 	n := uint64(len(drawn))
-	for i := range 1 + r%3 {
-		h := mix(r, 4, i)
-		c := drawn[h%n]
-		glyph := bootNoiseGlyphs[h>>32%uint64(len(bootNoiseGlyphs))]
-		lines[c.y] = overlay(lines[c.y], c.x, noiseStyles[h>>48%uint64(len(noiseStyles))].Render(glyph))
+	if n == 0 {
+		return
 	}
-	y := a.y + int(r>>8%uint64(len(a.e.rows)))
-	lines[y] = shift(lines[y], 1, r>>16%2 == 0)
+	for j := range idleNoiseMin + r%(idleNoiseMax-idleNoiseMin+1) {
+		h := mix(r, 4, j)
+		c := drawn[h%n]
+		glyph := emblemNoise(h>>32, cellRune(segs[c.i], c.x))
+		segs[c.i] = overlay(segs[c.i], c.x, noiseStyles[h>>48%uint64(len(noiseStyles))].Render(glyph))
+	}
 }

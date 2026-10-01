@@ -76,11 +76,29 @@ var nightCity = theme{
 //	yellow  #FCEE0A -> violet      #7C5CFF
 //	ink     #0A0A0A -> background  #05070F
 //	select  #0E2A2F -> userSurface #10182E
+//
+// MATRIX recolors NIGHT CITY the same way in the greens of falling code:
+// a mid green where NIGHT CITY is red, the bright code green where it is
+// cyan, the pale glow of a drop's head where it is yellow, and dark greens
+// behind:
+//
+//	red     #FF5F57 -> mid green   #00C832
+//	deep    #E8554E -> deep green  #009A29
+//	dim     #5A1E1E -> shade       #0A3314
+//	muted   #9A3B37 -> moss        #1E6B32
+//	cyan    #5EF6FF -> code green  #00FF41
+//	yellow  #FCEE0A -> glow        #D2FFD2
+//	ink     #0A0A0A -> black       #000000
+//	select  #0E2A2F -> deep shade  #062610
 var themes = []theme{
 	nightCity,
 	recolor(nightCity, "BLUE", map[string]string{
 		"#FF5F57": "#347AFF", "#E8554E": "#2A62CC", "#5A1E1E": "#1C2C54", "#9A3B37": "#4A5578",
 		"#5EF6FF": "#5CE1FF", "#FCEE0A": "#7C5CFF", "#0A0A0A": "#05070F", "#0E2A2F": "#10182E",
+	}),
+	recolor(nightCity, "MATRIX", map[string]string{
+		"#FF5F57": "#00C832", "#E8554E": "#009A29", "#5A1E1E": "#0A3314", "#9A3B37": "#1E6B32",
+		"#5EF6FF": "#00FF41", "#FCEE0A": "#D2FFD2", "#0A0A0A": "#000000", "#0E2A2F": "#062610",
 	}),
 }
 

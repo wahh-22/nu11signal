@@ -68,10 +68,12 @@ func TestIdleEmblemShowsCenteredInTheRainArea(t *testing.T) {
 			}
 			w, h := m.vizSize()
 			art, ok := idleArtFor(w, h)
-			if !ok || art.e.rows[0] != emblemLarge.rows[0] || !art.text {
-				t.Fatalf("idleArtFor(%d, %d) = %+v, %v; want the large emblem with its text", w, h, art, ok)
+			// The 27 x 8 area at 80x24 is narrower than the large block
+			// (30 cells): the compact emblem with its text.
+			if w != 27 || h != 8 || !ok || art.e.rows[0] != emblemCompact.rows[0] || !art.text {
+				t.Fatalf("idleArtFor(%d, %d) = %+v, %v; want the compact emblem with its text in 27 x 8", w, h, art, ok)
 			}
-			if wantX, wantY := (w-emblemLarge.blockWidth())/2, (h-len(emblemLarge.rows))/2; art.x != wantX || art.y != wantY {
+			if wantX, wantY := (w-emblemCompact.blockWidth())/2, (h-len(emblemCompact.rows))/2; art.x != wantX || art.y != wantY {
 				t.Fatalf("emblem at %d,%d, want centered at %d,%d", art.x, art.y, wantX, wantY)
 			}
 			rows := rainArea(t, m)
@@ -94,7 +96,7 @@ func TestPlayingBringsTheRainBack(t *testing.T) {
 		m, _ = step(t, m, tickMsg{gen: m.tickGen})
 	}
 	for _, r := range rainArea(t, m) {
-		if strings.ContainsAny(r, "▄▀█") || strings.Contains(r, "N U 1 1") {
+		if strings.ContainsFunc(r, brailleRune) || strings.Contains(r, "N U 1 1") {
 			t.Fatalf("playing rain area shows the emblem:\n%s", strings.Join(rainArea(t, m), "\n"))
 		}
 	}
@@ -168,51 +170,9 @@ func TestIdleEmblemLargeInTheExpandedPlayer(t *testing.T) {
 	}
 }
 
-func TestIdleGlitchScheduleStaysInRange(t *testing.T) {
-	const stepDur = 10 * time.Millisecond
-	glitches := 0
-	for seed := uint64(1); seed <= 20; seed++ {
-		start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
-		var g idleGlitch
-		var lastEnd time.Time
-		seq := uint64(0)
-		for now := start; now.Before(start.Add(5 * time.Minute)); now = now.Add(stepDur) {
-			g = g.advance(now, seed, true)
-			if g.seq == seq {
-				continue
-			}
-			seq = g.seq
-			glitches++
-			if d := g.end.Sub(g.start); d < idleGlitchMin || d > idleGlitchMax {
-				t.Errorf("seed %d idle glitch %d lasts %v, want %v..%v", seed, seq, d, idleGlitchMin, idleGlitchMax)
-			}
-			from := lastEnd
-			if from.IsZero() {
-				from = start
-			}
-			if gap := g.start.Sub(from); gap < idleGapMin || gap > idleGapMax+stepDur {
-				t.Errorf("seed %d idle glitch %d comes %v after the last, want %v..%v", seed, seq, gap, idleGapMin, idleGapMax)
-			}
-			lastEnd = g.end
-		}
-	}
-	if glitches < 20*5*60/int(idleGapMax/time.Second+1) {
-		t.Fatalf("only %d idle glitches in 20 five minutes", glitches)
-	}
-	// Inactive, nothing is pending; becoming active again never fires at once.
-	g := idleGlitch{}.advance(time.Unix(0, 0), 3, true)
-	g = g.advance(time.Unix(100, 0), 3, false)
-	if !g.next.IsZero() || g.on(time.Unix(100, 0)) {
-		t.Fatal("inactive idle glitch still pending")
-	}
-	if g = g.advance(time.Unix(100, 0), 3, true); g.on(time.Unix(100, 0)) {
-		t.Fatal("resuming fired the idle glitch at once")
-	}
-}
-
-func TestIdleGlitchSaltsAreItsOwn(t *testing.T) {
+func TestIdleSaltsAreItsOwn(t *testing.T) {
 	salts := []uint64{saltBurstGap, saltBurstLen, saltNoSignal, saltBurst, saltRain, saltRainBurst, saltIntro, saltBoot, saltShutdown}
-	for _, s := range []uint64{saltIdleGap, saltIdleLen, saltIdle} {
+	for _, s := range []uint64{saltIdle, saltSwap} {
 		if slices.Contains(salts, s) {
 			t.Errorf("idle salt %d shared with another effect", s)
 		}
@@ -221,7 +181,8 @@ func TestIdleGlitchSaltsAreItsOwn(t *testing.T) {
 }
 
 // idleFxModel is a loaded, paused model at 80x24 with the signal effects
-// on, its idle glitch armed by a tick.
+// on, its bars flat, the global bursts kept out of the way and the clock
+// on an idle frame boundary.
 func idleFxModel(t *testing.T, c *clock) Model {
 	t.Helper()
 	m := fxModel(t, c)
@@ -230,101 +191,184 @@ func idleFxModel(t *testing.T, c *clock) Model {
 	for range 20 {
 		m = tick(t, m)
 	}
+	// Let the pause's swap to the emblem end (see vizswap.go).
+	c.advance(swapDur)
+	c.advance(idleFrameWait(c.t))
+	m.fx.nextBurst = c.t.Add(time.Hour)
+	return m.tickAt(t, c)
+}
+
+// tickAt ticks m at the clock's time, the global bursts kept away.
+func (m Model) tickAt(t *testing.T, c *clock) Model {
+	t.Helper()
+	m = tick(t, m)
+	m.fx.nextBurst = c.t.Add(time.Hour)
 	return m
 }
 
-func TestIdleGlitchTearsOneRowAndDrawsBlockNoise(t *testing.T) {
+// idleBox is the stripped segment of row y inside the emblem's box.
+func idleBox(rows []string, a idleArt, w, y int) string {
+	x0, x1 := a.box(w)
+	return ansi.Cut(rows[y], x0, x1)
+}
+
+// emblemChanges counts the cells of the emblem's box that rows change
+// from the clean art, a torn row compared with the clean row torn: it
+// fails on more than one torn row or a changed cell that is no Braille
+// noise glyph (see emblemNoiseGlyphs).
+func emblemChanges(t *testing.T, rows []string, a idleArt, w, h int) int {
+	t.Helper()
+	clean := stripAll(a.lines(w, h))
+	changes, torn := 0, 0
+	for i := range a.e.rows {
+		y := a.y + i
+		got := cells(idleBox(rows, a, w, y))
+		x0, x1 := a.box(w)
+		best, bestDiff := -1, []string(nil)
+		for k, want := range []string{
+			ansi.Cut(clean[y], x0, x1),
+			shift(ansi.Cut(clean[y], x0, x1), 1, true),
+			shift(ansi.Cut(clean[y], x0, x1), 1, false),
+		} {
+			var diff []string
+			for x, cell := range cells(want) {
+				if x < len(got) && got[x] != cell {
+					diff = append(diff, got[x])
+				}
+			}
+			if best < 0 || len(diff) < len(bestDiff) {
+				best, bestDiff = k, diff
+			}
+		}
+		if best > 0 {
+			torn++
+		}
+		for _, cell := range bestDiff {
+			if !slices.Contains(emblemNoiseGlyphs, cell) {
+				t.Fatalf("idle glitch drew %q over the emblem, not a Braille noise glyph:\n%s", cell, strings.Join(rows, "\n"))
+			}
+		}
+		changes += len(bestDiff)
+	}
+	if torn > 1 {
+		t.Fatalf("idle glitch tore %d rows", torn)
+	}
+	return changes + torn
+}
+
+func TestIdleGlitchIsContinuousAndSoft(t *testing.T) {
 	c := newClock()
 	m := idleFxModel(t, c)
-	if m.idle.next.IsZero() {
-		t.Fatal("paused with the effects on: no idle glitch scheduled")
-	}
 	w, h := m.vizSize()
 	art, _ := idleArtFor(w, h)
-	clean := stripAll(art.lines(w, h))
-	glitched := 0
-	for range 10 {
-		c.t = m.idle.next
-		m = tick(t, m)
-		if !m.idle.on(c.t) {
-			t.Fatalf("no idle glitch at its scheduled time")
+	quiet, glitched := 0, 0
+	for i := range 80 {
+		if got := m.tickInterval(); got != idleFrameTick {
+			t.Fatalf("frame %d: idle tick with the effects on = %v, want %v", i, got, idleFrameTick)
 		}
-		if d := m.idle.end.Sub(m.idle.start); d < idleGlitchMin || d > idleGlitchMax {
-			t.Fatalf("idle glitch lasts %v", d)
+		rows := rainArea(t, m)
+		n := emblemChanges(t, rows, art, w, h)
+		if n > idleNoiseMax+1 {
+			t.Fatalf("frame %d: idle glitch changed %d emblem cells, want at most %d and a tear", i, n, idleNoiseMax)
 		}
-		for m.idle.on(c.t) {
-			rows := rainArea(t, m)
-			changed := 0
-			for y := range rows {
-				if rows[y] == clean[y] {
-					continue
-				}
-				changed++
-				if y < art.y || y >= art.y+len(art.e.rows) {
-					t.Fatalf("idle glitch changed row %d outside the emblem", y)
-				}
-				for x, cell := range cells(rows[y]) {
-					old := cells(clean[y])
-					if x < len(old) && cell != old[x] && cell != " " && !slices.Contains(bootNoiseGlyphs, cell) && !strings.Contains(clean[y], cell) {
-						t.Fatalf("idle glitch drew %q, not a block glyph", cell)
-					}
-				}
+		if n == 0 {
+			quiet++
+			if quiet >= 8 {
+				t.Fatalf("frame %d: the emblem stayed clean %d frames in a row", i, quiet)
 			}
-			if changed == 0 || changed > 4 {
-				t.Fatalf("idle glitch changed %d rows, want 1..4", changed)
-			}
+		} else {
+			quiet = 0
 			glitched++
-			c.advance(m.tickInterval())
-			m = tick(t, m)
 		}
-		if !emblemAt(rainArea(t, m), art) || !slices.Equal(rainArea(t, m), clean) {
-			t.Fatal("emblem not clean after the idle glitch")
+		c.advance(m.tickInterval())
+		m = m.tickAt(t, c)
+	}
+	if glitched < 40 {
+		t.Fatalf("only %d of 80 frames glitched", glitched)
+	}
+}
+
+// outsideBox are the cells of rows outside the emblem's box.
+func outsideBox(rows []string, a idleArt, w int) []string {
+	x0, x1 := a.box(w)
+	var out []string
+	for y, r := range rows {
+		cs := cells(r)
+		for x := range w {
+			if y >= a.y && y < a.y+len(a.e.rows) && x >= x0 && x < x1 {
+				continue
+			}
+			if x < len(cs) {
+				out = append(out, cs[x])
+			}
 		}
 	}
-	if glitched == 0 {
-		t.Fatal("no glitched frame drawn")
+	return out
+}
+
+func TestIdleAreaHoldsTheEmblemAlone(t *testing.T) {
+	c := newClock()
+	m := idleFxModel(t, c)
+	w, h := m.vizSize()
+	art, _ := idleArtFor(w, h)
+	for i := range 60 {
+		rows := rainArea(t, m)
+		for _, g := range outsideBox(rows, art, w) {
+			if g != " " {
+				t.Fatalf("frame %d: %q drawn outside the emblem's box:\n%s", i, g, strings.Join(rows, "\n"))
+			}
+		}
+		emblemChanges(t, rows, art, w, h) // only the soft glitch inside
+		c.advance(m.tickInterval())
+		m = m.tickAt(t, c)
 	}
 }
 
 func TestIdleGlitchStaysInTheRainArea(t *testing.T) {
 	c := newClock()
 	m := idleFxModel(t, c)
-	c.t = m.idle.next
-	m = tick(t, m)
-	quiet := m
-	quiet.idle = idleGlitch{}
-	got, want := strings.Split(m.render(), "\n"), strings.Split(quiet.render(), "\n")
 	w, h := m.vizSize()
 	bottom := m.height - 2 - 1 // over the status, hint and panel frame
 	x0 := listPanelWidthFor(m.width) + 2 + nowPlayingMargin
-	for y := range got {
-		if got[y] == want[y] {
-			continue
+	for range 10 {
+		still := m
+		still.fx.on = false
+		got, want := strings.Split(m.render(), "\n"), strings.Split(still.render(), "\n")
+		for y := range got {
+			// The status line says FX OFF on the still frame.
+			if got[y] == want[y] || y == m.height-2 {
+				continue
+			}
+			if y < bottom-h || y >= bottom {
+				t.Fatalf("idle glitch changed row %d outside the rain area", y)
+			}
+			g, q := ansi.Strip(got[y]), ansi.Strip(want[y])
+			if ansi.Cut(g, 0, x0) != ansi.Cut(q, 0, x0) || ansi.Cut(g, x0+w, m.width) != ansi.Cut(q, x0+w, m.width) {
+				t.Fatalf("idle glitch changed row %d outside the rain columns", y)
+			}
 		}
-		if y < bottom-h || y >= bottom {
-			t.Fatalf("idle glitch changed row %d outside the rain area", y)
-		}
-		g, q := ansi.Strip(got[y]), ansi.Strip(want[y])
-		if ansi.Cut(g, 0, x0) != ansi.Cut(q, 0, x0) || ansi.Cut(g, x0+w, m.width) != ansi.Cut(q, x0+w, m.width) {
-			t.Fatalf("idle glitch changed row %d outside the rain columns", y)
-		}
+		c.advance(m.tickInterval())
+		m = m.tickAt(t, c)
 	}
 }
 
-func TestIdleGlitchOffWithTheEffectsOff(t *testing.T) {
+func TestIdleStaticWithTheEffectsOff(t *testing.T) {
 	c := newClock()
 	m := loaded(t, playbacktest.New(), c)
 	w, h := m.vizSize()
 	art, _ := idleArtFor(w, h)
-	clean := stripAll(art.lines(w, h))
+	first := rainArea(t, m)
+	if n := emblemChanges(t, first, art, w, h); n != 0 {
+		t.Fatalf("effects off: %d emblem cells glitched", n)
+	}
+	if !slices.Equal(first, stripAll(art.lines(w, h))) {
+		t.Fatalf("effects off: the idle area is not the clean emblem:\n%s", strings.Join(first, "\n"))
+	}
 	for range 40 {
 		c.advance(m.tickInterval())
 		m = tick(t, m)
-		if !m.idle.next.IsZero() || m.idle.on(c.t) {
-			t.Fatal("idle glitch scheduled with the effects off")
-		}
-		if !slices.Equal(rainArea(t, m), clean) {
-			t.Fatal("emblem glitched with the effects off")
+		if !slices.Equal(rainArea(t, m), first) {
+			t.Fatal("effects off: the idle area changed")
 		}
 		if m.tickInterval() != idleTick {
 			t.Fatalf("effects off, idle tick = %v, want %v", m.tickInterval(), idleTick)
@@ -332,53 +376,33 @@ func TestIdleGlitchOffWithTheEffectsOff(t *testing.T) {
 	}
 }
 
-func TestIdleTickLandsOnTheIdleGlitch(t *testing.T) {
-	c := newClock()
-	m := idleFxModel(t, c)
-	m.fx.nextBurst = c.t.Add(time.Hour) // keep the global bursts out of the way
-	if m.tickFast {
-		t.Fatal("paused: still on the fast tick")
-	}
-	for range 5 {
-		want := min(idleTick, m.idle.next.Sub(c.t))
-		if got := m.tickInterval(); got != max(want, minWake) {
-			t.Fatalf("idle tick = %v, want %v (next idle glitch in %v)", got, want, m.idle.next.Sub(c.t))
+func TestIdleFrameTickLandsOnFrames(t *testing.T) {
+	at := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
+	for _, off := range []time.Duration{0, time.Millisecond, idleFrameTick / 2, idleFrameTick - time.Nanosecond} {
+		now := at.Add(off)
+		d := idleFrameWait(now)
+		if d <= 0 || d > idleFrameTick {
+			t.Fatalf("wait from +%v = %v", off, d)
 		}
-		for c.t.Add(m.tickInterval()).Before(m.idle.next) {
-			c.advance(m.tickInterval())
-			m = tick(t, m)
-			m.fx.nextBurst = c.t.Add(time.Hour)
-		}
-		c.advance(m.tickInterval())
-		m = tick(t, m)
-		m.fx.nextBurst = c.t.Add(time.Hour)
-		if !m.idle.on(c.t) {
-			t.Fatalf("tick at %v missed the idle glitch at %v", c.t, m.idle.start)
-		}
-		for m.idle.on(c.t) {
-			if got, want := m.tickInterval(), max(min(burstTick, m.idle.end.Sub(c.t)), minWake); got != want {
-				t.Fatalf("idle glitch tick = %v, want %v", got, want)
-			}
-			c.advance(m.tickInterval())
-			m = tick(t, m)
-			m.fx.nextBurst = c.t.Add(time.Hour)
-		}
-		// It lands on the end, or minWake past it when the end came closer
-		// than that (no spinning).
-		if late := c.t.Sub(m.idle.end); late < 0 || late >= minWake {
-			t.Fatalf("idle glitch ended at %v, the tick landed at %v", m.idle.end, c.t)
+		if idleFrame(now.Add(d)) != idleFrame(now)+1 || idleFrame(now.Add(d-time.Nanosecond)) != idleFrame(now) {
+			t.Fatalf("wait from +%v = %v does not land on the next frame", off, d)
 		}
 	}
 }
 
-func TestPlayingSchedulesNoIdleGlitch(t *testing.T) {
+func TestPlayingRunsNoIdle(t *testing.T) {
 	c := newClock()
 	m := fxModel(t, c)
 	for range 30 {
 		c.advance(m.tickInterval())
 		m = tick(t, m)
-		if !m.idle.next.IsZero() {
-			t.Fatal("playing: idle glitch scheduled")
+		if m.idleActive() || m.idleShown() {
+			t.Fatal("playing: the idle emblem is on")
+		}
+		for _, r := range rainArea(t, m) {
+			if strings.ContainsFunc(r, brailleRune) || strings.Contains(r, "N U 1 1") {
+				t.Fatal("playing: the rain area shows the emblem")
+			}
 		}
 	}
 }
@@ -400,4 +424,42 @@ func TestIdleGolden80x24(t *testing.T) {
 		m = tick(t, m)
 	}
 	assertGolden(t, "idle_80x24.golden", ansi.Strip(m.View().Content))
+}
+
+// The idle glitch reaches the whole block, the name and the bars beside
+// the emblem too, and every frame corrupts at least idleNoiseMin cells.
+func TestIdleGlitchReachesTheText(t *testing.T) {
+	c := newClock()
+	m := idleFxModel(t, c)
+	w, h := m.vizSize()
+	art, ok := idleArtFor(w, h)
+	if !ok || !art.text {
+		t.Fatalf("the idle area %dx%d shows no emblem with its text", w, h)
+	}
+	clean := art.lines(w, h)
+	textFrom := art.x + art.e.width()
+	onText := 0
+	for i := range 60 {
+		rows := rainArea(t, m)
+		changed := 0
+		for y := art.y; y < art.y+len(art.e.rows); y++ {
+			got, want := cells(rows[y]), cells(clean[y])
+			for x := range min(len(got), len(want)) {
+				if got[x] != want[x] && slices.Contains(emblemNoiseGlyphs, got[x]) {
+					changed++
+					if x >= textFrom {
+						onText++
+					}
+				}
+			}
+		}
+		if changed < idleNoiseMin {
+			t.Fatalf("frame %d: %d noise cells, want at least %d", i, changed, idleNoiseMin)
+		}
+		c.advance(m.tickInterval())
+		m = m.tickAt(t, c)
+	}
+	if onText == 0 {
+		t.Fatal("the idle glitch never touched the name or the bars")
+	}
 }

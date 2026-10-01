@@ -64,12 +64,20 @@ func TestPrintVersion(t *testing.T) {
 	}
 }
 
-// On a terminal it prints the compact emblem with the name and the
-// version beside it.
+// On a terminal it prints the compact Braille emblem with the name and
+// the version beside it, on its two middle rows, 3 cells right of it.
 func TestPrintVersionOnATerminal(t *testing.T) {
+	art := func(name, ver string) string {
+		return "   ⣀⣀ ⢠⣤\n" +
+			" ⣠⣾⠟⠻⣷⣿⠁\n" +
+			" ⣿⠃⢠⣾⠟⣿    " + name + "\n" +
+			" ⣿⣴⡿⠃⢠⣿    " + ver + "\n" +
+			"⢀⣿⢿⣦⣴⡿⠋\n" +
+			"⠛⠃ ⠉⠉\n"
+	}
 	for _, tt := range []struct{ version, want string }{
-		{"dev", " ▄▀▀▄▀   NU11SIGNAL\n█ ▄▀ █   dev\n▄▀▄▄▀\n"},
-		{"0.3.0", " ▄▀▀▄▀   NU11SIGNAL\n█ ▄▀ █   v0.3.0\n▄▀▄▄▀\n"},
+		{"dev", art("NU11SIGNAL", "dev")},
+		{"0.3.0", art("NU11SIGNAL", "v0.3.0")},
 	} {
 		saved := version
 		version = tt.version

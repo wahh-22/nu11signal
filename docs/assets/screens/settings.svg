@@ -36,6 +36,7 @@
 <text x="50" y="171" textLength="60" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">○ BLUE</text>
 <text x="810" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="20" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
+<text x="50" y="191" textLength="80" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">○ MATRIX</text>
 <text x="810" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="20" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="810" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>

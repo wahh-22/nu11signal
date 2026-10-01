@@ -15,9 +15,11 @@ on the status line is never glitched. The effects are drawn over the
 frame, so clicks and keys work during a burst.
 
 At launch nu11signal boots: for about 1.5 s the body shows the null
-emblem (compact, or its text alone, on a small terminal) with
+emblem, a slashed zero drawn in Braille dots with `N U 1 1 / S I G N A L`
+and five thin Braille bars beside it (compact, or its text alone, on a
+small terminal), with
 `BOOTING NU11SIGNAL...`, spaced out and bright, under it, glitching from the first frame (torn
-emblem rows, noise cells, now and then a static bar, at about 15 fps), then
+emblem rows, dense Braille noise cells, now and then a static bar, at about 15 fps), then
 the normal UI scrambles in, whether Apple Music has linked yet or not
 (`LINKING` stays in the header until it does). Any key or click skips the
 boot (the key does nothing else, but `q` and `ctrl+c` ask to quit); refused
@@ -70,15 +72,28 @@ animation tick slows down to once a second.
 
 While no music plays (paused, stopped, nothing loaded) the spectrum area
 shows the null emblem with `N U 1 1 / S I G N A L` beside it, centered,
-in place of the rain: the large emblem where it fits (the expanded player
-included), else the compact one, else the emblem without its text, else
-nothing. With the effects on it glitches on its own, quieter schedule,
-apart from the bursts: every 4–7 s, for 0.15–0.25 s, one emblem row tears
-a cell sideways and one to three block cells flicker over it. The tick
-wakes only for those glitches, at about 15 fps, and stays at once a second
-between them. Playing again brings the rain back, its drops where they
-were. The emblem and its glitch come from the seed and the animation
-frames, and the signal effects still run over them.
+in place of the rain: the large emblem where it fits (the expanded player),
+else the compact one (the 80x24 player), else the emblem without its text, else
+nothing, on blank cells. With the effects on the whole block glitches all
+the time: every frame one to four dense Braille cells flicker over the
+emblem, the name and the bars and, on about one frame in three, one of its
+rows tears a cell sideways. The tick
+runs at about 6.7 fps (150 ms) while the emblem is shown with the effects
+on, instead of once a second; with the effects off the emblem is still and
+the tick stays at once a second. The emblem and the glitch come from the
+seed and the clock, and the signal effects still run over them.
+
+When music starts or stops the area does not cut: over 0.7 s the emblem
+breaks up into the rain, or the rain settles into the emblem. Each cell
+turns at its own seeded moment, biased so the emblem leaves from the
+area's edges inward and comes back from its middle outward; the cells at
+the moving edge glitch, Braille noise over the emblem and bright rain
+glyphs elsewhere. The rain keeps falling and the emblem keeps its glitch
+underneath, the tick runs at the burst's pace (about 15 fps) until the
+switch ends, and a flip halfway turns it around from where it stands.
+With the effects off, during the boot, on the player's first report and
+in the compact and tiny layouts (no rain area) it cuts as before. Playing
+again brings the rain back, its drops where they were.
 
 The other visualizers (bars, oscilloscope, synthwave, random) and the `v`
 key are gone. A `nu11signal/config.json` under `os.UserConfigDir()`

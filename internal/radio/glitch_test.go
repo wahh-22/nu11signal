@@ -222,11 +222,17 @@ func TestTickRateRisesOnlyDuringBursts(t *testing.T) {
 	still := playing(90*time.Second, 225*time.Second)
 	still.Status = playback.StatusPaused
 	m, _ = step(t, m, stateMsg{state: still})
+	// The rain settles into the emblem at the burst's pace (see vizswap.go).
+	if got := m.tickInterval(); got != burstTick {
+		t.Fatalf("swap tick = %v, want %v", got, burstTick)
+	}
+	c.t = m.swap.end()
 	for range 20 {
 		m = tick(t, m) // let the EQ settle flat
 	}
-	// Between the effects the tick sleeps until the next one is due.
-	want := min(idleTick, m.fx.nextBurst.Sub(c.t))
+	// Between the effects the tick sleeps until the next one is due, or
+	// the idle emblem's next frame.
+	want := min(idleTick, m.fx.nextBurst.Sub(c.t), max(idleFrameWait(c.t), minWake))
 	if got := m.tickInterval(); got != want {
 		t.Fatalf("idle tick with effects = %v, want %v (to the next effect)", got, want)
 	}
@@ -318,13 +324,13 @@ func TestGlitchGolden80x24(t *testing.T) {
 }
 
 // textCell reports whether a base cell holds text a text glitch may
-// scramble: not blank, not a border or a shade.
+// scramble: not blank, not a border, a shade or a Braille cell.
 func textCell(s string) bool {
 	if s == "" || s == " " {
 		return false
 	}
 	r := []rune(s)[0]
-	return r < 0x2500 || r > 0x259F
+	return (r < 0x2500 || r > 0x259F) && (r < 0x2800 || r > 0x28FF)
 }
 
 // skeleton is line with every printable cell replaced by a dot: its escape

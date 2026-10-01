@@ -100,9 +100,31 @@ func (m Model) splashInterval(d time.Duration) time.Duration {
 	return min(d, max(m.bootEnd.Sub(m.now()), minWake))
 }
 
-// bootNoiseGlyphs are the splash glitch's noise (boot and shutdown): shades and blocks only,
-// so no stray letters or digits flash over the emblem.
-var bootNoiseGlyphs = []string{"░", "▒", "▓", "█", "▚", "▞"}
+// emblemNoiseGlyphs are the noise the emblem's glitches draw (the boot
+// and shutdown splashes, the idle emblem, the swap's moving edge over
+// it): dense Braille patterns, like the art they corrupt, so no stray
+// letters, digits or block shades flash over the emblem.
+var emblemNoiseGlyphs = []string{"⣿", "⣷", "⣯", "⣟", "⡿", "⢿", "⠿", "⣶", "⣾", "⣻"}
+
+// emblemNoise is the noise glyph h picks for a cell showing under: never
+// under itself, so every noise cell shows.
+func emblemNoise(h uint64, under rune) string {
+	n := uint64(len(emblemNoiseGlyphs))
+	g := emblemNoiseGlyphs[h%n]
+	if []rune(g)[0] == under {
+		g = emblemNoiseGlyphs[(h+1)%n]
+	}
+	return g
+}
+
+// cellRune is the rune of the cell at x of the styled line, a space for
+// none.
+func cellRune(line string, x int) rune {
+	if rs := []rune(ansi.Strip(ansi.Cut(line, x, x+1))); len(rs) > 0 {
+		return rs[0]
+	}
+	return ' '
+}
 
 // The splash glitch corrupts bootNoiseMin..bootNoiseMin+bootNoiseSpan-1
 // cells a frame, as many as a periodic burst (see effects.look).
@@ -114,8 +136,8 @@ const (
 // splashGlitch draws a burst over the splash's body in lines (boot or
 // shutdown, each from its own salt), one look per tick frame, from the
 // seed, as intense as a periodic burst: 1..3 of its
-// drawn rows torn 1..2 cells sideways, bootNoiseMin.. noise cells (see
-// bootNoiseGlyphs) over the drawn cells of those rows, and on one frame
+// drawn rows torn 1..2 cells sideways, bootNoiseMin.. Braille noise
+// cells (see emblemNoiseGlyphs) over the drawn cells of those rows, and on one frame
 // in three a static bar across a row of the body. The header, the status
 // line and the footer are left clean.
 func (m Model) splashGlitch(lines []string) {
@@ -149,8 +171,9 @@ func (m Model) splashGlitch(lines []string) {
 		if w <= x0 {
 			continue
 		}
-		glyph := bootNoiseGlyphs[h>>32%uint64(len(bootNoiseGlyphs))]
-		lines[y] = overlay(line, x0+int(h>>8%uint64(w-x0)), noiseStyles[h>>48%uint64(len(noiseStyles))].Render(glyph))
+		x := x0 + int(h>>8%uint64(w-x0))
+		glyph := emblemNoise(h>>32, cellRune(line, x))
+		lines[y] = overlay(line, x, noiseStyles[h>>48%uint64(len(noiseStyles))].Render(glyph))
 	}
 	if r>>8%3 == 0 {
 		y := lo + int(mix(r, 2)%uint64(hi-lo))
