@@ -409,10 +409,12 @@ func (m Model) progressLine(w int) (line string, barW int) {
 // lines under its head.
 const nowPlayingMargin = 1
 
-// The rows of the NOW PLAYING inside from the head down to the feed, the
-// others blank; the rows under them (the controls and the visualizer)
-// depend on the width and the height. The content intro compares the
-// artist, album and feed rows (see introFieldRows).
+// The rows of the NOW PLAYING inside from the head down to the progress
+// bar, the others blank; the rows under them (the controls and the
+// visualizer) depend on the width and the height. The head is the feed
+// and the status tag: the panel's frame label already says NOW PLAYING.
+// The content intro compares the artist, album and head rows (see
+// introFieldRows).
 const (
 	npHeadRow = iota
 	_
@@ -421,12 +423,11 @@ const (
 	npAlbumRow
 	_
 	npProgressRow
-	npFeedRow
 )
 
 // nowPlaying renders the inside of the NOW PLAYING panel, iw x ih cells,
-// with its zones: the progress bar (click to seek) and, under the feed,
-// the controls: one row when the width holds them all, else the transport
+// with its zones: the progress bar (click to seek) and, under it, the
+// controls: one row when the width holds them all, else the transport
 // row (LOOP and EXPAND included) over the volume row (see hudControls).
 func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	title, artist := m.titleLines()
@@ -434,18 +435,18 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	if m.hasState && !m.signalLost() {
 		album = stMuted.Render(strings.ToUpper(m.state.Album))
 	}
-	label := stMuted.Render(spaced("NOW PLAYING"))
-	tag := m.statusTag()
-	if ansi.StringWidth(label)+1+ansi.StringWidth(tag) > iw-1 {
-		// The narrower panel beside the artist page keeps the status whole.
-		label = stMuted.Render("NOW PLAYING")
+	feed, tag := m.feedLine(), m.statusTag()
+	if room := m.headFeedWidth(iw); ansi.StringWidth(feed) > room {
+		// The narrower panel beside the list cuts the feed and keeps the
+		// status whole.
+		feed = ansi.Truncate(feed, room, "…")
 	}
-	head := label + strings.Repeat(" ", max(iw-1-ansi.StringWidth(label)-ansi.StringWidth(tag), 1)) + tag
+	head := feed + strings.Repeat(" ", max(iw-1-ansi.StringWidth(feed)-ansi.StringWidth(tag), 1)) + tag
 
 	// The lines under the head sit nowPlayingMargin cells in from each
 	// side, and so do their zones.
 	inner := iw - 2*nowPlayingMargin
-	lines := make([]string, npFeedRow+1)
+	lines := make([]string, npProgressRow+1)
 	lines[npHeadRow] = " " + head
 	title, hz := m.heartTitle(title, inner)
 	var zs zones
@@ -455,11 +456,11 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	if m.seekable() {
 		zs.add(zoneSeek, nowPlayingMargin, npProgressRow, barW)
 	}
-	lines[npProgressRow], lines[npFeedRow] = m.barMark()+progress, " "+m.feedLine()
+	lines[npProgressRow] = m.barMark() + progress
 	controls, cz := m.hudControls(inner)
 	if ih > len(lines)+len(controls) {
-		// The buttons keep their gap from the feed while it leaves room
-		// for them all.
+		// The buttons keep their gap from the progress bar while it
+		// leaves room for them all.
 		lines = append(lines, "")
 	}
 	zs.addAt(nowPlayingMargin, len(lines), cz)
@@ -479,6 +480,14 @@ func (m Model) nowPlaying(iw, ih int) ([]string, zones) {
 	return lines, zs
 }
 
+// headFeedWidth is the room the head row of NOW PLAYING, iw cells inside,
+// leaves the feed: all but the margin, the status tag and the space
+// before it. The content intro compares those cells only, so a new
+// status never scrambles (see introRegions).
+func (m Model) headFeedWidth(iw int) int {
+	return max(iw-nowPlayingMargin-ansi.StringWidth(m.statusTag())-1, 0)
+}
+
 // barMark is the cell before the progress bar: a marker while the bar has
 // the focus.
 func (m Model) barMark() string {
@@ -488,8 +497,8 @@ func (m Model) barMark() string {
 	return " "
 }
 
-// feedLine names where the music comes from: a station's frequency or the
-// catalog.
+// feedLine names where the music comes from, at the head of NOW PLAYING:
+// a station's frequency or the catalog.
 func (m Model) feedLine() string {
 	for i, s := range m.stations {
 		if s.ID == m.playingStation {

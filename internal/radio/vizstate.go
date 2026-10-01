@@ -77,11 +77,11 @@ func (m Model) vizSize() (w, h int) {
 }
 
 // nowPlayingControlRows is how many rows NOW PLAYING, iw x ih inside,
-// draws over the spectrum area: head to the controls (one row or two, as
-// hudRowCount says for the width inside the margins), with the gap over
-// them once there is room for it.
+// draws over the spectrum area: the head down to the progress bar, then
+// the controls (one row or two, as hudRowCount says for the width inside
+// the margins), with the gap over them once there is room for it.
 func nowPlayingControlRows(iw, ih int) int {
-	rows := npFeedRow + 1 + hudRowCount(iw-2*nowPlayingMargin)
+	rows := npProgressRow + 1 + hudRowCount(iw-2*nowPlayingMargin)
 	if ih > rows {
 		rows++
 	}

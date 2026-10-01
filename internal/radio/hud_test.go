@@ -372,9 +372,11 @@ func TestControlRowsFollowTheHUDLayout(t *testing.T) {
 				last = max(last, z.y)
 			}
 		}
-		want := 11
+		// The head, a gap, the title, artist and album, a gap, the
+		// progress bar, the gap over the controls and their two rows.
+		want := 10
 		if keys != nil {
-			want = 10 // one control row
+			want = 9 // one control row
 		}
 		if got := nowPlayingControlRows(iw, ih); got != last+1 || got != want {
 			t.Fatalf("keys %v: %d control rows counted, last control on row %d; want %d", keys, got, last, want)

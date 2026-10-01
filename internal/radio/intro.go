@@ -23,7 +23,8 @@ import (
 // but those of introQuiet (see there), the frames before and after it are
 // laid out at the same instant, so the clock, the progress and the visualizer read the same in
 // both, and only the intro regions are compared: the list panel's inside
-// and the artist, album and feed rows of NOW PLAYING (the title glitches
+// and the artist and album rows of NOW PLAYING and the feed at its head
+// (the status tag beside the feed is left out, the title glitches
 // on its own; the progress, transport, volume and visualizer rows are
 // left out) or, while it is open, the KEYS or SETTINGS overlay's inside
 // (the SETTINGS cursor and the ◉ of the theme applied only change marks,
@@ -71,8 +72,10 @@ func introScrambles(h uint64) bool { return unit(mix(h, 2)) < introShare }
 const saltIntro uint64 = 401
 
 // introFieldRows are the rows of the NOW PLAYING inside that intro: the
-// artist, the album and the feed, as nowPlaying lays them out.
-var introFieldRows = []int{npArtistRow, npAlbumRow, npFeedRow}
+// artist, the album and the head, as nowPlaying lays them out. Of the
+// head only the feed's cells count, not the status tag right of them
+// (see headFeedWidth).
+var introFieldRows = []int{npArtistRow, npAlbumRow, npHeadRow}
 
 // A row reading b is the row that read a (see sameRow) when they share at
 // least sameRowMinShared runes of their start, and at least sameRowShare
@@ -229,7 +232,11 @@ func (m Model) introRegions(zs zones) [][]rowSpan {
 		var fields []rowSpan
 		z := player[0]
 		for _, r := range introFieldRows {
-			fields = append(fields, rowSpan{z.y + 1 + r, z.x + 1 + nowPlayingMargin, z.x + z.w - 1})
+			x0, x1 := z.x+1+nowPlayingMargin, z.x+z.w-1
+			if r == npHeadRow {
+				x1 = min(x1, x0+m.headFeedWidth(z.w-2))
+			}
+			fields = append(fields, rowSpan{z.y + 1 + r, x0, x1})
 		}
 		regions = append(regions, fields)
 	}

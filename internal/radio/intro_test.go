@@ -801,3 +801,36 @@ func TestOpeningAnOverlayIntrosItInTheCompactLayout(t *testing.T) {
 		}
 	}
 }
+
+// A new feed scrambles in on the head row, where it now sits, and only
+// there: the status tag beside it keeps its cells.
+func TestANewFeedIntrosOnTheHeadRow(t *testing.T) {
+	c := newClock()
+	m := introModel(t, c)
+	m, _ = step(t, m, playMsg{seq: m.playSeq, station: "pl-2"})
+	base, _ := m.baseLayout()
+	scrambled := scrambledAt(base, first(m.layout()))
+	if len(scrambled) == 0 {
+		t.Fatal("a new feed did not intro")
+	}
+	head := 2 + 1 // the panel's top edge, then its first row inside
+	if !strings.Contains(ansi.Strip(base[head]), "MHZ") {
+		t.Fatalf("head row reads %q; want the station's feed", ansi.Strip(base[head]))
+	}
+	statusCell := -1
+	cs := cells(base[head])
+	for x := range cs {
+		if statusCell < 0 && strings.HasPrefix(strings.Join(cs[x:], ""), "▮ PLAYING") {
+			statusCell = x
+		}
+	}
+	for y, xs := range scrambled {
+		if y != head {
+			t.Errorf("row %d scrambled; only the head row %d may", y, head)
+			continue
+		}
+		if xs[len(xs)-1] >= statusCell {
+			t.Errorf("the status tag scrambled: cells %v reach the tag at %d", xs, statusCell)
+		}
+	}
+}
