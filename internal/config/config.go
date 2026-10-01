@@ -118,9 +118,15 @@ func (f *File) Save(c Config) error {
 	return writeAtomic(f.path, append(out, '\n'))
 }
 
-// writeAtomic writes data to path through a private temporary file in
-// path's directory, renamed over path once complete.
+// writeAtomic writes data to path (the file a symlink names, if it is
+// one) through a private temporary file in its directory, renamed over
+// it once complete.
 func writeAtomic(path string, data []byte) error {
+	// A linked file (a dotfiles setup) is updated where it lives, keeping
+	// the link: the rename would replace the link with a plain file.
+	if target, err := filepath.EvalSymlinks(path); err == nil {
+		path = target
+	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err

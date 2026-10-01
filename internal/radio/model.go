@@ -269,6 +269,7 @@ type Model struct {
 	// configSource the settings file (see vizstate.go).
 	rain         rainViz
 	configSource config.Source
+	configSaves  *configSaves
 	// tickGen identifies the live tick chain; ticks from older chains are
 	// dropped so rescheduling never doubles the frame rate.
 	tickGen  uint64
@@ -318,6 +319,7 @@ func New(p playback.Player, opts Options) Model {
 		volumeBusy:   true, // Init reads the volume
 		fx:           effects{on: opts.Effects},
 		configSource: opts.Config,
+		configSaves:  &configSaves{},
 
 		input:         in,
 		nameInput:     name,

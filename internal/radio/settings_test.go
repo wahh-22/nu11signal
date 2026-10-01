@@ -224,3 +224,20 @@ func TestSettingsGolden80x24(t *testing.T) {
 	m, _ = press(t, m, "s")
 	assertGolden(t, "settings_80x24.golden", ansi.Strip(m.View().Content))
 }
+
+func TestAnOlderThemeSaveFinishingLastIsDropped(t *testing.T) {
+	// Saves run concurrently: the file must end with the latest choice
+	// even when an older save runs after it.
+	src := &savingSource{}
+	m := settingsModel(t, src)
+	m, older := press(t, m, "s", "down", "enter")
+	m, newer := press(t, m, "up", "enter")
+	m, _ = step(t, m, run(t, newer))
+	m, _ = step(t, m, run(t, older))
+	if n := len(src.saved); n != 1 || src.saved[0].Theme != "NIGHT CITY" {
+		t.Fatalf("saved %+v; want only the latest choice, NIGHT CITY", src.saved)
+	}
+	if m.status != "" {
+		t.Fatalf("a dropped save reported %q", m.status)
+	}
+}

@@ -3,6 +3,7 @@ package radio
 import (
 	"strconv"
 	"strings"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -101,13 +102,38 @@ func (m Model) setTheme(t theme) Model {
 	return m
 }
 
-// saveConfigCmd writes c to the settings file; nil without a source.
+// configSaves orders the settings saves, which run concurrently as
+// commands: each is numbered when asked for, and one older than a save
+// already written is dropped, so the file always ends with the latest
+// choice. Shared by every copy of the Model.
+type configSaves struct {
+	mu            sync.Mutex
+	asked, latest uint64
+}
+
+// saveConfigCmd writes c to the settings file unless a newer save got
+// there first; nil without a source.
 func (m Model) saveConfigCmd(c config.Config) tea.Cmd {
-	src := m.configSource
-	if src == nil {
+	src, saves := m.configSource, m.configSaves
+	if src == nil || saves == nil {
 		return nil
 	}
-	return func() tea.Msg { return configSavedMsg{err: src.Save(c)} }
+	saves.mu.Lock()
+	saves.asked++
+	seq := saves.asked
+	saves.mu.Unlock()
+	return func() tea.Msg {
+		saves.mu.Lock()
+		defer saves.mu.Unlock()
+		if seq < saves.latest {
+			return configSavedMsg{}
+		}
+		err := src.Save(c)
+		if err == nil {
+			saves.latest = seq
+		}
+		return configSavedMsg{err: err}
+	}
 }
 
 // settingsPanel frames the SETTINGS overlay, w x h cells, with the zones

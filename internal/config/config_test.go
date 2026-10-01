@@ -137,3 +137,22 @@ func TestSaveRefusesToOverwriteABrokenFile(t *testing.T) {
 		t.Fatalf("Save changed the unparsable file to %q", data)
 	}
 }
+
+func TestSaveWritesThroughASymlink(t *testing.T) {
+	// A dotfiles setup links config.json elsewhere: Save updates the
+	// linked file and keeps the link.
+	target := write(t, `{"theme": "NIGHT CITY"}`)
+	link := filepath.Join(t.TempDir(), "config.json")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewFile(link).Save(Config{Theme: "BLUE"}); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("Save replaced the symlink: %v, %v", info, err)
+	}
+	if got, err := NewFile(target).Load(); err != nil || got.Theme != "BLUE" {
+		t.Fatalf("target after Save = %+v, %v; want theme BLUE", got, err)
+	}
+}
