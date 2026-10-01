@@ -597,9 +597,9 @@ func (m Model) statusLine(w int) string {
 // player drives (once it says) and whether the signal effects are on.
 func (m Model) idleStatus() string {
 	if s, ok := m.upNext(); ok {
-		next := "UP NEXT // " + strings.ToUpper(s.Title)
+		next := "UP NEXT // " + strings.ToUpper(cleanLine(s.Title))
 		if s.Artist != "" {
-			next += " · " + strings.ToUpper(s.Artist)
+			next += " · " + strings.ToUpper(cleanLine(s.Artist))
 		}
 		return next
 	}
