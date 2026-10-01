@@ -19,7 +19,7 @@
 
 <p align="center">
   <strong>
-    <a href="https://wahh-22.github.io/nu11signal-web/">Website</a>
+    <a href="https://nu11signal.wahh.dev/">Website</a>
     &nbsp;·&nbsp;
     <a href="#get-started">Quickstart</a>
     &nbsp;·&nbsp;
