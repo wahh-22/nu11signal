@@ -46,6 +46,17 @@ through the symlink. The cask lives in
 from `packaging/homebrew/nu11signal.rb.template`. The first launch asks for
 Apple Music access.
 
+### Font
+
+The UI is designed with [Kode Mono](https://fonts.google.com/specimen/Kode+Mono),
+which the cask installs (`depends_on cask: "font-kode-mono"`; by hand:
+`brew install --cask font-kode-mono`). A terminal UI cannot choose its font:
+the terminal draws every character with the font it is set to, so Kode Mono
+shows once your terminal uses it, for example `font-family = Kode Mono` in
+Ghostty's config or the profile font in Terminal.app or iTerm2. Any
+monospaced font works; the frames, blocks and rain glyphs look the same in
+all of them.
+
 ## Architecture
 
 ```text

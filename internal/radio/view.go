@@ -26,7 +26,7 @@ func (m Model) View() tea.View {
 	v.AltScreen = true
 	// Clicks, releases and the wheel; motion is not needed (no hover).
 	v.MouseMode = tea.MouseModeCellMotion
-	v.WindowTitle = "NU11SIGNAL // NIGHT CITY RADIO"
+	v.WindowTitle = "NU11SIGNAL"
 	return v
 }
 
@@ -185,7 +185,7 @@ func (m Model) renderCompact() ([]string, zones) {
 	w := m.width
 	nav, zs := m.navLine(w)
 	zs = zs.shifted(0, 1)
-	lines := []string{m.headerLeft(false) + "  " + m.statusTag(), nav}
+	lines := []string{m.wordmark() + "  " + m.statusTag(), nav}
 	if m.help {
 		zs.addBox(zonePanelOverlay, 0, len(lines), w, m.height-4)
 		lines = append(lines, m.helpPanel(w, m.height-4)...)
@@ -264,13 +264,8 @@ func (m Model) renderAuthError() []string {
 	return lines
 }
 
-func (m Model) headerLeft(wide bool) string {
-	sub := "NIGHT CITY RADIO"
-	if wide {
-		sub = spaced(sub)
-	}
-	return stAccent.Render("◢◤ ") + stLabelBold.Render("NU11SIGNAL") + stMuted.Render(" // ") + stLabel.Render(sub)
-}
+// wordmark is the app's name as the header draws it.
+func (m Model) wordmark() string { return stLabelBold.Render("NU11SIGNAL") }
 
 // header is the title line over the nav bar.
 func (m Model) header(w int) ([]string, zones) {
@@ -290,12 +285,13 @@ func (m Model) header(w int) ([]string, zones) {
 	right := auth + stDim.Render("  ▮  ") + stMuted.Render("SIG ") + sig +
 		stDim.Render("  ▮  ") + stNumber.Render(m.now().Format("15:04:05"))
 
-	left := m.headerLeft(true)
-	if ansi.StringWidth(left)+ansi.StringWidth(right)+2 > w {
-		left = m.headerLeft(false)
-	}
-	gap := max(w-ansi.StringWidth(left)-ansi.StringWidth(right), 1)
-	top := left + strings.Repeat(" ", gap) + right
+	// The wordmark sits centered, or as far right of center as the status
+	// at the right edge leaves room for (left-aligned at the narrowest).
+	mark := m.wordmark()
+	markW, rightW := ansi.StringWidth(mark), ansi.StringWidth(right)
+	at := max(min((w-markW)/2, w-rightW-1-markW), 0)
+	gap := max(w-at-markW-rightW, 1)
+	top := strings.Repeat(" ", at) + mark + strings.Repeat(" ", gap) + right
 
 	nav, zs := m.navLine(w)
 	return []string{top, nav}, zs.shifted(0, 1)
@@ -306,10 +302,10 @@ func (m Model) header(w int) ([]string, zones) {
 // at the right edge, cut with … to the room left, while at least
 // minNode cells of it fit.
 //
-//	▓▒░ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ──── NODE 7F // NC-GRID ──
+//	◢◤◢◤ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ─── NODE 7F // NC-GRID ──
 func (m Model) navLine(w int) (string, zones) {
 	const (
-		mark    = "▓▒░"
+		mark    = "◢◤◢◤"
 		gap     = " "
 		nodeEnd = "──"
 		// minRule is the rule kept between the bar and the readout, and
@@ -603,7 +599,7 @@ func (m Model) statusLine(w int) string {
 	if m.status != "" {
 		return stWarn.Render("▲ " + strings.ToUpper(m.status))
 	}
-	return stDim.Render(fit("░▒▓ "+m.idleStatus(), w))
+	return stDim.Render(fit("◢◤◢◤ "+m.idleStatus(), w))
 }
 
 // idleStatus is the status line without a message: the song NEXT moves
@@ -713,7 +709,9 @@ func renderHints(hs []hint) ([]renderedHint, int) {
 	parts := make([]renderedHint, len(hs))
 	width := 0
 	for i, h := range hs {
-		text := keyCap(h.key) + " " + stLabel.Render(h.label)
+		// The footer sits in the background: the content keeps the
+		// accent and label colors.
+		text := stMuted.Render("["+h.key+"]") + " " + stMuted.Render(h.label)
 		parts[i] = renderedHint{text: text, width: ansi.StringWidth(text)}
 		if i > 0 {
 			width += len(hintGap)
