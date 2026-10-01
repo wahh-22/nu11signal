@@ -9,11 +9,24 @@ import (
 // columns (every other one), a bright head over a trail that dims, in the
 // bars' colors. With the player's readings it plays the music:
 //
-//   - Each column follows the band under it through rainEnergy, a curve
+//   - Each band's level is first stretched over the range it has been
+//     moving in lately (see rainGain), so a flat, heavily compressed
+//     track swinging between 0.5 and 0.6 rains as unevenly as its bars
+//     move, while a steady level stays what it is and a loud song still
+//     rains more than a quiet one.
+//   - Each column follows its stretched band through rainEnergy, a curve
 //     that keeps quiet bands dry and stands the loud ones out. The more
-//     energy, the more often drops start there, the faster and longer
-//     they fall, and the brighter their heads burn, up to yellow. Silence
-//     is completely dry.
+//     energy, the more often drops start there, the longer they fall and
+//     the brighter their heads burn, up to yellow. Silence is completely
+//     dry.
+//   - The drops falling take their column's speed now, not the one they
+//     started with: each frame they ease toward the speed its energy
+//     calls for, so the rain speeds up and brakes with the music. A dry
+//     column lets its drops fall out at their pace.
+//   - A beat, total spectral flux (the bands' rises, the bass weighted)
+//     over what it has been lately (see rainBeat), pulses the whole rain:
+//     every drop falls a row further and every head burns brighter, less
+//     so over the next frames.
 //   - A hit, a band jumping over its recent average (see rainOnsets),
 //     bursts: a bass hit sends a wave of new drops across every sounding
 //     column, a higher one under its own band, as many as the hit is
@@ -34,6 +47,19 @@ type rainViz struct {
 	env []float64
 	// flash brightens every head after a hit, fading frame by frame.
 	flash float64
+	// lo and hi are each band's running floor and ceiling, the range
+	// rainGain stretches it over; nil until a first reading.
+	lo, hi []float64
+	// prev are the bands of the last reading, what the flux rises from;
+	// nil until a first reading.
+	prev []float64
+	// flux is the recent average of the spectral flux, what a beat rises
+	// over; wait the frames left before another beat can pulse.
+	flux float64
+	wait int
+	// pulse is 1 on a beat's frame and fades after: it pushes every drop
+	// further and brightens every head.
+	pulse float64
 	// tick counts the frames rained, the clock of the rain.
 	tick uint64
 }
@@ -82,6 +108,33 @@ const (
 	// above the bass flashes rainTrebleFlash as bright as its strength.
 	rainFlashFade   = 0.55
 	rainTrebleFlash = 0.6
+	// A band's ceiling jumps to a new high and sinks rainGainRelease of
+	// the way back to the level each frame; its floor, the other way
+	// round. Between them rainGain stretches the level so that the range
+	// spans rainGainSpan, but never shrinks it, and never stretches a
+	// range narrower than rainGainMinSpan more than one that wide, so
+	// noise is not blown up; bands quieter than rainGainKnee stretch less,
+	// down to not at all at rainFloor.
+	rainGainRelease = 0.05
+	rainGainSpan    = 0.5
+	rainGainMinSpan = 0.15
+	rainGainKnee    = 0.3
+	// rainSpeedEase is how much of the way from its speed to its column's
+	// a falling drop goes each frame.
+	rainSpeedEase = 0.5
+	// A beat is a spectral flux over rainBeatRatio times its recent average
+	// (moving rainFluxRate of the way each frame) plus rainBeatMin, at
+	// least rainBeatGap frames after the last one.
+	rainFluxRate  = 0.15
+	rainBeatRatio = 1.5
+	rainBeatMin   = 0.02
+	rainBeatGap   = 3
+	// On a beat every drop falls rainPulseFall rows further and every head
+	// burns as in a flash rainPulseFlash strong; rainPulseFade is what is
+	// left of the pulse a frame later.
+	rainPulseFall  = 1.0
+	rainPulseFlash = 0.6
+	rainPulseFade  = 0.45
 )
 
 // rainEnergy is the energy of a band at level: 0 at or under rainFloor,
@@ -120,6 +173,74 @@ func rainOnsets(bands, env []float64) (hits []float64, bass float64, next []floa
 	return hits, bass, next
 }
 
+// rainGain stretches bands over their recent ranges: levels are the
+// stretched bands, lo and hi the ranges moved on by this reading. A level
+// moves away from the middle of its range by as much more as the range
+// is narrower than rainGainSpan, so a steady level stays put and the
+// loudness of a song still shows through; a level at or under rainFloor
+// stays where it is, dry. Without a history of as many bands (the first
+// reading, a resize), each range starts at its band and nothing is
+// stretched.
+func rainGain(bands, lo, hi []float64) (levels, nlo, nhi []float64) {
+	if len(lo) != len(bands) || len(hi) != len(bands) {
+		return slices.Clone(bands), slices.Clone(bands), slices.Clone(bands)
+	}
+	levels = make([]float64, len(bands))
+	nlo, nhi = make([]float64, len(bands)), make([]float64, len(bands))
+	for i, b := range bands {
+		l, h := lo[i]+(b-lo[i])*rainGainRelease, hi[i]+(b-hi[i])*rainGainRelease
+		l, h = min(l, b), max(h, b)
+		nlo[i], nhi[i] = l, h
+		if b <= rainFloor {
+			levels[i] = b
+			continue
+		}
+		mid := (l + h) / 2
+		stretch := max(rainGainSpan/max(h-l, rainGainMinSpan), 1)
+		quiet := min(max((mid-rainFloor)/(rainGainKnee-rainFloor), 0), 1)
+		stretch = 1 + (stretch-1)*quiet
+		levels[i] = min(max(mid+(b-mid)*stretch, 0), 1)
+	}
+	return levels, nlo, nhi
+}
+
+// rainFlux is the spectral flux from prev to bands: the average rise of
+// the bands, falls counting nothing, the lowest quarter rainBassWeight
+// times more, levels under rainFloor counting as rainFloor so noise under
+// it is no beat. Without a history of as many bands it is 0.
+func rainFlux(bands, prev []float64) float64 {
+	if len(prev) != len(bands) || len(bands) == 0 {
+		return 0
+	}
+	lows := max(len(bands)/4, 1)
+	var sum, weights float64
+	for i, b := range bands {
+		wt := 1.0
+		if i < lows {
+			wt = rainBassWeight
+		}
+		sum += wt * max(max(b, rainFloor)-max(prev[i], rainFloor), 0)
+		weights += wt
+	}
+	return sum / weights
+}
+
+// rainBeat moves the beat detector on by a frame of spectral flux: beat
+// when flux rises over its recent average avg as rainBeatRatio and
+// rainBeatMin say and wait, the frames left since the last beat, is
+// over. It returns the average and wait moved on.
+func rainBeat(flux, avg float64, wait int) (beat bool, navg float64, nwait int) {
+	beat = wait <= 0 && flux > rainBeatRatio*avg+rainBeatMin
+	nwait = max(wait-1, 0)
+	if beat {
+		nwait = rainBeatGap - 1
+	}
+	return beat, avg + (flux-avg)*rainFluxRate, nwait
+}
+
+// rainSpeed is the speed of a drop in a column of energy e.
+func rainSpeed(e float64) float64 { return 0.25 + 1.75*e }
+
 // waveGain scales the rain by the waveform's loudness: 1 without one,
 // else 0.7 for silence up to 1.3 for a loud wave.
 func waveGain(wave []float64) float64 {
@@ -142,11 +263,23 @@ func (v rainViz) Step(in vizInput) rainViz {
 	var hits []float64
 	var bass float64
 	v.levels = nil
+	v.pulse *= rainPulseFade
+	if v.pulse < 0.05 {
+		v.pulse = 0
+	}
 	if in.Real {
 		hits, bass, v.env = rainOnsets(in.Bands, v.env)
+		var stretched []float64
+		stretched, v.lo, v.hi = rainGain(in.Bands, v.lo, v.hi)
 		v.levels = make([]float64, w)
 		for x := range v.levels {
-			v.levels[x] = rainEnergy(bandLevel(in.Bands, x, w))
+			v.levels[x] = rainEnergy(bandLevel(stretched, x, w))
+		}
+		var beat bool
+		beat, v.flux, v.wait = rainBeat(rainFlux(in.Bands, v.prev), v.flux, v.wait)
+		v.prev = slices.Clone(in.Bands)
+		if beat {
+			v.pulse = 1
 		}
 		v.flash *= rainFlashFade
 		if v.flash < 0.02 {
@@ -167,6 +300,7 @@ func (v rainViz) Step(in vizInput) rainViz {
 		v.flash = max(v.flash, bass, rainTrebleFlash*top)
 	} else {
 		v.env, v.flash = nil, 0
+		v.lo, v.hi, v.prev, v.flux, v.wait, v.pulse = nil, nil, nil, 0, 0, 0
 	}
 	drops := make([]rainDrop, 0, len(v.drops)+w/2+1)
 	// busy marks the columns whose newest drop has not left the top yet,
@@ -174,7 +308,12 @@ func (v rainViz) Step(in vizInput) rainViz {
 	// has just started, which a burst leaves alone.
 	busy, fresh := make([]bool, w), make([]bool, w)
 	for _, d := range v.drops {
-		d.y += d.speed
+		// A falling drop eases toward its column's speed, unless the
+		// column is dry.
+		if d.x < len(v.levels) && v.levels[d.x] > 0 {
+			d.speed += (rainSpeed(v.levels[d.x]) - d.speed) * rainSpeedEase
+		}
+		d.y += d.speed + rainPulseFall*v.pulse
 		if d.x >= w || d.y-float64(d.length) >= float64(in.H) {
 			continue
 		}
@@ -204,7 +343,7 @@ func (v rainViz) Step(in vizInput) rainViz {
 				continue
 			}
 			chance = (0.03 + 0.75*e) * gain
-			speed = 0.25 + 1.75*e
+			speed = rainSpeed(e)
 			length = 1 + int(math.Round(1.1*e*float64(in.H)))
 		}
 		h := mix(in.Seed, saltRain, v.tick, uint64(x))
@@ -260,11 +399,11 @@ func (v rainViz) Render(w, h int) []string {
 			continue
 		}
 		// The head burns in the ink of its column's energy (dim red in a
-		// drizzle), brighter in a flash; the trail steps down the bars'
+		// drizzle), brighter in a flash or on a beat; the trail steps down the bars'
 		// colors to dim.
 		head := inkMuted
 		if d.x < len(v.levels) {
-			head = rainHeadInk(v.levels[d.x], v.flash)
+			head = rainHeadInk(v.levels[d.x], max(v.flash, rainPulseFlash*v.pulse))
 		}
 		top := int(d.y)
 		for i := d.length - 1; i >= 0; i-- {
