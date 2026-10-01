@@ -20,9 +20,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	// Text msg brought scrambles in (see intro.go), the tick raised for it.
 	nm = nm.withIntro(m, msg)
-	// A boot that starts needs its frames and its end on time.
+	// A boot or a shutdown that starts needs its frames and its end on
+	// time.
 	booted := m.bootEnd.IsZero() && !nm.bootEnd.IsZero()
-	if booted || (nm.intro.seq != m.intro.seq && !nm.tickFast) {
+	shut := !m.shutdown && nm.shutdown
+	if booted || shut || (nm.intro.seq != m.intro.seq && !nm.tickFast) {
 		tick := nm.scheduleTick()
 		return nm, tea.Batch(cmd, tick)
 	}
@@ -45,7 +47,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen != m.tickGen {
 			return m, nil // superseded chain
 		}
+		if m.shutdown {
+			return m.onShutdownTick()
+		}
 		return m.onTick(msg)
+	case closedMsg:
+		return m.onClosed()
 	case authMsg:
 		return m.onAuth(msg)
 	case playlistsMsg:
@@ -272,6 +279,9 @@ func (m Model) animate() Model {
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
+	if m.shutdown {
+		return m.shutdownKey(k)
+	}
 	if m.quitAsk {
 		return m.quitKey(k)
 	}

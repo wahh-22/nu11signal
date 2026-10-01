@@ -459,6 +459,14 @@ keys do nothing while it asks. Its `[ Y QUIT ]` and `[ N STAY ]` buttons,
 HUD keys like the player's (QUIT filled, as `enter`'s action; STAY in cyan
 brackets), are clickable, and a click outside the panel closes it.
 
+A confirmed quit shuts down like the boot in reverse: the panel closes and
+the body shows the null emblem again with `SHUTTING DOWN...`, spaced out,
+under it (glitching like the boot with the effects on, still without them)
+while the player closes and the music fades out; nu11signal exits once the
+player has closed (or the close timed out) and the splash has shown for at
+least 1 s. During it the footer is blank and every key and click is ignored
+but `ctrl+c`, which exits at once.
+
 The HUD names live state: the nav bar ends in the Night City net node the
 radio is patched through (`NODE 7F // NC-GRID`, flavor, fixed for a session
 by its seed, cut to fit); the NOW PLAYING frame says where the rain's levels come from
@@ -484,7 +492,7 @@ frame, so clicks and keys work during a burst.
 
 At launch nu11signal boots: for about 1.5 s the body shows the null
 emblem (compact, or its text alone, on a small terminal) with
-`BOOTING NU11SIGNAL...`, spaced out, under it, glitching from the first frame (torn
+`BOOTING NU11SIGNAL...`, spaced out and bright, under it, glitching from the first frame (torn
 emblem rows, noise cells, now and then a static bar, at about 15 fps), then
 the normal UI scrambles in, whether Apple Music has linked yet or not
 (`LINKING` stays in the header until it does). Any key or click skips the

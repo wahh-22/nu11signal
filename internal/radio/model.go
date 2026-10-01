@@ -290,6 +290,12 @@ type Model struct {
 	// first size; zero until then.
 	boot    bool
 	bootEnd time.Time
+	// shutdown shows the shutdown splash (see shutdown.go) from the
+	// confirmed quit until tea.Quit: at least until shutdownEnd, and
+	// until closed, the player's close answered or given up on.
+	shutdown    bool
+	shutdownEnd time.Time
+	closed      bool
 }
 
 // New returns a radio Model driving p.
@@ -428,11 +434,13 @@ func (m Model) action(op string, fn func(context.Context) error) tea.Cmd {
 	}
 }
 
-// quitCmd closes the player and quits, once the quit modal is answered
-// (see quit.go), but never waits longer than closeTimeout: a stuck player
-// must not keep the UI (and the terminal in raw mode) from exiting. The caller may still wait for Close afterwards,
-// once the terminal is restored.
-func (m Model) quitCmd() tea.Cmd {
+// closeCmd closes the player once the quit is confirmed (see
+// shutdown.go) and reports it with a closedMsg, but never waits longer
+// than closeTimeout: a stuck player must not keep the UI (and the
+// terminal in raw mode) from exiting, so a timeout reports closedMsg
+// too. The caller may still wait for Close afterwards, once the terminal
+// is restored.
+func (m Model) closeCmd() tea.Cmd {
 	return func() tea.Msg {
 		closed := make(chan struct{})
 		go func() {
@@ -445,7 +453,7 @@ func (m Model) quitCmd() tea.Cmd {
 		case <-closed:
 		case <-timer.C:
 		}
-		return tea.QuitMsg{}
+		return closedMsg{}
 	}
 }
 
@@ -501,7 +509,7 @@ func (m Model) animInterval() time.Duration {
 // tickInterval is the time to the next frame: fastTick while something
 // moves, else idleTick, paced by the signal effects while they run (see
 // effects.interval), at most introTick during an intro, and cut to the
-// boot's frames and its end (see bootInterval).
+// boot's or the shutdown's frames and its end (see splashInterval).
 func (m Model) tickInterval() time.Duration {
 	d := idleTick
 	if m.tickFast {
@@ -514,7 +522,7 @@ func (m Model) tickInterval() time.Duration {
 		end := m.intro.start.Add(introDur)
 		d = min(d, max(min(introTick, end.Sub(m.now())), minWake))
 	}
-	return m.bootInterval(d)
+	return m.splashInterval(d)
 }
 
 func (m Model) animating() bool {

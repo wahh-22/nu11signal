@@ -402,7 +402,7 @@ func TestSplashSurvivesNoRoom(t *testing.T) {
 	// A body with no rows left (a terminal at the full layout's edge)
 	// draws nothing instead of panicking.
 	for _, h := range []int{-3, 0, 1} {
-		if got := splash(80, h); len(got) > max(h, 1) {
+		if got := splash(80, h, bootText); len(got) > max(h, 1) {
 			t.Fatalf("splash(80, %d) drew %d lines", h, len(got))
 		}
 	}

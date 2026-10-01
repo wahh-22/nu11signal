@@ -17,7 +17,7 @@ import (
 // withIntro), access linked or not.
 //
 // With the signal effects on the splash glitches from the first frame, a
-// burst that never stops while the boot lasts (see bootGlitch), and the
+// burst that never stops while the boot lasts (see splashGlitch), and the
 // tick runs at burstTick; with them off (x, --calm) it shows still and a
 // single tick ends it on time. No timer is added: tickInterval cuts the
 // tick chain to the boot's frames and its end.
@@ -60,42 +60,65 @@ func (m Model) bootKey(k string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// bootGlitching reports whether the boot glitch draws: the boot on, the
-// signal effects on, and room for the splash (not the tiny layout).
-func (m Model) bootGlitching() bool {
-	return m.boot && m.fx.on && m.auth != authFailed && m.width >= tinyMinWidth && m.height >= tinyMinHeight
+// splashText is the line under the emblem: SHUTTING DOWN while
+// nu11signal shuts down (see shutdown.go), else BOOTING.
+func (m Model) splashText() string {
+	if m.shutdown {
+		return shutdownText
+	}
+	return bootText
 }
 
-// bootInterval cuts d, the time to the next frame, to the boot: burstTick
-// while its glitch draws, and the boot's end at the latest.
-func (m Model) bootInterval(d time.Duration) time.Duration {
-	if !m.boot || m.bootEnd.IsZero() {
+// splashGlitching reports whether the splash glitch draws: the boot on
+// (access not refused) or the shutdown on, the signal effects on, and
+// room for the splash (not the tiny layout).
+func (m Model) splashGlitching() bool {
+	return ((m.boot && m.auth != authFailed) || m.shutdown) && m.fx.on &&
+		m.width >= tinyMinWidth && m.height >= tinyMinHeight
+}
+
+// splashInterval cuts d, the time to the next frame, to the splash:
+// burstTick while its glitch draws, and the boot's or the shutdown's end
+// at the latest. A shutdown past its end waiting for the player's close
+// keeps d (the close's answer quits, see onClosed), never a busy minWake.
+func (m Model) splashInterval(d time.Duration) time.Duration {
+	switch {
+	case m.shutdown:
+		if m.splashGlitching() {
+			d = min(d, burstTick)
+		}
+		if left := m.shutdownEnd.Sub(m.now()); left > 0 {
+			d = min(d, max(left, minWake))
+		}
+		return d
+	case !m.boot || m.bootEnd.IsZero():
 		return d
 	}
-	if m.bootGlitching() {
+	if m.splashGlitching() {
 		d = min(d, burstTick)
 	}
 	return min(d, max(m.bootEnd.Sub(m.now()), minWake))
 }
 
-// bootNoiseGlyphs are the boot glitch's noise: shades and blocks only,
+// bootNoiseGlyphs are the splash glitch's noise (boot and shutdown): shades and blocks only,
 // so no stray letters or digits flash over the emblem.
 var bootNoiseGlyphs = []string{"░", "▒", "▓", "█", "▚", "▞"}
 
-// The boot glitch corrupts bootNoiseMin..bootNoiseMin+bootNoiseSpan-1
+// The splash glitch corrupts bootNoiseMin..bootNoiseMin+bootNoiseSpan-1
 // cells a frame, as many as a periodic burst (see effects.look).
 const (
 	bootNoiseMin  = 4
 	bootNoiseSpan = 7
 )
 
-// bootGlitch draws a burst over the splash's body in lines, one look per
-// tick frame, from the seed, as intense as a periodic burst: 1..3 of its
+// splashGlitch draws a burst over the splash's body in lines (boot or
+// shutdown, each from its own salt), one look per tick frame, from the
+// seed, as intense as a periodic burst: 1..3 of its
 // drawn rows torn 1..2 cells sideways, bootNoiseMin.. noise cells (see
 // bootNoiseGlyphs) over the drawn cells of those rows, and on one frame
 // in three a static bar across a row of the body. The header, the status
 // line and the footer are left clean.
-func (m Model) bootGlitch(lines []string) {
+func (m Model) splashGlitch(lines []string) {
 	lo, hi := splashTop, len(lines)-2
 	var drawn []int
 	for y := lo; y < hi; y++ {
@@ -106,7 +129,11 @@ func (m Model) bootGlitch(lines []string) {
 	if len(drawn) == 0 {
 		return
 	}
-	r := mix(m.seed, saltBoot, m.frame)
+	salt := saltBoot
+	if m.shutdown {
+		salt = saltShutdown
+	}
+	r := mix(m.seed, salt, m.frame)
 	n := uint64(len(drawn))
 	for i := range 1 + r%3 {
 		h := mix(r, 1, i)

@@ -14,7 +14,8 @@ import (
 // small panel centered over whatever is on screen, the playback going on
 // under it. y or enter quit, and so do q or ctrl+c pressed again (the
 // double press is the fast way out); n or esc close it, giving the screen
-// back as it was. Every other key is ignored. Its QUIT and STAY buttons
+// back as it was (a confirmed quit closes it for the shutdown splash, see
+// shutdown.go). Every other key is ignored. Its QUIT and STAY buttons
 // are HUD bracket keys like the player's transport (see button): QUIT,
 // enter's action, filled as the primary one, STAY in the transport's
 // cyan brackets. They are clickable; a click on the panel off them does
@@ -67,11 +68,12 @@ func (m Model) askQuit() Model {
 }
 
 // quitKey handles a key press while the quit modal asks: the quit path
-// (see quitCmd) for yes, closed for no, nothing for any other key.
+// (the shutdown, see startShutdown) for yes, closed for no, nothing for
+// any other key.
 func (m Model) quitKey(k string) (Model, tea.Cmd) {
 	switch strings.ToLower(k) {
 	case quitYes, keyEnter, keyQuit, keyCtrlC:
-		return m, m.quitCmd()
+		return m.startShutdown()
 	case quitNo, keyEsc:
 		m.quitAsk = false
 	}
@@ -87,7 +89,7 @@ func (m Model) quitClick(x, y int) (Model, tea.Cmd) {
 	case !ok:
 		m.quitAsk = false
 	case z.id == zoneQuitYes:
-		return m, m.quitCmd()
+		return m.startShutdown()
 	case z.id == zoneQuitNo:
 		m.quitAsk = false
 	}

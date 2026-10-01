@@ -7,9 +7,9 @@ import (
 )
 
 // The null emblem: a block-drawn Ø, its ring in the label color and its
-// slash in the accent color, with the name beside it. The boot splash
-// draws it (see splash and boot.go), and nu11signal --version prints the
-// compact one (see EmblemRows).
+// slash in the accent color, with the name beside it. The boot and
+// shutdown splashes draw it (see splash, boot.go and shutdown.go), and
+// nu11signal --version prints the compact one (see EmblemRows).
 //
 //	  ▄████▄▄▀
 //	▄█▀   ▄▀█▄   N U 1 1
@@ -140,17 +140,19 @@ func paintRow(row, mask string) string {
 	return b.String()
 }
 
-// splash renders the body of the boot splash, w x h cells: the large
-// emblem with its text, centered on the width as a block, and one blank
-// row under it the BOOTING line (bootText), centered
-// on the width on its own; together they are centered on the height. The
-// compact emblem takes the large one's place where that does not fit, and
-// only the line is left where neither does. The line is spaced out where
-// it fits, plain otherwise.
-func splash(w, h int) []string {
-	line := spaced(bootText)
+// splash renders the body of the boot or shutdown splash, w x h cells:
+// the large emblem with its text, centered on the width as a block, and
+// one blank row under it the line text (bootText or shutdownText, see
+// splashText), centered on the width on its own; together they are
+// centered on the height. The compact emblem takes the large one's place
+// where that does not fit, and only the line is left where neither does.
+// The line is spaced out where it fits, plain otherwise, and drawn bright
+// (stHiBold, the transport's cyan in bold) so it reads clearly under the
+// emblem.
+func splash(w, h int, text string) []string {
+	line := spaced(text)
 	if ansi.StringWidth(line) > w {
-		line = bootText
+		line = text
 	}
 	var block []string
 	for _, e := range []emblem{emblemLarge, emblemCompact} {
@@ -163,7 +165,7 @@ func splash(w, h int) []string {
 			break
 		}
 	}
-	block = append(block, strings.Repeat(" ", max((w-ansi.StringWidth(line))/2, 0))+stMuted.Render(line))
+	block = append(block, strings.Repeat(" ", max((w-ansi.StringWidth(line))/2, 0))+stHiBold.Render(line))
 	lines := make([]string, max((h-len(block))/2, 0), max(h, 0))
 	lines = append(lines, block...)
 	for len(lines) < h {
@@ -172,13 +174,13 @@ func splash(w, h int) []string {
 	return lines
 }
 
-// splashTop is the first row of the boot splash's body, under the
+// splashTop is the first row of the splash's body, under the
 // title line and the nav bar in the full layout and under the wordmark
 // and the nav bar in the compact one; the body ends over the status line
 // and the footer.
 const splashTop = 2
 
-// splashRegion is the body of the boot splash, compared for new
+// splashRegion is the body of the splash, compared for new
 // content like a list (see introRegions): its text scrambles in.
 func (m Model) splashRegion() []rowSpan {
 	var rows []rowSpan

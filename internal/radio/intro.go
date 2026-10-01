@@ -115,7 +115,7 @@ func (m Model) introAnimating() bool { return m.introOn() && m.intro.running(m.n
 // album or feed) included, and is compared.
 func introQuiet(msg tea.Msg) bool {
 	switch msg.(type) {
-	case tickMsg, tea.WindowSizeMsg, volumeMsg, setVolumeMsg, seekMsg, loopMsg:
+	case tickMsg, tea.WindowSizeMsg, volumeMsg, setVolumeMsg, seekMsg, loopMsg, closedMsg:
 		return true
 	}
 	return false
@@ -218,7 +218,7 @@ func quitModalRows(zs zones, inset int) []rowSpan {
 // introRegions are the rows compared for new content: the quit modal's
 // inside while it asks (it covers the rest, see quit.go); the KEYS or
 // SETTINGS overlay's inside while one is open (it hides the rest); the
-// boot splash's body during the boot (see splashRegion);
+// splash's body during the boot or the shutdown (see splashRegion);
 // otherwise the list panel's inside, and the NOW PLAYING field rows in
 // the full layout; never the rows of the SEARCH input or the NEW
 // PLAYLIST name, where their zones put them.
@@ -245,7 +245,7 @@ func (m Model) introRegions(zs zones) [][]rowSpan {
 		}
 		return [][]rowSpan{rows}
 	}
-	if m.boot {
+	if m.boot || m.shutdown {
 		return [][]rowSpan{m.splashRegion()}
 	}
 	var inputs []int

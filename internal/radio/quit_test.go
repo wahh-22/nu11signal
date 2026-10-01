@@ -17,18 +17,6 @@ import (
 // quitQuestion is the question the quit modal asks.
 const quitQuestion = "QUIT NU11SIGNAL?"
 
-// assertQuits fails unless cmd is the quit path: it closes the player
-// and ends with tea.QuitMsg.
-func assertQuits(t *testing.T, f *playbacktest.Fake, cmd tea.Cmd) {
-	t.Helper()
-	if _, ok := run(t, cmd).(tea.QuitMsg); !ok {
-		t.Fatal("quit command did not return tea.QuitMsg")
-	}
-	if !f.Closed() {
-		t.Fatal("the player was not closed")
-	}
-}
-
 // assertAsking fails unless m shows the quit modal and cmd quits nothing.
 func assertAsking(t *testing.T, m Model, cmd tea.Cmd) {
 	t.Helper()
@@ -62,7 +50,7 @@ func TestQuitAsksFirst(t *testing.T) {
 }
 
 // y, enter, and q or ctrl+c pressed again quit from the modal, through
-// the quit path that closes the player.
+// the shutdown that closes the player (see shutdown.go).
 func TestTheQuitModalQuits(t *testing.T) {
 	for _, open := range []string{keyQuit, keyCtrlC} {
 		for _, confirm := range []string{"y", "Y", keyEnter, keyQuit, keyCtrlC} {
@@ -70,8 +58,8 @@ func TestTheQuitModalQuits(t *testing.T) {
 				f := playbacktest.New()
 				m := playingModel(t, f)
 				m, _ = press(t, m, open)
-				_, cmd := press(t, m, confirm)
-				assertQuits(t, f, cmd)
+				m, cmd := press(t, m, confirm)
+				assertQuits(t, f, m, cmd)
 			})
 		}
 	}
@@ -203,8 +191,8 @@ func TestTheQuitModalOnTheTinyLayout(t *testing.T) {
 	if !strings.Contains(plain(m), "QUIT? Y/N") {
 		t.Fatalf("tiny layout does not ask:\n%s", plain(m))
 	}
-	_, cmd = press(t, m, "y")
-	assertQuits(t, f, cmd)
+	m, cmd = press(t, m, "y")
+	assertQuits(t, f, m, cmd)
 }
 
 func TestAClickOutsideTheQuitModalClosesIt(t *testing.T) {
@@ -265,8 +253,8 @@ func TestTheQuitModalButtons(t *testing.T) {
 	if stay.quitAsk || cmd != nil || f.Closed() {
 		t.Fatalf("STAY: modal %v command %v closed %v", stay.quitAsk, cmd != nil, f.Closed())
 	}
-	_, cmd = click(t, m, zoneQuitYes)
-	assertQuits(t, f, cmd)
+	m, cmd = click(t, m, zoneQuitYes)
+	assertQuits(t, f, m, cmd)
 }
 
 // Too narrow for both side by side, the buttons stack, still whole and

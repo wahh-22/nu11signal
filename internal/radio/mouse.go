@@ -20,6 +20,10 @@ const doubleClickGuard = 400 * time.Millisecond
 
 // handleMouse handles one mouse message.
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.shutdown {
+		// Nothing is clickable while nu11signal shuts down.
+		return m, nil
+	}
 	if m.boot {
 		// A click skips the boot splash, and does nothing else.
 		if _, ok := msg.(tea.MouseClickMsg); ok {
