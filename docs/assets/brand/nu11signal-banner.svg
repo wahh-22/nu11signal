@@ -6,53 +6,359 @@
 <path d="M1180 312V340H1152" fill="none" stroke="#5EF6FF" stroke-width="3"/>
 <text x="44" y="52" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="15" letter-spacing="3" fill="#9A3B37">SIG ▂▄▆█  //  AUTH OK</text>
 <text x="1156" y="52" text-anchor="end" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="15" letter-spacing="3" fill="#9A3B37">NODE 7F // NC-GRID</text>
-<rect class="px" x="370.8" y="100" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="390.8" y="80" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="410.8" y="80" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="430.8" y="80" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="450.8" y="80" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="470.8" y="100" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="490.8" y="100" width="20" height="20" fill="#FCEE0A"/>
-<rect class="px" x="510.8" y="80" width="20" height="20" fill="#FCEE0A"/>
-<rect class="px" x="330.8" y="140" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="350.8" y="120" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="370.8" y="120" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="450.8" y="140" width="20" height="20" fill="#FCEE0A"/>
-<rect class="px" x="470.8" y="120" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="490.8" y="120" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="510.8" y="140" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="330.8" y="160" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="350.8" y="160" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="410.8" y="180" width="20" height="20" fill="#FCEE0A"/>
-<rect class="px" x="430.8" y="160" width="20" height="20" fill="#FCEE0A"/>
-<rect class="px" x="490.8" y="160" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="510.8" y="160" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="330.8" y="200" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="350.8" y="200" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="370.8" y="220" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="390.8" y="200" width="20" height="20" fill="#FCEE0A"/>
-<rect class="px" x="470.8" y="220" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="490.8" y="200" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="510.8" y="200" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="330.8" y="260" width="20" height="20" fill="#FCEE0A"/>
-<rect class="px" x="350.8" y="240" width="20" height="20" fill="#FCEE0A"/>
-<rect class="px" x="370.8" y="240" width="20" height="20" fill="#FF5F57"/>
-<rect class="px" x="390.8" y="240" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="410.8" y="240" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="430.8" y="240" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="450.8" y="240" width="20" height="40" fill="#FF5F57"/>
-<rect class="px" x="470.8" y="240" width="20" height="20" fill="#FF5F57"/>
-<text x="578.8" y="152.8" textLength="184.8" lengthAdjust="spacingAndGlyphs" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="44" font-weight="bold" fill="#FF5F57">N U 1 1</text>
-<text x="578.8" y="192.8" textLength="290.4" lengthAdjust="spacingAndGlyphs" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="44" font-weight="bold" fill="#FF5F57">S I G N A L</text>
-<polygon points="605.2,206 605.2,234 578.8,234" fill="#FCEE0A"/>
-<polygon points="605.2,206 631.6,206 605.2,234" fill="#FCEE0A"/>
-<polygon points="658,206 658,234 631.6,234" fill="#FCEE0A"/>
-<polygon points="658,206 684.4,206 658,234" fill="#FCEE0A"/>
-<polygon points="710.8,206 710.8,234 684.4,234" fill="#FCEE0A"/>
-<polygon points="710.8,206 737.2,206 710.8,234" fill="#FCEE0A"/>
-<polygon points="763.6,206 763.6,234 737.2,234" fill="#FCEE0A"/>
-<polygon points="763.6,206 790,206 763.6,234" fill="#FCEE0A"/>
-<polygon points="816.4,206 816.4,234 790,234" fill="#FCEE0A"/>
-<polygon points="816.4,206 842.8,206 816.4,234" fill="#FCEE0A"/>
+<circle class="dot" cx="516" cy="80" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="524" cy="64" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="524" cy="72" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="532" cy="72" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="524" cy="80" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="532" cy="80" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="540" cy="80" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="404" cy="112" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="112" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="112" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="88" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="436" cy="88" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="436" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="436" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="112" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="436" cy="112" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="444" cy="88" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="444" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="444" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="452" cy="88" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="452" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="452" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="460" cy="88" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="460" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="460" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="468" cy="88" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="468" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="468" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="476" cy="88" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="476" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="476" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="484" cy="88" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="484" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="484" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="476" cy="112" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="484" cy="112" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="96" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="104" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="112" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="112" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="88" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="508" cy="96" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="508" cy="104" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="516" cy="88" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="516" cy="96" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="516" cy="104" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="508" cy="112" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="516" cy="112" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="524" cy="88" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="524" cy="96" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="524" cy="104" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="532" cy="88" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="532" cy="96" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="396" cy="128" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="136" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="120" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="128" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="136" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="144" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="144" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="120" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="128" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="136" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="120" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="128" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="136" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="144" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="120" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="468" cy="144" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="476" cy="136" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="484" cy="120" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="484" cy="128" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="484" cy="136" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="476" cy="144" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="484" cy="144" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="492" cy="120" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="128" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="136" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="120" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="128" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="136" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="144" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="144" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="120" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="128" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="136" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="128" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="136" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="144" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="144" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="388" cy="152" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="388" cy="160" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="388" cy="168" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="388" cy="176" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="152" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="160" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="168" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="152" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="160" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="168" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="176" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="176" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="152" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="160" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="168" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="176" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="452" cy="168" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="444" cy="176" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="452" cy="176" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="460" cy="152" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="460" cy="160" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="460" cy="168" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="468" cy="152" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="468" cy="160" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="468" cy="168" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="460" cy="176" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="468" cy="176" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="476" cy="152" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="476" cy="160" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="476" cy="168" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="484" cy="152" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="484" cy="160" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="492" cy="152" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="152" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="160" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="168" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="176" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="152" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="160" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="168" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="152" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="160" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="168" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="176" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="176" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="524" cy="152" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="524" cy="160" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="524" cy="168" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="524" cy="176" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="388" cy="184" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="388" cy="192" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="388" cy="200" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="388" cy="208" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="184" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="192" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="200" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="184" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="192" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="200" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="208" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="208" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="184" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="192" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="200" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="208" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="208" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="436" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="436" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="428" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="436" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="444" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="444" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="444" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="452" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="452" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="452" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="444" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="452" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="460" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="460" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="468" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="500" cy="184" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="192" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="200" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="208" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="184" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="192" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="200" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="184" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="192" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="200" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="208" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="208" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="524" cy="184" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="524" cy="192" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="524" cy="200" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="524" cy="208" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="216" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="224" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="396" cy="232" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="216" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="224" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="232" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="404" cy="240" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="216" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="224" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="232" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="216" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="224" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="232" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="240" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="240" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="216" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="428" cy="224" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="428" cy="232" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="436" cy="216" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="436" cy="224" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="428" cy="240" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="444" cy="216" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="484" cy="240" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="224" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="232" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="216" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="224" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="232" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="240" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="240" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="216" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="224" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="232" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="216" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="224" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="516" cy="232" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="240" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="380" cy="264" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="388" cy="256" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="388" cy="264" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="380" cy="272" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="388" cy="272" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="396" cy="248" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="396" cy="256" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="396" cy="264" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="404" cy="248" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="404" cy="256" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="404" cy="264" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="396" cy="272" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="404" cy="272" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="412" cy="248" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="412" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="248" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="420" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="248" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="436" cy="248" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="436" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="436" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="428" cy="272" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="436" cy="272" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="444" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="444" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="452" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="452" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="444" cy="272" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="452" cy="272" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="460" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="460" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="468" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="468" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="460" cy="272" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="468" cy="272" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="476" cy="248" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="476" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="476" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="484" cy="248" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="484" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="484" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="476" cy="272" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="484" cy="272" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="248" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="492" cy="264" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="248" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="500" cy="256" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="508" cy="248" r="3.2" fill="#FF5F57"/>
+<circle class="dot" cx="372" cy="280" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="380" cy="280" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="380" cy="288" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="388" cy="280" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="388" cy="288" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="388" cy="296" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="396" cy="280" r="3.2" fill="#FCEE0A"/>
+<text x="600" y="141.6" textLength="112" lengthAdjust="spacingAndGlyphs" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="26.67" font-weight="bold" fill="#FF5F57">N U 1 1</text>
+<text x="600" y="173.6" textLength="176" lengthAdjust="spacingAndGlyphs" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="26.67" font-weight="bold" fill="#FF5F57">S I G N A L</text>
+<circle class="dot" cx="612" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="604" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="612" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="620" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="620" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="628" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="628" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="628" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="620" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="636" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="636" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="644" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="660" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="652" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="660" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="668" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="668" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="676" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="676" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="676" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="668" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="684" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="684" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="692" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="708" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="700" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="708" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="716" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="716" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="724" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="724" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="724" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="716" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="732" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="732" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="740" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="756" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="748" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="756" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="764" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="764" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="772" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="772" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="772" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="764" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="780" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="780" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="788" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="804" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="796" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="804" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="812" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="812" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="820" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="820" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="820" cy="200" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="812" cy="208" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="828" cy="184" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="828" cy="192" r="3.2" fill="#FCEE0A"/>
+<circle class="dot" cx="836" cy="184" r="3.2" fill="#FCEE0A"/>
 <text x="600" y="320" text-anchor="middle" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="16" letter-spacing="6" fill="#5EF6FF">APPLE MUSIC  //  TERMINAL RADIO</text>
 </svg>
