@@ -199,6 +199,9 @@ func idleGlitchDraw(segs []string, a idleArt, x0 int, r uint64) {
 		}
 	}
 	n := uint64(len(drawn))
+	if n == 0 {
+		return
+	}
 	for j := range idleNoiseMin + r%(idleNoiseMax-idleNoiseMin+1) {
 		h := mix(r, 4, j)
 		c := drawn[h%n]
