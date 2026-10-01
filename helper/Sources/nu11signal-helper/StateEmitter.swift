@@ -140,7 +140,7 @@ final class StateEmitter {
 }
 
 /// A point-in-time view of the player in protocol shape.
-private struct Snapshot {
+struct Snapshot {
     var status: String
     var title = ""
     var artist = ""

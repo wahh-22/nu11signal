@@ -14,5 +14,11 @@ User feedback 2026-10-01: (1) quitting while music plays makes a pop like a mic 
 - Goldens: `linking_80x24`/`linking_blue_80x24` replaced by `boot_80x24`/`boot_blue_80x24`; `quit_80x24` updated; NIGHT CITY ANSI baselines unchanged.
 - Checks: `go build ./...`, `go test -race ./...`, `go vet ./...`, `gofmt -l .` all clean.
 
+- B3 implemented by a delegated writer (uncommitted; checkbox stays open until confirmed by ear). Design: `ShutdownPlan` (helper/Sources/Nu11SignalProtocol/Shutdown.swift) owns the quiet exit's order and timings. With the app-volume IOProc rendering: fade the gain to 0 over `GainRamp.shutdownSeconds` (0.2 s, a separate slow increment in the render state, selected by a shared `fading` word) and wait 0.23 s, then `pause()` (never stop), wait up to 0.15 s for the player to report not playing, then teardown (IOProc stops on silence, aggregate then the still-muted tap destroyed), then exit. Without a rendering tap but playing: pause, settle 0.2 s, teardown. Idle: teardown. `Lifecycle.quietDown` runs it as a main-actor Task; AppVolume stops feeding the lifecycle and ignores level/permission changes once closing; the `_exit` backstop stays at 2 s (`ShutdownPlan.backstopSeconds`).
+- Timeout chain documented once on `helper.DefaultCloseTimeout` (internal/helper/client.go): helper request grace 3 s + backstop 2 s (worst case 5 s) < client `DefaultCloseTimeout` 5.5 s (was 2 s) ≤ TUI `defaultCloseTimeout` 6 s (was 3 s). A Go test reads the helper's values from Shutdown.swift so they cannot drift.
+- RED observed first: Swift `ShutdownPlanTests` (cannot find `ShutdownPlan`), Go `shutdown_budget_test.go` / `close_timeout_test.go` (undefined `helperRequestGrace`, `helper.DefaultCloseTimeout`). GREEN: `swift test` 230 tests, `go test -race ./...`, `go vet`, `gofmt -l .` clean, `make helper` built and signed.
+- Pending: confirm by ear that quitting during playback (app volume and `NU11SIGNAL_VOLUME_MODE=system`) no longer pops.
+
 ## Next step
-- Review/commit B1+B2 as a work unit, then B3 (quiet exit) exploration.
+- Review/commit B1+B2 as a work unit; confirm B3 by ear, then review/commit it as its own work unit.
+- B1+B2 commit `386713d`. Review (main..386713d): high, 770 lines, consent granted, 4 lenses, lineage `review-26f5f07588bb13ca`, APPROVED, acknowledged (burned). Advisories (not scheduled): tiny-layout boot swallows the first key; boot glitch precedence/naming; quit modal width literals; boot resize untested.

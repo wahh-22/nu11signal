@@ -61,9 +61,33 @@ type Options struct {
 	Stderr io.Writer
 	// ReadyTimeout bounds the wait for the "ready" event (default 5s).
 	ReadyTimeout time.Duration
-	// CloseTimeout bounds the wait for exit after stdin closes (default 2s).
+	// CloseTimeout bounds the wait for exit after stdin closes (default
+	// DefaultCloseTimeout).
 	CloseTimeout time.Duration
 }
+
+// The timeout chain of quitting, outermost first. Each wait covers the
+// next, so nothing is killed while the helper fades the music out:
+//
+//   - the UI (radio's defaultCloseTimeout, 6s) waits for Player.Close at
+//     least as long as Close may take;
+//   - Close (DefaultCloseTimeout, 5.5s) closes the helper's stdin and kills
+//     the helper only after its own worst case: helperRequestGrace plus
+//     helperBackstop, plus closeMargin;
+//   - the helper (helper/Sources/Nu11SignalProtocol/Shutdown.swift) waits
+//     up to requestGraceSeconds (3s) for in-flight requests, then runs its
+//     quiet exit (ShutdownPlan: a 0.2s fade of the app volume, a pause and
+//     up to 0.15s for it to land, the tap's teardown) under a backstop of
+//     backstopSeconds (2s), after which it exits regardless.
+//
+// A normal quit takes only the quiet exit, well under a second. A test
+// reads the helper's values from the Swift source so the two cannot drift.
+const (
+	helperRequestGrace  = 3 * time.Second // ShutdownPlan.requestGraceSeconds
+	helperBackstop      = 2 * time.Second // ShutdownPlan.backstopSeconds
+	closeMargin         = 500 * time.Millisecond
+	DefaultCloseTimeout = helperRequestGrace + helperBackstop + closeMargin
+)
 
 const (
 	stateBuffer  = 8
@@ -118,7 +142,7 @@ func Start(ctx context.Context, opts Options) (*Client, error) {
 		opts.ReadyTimeout = 5 * time.Second
 	}
 	if opts.CloseTimeout <= 0 {
-		opts.CloseTimeout = 2 * time.Second
+		opts.CloseTimeout = DefaultCloseTimeout
 	}
 
 	cmd := exec.Command(opts.Path)

@@ -31,7 +31,9 @@ type Options struct {
 	// CallTimeout bounds every Player call (default 8s).
 	CallTimeout time.Duration
 	// CloseTimeout bounds how long quitting waits for Player.Close before
-	// the UI exits anyway (default 3s).
+	// the UI exits anyway (default 6s: at least the helper client's own
+	// bound, see helper.DefaultCloseTimeout, so the helper's fade out is
+	// never cut short).
 	CloseTimeout time.Duration
 	// Recents keeps recent search terms; nil keeps them in memory only.
 	Recents history.Recents
@@ -54,7 +56,7 @@ const (
 	fastTick            = 100 * time.Millisecond
 	idleTick            = time.Second
 	defaultCallTimeout  = 8 * time.Second
-	defaultCloseTimeout = 3 * time.Second
+	defaultCloseTimeout = 6 * time.Second
 )
 
 // RenderFPS is the frame rate the program's renderer should run at

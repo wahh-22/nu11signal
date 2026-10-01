@@ -113,10 +113,14 @@ public enum AppGain {
 public enum GainRamp {
     /// How long a full 0...1 swing takes.
     public static let seconds = 0.015
+    /// How long a full swing takes while the helper exits (see
+    /// ShutdownPlan): slow enough to sound like a fade, not a cut.
+    public static let shutdownSeconds = ShutdownPlan.fadeSeconds
 
-    /// The gain change per frame at sampleRate; a jump without a rate.
-    public static func increment(sampleRate: Double) -> Float {
-        guard sampleRate.isFinite, sampleRate > 0 else { return 1 }
+    /// The gain change per frame at sampleRate for a full swing over
+    /// `seconds`; a jump without a rate or a duration.
+    public static func increment(sampleRate: Double, seconds: Double = GainRamp.seconds) -> Float {
+        guard sampleRate.isFinite, sampleRate > 0, seconds.isFinite, seconds > 0 else { return 1 }
         return Float(1 / (sampleRate * seconds))
     }
 
