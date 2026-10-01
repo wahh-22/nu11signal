@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/wahh-22/nu11signal/internal/history"
 	"github.com/wahh-22/nu11signal/internal/playback"
 	"github.com/wahh-22/nu11signal/internal/playback/demo"
+	"github.com/wahh-22/nu11signal/internal/update"
 )
 
 // fakePlayer is a helper-backed player stand-in that records Close calls.
@@ -37,6 +40,7 @@ type testEnv struct {
 	uiRecents      history.Recents
 	uiConfig       config.Source
 	uiCalm         bool
+	uiUpdates      update.Checker
 	uiRuns         int
 }
 
@@ -54,9 +58,9 @@ func newTestEnv(t *testing.T) *testEnv {
 			t.Error("startHelper called unexpectedly")
 			return nil, errors.New("unexpected start")
 		},
-		runUI: func(p playback.Player, r history.Recents, cfg config.Source, calm bool) error {
+		runUI: func(p playback.Player, r history.Recents, cfg config.Source, calm bool, updates update.Checker) error {
 			e.uiRuns++
-			e.uiPlayer, e.uiRecents, e.uiConfig, e.uiCalm = p, r, cfg, calm
+			e.uiPlayer, e.uiRecents, e.uiConfig, e.uiCalm, e.uiUpdates = p, r, cfg, calm, updates
 			return nil
 		},
 	}
@@ -193,7 +197,7 @@ func TestRunUIExitPaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newTestEnv(t)
-			e.d.runUI = func(playback.Player, history.Recents, config.Source, bool) error { return tt.uiErr }
+			e.d.runUI = func(playback.Player, history.Recents, config.Source, bool, update.Checker) error { return tt.uiErr }
 			if code := run([]string{"--demo"}, e.d); code != tt.wantCode {
 				t.Fatalf("exit code = %d; want %d", code, tt.wantCode)
 			}
@@ -227,5 +231,83 @@ func TestRunCalmStartsTheEffectsOff(t *testing.T) {
 				t.Fatalf("UI calm = %v; want %v", e.uiCalm, tt.want)
 			}
 		})
+	}
+}
+
+// updateEnv is a helper-backed run with version v, a temporary home and
+// NU11SIGNAL_NO_UPDATE_CHECK set to noCheck; settings, when not empty,
+// is written as the settings file first.
+func updateEnv(t *testing.T, v, noCheck, settings string) *testEnv {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", home)
+	t.Setenv(noUpdateCheckEnv, noCheck)
+	old := version
+	version = v
+	t.Cleanup(func() { version = old })
+	if settings != "" {
+		path, err := config.DefaultPath()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(settings), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e := newTestEnv(t)
+	e.d.locateHelper = func() (string, error) { return "/opt/helper", nil }
+	e.d.startHelper = func(context.Context, string) (playback.Player, error) { return &fakePlayer{}, nil }
+	return e
+}
+
+func TestRunPassesACachedGitHubChecker(t *testing.T) {
+	e := updateEnv(t, "0.3.0", "", "")
+	if code := run(nil, e.d); code != 0 {
+		t.Fatalf("exit code = %d (stderr %q)", code, e.stderr.String())
+	}
+	c, ok := e.uiUpdates.(*update.Cached)
+	if !ok {
+		t.Fatalf("UI got updates %T; want *update.Cached", e.uiUpdates)
+	}
+	cfg, _ := config.DefaultPath()
+	if want := filepath.Join(filepath.Dir(cfg), "update.json"); c.Path != want {
+		t.Fatalf("cache path = %q; want %q", c.Path, want)
+	}
+	g, ok := c.Inner.(*update.GitHub)
+	if !ok || g.UserAgent != "nu11signal/0.3.0" {
+		t.Fatalf("inner checker = %#v; want GitHub for nu11signal/0.3.0", c.Inner)
+	}
+}
+
+func TestRunUpdateCheckOptOuts(t *testing.T) {
+	tests := []struct {
+		name, version, env, settings string
+		args                         []string
+	}{
+		{"dev build", "dev", "", "", nil},
+		{"unparsable version", "nightly", "", "", nil},
+		{"environment", "0.3.0", "1", "", nil},
+		{"settings file", "0.3.0", "", `{"update_check": false}`, nil},
+		{"demo", "0.3.0", "", "", []string{"--demo"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := updateEnv(t, tt.version, tt.env, tt.settings)
+			if code := run(tt.args, e.d); code != 0 {
+				t.Fatalf("exit code = %d (stderr %q)", code, e.stderr.String())
+			}
+			if e.uiUpdates != nil {
+				t.Fatalf("UI got updates %T; want none", e.uiUpdates)
+			}
+		})
+	}
+	// An environment value other than 1 leaves the check on.
+	e := updateEnv(t, "0.3.0", "0", `{"update_check": true}`)
+	if run(nil, e.d); e.uiUpdates == nil {
+		t.Fatal("NU11SIGNAL_NO_UPDATE_CHECK=0 with update_check true turned the check off")
 	}
 }

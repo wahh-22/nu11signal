@@ -13,6 +13,7 @@ import (
 	"github.com/wahh-22/nu11signal/internal/config"
 	"github.com/wahh-22/nu11signal/internal/history"
 	"github.com/wahh-22/nu11signal/internal/playback"
+	updatecheck "github.com/wahh-22/nu11signal/internal/update"
 )
 
 // Options configures a radio Model. Zero values select sensible defaults.
@@ -40,6 +41,15 @@ type Options struct {
 	// Config is the settings file, read once at startup (see onConfig);
 	// nil keeps the defaults.
 	Config config.Source
+	// Updates answers the latest release, asked once from Init (see
+	// release.go); nil never checks.
+	Updates updatecheck.Checker
+	// Version is the running release version, compared with the latest;
+	// one that is not a semantic version ("dev") never checks.
+	Version string
+	// Upgrade is the command that upgrades this install, shown with a
+	// newer release; empty shows the release page instead.
+	Upgrade string
 }
 
 const (
@@ -278,6 +288,12 @@ type Model struct {
 	rain         rainViz
 	configSource config.Source
 	configSaves  *configSaves
+	// updates, version and upgrade check for a newer release (see
+	// release.go); newer is the one found, zero while none is known.
+	updates updatecheck.Checker
+	version string
+	upgrade string
+	newer   updatecheck.Release
 	// tickGen identifies the live tick chain; ticks from older chains are
 	// dropped so rescheduling never doubles the frame rate.
 	tickGen  uint64
@@ -341,6 +357,9 @@ func New(p playback.Player, opts Options) Model {
 		fx:           effects{on: opts.Effects},
 		boot:         !opts.SkipBoot,
 		configSource: opts.Config,
+		updates:      opts.Updates,
+		version:      opts.Version,
+		upgrade:      opts.Upgrade,
 		configSaves:  &configSaves{},
 
 		input:         in,
@@ -354,9 +373,9 @@ func New(p playback.Player, opts Options) Model {
 }
 
 // Init authorizes, loads recent searches and the settings, reads the volume, starts
-// listening to the player, and starts animating.
+// listening to the player, starts animating, and checks for a newer release.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.loadConfigCmd(), m.readVolumeCmd(0), m.waitStates(), m.waitErrors(), tickAfter(idleTick, tickMsg{gen: m.tickGen}))
+	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.loadConfigCmd(), m.readVolumeCmd(0), m.waitStates(), m.waitErrors(), tickAfter(idleTick, tickMsg{gen: m.tickGen}), m.checkReleaseCmd())
 }
 
 // Messages produced by the model's commands.

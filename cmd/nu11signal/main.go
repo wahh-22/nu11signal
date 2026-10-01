@@ -6,7 +6,9 @@
 // against an in-process simulated player instead. --calm (or
 // NU11SIGNAL_CALM=1) starts with the signal effects off; x toggles them.
 // --version prints the release version stamped at link time: beside the
-// null emblem on a terminal, the bare version line otherwise.
+// null emblem on a terminal, the bare version line otherwise. A release
+// build checks once a day for a newer release (see internal/update) unless
+// NU11SIGNAL_NO_UPDATE_CHECK=1 or "update_check": false in config.json.
 package main
 
 import (
@@ -17,6 +19,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,6 +31,7 @@ import (
 	"github.com/wahh-22/nu11signal/internal/playback"
 	"github.com/wahh-22/nu11signal/internal/playback/demo"
 	"github.com/wahh-22/nu11signal/internal/radio"
+	"github.com/wahh-22/nu11signal/internal/update"
 )
 
 // version is stamped by release builds with -ldflags "-X main.version=x.y.z".
@@ -38,6 +42,9 @@ const startTimeout = 10 * time.Second
 
 // calmEnv set to 1 starts with the signal effects off, as --calm does.
 const calmEnv = "NU11SIGNAL_CALM"
+
+// noUpdateCheckEnv set to 1 turns the update check off.
+const noUpdateCheckEnv = "NU11SIGNAL_NO_UPDATE_CHECK"
 
 func main() {
 	os.Exit(run(os.Args[1:], deps{
@@ -65,8 +72,8 @@ type deps struct {
 	// runUI runs the radio UI against player until the user quits; recents
 	// stores recent searches (nil keeps them in memory only); settings is
 	// the settings file (nil keeps the defaults); calm starts the signal
-	// effects off.
-	runUI func(player playback.Player, recents history.Recents, settings config.Source, calm bool) error
+	// effects off; updates checks for a newer release (nil never checks).
+	runUI func(player playback.Player, recents history.Recents, settings config.Source, calm bool, updates update.Checker) error
 }
 
 // run executes the command with args (without the program name) and
@@ -104,7 +111,8 @@ func play(demoMode, calm bool, d deps) error {
 	// shutdown and kills a helper that does not exit.
 	defer player.Close()
 
-	if err := d.runUI(player, openRecents(demoMode), openConfig(), calm); err != nil && !errors.Is(err, tea.ErrInterrupted) {
+	settings := openConfig()
+	if err := d.runUI(player, openRecents(demoMode), settings, calm, openUpdates(demoMode, settings)); err != nil && !errors.Is(err, tea.ErrInterrupted) {
 		return err
 	}
 	return nil
@@ -136,8 +144,53 @@ func openConfig() config.Source {
 	return config.NewFile(path)
 }
 
-func runUI(player playback.Player, recents history.Recents, settings config.Source, calm bool) error {
-	model := radio.New(player, radio.Options{Seed: uint64(time.Now().UnixNano()), Recents: recents, Config: settings, Effects: !calm})
+// openUpdates returns the update checker: GitHub's latest release,
+// cached a day in update.json beside the settings file. nil, no check,
+// for the demo (a simulated session stays offline), a build whose
+// version does not compare ("dev"), NU11SIGNAL_NO_UPDATE_CHECK=1,
+// "update_check": false in the settings (a settings file that cannot be
+// read leaves the check on; the UI reports the file), or a system without
+// a config directory to cache in.
+func openUpdates(demoMode bool, settings config.Source) update.Checker {
+	if demoMode || !update.Valid(version) || os.Getenv(noUpdateCheckEnv) == "1" {
+		return nil
+	}
+	if settings != nil {
+		if c, err := settings.Load(); err == nil && !c.UpdateCheckOn() {
+			return nil
+		}
+	}
+	path, err := config.DefaultPath()
+	if err != nil {
+		return nil
+	}
+	return update.NewCached(update.NewGitHub(version), update.CachePath(path))
+}
+
+// upgradeCommand is the command that upgrades this binary (see
+// update.UpgradeCommand), from its path with symlinks resolved; "" when
+// it cannot be found.
+func upgradeCommand() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	return update.UpgradeCommand(exe)
+}
+
+func runUI(player playback.Player, recents history.Recents, settings config.Source, calm bool, updates update.Checker) error {
+	model := radio.New(player, radio.Options{
+		Seed:    uint64(time.Now().UnixNano()),
+		Recents: recents,
+		Config:  settings,
+		Effects: !calm,
+		Updates: updates,
+		Version: version,
+		Upgrade: upgradeCommand(),
+	})
 	_, err := tea.NewProgram(model, tea.WithFPS(radio.RenderFPS)).Run()
 	return err
 }
