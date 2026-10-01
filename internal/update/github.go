@@ -61,8 +61,24 @@ func (g *GitHub) Latest(ctx context.Context) (Release, error) {
 		return Release{}, fmt.Errorf("latest release: tag %q is not a version", body.TagName)
 	}
 	rel := Release{Version: strings.TrimPrefix(body.TagName, "v"), URL: body.HTMLURL}
-	if rel.URL == "" {
+	// Only a plain link into this repository is shown; anything else (or
+	// nothing) falls back to the releases page.
+	if !releasePage(rel.URL) {
 		rel.URL = ReleasesURL
 	}
 	return rel, nil
+}
+
+// releasePage reports whether u is a printable https link into the
+// repository's GitHub pages.
+func releasePage(u string) bool {
+	if !strings.HasPrefix(u, "https://github.com/wahh-22/nu11signal/") {
+		return false
+	}
+	for _, r := range u {
+		if r < 0x21 || r > 0x7e {
+			return false
+		}
+	}
+	return true
 }

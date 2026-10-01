@@ -111,8 +111,10 @@ func (f *File) Save(c Config) error {
 	if err := json.Unmarshal(known, &set); err != nil {
 		return err
 	}
-	// Known fields are replaced, or removed when c leaves them empty.
-	for _, name := range []string{"visualizer", "theme", "update_check"} {
+	// Known fields are replaced, or removed when c leaves them empty;
+	// update_check is only ever written by the user, so a save that leaves
+	// it unset keeps what the file says.
+	for _, name := range []string{"visualizer", "theme"} {
 		delete(fields, name)
 	}
 	for k, v := range set {

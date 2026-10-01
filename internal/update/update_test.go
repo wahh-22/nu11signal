@@ -307,3 +307,21 @@ func TestUpgradeCommand(t *testing.T) {
 		}
 	}
 }
+
+// A release page outside GitHub is never shown: the notice links the
+// releases page instead.
+func TestGitHubURLOutsideGitHubFallsBack(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"tag_name":"v9.9.9","html_url":"https://evil.example/\u001b[2Jpwn"}`))
+	}))
+	defer srv.Close()
+	g := NewGitHub("0.3.0")
+	g.BaseURL = srv.URL
+	rel, err := g.Latest(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rel.URL != ReleasesURL {
+		t.Fatalf("URL %q; want the releases page", rel.URL)
+	}
+}

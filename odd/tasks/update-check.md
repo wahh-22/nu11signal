@@ -20,3 +20,4 @@ On launch, find out whether a newer release exists and, if so, tell the user in 
 
 ## Next step
 Parent: review, work-unit commit `feat(update): check for a newer release at launch`, RDD assess.
+- U1 commit `2c9a380`. Review (main..2c9a380): high, 1146 lines, consent granted, 4 lenses, lineage `review-50ad023a936b5c25`, APPROVED, acknowledged (burned). Hardened after review (test-first): a save that leaves `update_check` unset keeps the user's value (a theme picked before the file loaded no longer drops the opt-out); the release URL is shown only when it is a plain https link into github.com/wahh-22/nu11signal, else the releases page (no terminal escapes from the API). Other advisories (not scheduled): Homebrew prefix detection only covers /opt/homebrew and Caskroom; a failing refresh is retried every launch (one request per launch at most); settings click-zone test wording.

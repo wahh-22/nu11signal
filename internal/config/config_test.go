@@ -196,12 +196,13 @@ func TestSaveKeepsAndRemovesUpdateCheck(t *testing.T) {
 	if got["update_check"] != false || got["theme"] != "BLUE" || got["colors"] != "neon" {
 		t.Fatalf("saved %s; want update_check false kept beside theme and colors", data)
 	}
-	c.UpdateCheck = nil
-	if err := f.Save(c); err != nil {
+	// A save that does not set it (SETTINGS saving a theme picked before
+	// the file loaded) keeps the user's choice: only the user edits it.
+	if err := f.Save(Config{Theme: "MATRIX"}); err != nil {
 		t.Fatal(err)
 	}
 	data, _ = os.ReadFile(path)
-	if strings.Contains(string(data), "update_check") {
-		t.Fatalf("saved %s; want update_check removed when unset", data)
+	if !strings.Contains(string(data), `"update_check": false`) {
+		t.Fatalf("saved %s; want update_check false kept by a save that leaves it unset", data)
 	}
 }
