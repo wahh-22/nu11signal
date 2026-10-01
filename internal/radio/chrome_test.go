@@ -29,3 +29,19 @@ func TestTheKeyHintsSitInTheBackground(t *testing.T) {
 		t.Fatalf("hint %q; want %q", parts[0].text, want)
 	}
 }
+
+func TestTheWordmarkIsCenteredAndTheNavLeadsWithSlants(t *testing.T) {
+	m := playingModel(t, playbacktest.New())
+	lines := strings.Split(ansi.Strip(m.render()), "\n")
+	top, nav := lines[0], lines[1]
+	if strings.Contains(top, "◢◤") {
+		t.Fatalf("header %q still draws ◢◤ before the wordmark", top)
+	}
+	at := strings.Index(top, "NU11SIGNAL")
+	if want := (m.width - len("NU11SIGNAL")) / 2; at < 0 || len([]rune(top[:at])) != want {
+		t.Fatalf("NU11SIGNAL at column %d in %q; want centered at %d", len([]rune(top[:max(at, 0)])), top, want)
+	}
+	if !strings.HasPrefix(nav, "◢◤◢◤ ") {
+		t.Fatalf("nav %q; want it to lead with ◢◤◢◤", nav)
+	}
+}
