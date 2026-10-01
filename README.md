@@ -513,7 +513,7 @@ section lists the color themes, the active one marked `◉`:
 | Theme | Look |
 |-------|------|
 | `NIGHT CITY` | The default: neon red frames and text, cyan and yellow highlights |
-| `BLUE` | The gentleman-blue palette: electric blue frames and labels, pale blue names, violet headings and active buttons, cyan highlights, orange times, green signal, pink favorites, a violet NO SIGNAL |
+| `BLUE` | NIGHT CITY recolored from the gentleman-blue palette, with as many colors: electric blue where NIGHT CITY is red, violet where it is yellow, cyan where it is cyan, blue-grey shades behind |
 
 `↑`/`↓` move, `enter` (or a click on a row) applies the theme at once, the
 whole UI recolored (frames, text, buttons, the rain, the signal effects),

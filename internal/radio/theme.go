@@ -11,9 +11,9 @@ import (
 
 // A theme is the palette every style of the UI is drawn from, by role.
 // The terminal's own background is left alone; only the selected row gets
-// a dark fill. The roles are finer than NIGHT CITY needs (it draws most
-// of them in its red, cyan and yellow) so that a richer palette can tell
-// headings, names, numbers and states apart.
+// a dark fill. The roles are finer than the themes need (NIGHT CITY
+// draws most of them in its red, cyan and yellow) so that a theme can
+// tell headings, names, numbers and states apart.
 type theme struct {
 	// name is the theme as SETTINGS lists it and config.json stores it.
 	name string
@@ -45,51 +45,66 @@ type theme struct {
 	noise [4]string
 }
 
+// nightCity draws every role in the colors the app had before themes:
+// its baseline frames (view_night_city_ansi_80x24.golden,
+// night_city_ansi_views_80x24.golden) hold them byte for byte. It draws
+// eight colors: red, its deep and dim shades, a muted red, cyan, yellow,
+// the ink on fills and the selected row's fill.
+var nightCity = theme{
+	name:  "NIGHT CITY",
+	label: "#FF5F57", text: "#FF5F57", number: "#FF5F57",
+	frame: "#E8554E", dim: "#5A1E1E", muted: "#9A3B37",
+	hi: "#5EF6FF", accent: "#FCEE0A", heading: "#FCEE0A", warn: "#FCEE0A",
+	onAir: "#FCEE0A", favorite: "#FCEE0A", focus: "#FCEE0A", ok: "#5EF6FF",
+	fill: "#FCEE0A", ink: "#0A0A0A", selectBg: "#0E2A2F",
+	alert: "#FF5F57", alertStatic: "#FF5F57",
+	rainTip: "#FCEE0A", rainBright: "#FF5F57", rainBody: "#FF5F57",
+	noise: [4]string{"#FF5F57", "#5EF6FF", "#FCEE0A", "#5A1E1E"},
+}
+
 // themes are the themes SETTINGS offers, the default first.
 //
-// NIGHT CITY draws every role in the colors the app had before themes:
-// its baseline frames (view_night_city_ansi_80x24.golden,
-// night_city_ansi_views_80x24.golden) hold them byte for byte.
+// BLUE is NIGHT CITY recolored color for color from the gentleman-blue
+// palette, so it draws with as many colors and every role keeps its
+// place in the design:
 //
-// BLUE is the gentleman-blue palette, role by role:
-//
-//	label, alertStatic, rainBright  primary     #347AFF
-//	text                            foreground  #DBE9FF
-//	number                          orange      #FF9F1C
-//	frame                           deep blue   #2A62CC
-//	dim                             border      #1C2C54
-//	muted                           muted       #4A5578
-//	hi, accent, onAir, rainTip      cyan        #5CE1FF
-//	heading, fill, alert, rainBody  violet      #7C5CFF
-//	warn, focus                     yellow      #FFD23D
-//	favorite                        red         #FF3D81
-//	ok                              green       #4DFF88
-//	selectBg                        userSurface #10182E
-//	ink                             background  #05070F
-//	noise                           primary, cyan, violet, border
+//	red     #FF5F57 -> primary     #347AFF
+//	deep    #E8554E -> deep blue   #2A62CC
+//	dim     #5A1E1E -> border      #1C2C54
+//	muted   #9A3B37 -> muted       #4A5578
+//	cyan    #5EF6FF -> cyan        #5CE1FF
+//	yellow  #FCEE0A -> violet      #7C5CFF
+//	ink     #0A0A0A -> background  #05070F
+//	select  #0E2A2F -> userSurface #10182E
 var themes = []theme{
-	{
-		name:  "NIGHT CITY",
-		label: "#FF5F57", text: "#FF5F57", number: "#FF5F57",
-		frame: "#E8554E", dim: "#5A1E1E", muted: "#9A3B37",
-		hi: "#5EF6FF", accent: "#FCEE0A", heading: "#FCEE0A", warn: "#FCEE0A",
-		onAir: "#FCEE0A", favorite: "#FCEE0A", focus: "#FCEE0A", ok: "#5EF6FF",
-		fill: "#FCEE0A", ink: "#0A0A0A", selectBg: "#0E2A2F",
-		alert: "#FF5F57", alertStatic: "#FF5F57",
-		rainTip: "#FCEE0A", rainBright: "#FF5F57", rainBody: "#FF5F57",
-		noise: [4]string{"#FF5F57", "#5EF6FF", "#FCEE0A", "#5A1E1E"},
-	},
-	{
-		name:  "BLUE",
-		label: "#347AFF", text: "#DBE9FF", number: "#FF9F1C",
-		frame: "#2A62CC", dim: "#1C2C54", muted: "#4A5578",
-		hi: "#5CE1FF", accent: "#5CE1FF", heading: "#7C5CFF", warn: "#FFD23D",
-		onAir: "#5CE1FF", favorite: "#FF3D81", focus: "#FFD23D", ok: "#4DFF88",
-		fill: "#7C5CFF", ink: "#05070F", selectBg: "#10182E",
-		alert: "#7C5CFF", alertStatic: "#347AFF",
-		rainTip: "#5CE1FF", rainBright: "#347AFF", rainBody: "#7C5CFF",
-		noise: [4]string{"#347AFF", "#5CE1FF", "#7C5CFF", "#1C2C54"},
-	},
+	nightCity,
+	recolor(nightCity, "BLUE", map[string]string{
+		"#FF5F57": "#347AFF", "#E8554E": "#2A62CC", "#5A1E1E": "#1C2C54", "#9A3B37": "#4A5578",
+		"#5EF6FF": "#5CE1FF", "#FCEE0A": "#7C5CFF", "#0A0A0A": "#05070F", "#0E2A2F": "#10182E",
+	}),
+}
+
+// recolor is base named name with each of its colors swapped through
+// colors; a color colors leaves out stays.
+func recolor(base theme, name string, colors map[string]string) theme {
+	swap := func(c *string) {
+		if to, ok := colors[*c]; ok {
+			*c = to
+		}
+	}
+	t := base
+	t.name = name
+	for _, c := range []*string{
+		&t.label, &t.text, &t.number, &t.frame, &t.dim, &t.muted,
+		&t.hi, &t.accent, &t.heading, &t.warn, &t.onAir, &t.favorite, &t.focus, &t.ok,
+		&t.fill, &t.ink, &t.selectBg, &t.alert, &t.alertStatic, &t.rainTip, &t.rainBright, &t.rainBody,
+	} {
+		swap(c)
+	}
+	for i := range t.noise {
+		swap(&t.noise[i])
+	}
+	return t
 }
 
 // themeNamed is the theme called name, case aside.

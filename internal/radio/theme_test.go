@@ -2,7 +2,6 @@ package radio
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -67,28 +66,28 @@ func TestThemesStartWithNightCityThenBlue(t *testing.T) {
 
 func TestBlueRecolorsEveryStyle(t *testing.T) {
 	useTheme(t, "BLUE")
-	const primary, yellow = "52;122;255", "255;210;61"
+	const primary = "52;122;255"
 	for name, got := range map[string]string{
 		"stLabel":        stLabel.Render("x"),
 		"stLabelBold":    stLabelBold.Render("x"),
 		"inkBright":      vizInks[inkBright].pre,
 		"noise":          noiseStyles[0].Render("x"),
 		"stAlertStatic":  stAlertStatic.Render("x"),
-		"stText":         stText.Render("x") + "/" + blueForeground,
-		"stNumber":       stNumber.Render("x") + "/" + blueOrange,
+		"stText":         stText.Render("x"),
+		"stNumber":       stNumber.Render("x"),
 		"stHi":           stHi.Render("x") + "/" + blueCyan,
-		"stAccent":       stAccent.Render("x") + "/" + blueCyan,
-		"stOnAir":        stOnAir.Render("x") + "/" + blueCyan,
+		"stAccent":       stAccent.Render("x") + "/" + blueViolet,
+		"stOnAir":        stOnAir.Render("x") + "/" + blueViolet,
 		"stHeading":      stHeading.Render("x") + "/" + blueViolet,
 		"stButtonOn":     stButtonOn.Render("x") + "/" + blueViolet,
 		"stFillEdge":     stFillEdge.Render("x") + "/" + blueViolet,
-		"stAlertSign":    stAlertSign.Render("x") + "/" + blueViolet,
-		"inkBody":        vizInks[inkBody].pre + "/" + blueViolet,
-		"inkTip":         vizInks[inkTip].pre + "/" + blueCyan,
-		"stWarn":         stWarn.Render("x") + "/" + yellow,
-		"stFocus":        stFocus.Render("x") + "/" + yellow,
-		"stFav":          stFav.Render("x") + "/" + bluePink,
-		"stOK":           stOK.Render("x") + "/" + blueGreen,
+		"stAlertSign":    stAlertSign.Render("x"),
+		"inkBody":        vizInks[inkBody].pre,
+		"inkTip":         vizInks[inkTip].pre + "/" + blueViolet,
+		"stWarn":         stWarn.Render("x") + "/" + blueViolet,
+		"stFocus":        stFocus.Render("x") + "/" + blueViolet,
+		"stFav":          stFav.Render("x") + "/" + blueViolet,
+		"stOK":           stOK.Render("x") + "/" + blueCyan,
 		"stSelected bg":  stSelected.Render("x") + "/16;24;46",
 		"stFrameDim":     stFrameDim.Render("x") + "/28;44;84",
 		"stMuted":        stMuted.Render("x") + "/74;85;120",
@@ -102,8 +101,8 @@ func TestBlueRecolorsEveryStyle(t *testing.T) {
 			t.Errorf("%s = %q; want the BLUE color %s", name, got, want)
 		}
 	}
-	if c := inputStyles().Cursor.Color; c == nil || fmt.Sprint(c.RGBA()) != fmt.Sprint(lipgloss.Color("#FFD23D").RGBA()) {
-		t.Errorf("input cursor color %v; want the BLUE focus yellow", c)
+	if c := inputStyles().Cursor.Color; c == nil || fmt.Sprint(c.RGBA()) != fmt.Sprint(lipgloss.Color("#7C5CFF").RGBA()) {
+		t.Errorf("input cursor color %v; want the BLUE focus violet", c)
 	}
 }
 
@@ -171,12 +170,9 @@ func TestNightCityKeepsItsColorsInEveryView(t *testing.T) {
 
 // BLUE colors of the roles NIGHT CITY draws with its few colors.
 const (
-	blueForeground = "219;233;255"
-	blueViolet     = "124;92;255"
-	blueOrange     = "255;159;28"
-	blueGreen      = "77;255;136"
-	bluePink       = "255;61;129"
-	blueCyan       = "92;225;255"
+	blueViolet = "124;92;255"
+	bluePink   = "255;61;129"
+	blueCyan   = "92;225;255"
 )
 
 // blueModels are the views of TestBlueLeavesNoNightCityColor, drawn under
@@ -199,28 +195,49 @@ func blueModels(t *testing.T) map[string]string {
 	return frames
 }
 
-// BLUE draws the rest of the gentleman-blue palette through the finer
-// roles: section headings in violet, times and percentages in orange,
-// AUTH OK and the signal bars in green, names in the foreground.
-func TestBlueDrawsItsFinerRoles(t *testing.T) {
-	frames := blueModels(t)
-	for _, tt := range []struct{ view, role, code, text string }{
-		{"view", "times", blueOrange, "01:23"},
-		{"view", "clock", blueOrange, `\d\d:\d\d:\d\d`},
-		{"view", "AUTH OK", blueGreen, "AUTH OK"},
-		{"view", "signal bars", blueGreen, "▂▄▆█"},
-		{"view", "station names", blueForeground, ""},
-		{"help", "group headings", blueViolet, "▞ [A-Z]"},
-		{"settings", "THEMES heading", blueViolet, "▞ THEMES"},
-		{"expanded", "times", blueOrange, "01:23"},
-		{"no signal", "the sign", blueViolet, "  N O   S I G N A L"},
-	} {
-		frame := frames[tt.view]
-		want := regexp.QuoteMeta(tt.code+"m") + tt.text
-		if !regexp.MustCompile(want).MatchString(frame) {
-			t.Errorf("%s: %s not drawn in %s (%q)", tt.view, tt.role, tt.code, want)
+// BLUE is NIGHT CITY recolored color for color: the same roles share a
+// color in both, so it draws with as many colors as NIGHT CITY, each one
+// of gentleman-blue.
+func TestBlueUsesAsManyColorsAsNightCity(t *testing.T) {
+	night, blue := themeRoles(themes[0]), themeRoles(themes[1])
+	if len(night) != len(blue) {
+		t.Fatalf("%d roles in NIGHT CITY, %d in BLUE", len(night), len(blue))
+	}
+	pairs := map[string]string{}
+	for i, c := range night {
+		if b, ok := pairs[c]; ok && b != blue[i] {
+			t.Fatalf("role %d: NIGHT CITY's %s is %s here but %s elsewhere in BLUE", i, c, blue[i], b)
+		}
+		pairs[c] = blue[i]
+	}
+	used := map[string]bool{}
+	for _, b := range pairs {
+		if used[b] {
+			t.Fatalf("BLUE merges two NIGHT CITY colors into %s", b)
+		}
+		used[b] = true
+	}
+	want := map[string]string{
+		"#FF5F57": "#347AFF", "#E8554E": "#2A62CC", "#5A1E1E": "#1C2C54", "#9A3B37": "#4A5578",
+		"#5EF6FF": "#5CE1FF", "#FCEE0A": "#7C5CFF", "#0A0A0A": "#05070F", "#0E2A2F": "#10182E",
+	}
+	if len(pairs) != len(want) {
+		t.Fatalf("NIGHT CITY draws %d colors; want %d", len(pairs), len(want))
+	}
+	for n, b := range want {
+		if pairs[n] != b {
+			t.Errorf("NIGHT CITY %s is %s in BLUE; want %s", n, pairs[n], b)
 		}
 	}
+}
+
+// themeRoles lists every color of t, role by role.
+func themeRoles(t theme) []string {
+	return append([]string{
+		t.label, t.text, t.number, t.frame, t.dim, t.muted,
+		t.hi, t.accent, t.heading, t.warn, t.onAir, t.favorite, t.focus, t.ok,
+		t.fill, t.ink, t.selectBg, t.alert, t.alertStatic, t.rainTip, t.rainBright, t.rainBody,
+	}, t.noise[:]...)
 }
 
 // The NO SIGNAL sign, its static and the burst noise follow the theme:
