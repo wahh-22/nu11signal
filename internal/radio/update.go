@@ -267,14 +267,22 @@ func (m Model) animate() Model {
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
+	if m.quitAsk {
+		return m.quitKey(k)
+	}
 	if k == keyCtrlC {
-		return m, m.quitCmd()
+		return m.askQuit(), nil
 	}
 	if next, ok := m.helpKey(k); ok {
 		return next, nil
 	}
 	if next, cmd, ok := m.settingsKey(k); ok {
 		return next, cmd
+	}
+	if k == keyQuit && !m.keysTyped() {
+		// Before any area takes it, so the focus and the view stay put
+		// under the quit modal and come back as they were.
+		return m.askQuit(), nil
 	}
 	if m.auth != authFailed {
 		if m.focus == areaTabs {
@@ -322,15 +330,13 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if m.auth == authFailed {
-		if k == keyQuit || k == keyEsc {
-			return m, m.quitCmd()
+		if k == keyEsc {
+			return m.askQuit(), nil
 		}
 		return m, nil
 	}
 
 	switch k {
-	case keyQuit:
-		return m, m.quitCmd()
 	case keyUp:
 		if m.atListTop() {
 			m.focusTabs()

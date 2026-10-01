@@ -134,17 +134,22 @@ func (m Model) withIntro(prev Model, msg tea.Msg) Model {
 	if introQuiet(msg) && !first {
 		return m
 	}
-	if _, ok := msg.(tea.KeyPressMsg); ok && prev.typing() && m.typing() {
+	if _, ok := msg.(tea.KeyPressMsg); ok && prev.typing() && m.typing() && prev.quitAsk == m.quitAsk {
 		return m
 	}
 	if !m.introOn() || (!first && (prev.width != m.width || prev.height != m.height)) {
 		return m
 	}
-	before, _ := prev.baseLayout() // none for the first size
+	before, bzs := prev.baseLayout() // none for the first size
 	after, zs := m.baseLayout()
 	now := m.now()
 	cells := map[int][]int{}
-	for _, region := range m.introRegions(zs) {
+	regions := m.introRegions(zs)
+	if prev.quitAsk && !m.quitAsk {
+		// The quit modal closed: what it covered comes back.
+		regions = [][]rowSpan{quitModalRows(bzs, 0)}
+	}
+	for _, region := range regions {
 		newCells(before, after, region, cells)
 	}
 	carried, dropped := m.intro.carried(now, before, after)
@@ -189,13 +194,37 @@ func (in intro) carried(now time.Time, before, after []string) (cells map[int][]
 // rowSpan is the cells x0 to x1 (excluded) of row y.
 type rowSpan struct{ y, x0, x1 int }
 
-// introRegions are the rows compared for new content: the KEYS or
+// quitModalRows are the rows of the quit modal in zs (see
+// zoneQuitPanel), inset cells inside the frame: 1 for its inside, 0 for
+// the whole panel.
+func quitModalRows(zs zones, inset int) []rowSpan {
+	var box []zone
+	for _, z := range zs {
+		if z.id == zoneQuitPanel {
+			box = append(box, z)
+		}
+	}
+	if len(box) <= 2*inset {
+		return nil
+	}
+	var rows []rowSpan
+	for _, z := range box[inset : len(box)-inset] {
+		rows = append(rows, rowSpan{z.y, z.x + inset, z.x + z.w - inset})
+	}
+	return rows
+}
+
+// introRegions are the rows compared for new content: the quit modal's
+// inside while it asks (it covers the rest, see quit.go); the KEYS or
 // SETTINGS overlay's inside while one is open (it hides the rest); the
 // startup screen's body while access is linking (see splashRegion);
 // otherwise the list panel's inside, and the NOW PLAYING field rows in
 // the full layout; never the rows of the SEARCH input or the NEW
 // PLAYLIST name, where their zones put them.
 func (m Model) introRegions(zs zones) [][]rowSpan {
+	if m.quitAsk {
+		return [][]rowSpan{quitModalRows(zs, 1)}
+	}
 	full := m.width >= fullMinWidth && m.height >= fullMinHeight
 	var list, player, overlay []zone
 	for _, z := range zs {

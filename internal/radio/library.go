@@ -612,8 +612,6 @@ func (m Model) handleEditorKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.focusPlayer(ctlPlay)
 	case keyExpandAlt:
 		return m.toggleExpand()
-	case keyQuit:
-		return m, m.quitCmd()
 	default:
 		if next, cmd, ok := m.playerKey(k); ok {
 			return next, cmd

@@ -16,8 +16,8 @@ import (
 // closes it. Its THEMES section lists the themes, the active one marked
 // ◉: ↑↓ move the cursor, enter (or a click on a row) applies the theme
 // at once, the overlay staying open to compare, and saves the choice to
-// the settings file. Every other key is ignored, ctrl+c still quits; a
-// click off the rows closes it.
+// the settings file. Every other key is ignored, ctrl+c still asks to
+// quit; a click off the rows closes it.
 
 // settingsOverlayHints replace the view's hints while SETTINGS is open.
 var settingsOverlayHints = []hint{

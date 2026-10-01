@@ -360,7 +360,7 @@ PLAYLISTS (and anywhere the key is not taken by the view):
 | `esc` | Back one view |
 | `r` | Retry loading the playlists after a failure |
 | `x` | Turn the signal effects off or on (see [Signal effects](#signal-effects)) |
-| `q` / `ctrl+c` | Quit |
+| `q` / `ctrl+c` | Quit, after asking (see below) |
 | `?` | Open or close KEYS, the list of every key (see below) |
 | `s` | Open or close SETTINGS, the color themes (see [Settings](#settings)) |
 
@@ -378,7 +378,7 @@ SEARCH (typing goes to the input, so letter shortcuts are off):
 | `l` / `a` / `g` | On a song row, love it / add it to a playlist / open its SONG view (on the input or another row, they are typed) |
 | `tab` | Back to the playlists (the search is kept for the next `/` or `tab`) |
 | `esc` | Back one view (closing the search: the next `/` starts empty) |
-| `ctrl+c` | Quit |
+| `ctrl+c` | Quit, after asking (`q` is typed) |
 
 RESULTS, ARTIST, ALBUM, SONG, and PLAYLIST:
 
@@ -402,7 +402,7 @@ ADD TO PLAYLIST and NEW PLAYLIST (over the list):
 | `↑`/`↓` | Move between `+ NEW PLAYLIST` and the playlists (picker) |
 | `enter` | Add the song to the selected playlist, or on `+ NEW PLAYLIST` name a new one (picker); create the playlist (name) |
 | `esc` | Cancel (from a name opened in the picker, back to the picker) |
-| `space`, `n` / `p`, seek and volume keys, `→`, `q` | As on the playlists (picker only: the name types every key but `enter` and `esc`; `ctrl+c` quits) |
+| `space`, `n` / `p`, seek and volume keys, `→`, `q` | As on the playlists (picker only: the name types every key but `enter` and `esc`; `ctrl+c` asks to quit) |
 
 Player (after `→` from the list, or a click on its panel; the lit
 panel frame shows which side has the focus):
@@ -443,9 +443,19 @@ and in the NEW PLAYLIST name, only quit). `[S] SETTINGS` shows only where
 the whole footer fits.
 
 `?` opens KEYS, every binding grouped (PLAYBACK, NAVIGATION, VIEW, SEARCH,
-APP) in a panel over the body, wherever `q` quits (on SEARCH and in the
-NEW PLAYLIST name `?` is typed). `?` or `esc` (or a click) closes it; while
-it is open the other keys do nothing, `q` included, and `ctrl+c` quits.
+APP) in a panel over the body, wherever `q` asks to quit (on SEARCH and in
+the NEW PLAYLIST name `?` is typed). `?` or `esc` (or a click) closes it;
+while it is open the other keys do nothing, `q` included, and `ctrl+c` asks
+to quit.
+
+Quitting always asks first, so a stray `q` never ends the session: `q`
+(wherever it is not typed) and `ctrl+c` open a small `QUIT NU11SIGNAL?`
+panel over whatever is on screen (the overlays, the startup screen and the
+access error included) while the music keeps playing. `y` or `enter` quits,
+and so does `q` or `ctrl+c` pressed again (the double press is the fast way
+out); `n` or `esc` closes it and gives the screen back as it was. The other
+keys do nothing while it asks. Its `[Y/ENTER] QUIT` and `[N/ESC] STAY`
+buttons are clickable, and a click outside the panel closes it.
 
 The HUD names live state: the nav bar ends in the Night City net node the
 radio is patched through (`NODE 7F // NC-GRID`, flavor, fixed for a session
@@ -537,7 +547,7 @@ section lists the color themes, the active one marked `◉`:
 `↑`/`↓` move, `enter` (or a click on a row) applies the theme at once, the
 whole UI recolored (frames, text, buttons, the rain, the signal effects),
 and the panel stays open to compare; `s` or `esc` (or a click off the rows)
-closes it. The other keys do nothing while it is open; `ctrl+c` quits.
+closes it. The other keys do nothing while it is open; `ctrl+c` asks to quit.
 
 The choice is saved to `"theme"` in `nu11signal/config.json` under
 `os.UserConfigDir()` and applied at the next start:
