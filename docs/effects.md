@@ -77,8 +77,8 @@ apart from the bursts: every 4–7 s, for 0.15–0.25 s, one emblem row tears
 a cell sideways and one to three block cells flicker over it. The tick
 wakes only for those glitches, at about 15 fps, and stays at once a second
 between them. Playing again brings the rain back, its drops where they
-were. It draws on the existing
-animation frames, from the seed: the signal effects run over it.
+were. The emblem and its glitch come from the seed and the animation
+frames, and the signal effects still run over them.
 
 The other visualizers (bars, oscilloscope, synthwave, random) and the `v`
 key are gone. A `nu11signal/config.json` under `os.UserConfigDir()`
