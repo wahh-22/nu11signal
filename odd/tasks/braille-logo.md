@@ -12,6 +12,8 @@ Replace the in-app null emblem (Braille slashed zero beside "N U 1 1 / S I G N A
 ## Tasks
 - [x] T1 (delegated writer: emblem, theme, splash/idle layout, goldens, readmeart, docs): swap the emblem art and its coloring.
 
+- [ ] T2 (delegated writer, user feedback on PR #68): large only (drop the compact art; where the full logo does not fit show the large head alone, else nothing; `--version` prints the large logo), headband top no longer clipped (head refit to the 32-dot grid), wordmark glyphs closer to Kode Mono Bold (single-corner chamfers: A flat top, U and L bottom-left, 1 with flag and base).
+
 ## Checks
 - `go vet ./...`, `gofmt -l .`, `go test ./...` (goldens regenerated and reviewed), `go run ./tools/readmeart` leaves no stale assets.
 - Visual check of boot splash, idle emblem (expanded and 80x24) and `--version` output.
