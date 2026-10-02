@@ -215,7 +215,7 @@ func TestFakeVolumeIsSettableAndRecorded(t *testing.T) {
 func TestFakeLibraryPlaylistAndPlayPlaylistFrom(t *testing.T) {
 	f := New()
 	f.LibraryPlaylistResult = playback.PlaylistDetail{
-		Playlist: playback.CatalogPlaylist{ID: "p1", Name: "Night City"},
+		Playlist: playback.CatalogPlaylist{ID: "p1", Name: "Kestrel Bay"},
 		Tracks:   []playback.Song{{ID: "i.s1"}},
 	}
 	ctx := t.Context()

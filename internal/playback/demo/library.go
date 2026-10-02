@@ -18,16 +18,16 @@ func song(id, title, artist, album string, secs int) playback.Song {
 
 var catalog = []playback.Song{
 	song("d01", "Neon Arteries", "Chrome Saints", "Last Call Sessions", 214),
-	song("d02", "Kabuki Rain", "Lux Vendetta", "Dockside Nights", 187),
+	song("d02", "Tidewater Rain", "Lux Vendetta", "Dockside Nights", 187),
 	song("d03", "Overclocked Heart", "Chrome Saints", "Last Call Sessions", 241),
-	song("d04", "Badlands Mirage", "Dust Protocol", "Route 77", 198),
+	song("d04", "Saltflat Mirage", "Dust Protocol", "Route 77", 198),
 	song("d05", "Glass District", "Lux Vendetta", "Dockside Nights", 226),
-	song("d06", "Plaza Blues", "The Netrunners", "Spire Tower", 263),
+	song("d06", "Plaza Blues", "The Signal Thieves", "Spire Tower", 263),
 	song("d07", "Harbor Undertow", "Dust Protocol", "Route 77", 175),
-	song("d08", "Ghost in the Chrome", "The Netrunners", "Spire Tower", 232),
-	song("d09", "Neon Samurai", "Midnight Surgeon", "Implants", 205),
+	song("d08", "Mirror in the Chrome", "The Signal Thieves", "Spire Tower", 232),
+	song("d09", "Neon Stitches", "Midnight Surgeon", "Implants", 205),
 	song("d10", "Dreamfeed Lullaby", "Midnight Surgeon", "Implants", 248),
-	song("d11", "Northside Static", "Kuroi Hana", "Signal Bleed", 193),
+	song("d11", "Rooftop Static", "Kuroi Hana", "Signal Bleed", 193),
 	song("d12", "Afterparty Uptown", "Kuroi Hana", "Signal Bleed", 219),
 }
 
@@ -36,7 +36,7 @@ var artists = []playback.Artist{
 	{ID: "demo-artist-chrome-saints", Name: "Chrome Saints", Genres: []string{"Synthwave"}},
 	{ID: "demo-artist-lux-vendetta", Name: "Lux Vendetta", Genres: []string{"Darkwave"}},
 	{ID: "demo-artist-dust-protocol", Name: "Dust Protocol", Genres: []string{"Rock"}},
-	{ID: "demo-artist-the-netrunners", Name: "The Netrunners", Genres: []string{"Industrial"}},
+	{ID: "demo-artist-the-signal-thieves", Name: "The Signal Thieves", Genres: []string{"Industrial"}},
 	{ID: "demo-artist-midnight-surgeon", Name: "Midnight Surgeon", Genres: []string{"Electronic"}},
 	{ID: "demo-artist-kuroi-hana", Name: "Kuroi Hana", Genres: []string{"J-Pop", "Electronic"}},
 }
@@ -74,7 +74,7 @@ var uploads = map[string]playback.Song{
 var stations = []station{
 	{playback.Playlist{ID: "demo-1", Name: "Heat Sink Radio", Editable: true}, []string{"d01", "d03", "d09"}},
 	{playback.Playlist{ID: "demo-2", Name: "Night Drive", Editable: true}, []string{"d02", "d05", "d11", "d12"}},
-	{playback.Playlist{ID: "demo-3", Name: "Badlands Rock", Editable: true}, []string{"d04", "d07"}},
+	{playback.Playlist{ID: "demo-3", Name: "Saltflat Rock", Editable: true}, []string{"d04", "d07"}},
 	{playback.Playlist{ID: "demo-4", Name: "Coastline Dreams", Editable: true}, []string{"d06", "d08", "d10"}},
 	{playback.Playlist{ID: "demo-5", Name: "Low Orbit", Editable: true}, []string{"d10", "d08", "d03", "d11"}},
 	{playback.Playlist{ID: "demo-6", Name: "Static FM", Editable: true}, []string{"d12", "d01", "i.demo-upload-1", "d05", "d07", "d09"}},
@@ -92,17 +92,17 @@ func songByID(id string) (playback.Song, bool) {
 // albumReleases dates the demo albums ("2006-01-02"); every album is by
 // one artist.
 var albumReleases = map[string]string{
-	"Last Call Sessions": "2076-03-14",
-	"Dockside Nights":    "2075-10-31",
-	"Route 77":           "2071-06-27",
-	"Spire Tower":        "2077-01-09",
-	"Implants":           "2074-08-02",
-	"Signal Bleed":       "2077-05-20",
+	"Last Call Sessions": "2020-03-14",
+	"Dockside Nights":    "2019-10-31",
+	"Route 77":           "2015-06-27",
+	"Spire Tower":        "2021-01-09",
+	"Implants":           "2018-08-02",
+	"Signal Bleed":       "2021-05-20",
 }
 
 // albumNotes are the editorial notes of the albums that have some.
 var albumNotes = map[string]string{
-	"Last Call Sessions": "Recorded in one night at the Afterlife after the last call, with the doors locked and the " +
+	"Last Call Sessions": "Recorded in one night at the Copper Lantern after the last call, with the doors locked and the " +
 		"bartender on backing vocals. Neon Arteries was the first take; Overclocked Heart the last, at dawn, " +
 		"when the city's power grid dipped and the tape machines kept rolling anyway.",
 }
@@ -122,31 +122,31 @@ type artistExtras struct {
 
 var extras = map[string]artistExtras{
 	"demo-artist-chrome-saints": {
-		notes:     "Chrome Saints turned the last-call jukeboxes of Watson into a genre: slow-burning synth anthems for people who never go home.",
-		origin:    "Watson, Night City",
-		formed:    "2069",
+		notes:     "Chrome Saints turned the last-call jukeboxes of Lowmarket into a genre: slow-burning synth anthems for people who never go home.",
+		origin:    "Lowmarket, Kestrel Bay",
+		formed:    "2013",
 		singles:   []string{"Overclocked Heart (Edit)"},
 		playlists: []string{"Chrome Saints Essentials"},
 	},
 	"demo-artist-lux-vendetta": {
-		notes:  "Darkwave duo recorded entirely on the docks of Kabuki, between shift changes.",
-		origin: "Kabuki, Night City",
+		notes:  "Darkwave duo recorded entirely on the docks of Tidewater, between shift changes.",
+		origin: "Tidewater, Kestrel Bay",
 	},
 	"demo-artist-dust-protocol": {
-		notes:   "Badlands rock played loud enough to reach Night City from the highway.",
-		formed:  "2066",
+		notes:   "Salt-flat rock played loud enough to reach Kestrel Bay from the highway.",
+		formed:  "2010",
 		singles: []string{"Harbor Undertow (Live)"},
 	},
-	"demo-artist-the-netrunners": {
+	"demo-artist-the-signal-thieves": {
 		notes:     "Industrial crew rumoured to master their records inside the Net itself.",
-		playlists: []string{"Netrunners: Deep Dive"},
+		playlists: []string{"Signal Thieves: Deep Dive"},
 	},
 	"demo-artist-midnight-surgeon": {
 		notes: "Electronic lullabies for the freshly chromed.",
 	},
 	"demo-artist-kuroi-hana": {
 		notes:  "J-Pop idols turned static-soaked producers; Signal Bleed is their third reinvention.",
-		origin: "Japantown, Night City",
+		origin: "Kitamachi, Kestrel Bay",
 	},
 }
 

@@ -29,7 +29,7 @@ func TestRoundTrip(t *testing.T) {
 	}
 
 	lists, err := c.Playlists(ctx)
-	wantLists := []playback.Playlist{{ID: "p1", Name: "Night City", Editable: true}, {ID: "p.fav", Name: "Favorite Songs"}}
+	wantLists := []playback.Playlist{{ID: "p1", Name: "Kestrel Bay", Editable: true}, {ID: "p.fav", Name: "Favorite Songs"}}
 	if err != nil || !reflect.DeepEqual(lists, wantLists) {
 		t.Fatalf("Playlists = %+v, %v", lists, err)
 	}
@@ -743,7 +743,7 @@ func TestLibraryPlaylistRoundTrip(t *testing.T) {
 	c := startFake(t, "standard", Options{})
 	got, err := c.LibraryPlaylist(t.Context(), "p1")
 	want := playback.PlaylistDetail{
-		Playlist: playback.CatalogPlaylist{ID: "p1", Name: "Night City"},
+		Playlist: playback.CatalogPlaylist{ID: "p1", Name: "Kestrel Bay"},
 		Tracks: []playback.Song{
 			{ID: "1440857781", Title: "Nightcall", Artist: "Kavinsky", Album: "OutRun", Duration: 258 * time.Second},
 			{ID: "i.s2", Title: "Resonance", Artist: "Home", Album: "Odyssey", Duration: 212*time.Second + 250*time.Millisecond, LibraryOnly: true},

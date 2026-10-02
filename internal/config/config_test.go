@@ -115,7 +115,7 @@ func TestSaveRoundTripsPrivately(t *testing.T) {
 }
 
 func TestSaveKeepsUnknownFields(t *testing.T) {
-	path := write(t, `{"visualizer": "rain", "future": {"a": 1}, "theme": "NIGHT CITY"}`)
+	path := write(t, `{"visualizer": "rain", "future": {"a": 1}, "theme": "REDSHIFT"}`)
 	if err := NewFile(path).Save(Config{Visualizer: "rain", Theme: "BLUE"}); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestSaveRefusesToOverwriteABrokenFile(t *testing.T) {
 func TestSaveWritesThroughASymlink(t *testing.T) {
 	// A dotfiles setup links config.json elsewhere: Save updates the
 	// linked file and keeps the link.
-	target := write(t, `{"theme": "NIGHT CITY"}`)
+	target := write(t, `{"theme": "REDSHIFT"}`)
 	link := filepath.Join(t.TempDir(), "config.json")
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
@@ -216,7 +216,7 @@ func TestLoadReadsTheMusicDirs(t *testing.T) {
 }
 
 func TestSaveKeepsTheMusicDirs(t *testing.T) {
-	path := write(t, `{"music_dirs": ["/srv/tapes"], "theme": "NIGHT CITY"}`)
+	path := write(t, `{"music_dirs": ["/srv/tapes"], "theme": "REDSHIFT"}`)
 	f := NewFile(path)
 	// A theme chosen in the app, from a Config that never read the dirs.
 	if err := f.Save(Config{Theme: "BLUE"}); err != nil {
