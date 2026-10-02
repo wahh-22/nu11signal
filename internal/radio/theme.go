@@ -93,16 +93,16 @@ var nightCity = theme{
 //
 // pinkTheme maps each Pi-inspired palette to eight colors across every
 // radio role, including the selection, rain trail and burst noise.
-func pinkTheme(name, number, accent, active, success, trail string) theme {
+func pinkTheme(name, accent, active, success string) theme {
 	return theme{
 		name:  name,
-		label: "#F6EFF3", text: "#F6EFF3", number: number,
-		frame: trail, dim: "#28121E", muted: trail,
+		label: "#F6EFF3", text: "#F6EFF3", number: "#F2B86D",
+		frame: "#A78E9B", dim: "#28121E", muted: "#A78E9B",
 		hi: accent, accent: active, heading: "#F2B86D", warn: "#F2B86D",
 		onAir: active, favorite: active, focus: active, ok: success,
 		fill: active, ink: "#060407", selectBg: "#28121E",
-		alert: accent, alertStatic: trail,
-		rainTip: active, rainBright: accent, rainBody: trail,
+		alert: accent, alertStatic: "#A78E9B",
+		rainTip: active, rainBright: accent, rainBody: "#A78E9B",
 		noise: [4]string{accent, success, "#F2B86D", "#28121E"},
 	}
 }
@@ -117,8 +117,8 @@ var themes = []theme{
 		"#FF5F57": "#00C832", "#E8554E": "#009A29", "#5A1E1E": "#0A3314", "#9A3B37": "#1E6B32",
 		"#5EF6FF": "#00FF41", "#FCEE0A": "#D2FFD2", "#0A0A0A": "#000000", "#0E2A2F": "#062610",
 	}),
-	pinkTheme("ROSE", "#F2B86D", "#F095C8", "#FFB1DD", "#B4E7C7", "#D7A0B8"),
-	pinkTheme("NEON ROSE", "#D7A0B8", "#F43888", "#FF4F9A", "#D7A0B8", "#C49BFF"),
+	pinkTheme("ROSE", "#F095C8", "#FFB1DD", "#B4E7C7"),
+	pinkTheme("NEON ROSE", "#F43888", "#FF4F9A", "#D2CBD0"),
 }
 
 // recolor is base named name with each of its colors swapped through

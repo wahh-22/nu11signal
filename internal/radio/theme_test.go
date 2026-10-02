@@ -69,7 +69,7 @@ func TestGentlemanSemanticRolesAndANSI(t *testing.T) {
 		name, lookup, label, number, hi, heading, warn, ok, fill, ink, selected string
 	}{
 		{"ROSE", " rose ", "#F6EFF3", "#F2B86D", "#F095C8", "#F2B86D", "#F2B86D", "#B4E7C7", "#FFB1DD", "#060407", "#28121E"},
-		{"NEON ROSE", " neon rose ", "#F6EFF3", "#D7A0B8", "#F43888", "#F2B86D", "#F2B86D", "#D7A0B8", "#FF4F9A", "#060407", "#28121E"},
+		{"NEON ROSE", " neon rose ", "#F6EFF3", "#F2B86D", "#F43888", "#F2B86D", "#F2B86D", "#D2CBD0", "#FF4F9A", "#060407", "#28121E"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -107,6 +107,44 @@ func TestGentlemanSemanticRolesAndANSI(t *testing.T) {
 			}
 			if strings.Contains(stText.Render("x"), "\x1b[48;") {
 				t.Error("ordinary text changes terminal background")
+			}
+		})
+	}
+}
+
+func TestPinkThemesUsePiCoreRoles(t *testing.T) {
+	for _, tc := range []struct {
+		name, accent, active, success string
+	}{
+		{"ROSE", "#F095C8", "#FFB1DD", "#B4E7C7"},
+		{"NEON ROSE", "#F43888", "#FF4F9A", "#D2CBD0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			th, ok := themeNamed(tc.name)
+			if !ok {
+				t.Fatal("missing theme")
+			}
+			for role, pair := range map[string][2]string{
+				"ink/bg": {th.ink, "#060407"}, "text": {th.text, "#F6EFF3"},
+				"selectBg/selectedBg": {th.selectBg, "#28121E"}, "muted": {th.muted, "#A78E9B"},
+				"hi/accent": {th.hi, tc.accent}, "accent/activePink": {th.accent, tc.active},
+				"warn/warning": {th.warn, "#F2B86D"}, "ok/success": {th.ok, tc.success},
+			} {
+				if pair[0] != pair[1] {
+					t.Errorf("%s = %s; want %s", role, pair[0], pair[1])
+				}
+			}
+			allowed := map[string]bool{"#060407": true, "#F6EFF3": true, "#28121E": true, "#A78E9B": true,
+				tc.accent: true, tc.active: true, "#F2B86D": true, tc.success: true}
+			used := map[string]bool{}
+			for _, c := range themeRoles(th) {
+				if !allowed[c] {
+					t.Errorf("unexpected radio role color %s", c)
+				}
+				used[c] = true
+			}
+			if len(used) != 8 {
+				t.Errorf("used %d colors; want eight", len(used))
 			}
 		})
 	}
