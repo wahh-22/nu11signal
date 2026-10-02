@@ -12,7 +12,7 @@ Replace the in-app null emblem (Braille slashed zero beside "N U 1 1 / S I G N A
 ## Tasks
 - [x] T1 (delegated writer: emblem, theme, splash/idle layout, goldens, readmeart, docs): swap the emblem art and its coloring.
 
-- [ ] T2 (delegated writer, user feedback on PR #68): large only (drop the compact art; where the full logo does not fit show the large head alone, else nothing; `--version` prints the large logo), headband top no longer clipped (head refit to the 32-dot grid), wordmark glyphs closer to Kode Mono Bold (single-corner chamfers: A flat top, U and L bottom-left, 1 with flag and base).
+- [x] T2 (delegated writer, user feedback on PR #68): large only (drop the compact art; where the full logo does not fit show the large head alone, else nothing; `--version` prints the large logo), headband top no longer clipped (head refit to the 32-dot grid), wordmark glyphs closer to Kode Mono Bold (single-corner chamfers: A flat top, U and L bottom-left, 1 with flag and base).
 
 ## Checks
 - `go vet ./...`, `gofmt -l .`, `go test ./...` (goldens regenerated and reviewed), `go run ./tools/readmeart` leaves no stale assets.
@@ -20,3 +20,4 @@ Replace the in-app null emblem (Braille slashed zero beside "N U 1 1 / S I G N A
 
 ## Progress
 - T1 done (writer delegated; parent narrowed `TestSwapDissolvesTheEmblemIntoTheRain`'s mix window to 0.3-0.6 because the 80x24 logo's last cells leave by about 0.66 with seed 2077). Commits `0329228` (code, tests, goldens, docs) and `7911ff9` (regenerated emblem and boot SVGs). Checks: gofmt clean, `go vet ./...`, `go test -race ./...` all pass, readmeart assets byte-stable, `--version` prints the compact logo. Reviews: `0329228` medium slice_budget_reached, granted, approved (`review-8618f3527d7e7390`; warning R3-stale-readme-assets resolved by `7911ff9`; suggestions on the splash glitch test, the narrowed swap window, --version dropping the version line silently); `7911ff9` granted, approved (`review-b3881cc9cb3ebe07`).
+- T2 done (same writer, resumed): commits `fdab0c8` (large-only logo, head-alone fallback, `--version` prints the logo, tests, goldens, docs) and `58c40da` (regenerated SVGs). Checks: gofmt clean, `go vet ./...`, `go test -race ./...` all pass, readmeart byte-stable. Reviews: `fdab0c8` granted, approved (`review-32f30786a6ebaca3`; warning on stale SVGs resolved by `58c40da`; suggestion: `wordmarkAt` fallback branches untested); `58c40da` granted, approved (`review-785c2ff8c0c6a85e`).
