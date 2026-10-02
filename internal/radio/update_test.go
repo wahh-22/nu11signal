@@ -2,6 +2,7 @@ package radio
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -422,6 +423,29 @@ func TestAsyncErrorsShowInStatusLineAndRearm(t *testing.T) {
 	}
 	if view := m.render(); !strings.Contains(view, "QUEUE EXHAUSTED") {
 		t.Fatalf("status line missing the error:\n%s", view)
+	}
+}
+
+func TestNoAudioOutputShowsItsHint(t *testing.T) {
+	noOutput := fmt.Errorf("local: the audio output took no audio for 5s: %w // is PulseAudio or PipeWire running?", playback.ErrNoOutput)
+	const want = "NO AUDIO OUTPUT // IS PULSEAUDIO OR PIPEWIRE RUNNING?"
+
+	f := playbacktest.New()
+	m := loaded(t, f, newClock())
+	f.PushError(noOutput)
+	m, _ = step(t, m, run(t, m.waitErrors()))
+	view := m.render()
+	if !strings.Contains(view, want) || strings.Contains(view, "SIGNAL ERROR") {
+		t.Fatalf("asynchronous no-output error: status line lacks %q (alone):\n%s", want, view)
+	}
+
+	f = playbacktest.New()
+	f.MethodErr = map[string]error{"Next": fmt.Errorf("local: audio output did not open within 5s: %w // is PulseAudio or PipeWire running?", playback.ErrNoOutput)}
+	m = loaded(t, f, newClock())
+	m, cmd := press(t, m, "n")
+	m, _ = step(t, m, run(t, cmd))
+	if view := m.render(); !strings.Contains(view, want) {
+		t.Fatalf("failed call with no output: status line lacks %q:\n%s", want, view)
 	}
 }
 

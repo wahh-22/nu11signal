@@ -2,8 +2,10 @@ package radio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -141,7 +143,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.prefetchFavorites(append(songs, msg.found.Songs...))
 	case actionMsg:
 		if msg.err != nil {
-			m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
+			m.setStatus(failure(msg.op, msg.err))
 		}
 		return m, nil
 	case playMsg:
@@ -176,7 +178,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lostState = true
 		return m, nil
 	case playerErrMsg:
-		m.setStatus("SIGNAL ERROR // " + msg.err.Error())
+		m.setStatus(failure("SIGNAL ERROR", msg.err))
 		return m, m.waitErrors()
 	case errorsClosedMsg:
 		m.lostErrs = true
@@ -444,6 +446,24 @@ func (m Model) playCmd(seq uint64, op, station string, queue []playback.Song, re
 	}
 }
 
+// failure is the status line for a failed player call (op, as "PLAY"
+// FAILED) or an asynchronous player error (op "SIGNAL ERROR", which does
+// not take FAILED). An audio output that does not work stands alone, as
+// what the user can act on: "NO AUDIO OUTPUT // " and the player's hint
+// (see playback.ErrNoOutput).
+func failure(op string, err error) string {
+	text := err.Error()
+	if errors.Is(err, playback.ErrNoOutput) {
+		if i := strings.LastIndex(text, playback.ErrNoOutput.Error()); i >= 0 {
+			return strings.ToUpper(text[i:])
+		}
+	}
+	if op == "SIGNAL ERROR" {
+		return op + " // " + text
+	}
+	return fmt.Sprintf("%s FAILED // %s", op, text)
+}
+
 // onPlay settles a play request. Failures are always reported, but only
 // the latest request may set the on-air station or report the songs left
 // out of its queue: a superseded tune that confirms late must not
@@ -451,7 +471,7 @@ func (m Model) playCmd(seq uint64, op, station string, queue []playback.Song, re
 // those the report left out; none when only the start song plays.
 func (m Model) onPlay(msg playMsg) Model {
 	if msg.err != nil {
-		m.setStatus(fmt.Sprintf("%s FAILED // %s", msg.op, msg.err))
+		m.setStatus(failure(msg.op, msg.err))
 		return m
 	}
 	if msg.seq == m.playSeq {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,6 +39,12 @@ const (
 	// restartAfter is how far into a song Previous restarts it rather
 	// than going back a song.
 	restartAfter = 3 * time.Second
+	// stallTimeout is how long a playing song may go without the device
+	// pulling any audio before the output counts as dead (see onStateTick):
+	// long enough for a slow start, as a device waking up.
+	stallTimeout = 5 * time.Second
+	// stallTicks is stallTimeout in state ticks.
+	stallTicks = int(stallTimeout / stateInterval)
 	// closeBackstop bounds how long Close waits for its fade to be
 	// rendered, should the device stop pulling.
 	closeBackstop = 500 * time.Millisecond
@@ -126,6 +133,9 @@ type Player struct {
 	ring      *ring
 	fresh     bool // playback (re)started: the smoother starts over
 	scratch   []float32
+	pulls     uint64 // render calls, as the device pulls
+	seen      uint64 // pulls at the last state tick
+	still     int    // state ticks in a row, while playing, without a pull
 
 	measureMu sync.Mutex
 	an        *analyzer
@@ -208,15 +218,41 @@ func (p *Player) run() {
 		case <-p.done:
 			return
 		case <-p.clk.stateTick:
-			p.mu.Lock()
-			if p.status == playback.StatusPlaying && !p.closing {
-				p.emitLocked()
-			}
-			p.mu.Unlock()
+			p.onStateTick()
 		case <-p.clk.levelTick:
 			p.measure()
 		}
 	}
+}
+
+// onStateTick publishes the position while playing, and watches the
+// device: a song that plays for stallTimeout without the device pulling
+// any audio (ALSA's default without a sound card takes the first buffers,
+// then blocks for good) is stopped and reported as playback.ErrNoOutput,
+// once, rather than left frozen. Paused and stopped songs are not
+// watched, and the watch adds no wakeups: it rides the state ticks.
+func (p *Player) onStateTick() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.status != playback.StatusPlaying || p.closing {
+		return
+	}
+	if p.pulls != p.seen {
+		p.seen, p.still = p.pulls, 0
+	} else if p.still++; p.still >= stallTicks {
+		p.stopLocked()
+		p.reportLocked(fmt.Errorf("local: the audio output took no audio for %v: %w", stallTimeout, noOutput()))
+	}
+	p.emitLocked()
+}
+
+// noOutput is playback.ErrNoOutput with a hint for the user, by system.
+func noOutput() error {
+	hint := "check the output device"
+	if runtime.GOOS == "linux" {
+		hint = "is PulseAudio or PipeWire running?"
+	}
+	return fmt.Errorf("%w // %s", playback.ErrNoOutput, hint)
 }
 
 // render fills dst with the next stereo frames; the sink calls it.
@@ -227,6 +263,7 @@ func (p *Player) render(dst []float32) {
 	if p.closed {
 		return
 	}
+	p.pulls++
 	if p.cur != nil && (p.status == playback.StatusPlaying && !p.closing || p.fade.cur > 0) {
 		n := p.fillLocked(dst)
 		for i := range n {
@@ -413,10 +450,12 @@ func (p *Player) stopLocked() {
 	p.switchLocked(nil)
 }
 
-// startedLocked marks playback as (re)started for the levels.
+// startedLocked marks playback as (re)started for the levels and the
+// device watch.
 func (p *Player) startedLocked() {
 	p.ring.reset()
 	p.fresh = true
+	p.seen, p.still = p.pulls, 0
 }
 
 // emitLocked publishes the current state, dropping the oldest unread one

@@ -14,6 +14,14 @@ import (
 // Supports first and hides what is unsupported, so it should not see it.
 var ErrUnsupported = errors.New("not available for this source")
 
+// ErrNoOutput is wrapped by the errors of a Player whose audio output
+// does not work: it would not open in time, or it stopped taking audio
+// while a song played (as ALSA's default device does on Linux without a
+// sound card). The error's text ends with ErrNoOutput's own, then " // "
+// and a hint for the user, as "no audio output // is PulseAudio or
+// PipeWire running?".
+var ErrNoOutput = errors.New("no audio output")
+
 // Source names a backend.
 type Source string
 
