@@ -101,8 +101,8 @@ func TestSettingsSelectGentlemanThemes(t *testing.T) {
 		steps int
 		ansi  string
 	}{
-		{"GENTLEMAN CUTE", 3, "240;149;200"},
-		{"GENTLEMAN SEXY", 4, "244;56;136"},
+		{"ROSE", 3, "240;149;200"},
+		{"NEON ROSE", 4, "244;56;136"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			src := &savingSource{}

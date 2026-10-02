@@ -53,8 +53,8 @@ func TestThemesStartWithNightCityThenBlue(t *testing.T) {
 	for _, th := range themes {
 		names = append(names, th.name)
 	}
-	if strings.Join(names, ",") != "NIGHT CITY,BLUE,MATRIX,GENTLEMAN CUTE,GENTLEMAN SEXY" {
-		t.Fatalf("themes %v; want NIGHT CITY, BLUE, MATRIX, GENTLEMAN CUTE, GENTLEMAN SEXY", names)
+	if strings.Join(names, ",") != "NIGHT CITY,BLUE,MATRIX,ROSE,NEON ROSE" {
+		t.Fatalf("themes %v; want NIGHT CITY, BLUE, MATRIX, ROSE, NEON ROSE", names)
 	}
 	if th, ok := themeNamed("blue"); !ok || th.name != "BLUE" {
 		t.Fatalf("themeNamed(blue) = %v, %v; want BLUE, case aside", th.name, ok)
@@ -68,8 +68,8 @@ func TestGentlemanSemanticRolesAndANSI(t *testing.T) {
 	cases := []struct {
 		name, lookup, label, number, hi, heading, warn, ok, fill, ink, selected string
 	}{
-		{"GENTLEMAN CUTE", " gentleman cute ", "#F6EFF3", "#F2B86D", "#F095C8", "#E0C27A", "#F2B86D", "#B4E7C7", "#FFB1DD", "#060407", "#28121E"},
-		{"GENTLEMAN SEXY", " gentleman sexy ", "#F6EFF3", "#D7A0B8", "#F43888", "#E0C27A", "#F2B86D", "#D2CBD0", "#FF4F9A", "#060407", "#28121E"},
+		{"ROSE", " rose ", "#F6EFF3", "#F2B86D", "#F095C8", "#F2B86D", "#F2B86D", "#B4E7C7", "#FFB1DD", "#060407", "#28121E"},
+		{"NEON ROSE", " neon rose ", "#F6EFF3", "#D7A0B8", "#F43888", "#F2B86D", "#F2B86D", "#D7A0B8", "#FF4F9A", "#060407", "#28121E"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -109,6 +109,29 @@ func TestGentlemanSemanticRolesAndANSI(t *testing.T) {
 				t.Error("ordinary text changes terminal background")
 			}
 		})
+	}
+}
+
+func TestPinkThemesUseExactlyEightColors(t *testing.T) {
+	for _, name := range []string{"ROSE", "NEON ROSE"} {
+		t.Run(name, func(t *testing.T) {
+			th, ok := themeNamed(name)
+			if !ok {
+				t.Fatalf("missing %s", name)
+			}
+			colors := map[string]bool{}
+			for _, c := range themeRoles(th) {
+				colors[c] = true
+			}
+			if len(colors) != 8 {
+				t.Errorf("%s uses %d colors: %v", name, len(colors), colors)
+			}
+		})
+	}
+	for _, old := range []string{"GENTLEMAN CUTE", "GENTLEMAN SEXY"} {
+		if _, ok := themeNamed(old); ok {
+			t.Errorf("obsolete theme %s still accepted", old)
+		}
 	}
 }
 

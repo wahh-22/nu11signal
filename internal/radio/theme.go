@@ -91,19 +91,19 @@ var nightCity = theme{
 //	ink     #0A0A0A -> black       #000000
 //	select  #0E2A2F -> deep shade  #062610
 //
-// gentlemanTheme maps Pi's semantic palette to radio roles. Both variants
-// share neutral structure; their active accents and success colors differ.
-func gentlemanTheme(name, number, accent, active, success, rainBody, function string) theme {
+// pinkTheme maps each Pi-inspired palette to eight colors across every
+// radio role, including the selection, rain trail and burst noise.
+func pinkTheme(name, number, accent, active, success, trail string) theme {
 	return theme{
 		name:  name,
-		label: "#F6EFF3", text: "#F6EFF3", number: number, // text, syntaxNumber
-		frame: "#563040", dim: "#2A1720", muted: "#A78E9B", // border, borderMuted, muted
-		hi: accent, accent: active, heading: "#E0C27A", warn: "#F2B86D",
+		label: "#F6EFF3", text: "#F6EFF3", number: number,
+		frame: trail, dim: "#28121E", muted: trail,
+		hi: accent, accent: active, heading: "#F2B86D", warn: "#F2B86D",
 		onAir: active, favorite: active, focus: active, ok: success,
-		fill: active, ink: "#060407", selectBg: "#28121E", // activePink, bg, selectedBg
-		alert: "#FF718F", alertStatic: "#76616B", // error, dim
-		rainTip: active, rainBright: accent, rainBody: rainBody,
-		noise: [4]string{"#FF718F", function, "#E0C27A", "#2A1720"},
+		fill: active, ink: "#060407", selectBg: "#28121E",
+		alert: accent, alertStatic: trail,
+		rainTip: active, rainBright: accent, rainBody: trail,
+		noise: [4]string{accent, success, "#F2B86D", "#28121E"},
 	}
 }
 
@@ -117,8 +117,8 @@ var themes = []theme{
 		"#FF5F57": "#00C832", "#E8554E": "#009A29", "#5A1E1E": "#0A3314", "#9A3B37": "#1E6B32",
 		"#5EF6FF": "#00FF41", "#FCEE0A": "#D2FFD2", "#0A0A0A": "#000000", "#0E2A2F": "#062610",
 	}),
-	gentlemanTheme("GENTLEMAN CUTE", "#F2B86D", "#F095C8", "#FFB1DD", "#B4E7C7", "#D7A0B8", "#A9C7EE"),
-	gentlemanTheme("GENTLEMAN SEXY", "#D7A0B8", "#F43888", "#FF4F9A", "#D2CBD0", "#C49BFF", "#C49BFF"),
+	pinkTheme("ROSE", "#F2B86D", "#F095C8", "#FFB1DD", "#B4E7C7", "#D7A0B8"),
+	pinkTheme("NEON ROSE", "#D7A0B8", "#F43888", "#FF4F9A", "#D7A0B8", "#C49BFF"),
 }
 
 // recolor is base named name with each of its colors swapped through
