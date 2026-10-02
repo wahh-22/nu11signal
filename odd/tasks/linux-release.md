@@ -23,3 +23,4 @@ Ship nu11signal for Linux in the same release as macOS (user choice 2026-10-02: 
 ## Progress
 - 2026-10-02: R1 implemented and verified in the worktree; awaiting the parent's work-unit commit.
 - Created 2026-10-02 on branch `feat/linux-release` (worktree) from main 76f73ec.
+- R1 commit `3c8668e`. Review (a39eab0..3c8668e): high, 1028 lines, consent granted, 4 lenses, lineage `review-159e01fb1ca498fa`, APPROVED, acknowledged (burned). Advisories (not scheduled): version-stamp check in Linux binaries is a substring match; release-linux FORCE carries macOS files from the old directory (mixed provenance); ELF type constant unchecked; bump requires the Linux checksums.
