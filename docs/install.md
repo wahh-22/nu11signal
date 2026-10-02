@@ -48,6 +48,16 @@ only: Apple Music needs the macOS helper. Sound goes through PulseAudio
 at run time, so the build needs no audio headers and no cgo
 (`CGO_ENABLED=0` works).
 
+| Need | Notes |
+|------|-------|
+| Go (see `go.mod`) | Builds the binary; no C compiler, no `libasound2-dev` |
+| PulseAudio or PipeWire with `pipewire-pulse` | Found at `$XDG_RUNTIME_DIR/pulse/native`, which desktop sessions set; elsewhere (`su`, some SSH or container shells) point `PULSE_SERVER` at the socket, for example `export PULSE_SERVER="$(pactl info \| sed -n 's/^Server String: //p')"` |
+| `libasound.so.2` (ALSA) | Used only when PulseAudio cannot be reached; needs a real sound card, since ALSA's `default` without one stops taking audio after the first fraction of a second |
+
+CI builds and tests on Linux (Ubuntu) and plays a short tone through the
+real audio path against a PulseAudio null sink
+(`go test -tags audiosmoke -run Smoke ./internal/playback/local/...`).
+
 ## Font
 
 The UI is designed with [Kode Mono](https://fonts.google.com/specimen/Kode+Mono),
