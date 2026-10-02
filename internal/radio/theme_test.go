@@ -53,14 +53,85 @@ func TestThemesStartWithNightCityThenBlue(t *testing.T) {
 	for _, th := range themes {
 		names = append(names, th.name)
 	}
-	if strings.Join(names, ",") != "NIGHT CITY,BLUE,MATRIX" {
-		t.Fatalf("themes %v; want NIGHT CITY, BLUE, MATRIX", names)
+	if strings.Join(names, ",") != "NIGHT CITY,BLUE,MATRIX,ROSE,NEON ROSE" {
+		t.Fatalf("themes %v; want NIGHT CITY, BLUE, MATRIX, ROSE, NEON ROSE", names)
 	}
 	if th, ok := themeNamed("blue"); !ok || th.name != "BLUE" {
 		t.Fatalf("themeNamed(blue) = %v, %v; want BLUE, case aside", th.name, ok)
 	}
 	if _, ok := themeNamed("neon"); ok {
 		t.Fatal("themeNamed(neon) found a theme")
+	}
+}
+
+func TestGentlemanSemanticRolesAndANSI(t *testing.T) {
+	cases := []struct {
+		name, lookup, label, number, hi, heading, warn, ok, fill, ink, selected string
+	}{
+		{"ROSE", " rose ", "#F6EFF3", "#F2B86D", "#F095C8", "#F2B86D", "#F2B86D", "#B4E7C7", "#FFB1DD", "#060407", "#28121E"},
+		{"NEON ROSE", " neon rose ", "#F6EFF3", "#D7A0B8", "#F43888", "#F2B86D", "#F2B86D", "#D7A0B8", "#FF4F9A", "#060407", "#28121E"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			th, ok := themeNamed(tc.lookup)
+			if !ok || th.name != tc.name {
+				t.Fatalf("lookup %q: %q, %v", tc.lookup, th.name, ok)
+			}
+			for role, pair := range map[string][2]string{
+				"label": {th.label, tc.label}, "number": {th.number, tc.number}, "hi": {th.hi, tc.hi},
+				"heading": {th.heading, tc.heading}, "warn": {th.warn, tc.warn},
+				"ok": {th.ok, tc.ok}, "fill": {th.fill, tc.fill},
+				"ink": {th.ink, tc.ink}, "selectBg": {th.selectBg, tc.selected},
+			} {
+				if pair[0] != pair[1] {
+					t.Errorf("%s = %s; want %s", role, pair[0], pair[1])
+				}
+			}
+			applyTheme(th)
+			t.Cleanup(func() { applyTheme(themes[0]) })
+			for role, pair := range map[string][2]string{
+				"number":    {stNumber.Render("x"), tc.number},
+				"highlight": {stHi.Render("x"), tc.hi},
+				"heading":   {stHeading.Render("x"), tc.heading},
+				"warning":   {stWarn.Render("x"), tc.warn},
+				"success":   {stOK.Render("x"), tc.ok},
+				"button":    {stButtonOn.Render("x"), tc.fill},
+				"selection": {stSelected.Render("x"), tc.selected},
+			} {
+				var r, g, b int
+				fmt.Sscanf(pair[1], "#%02x%02x%02x", &r, &g, &b)
+				code := fmt.Sprintf("%d;%d;%d", r, g, b)
+				if !strings.Contains(pair[0], code) {
+					t.Errorf("%s ANSI %q lacks %s", role, pair[0], code)
+				}
+			}
+			if strings.Contains(stText.Render("x"), "\x1b[48;") {
+				t.Error("ordinary text changes terminal background")
+			}
+		})
+	}
+}
+
+func TestPinkThemesUseExactlyEightColors(t *testing.T) {
+	for _, name := range []string{"ROSE", "NEON ROSE"} {
+		t.Run(name, func(t *testing.T) {
+			th, ok := themeNamed(name)
+			if !ok {
+				t.Fatalf("missing %s", name)
+			}
+			colors := map[string]bool{}
+			for _, c := range themeRoles(th) {
+				colors[c] = true
+			}
+			if len(colors) != 8 {
+				t.Errorf("%s uses %d colors: %v", name, len(colors), colors)
+			}
+		})
+	}
+	for _, old := range []string{"GENTLEMAN CUTE", "GENTLEMAN SEXY"} {
+		if _, ok := themeNamed(old); ok {
+			t.Errorf("obsolete theme %s still accepted", old)
+		}
 	}
 }
 

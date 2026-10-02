@@ -149,9 +149,12 @@ first.
 
 <img width="100%" src="docs/assets/screens/blue.svg" alt="nu11signal in the BLUE theme">
 
-`s` opens SETTINGS: NIGHT CITY (neon red, cyan, and yellow) or BLUE (electric
-blue and violet from the gentleman-blue palette). The whole UI recolors at
-once, and the choice is saved for the next start.
+`s` opens SETTINGS: choose NIGHT CITY, BLUE, MATRIX, ROSE, or NEON ROSE.
+The two Pi-inspired pink themes use eight colors each across the UI: ROSE
+pairs soft pink highlights with mint success and muted rose frames, while
+NEON ROSE pairs vivid pink highlights with violet rain.
+The whole UI recolors without changing the terminal background, and the
+choice is saved for the next start.
 
 **[Docs →](docs/usage.md#settings)**
 
