@@ -262,7 +262,7 @@ func (m Model) burst(lines []string) {
 }
 
 // noSignalFlash draws the NO SIGNAL sign in the theme's bold alert color
-// (red in REDSHIFT, violet in BLUE), framed in its static (alertStatic:
+// (red in REDSHIFT, electric blue in BLUESHIFT), framed in its static (alertStatic:
 // red, primary blue), in the middle of the frame:
 //
 //	▓▒░▒▓░▒▓▒░▓▒░▒▓░▒▓▒░▓▒░▒▓

@@ -29,11 +29,11 @@
 <text x="40" y="131" textLength="80" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A" font-weight="bold">▞ THEMES</text>
 <text x="810" y="131" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="20" y="151" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
-<rect x="30" y="136" width="780" height="20" fill="#0E2A2F"/>
-<text x="50" y="151" textLength="100" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">◉ REDSHIFT</text>
+<text x="50" y="151" textLength="110" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">○ BLUESHIFT</text>
 <text x="810" y="151" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="20" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
-<text x="50" y="171" textLength="60" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">○ BLUE</text>
+<rect x="30" y="156" width="780" height="20" fill="#0E2A2F"/>
+<text x="50" y="171" textLength="100" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">◉ REDSHIFT</text>
 <text x="810" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="20" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="50" y="191" textLength="80" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">○ MATRIX</text>

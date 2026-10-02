@@ -139,7 +139,7 @@ func TestInitChecksForAReleaseOnce(t *testing.T) {
 
 func TestTheSettingsShowTheNewerRelease(t *testing.T) {
 	m := releaseModel(t, &releaseChecker{rel: v031}, updatecheck.BrewUpgrade)
-	t.Cleanup(func() { applyTheme(themes[0]) })
+	t.Cleanup(func() { applyTheme(defaultTheme) })
 	m, _ = press(t, m, "s")
 	view := plain(m)
 	if !strings.Contains(view, "UPDATE v0.3.1 // brew upgrade --cask nu11signal") {
@@ -151,9 +151,9 @@ func TestTheSettingsShowTheNewerRelease(t *testing.T) {
 		t.Fatalf("the settings update line is not in the buttons' style:\n%q", body)
 	}
 	// The theme rows still answer clicks where they are drawn.
-	m, _ = press(t, m, "down", "enter")
-	if m.theme != "BLUE" {
-		t.Fatalf("theme %q after picking the second row; want BLUE", m.theme)
+	m, _ = press(t, m, "up", "enter")
+	if m.theme != "BLUESHIFT" {
+		t.Fatalf("theme %q after picking the first row; want BLUESHIFT", m.theme)
 	}
 
 	up := releaseModel(t, &releaseChecker{rel: updatecheck.Release{Version: "0.3.0"}}, updatecheck.BrewUpgrade)

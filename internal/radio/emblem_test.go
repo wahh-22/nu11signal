@@ -432,7 +432,7 @@ func TestBootZonesAreTheHeaderOnly(t *testing.T) {
 func TestEmblemTakesTheThemeColors(t *testing.T) {
 	for _, tt := range []struct{ theme, logo, logoAlt string }{
 		{"REDSHIFT", "255;95;87", "94;246;255"},
-		{"BLUE", "52;122;255", "92;225;255"},
+		{"BLUESHIFT", "52;122;255", "92;225;255"},
 		{"MATRIX", "0;200;50", "0;255;65"},
 		{"ROSE", "240;149;200", "255;177;221"},
 		{"NEON ROSE", "244;56;136", "255;79;154"},
@@ -493,10 +493,10 @@ func TestBootGolden80x24(t *testing.T) {
 	assertGolden(t, "boot_80x24.golden", plain(bootModel(t, newClock(), 80, 24, false)))
 }
 
-func TestBootBlueGolden80x24(t *testing.T) {
+func TestBootBlueshiftGolden80x24(t *testing.T) {
 	m := bootModel(t, newClock(), 80, 24, false)
-	useTheme(t, "BLUE")
-	assertGolden(t, "boot_blue_80x24.golden", m.View().Content)
+	useTheme(t, "BLUESHIFT")
+	assertGolden(t, "boot_blueshift_80x24.golden", m.View().Content)
 }
 
 func TestSplashSurvivesNoRoom(t *testing.T) {

@@ -347,8 +347,8 @@ section lists the color themes, the active one marked `◉`:
 
 | Theme | Look |
 |-------|------|
-| `REDSHIFT` | The default: neon red frames and text, cyan and yellow highlights |
-| `BLUE` | REDSHIFT recolored from the gentleman-blue palette, with as many colors: electric blue where REDSHIFT is red, violet where it is yellow, cyan where it is cyan, blue-grey shades behind |
+| `BLUESHIFT` | The default: REDSHIFT recolored from the gentleman-blue palette, with as many colors: electric blue where REDSHIFT is red, violet where it is yellow, cyan where it is cyan, blue-grey shades behind |
+| `REDSHIFT` | Neon red frames and text, cyan and yellow highlights |
 | `MATRIX` | REDSHIFT recolored in the greens of falling code, with as many colors: mid green where REDSHIFT is red, code green where it is cyan, a pale glow where it is yellow, dark greens behind |
 | `ROSE` | Soft pink highlights, peach headings, mint success, and muted frames and rain drawn from Gentleman Cute Pi colors |
 | `NEON ROSE` | Vivid pink highlights, peach headings, pearl success, and muted frames and rain drawn from Gentleman Sexy Pi colors |
@@ -369,7 +369,7 @@ The choice is saved to `"theme"` in `nu11signal/config.json` under
 `os.UserConfigDir()` and applied at the next start:
 
 ```json
-{"theme": "BLUE"}
+{"theme": "BLUESHIFT"}
 ```
 
 The file is written only when a theme is chosen, atomically (a temporary
@@ -377,7 +377,9 @@ file renamed over it), private (`0600`, its directory `0700`), keeping the
 fields it does not know and the ones only you write (`"update_check"`,
 `"music_dirs"`, see [Local files](#local-files)). A file that is not valid JSON is left alone and
 the choice is not saved (the status line says so); a theme name nu11signal
-does not know starts `REDSHIFT` silently.
+does not know starts `BLUESHIFT` silently. A former theme name still applies
+its theme (`"BLUE"` is `BLUESHIFT`, `"NIGHT CITY"` is `REDSHIFT`), saved
+under the current name the next time a theme is chosen.
 
 When a newer release is known (see [Update check](#update-check)), an
 `UPDATE` line heads the panel with the version and how to upgrade.
@@ -416,7 +418,7 @@ No check is made:
   theme):
 
   ```json
-  {"theme": "BLUE", "update_check": false}
+  {"theme": "BLUESHIFT", "update_check": false}
   ```
 
 - in `--demo`, which stays offline;

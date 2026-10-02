@@ -372,7 +372,7 @@ func TestShutdownFromTheAuthErrorScreen(t *testing.T) {
 // The BOOTING and SHUTTING DOWN lines are drawn bright (stHiBold), not
 // muted, in every theme.
 func TestSplashLinesAreBright(t *testing.T) {
-	for _, theme := range []string{"REDSHIFT", "BLUE"} {
+	for _, theme := range []string{"REDSHIFT", "BLUESHIFT"} {
 		t.Run(theme, func(t *testing.T) {
 			boot := bootModel(t, newClock(), 80, 24, false)
 			f := playbacktest.New()

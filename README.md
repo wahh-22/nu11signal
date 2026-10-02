@@ -1,7 +1,7 @@
 <a id="top"></a>
 
 <div align="center">
-  <img src="docs/assets/brand/logo/nu11signal-redshift.svg" width="900" alt="NU11SIGNAL logo: a masked head with headphones and LED-grid eyes beside the NU11SIGNAL wordmark">
+  <img src="docs/assets/brand/logo/nu11signal-blueshift.svg" width="900" alt="NU11SIGNAL logo: a masked head with headphones and LED-grid eyes beside the NU11SIGNAL wordmark">
 </div>
 
 <h1 align="center">nu11signal</h1>
@@ -44,7 +44,7 @@
 <p align="center"><sub>It plays through a tiny windowless MusicKit helper (about 31 MB RSS measured during playback, near 0% CPU) instead of a browser.</sub></p>
 
 <p align="center">
-  <img src="docs/assets/screens/redshift.svg" width="840" alt="nu11signal in the REDSHIFT theme: the PLAYLISTS dial on the left, NOW PLAYING with transport buttons and data rain on the right">
+  <img src="docs/assets/screens/blueshift.svg" width="840" alt="nu11signal in the BLUESHIFT theme: the PLAYLISTS dial on the left, NOW PLAYING with transport buttons and data rain on the right">
 </p>
 
 > macOS only. Requires an Apple Music subscription. Not affiliated with Apple.
@@ -148,9 +148,10 @@ first.
 
 ### Themes
 
-<img width="100%" src="docs/assets/screens/blue.svg" alt="nu11signal in the BLUE theme">
+<img width="100%" src="docs/assets/screens/redshift.svg" alt="nu11signal in the REDSHIFT theme">
 
-`s` opens SETTINGS: choose REDSHIFT, BLUE, MATRIX, ROSE, or NEON ROSE.
+`s` opens SETTINGS: choose BLUESHIFT (the default), REDSHIFT, MATRIX, ROSE,
+or NEON ROSE.
 The two Pi-inspired pink themes use eight colors each across the UI: ROSE
 pairs soft pink highlights with mint success, while NEON ROSE pairs vivid pink
 highlights with pearl success. Both use Pi's muted color for frames and rain;

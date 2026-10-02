@@ -1,7 +1,7 @@
 // Package config reads the user's settings file, config.json in the
 // nu11signal directory of the user's config directory:
 //
-//	{"visualizer": "rain", "theme": "BLUE", "update_check": false,
+//	{"visualizer": "rain", "theme": "BLUESHIFT", "update_check": false,
 //	 "music_dirs": ["~/Music", "/srv/music"]}
 //
 // The file is optional: a missing one is the defaults. nu11signal writes
