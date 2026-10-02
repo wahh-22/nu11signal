@@ -41,6 +41,10 @@ type theme struct {
 	// rainTip, rainBright (bold) and rainBody are the first steps of the
 	// rain's trail, muted and dim the last (see rainRamp).
 	rainTip, rainBright, rainBody string
+	// logo and logoAlt are the logo's primary and secondary colors, the
+	// emblem's (see emblem.go): logo its head's frame, headphones and top
+	// LED row, SIGNAL and the bars, logoAlt NU11 and the other LED rows.
+	logo, logoAlt string
 	// noise colors the cells a burst corrupts.
 	noise [4]string
 }
@@ -59,6 +63,7 @@ var nightCity = theme{
 	fill: "#FCEE0A", ink: "#0A0A0A", selectBg: "#0E2A2F",
 	alert: "#FF5F57", alertStatic: "#FF5F57",
 	rainTip: "#FCEE0A", rainBright: "#FF5F57", rainBody: "#FF5F57",
+	logo: "#FF5F57", logoAlt: "#5EF6FF",
 	noise: [4]string{"#FF5F57", "#5EF6FF", "#FCEE0A", "#5A1E1E"},
 }
 
@@ -92,7 +97,8 @@ var nightCity = theme{
 //	select  #0E2A2F -> deep shade  #062610
 //
 // pinkTheme maps each Pi-inspired palette to eight colors across every
-// radio role, including the selection, rain trail and burst noise.
+// radio role, including the selection, rain trail and burst noise; the
+// logo takes accent as its primary color and active as its secondary.
 func pinkTheme(name, accent, active, success string) theme {
 	return theme{
 		name:  name,
@@ -103,6 +109,7 @@ func pinkTheme(name, accent, active, success string) theme {
 		fill: active, ink: "#060407", selectBg: "#28121E",
 		alert: accent, alertStatic: "#A78E9B",
 		rainTip: active, rainBright: accent, rainBody: "#A78E9B",
+		logo: accent, logoAlt: active,
 		noise: [4]string{accent, success, "#F2B86D", "#28121E"},
 	}
 }
@@ -135,6 +142,7 @@ func recolor(base theme, name string, colors map[string]string) theme {
 		&t.label, &t.text, &t.number, &t.frame, &t.dim, &t.muted,
 		&t.hi, &t.accent, &t.heading, &t.warn, &t.onAir, &t.favorite, &t.focus, &t.ok,
 		&t.fill, &t.ink, &t.selectBg, &t.alert, &t.alertStatic, &t.rainTip, &t.rainBright, &t.rainBody,
+		&t.logo, &t.logoAlt,
 	} {
 		swap(c)
 	}
@@ -172,6 +180,7 @@ var (
 	stOnAir, stOnAirBold, stFav            lipgloss.Style
 	stFocus, stFocusBold, stOK, stOKBold   lipgloss.Style
 	stSelected, stAlertStatic, stAlertSign lipgloss.Style
+	stLogo, stLogoAlt                      lipgloss.Style
 	// stButtonOn fills the active button: ink on the fill; stFillEdge
 	// draws the fill's color as text, the slants around a filled tab.
 	stButtonOn, stFillEdge lipgloss.Style
@@ -223,6 +232,8 @@ func applyTheme(t theme) {
 	stAlertSign = fg(t.alert).Bold(true)
 	stButtonOn = lipgloss.NewStyle().Foreground(colInk).Background(lipgloss.Color(t.fill)).Bold(true)
 	stFillEdge = fg(t.fill)
+	stLogo = fg(t.logo)
+	stLogoAlt = fg(t.logoAlt)
 
 	vizInks = []ink{
 		inkNone:   {},

@@ -9,7 +9,7 @@ import (
 )
 
 // The boot splash is nu11signal's own boot screen: from the first frame,
-// for bootDur on the injected clock, the body is the null emblem with
+// for bootDur on the injected clock, the body is the emblem (the logo) with
 // the BOOTING line under it (see splash), whatever the Apple Music link
 // is doing; the header keeps LINKING while it links. The boot starts at
 // the first size, the first frame drawn, so the time New waits for the

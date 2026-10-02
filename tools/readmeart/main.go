@@ -1,5 +1,5 @@
 // Command readmeart renders the README's SVG art from the app itself: the
-// null emblem (radio.EmblemArt) as a square icon, and terminal
+// emblem, the logo (radio.EmblemArt), as an icon tile, and terminal
 // screenshots from the ANSI view goldens in
 // internal/radio/testdata. The output is deterministic, so a rerun
 // changes no bytes. Run it from the repository root:

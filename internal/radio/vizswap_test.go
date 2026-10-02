@@ -98,7 +98,9 @@ func TestSwapDissolvesTheEmblemIntoTheRain(t *testing.T) {
 		}
 		half[0] += shown
 		half[1] += drawn
-		if l := m.swapLevel(); l > 0.3 && l < 0.7 {
+		// Around the middle the area mixes both. The window stops short of
+		// 0.7: the last emblem cells of the 80x24 logo leave by about 0.66.
+		if l := m.swapLevel(); l > 0.3 && l < 0.6 {
 			if e == 0 || e == full {
 				t.Fatalf("level %.2f: %d of %d emblem cells, want a mix", l, e, full)
 			}
@@ -161,7 +163,9 @@ func TestSwapSettlesTheRainIntoTheEmblem(t *testing.T) {
 			t.Fatalf("+%v: the emblem lost cells, %d to %d", c.t.Sub(start), prev, e)
 		}
 		prev = e
-		if l := m.swapLevel(); l > 0.3 && l < 0.7 {
+		// Around the middle the area mixes both. The window stops short of
+		// 0.7: the last emblem cells of the 80x24 logo leave by about 0.66.
+		if l := m.swapLevel(); l > 0.3 && l < 0.6 {
 			if e == 0 || e == full {
 				t.Fatalf("level %.2f: %d of %d emblem cells, want a mix", l, e, full)
 			}

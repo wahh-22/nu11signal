@@ -10,8 +10,8 @@
 // after startup. With --demo it runs against an in-process simulated
 // player instead. --calm (or
 // NU11SIGNAL_CALM=1) starts with the signal effects off; x toggles them.
-// --version prints the release version stamped at link time: beside the
-// null emblem on a terminal, the bare version line otherwise. A release
+// --version prints the release version stamped at link time: under the
+// compact Braille logo on a terminal, the bare version line otherwise. A release
 // build checks once a day for a newer release (see internal/update) unless
 // NU11SIGNAL_NO_UPDATE_CHECK=1 or "update_check": false in config.json.
 package main
@@ -238,9 +238,10 @@ func parseFlags(args []string, output io.Writer) (options, error) {
 }
 
 // printVersion writes the version: on a terminal, the compact Braille
-// null emblem with NU11SIGNAL and the version (v-prefixed when it is a
-// number) beside it on its middle rows, 3 cells right of it; elsewhere
-// the bare version line, which scripts and release.sh read.
+// emblem (the logo with NU11SIGNAL and the bars in it) and the version
+// (v-prefixed when it is a number) under the bars, in NU11SIGNAL's
+// column; elsewhere the bare version line, which scripts and release.sh
+// read.
 func printVersion(w io.Writer, terminal bool) {
 	if !terminal {
 		fmt.Fprintln(w, version)
@@ -250,14 +251,19 @@ func printVersion(w io.Writer, terminal bool) {
 	if shown != "" && shown[0] >= '0' && shown[0] <= '9' {
 		shown = "v" + shown
 	}
-	text := []string{"NU11SIGNAL", shown}
-	var b strings.Builder
 	rows := radio.EmblemRows()
-	top := (len(rows) - len(text)) / 2
 	for i, row := range rows {
-		if t := i - top; t >= 0 && t < len(text) {
-			row += "   " + text[t]
+		at := strings.Index(row, "NU11SIGNAL")
+		if at < 0 || i+2 >= len(rows) {
+			continue
 		}
+		col := len([]rune(row[:at]))
+		under := []rune(rows[i+2])
+		rows[i+2] = string(under[:min(col, len(under))]) + shown
+		break
+	}
+	var b strings.Builder
+	for _, row := range rows {
 		b.WriteString(strings.TrimRight(row, " ") + "\n")
 	}
 	io.WriteString(w, b.String())

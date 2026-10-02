@@ -37,8 +37,8 @@ func wellFormed(t *testing.T, name string, data []byte) {
 	}
 }
 
-// The large emblem raises 292 Braille dots: one circle each.
-const emblemDotCount = 292
+// The large emblem raises 648 Braille dots: one circle each.
+const emblemDotCount = 648
 
 func TestEmblemArtIsOneDotPerRaisedBrailleDot(t *testing.T) {
 	for _, tt := range []struct {
@@ -52,8 +52,8 @@ func TestEmblemArtIsOneDotPerRaisedBrailleDot(t *testing.T) {
 		if n := strings.Count(string(tt.data), `<circle class="dot"`); n != tt.want {
 			t.Errorf("%s: %d emblem dots, want %d", tt.name, n, tt.want)
 		}
-		if !strings.Contains(string(tt.data), yellow) || !strings.Contains(string(tt.data), red) {
-			t.Errorf("%s: want the ring in %s and the slash in %s", tt.name, red, yellow)
+		if !strings.Contains(string(tt.data), `fill="`+cyan+`"`) || !strings.Contains(string(tt.data), `fill="`+red+`"`) || strings.Contains(string(tt.data), yellow) {
+			t.Errorf("%s: want the logo in %s and %s alone", tt.name, red, cyan)
 		}
 		if strings.ContainsFunc(string(tt.data), braille) {
 			t.Errorf("%s: Braille drawn as text, not as dots", tt.name)

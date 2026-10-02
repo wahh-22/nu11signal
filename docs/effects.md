@@ -14,10 +14,10 @@ red `NO SIGNAL` framed in red static for its whole length. A real message
 on the status line is never glitched. The effects are drawn over the
 frame, so clicks and keys work during a burst.
 
-At launch nu11signal boots: for about 1.5 s the body shows the null
-emblem, a slashed zero drawn in Braille dots with `N U 1 1 / S I G N A L`
-and five thin Braille bars beside it (compact, or its text alone, on a
-small terminal), with
+At launch nu11signal boots: for about 1.5 s the body shows the logo drawn
+in Braille dots, the masked head with its headphones and LED eyes beside
+`NU11SIGNAL` and five slanted bars, in the theme's logo colors (the compact
+logo on a smaller terminal, the line alone where neither fits), with
 `BOOTING NU11SIGNAL...`, spaced out and bright, under it, glitching from the first frame (torn
 emblem rows, dense Braille noise cells, now and then a static bar, at about 15 fps), then
 the normal UI scrambles in, whether Apple Music has linked yet or not
@@ -71,12 +71,12 @@ slowly and dimly instead. When paused the rain holds still and the
 animation tick slows down to once a second.
 
 While no music plays (paused, stopped, nothing loaded) the spectrum area
-shows the null emblem with `N U 1 1 / S I G N A L` beside it, centered,
-in place of the rain: the large emblem where it fits (the expanded player),
-else the compact one (the 80x24 player), else the emblem without its text, else
-nothing, on blank cells. With the effects on the whole block glitches all
-the time: every frame one to four dense Braille cells flicker over the
-emblem, the name and the bars and, on about one frame in three, one of its
+shows the logo, the masked head with `NU11SIGNAL` and five bars beside it,
+centered, in place of the rain: the large logo where it fits (the expanded
+player), else the compact one (the 80x24 player), else the head alone without
+the wordmark, else nothing, on blank cells. With the effects on the whole logo
+glitches all the time: every frame one to four dense Braille cells flicker
+over the head, the wordmark and the bars and, on about one frame in three, one of its
 rows tears a cell sideways. The tick
 runs at about 6.7 fps (150 ms) while the emblem is shown with the effects
 on, instead of once a second; with the effects off the emblem is still and
