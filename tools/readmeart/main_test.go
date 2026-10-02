@@ -144,3 +144,23 @@ func TestCommittedAssetsAreUpToDate(t *testing.T) {
 		}
 	}
 }
+
+// Every theme SETTINGS offers has its own render of the main screen.
+func TestEveryThemeHasAMainScreenRender(t *testing.T) {
+	for _, tt := range []struct{ name, title string }{
+		{"night-city", "NIGHT CITY"},
+		{"blue", "BLUE"},
+		{"matrix", "MATRIX"},
+		{"rose", "ROSE"},
+		{"neon-rose", "NEON ROSE"},
+	} {
+		i := slices.IndexFunc(screens, func(s screen) bool { return s.name == tt.name })
+		if i < 0 {
+			t.Errorf("no %s screen", tt.name)
+			continue
+		}
+		if s := screens[i]; s.title != tt.title || s.section != "" || !strings.HasPrefix(s.golden, "view_") {
+			t.Errorf("%s screen = %+v, want the %s main view golden", tt.name, s, tt.title)
+		}
+	}
+}
