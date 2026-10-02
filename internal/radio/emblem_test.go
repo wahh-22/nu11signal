@@ -431,7 +431,7 @@ func TestBootZonesAreTheHeaderOnly(t *testing.T) {
 // secondary one (logoAlt) for NU11 and the lower LED rows.
 func TestEmblemTakesTheThemeColors(t *testing.T) {
 	for _, tt := range []struct{ theme, logo, logoAlt string }{
-		{"NIGHT CITY", "255;95;87", "94;246;255"},
+		{"REDSHIFT", "255;95;87", "94;246;255"},
 		{"BLUE", "52;122;255", "92;225;255"},
 		{"MATRIX", "0;200;50", "0;255;65"},
 		{"ROSE", "240;149;200", "255;177;221"},

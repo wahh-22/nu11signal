@@ -328,7 +328,7 @@ func (m Model) header(w int) ([]string, zones) {
 // at the right edge, cut with … to the room left, while at least
 // minNode cells of it fit.
 //
-//	◢◤◢◤ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ─── NODE 7F // NC-GRID ──
+//	◢◤◢◤ ╱ PLAYLISTS ╱ ╱ SEARCH ╱ ╱ BACK ╱ ─── NODE 7F // NU-GRID ──
 func (m Model) navLine(w int) (string, zones) {
 	const (
 		mark    = "◢◤◢◤"
@@ -355,11 +355,11 @@ func (m Model) navLine(w int) (string, zones) {
 	return stAccent.Render(mark) + gap + bar + gap + tail, zs
 }
 
-// netNode is the nav bar's flavor text: the Night City net node the radio
+// netNode is the nav bar's flavor text: the city net node the radio
 // is patched through, one byte of the Model's seed in hex, so a session
 // keeps its node and a fixed seed draws a fixed frame.
 func (m Model) netNode() string {
-	return fmt.Sprintf("NODE %02X // NC-GRID", mix(m.seed, netNodeSalt)&0xFF)
+	return fmt.Sprintf("NODE %02X // NU-GRID", mix(m.seed, netNodeSalt)&0xFF)
 }
 
 // netNodeSalt keeps netNode apart from the other hashes of the seed.

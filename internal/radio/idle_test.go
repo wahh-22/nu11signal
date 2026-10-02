@@ -367,7 +367,7 @@ func TestIdleStaticWithTheEffectsOff(t *testing.T) {
 }
 
 func TestIdleFrameTickLandsOnFrames(t *testing.T) {
-	at := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
+	at := time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
 	for _, off := range []time.Duration{0, time.Millisecond, idleFrameTick / 2, idleFrameTick - time.Nanosecond} {
 		now := at.Add(off)
 		d := idleFrameWait(now)

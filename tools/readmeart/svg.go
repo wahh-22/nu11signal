@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// The NIGHT CITY colors the brand art is drawn in.
+// The REDSHIFT colors the brand art is drawn in.
 const (
 	night  = "#0A0A0A"
 	red    = "#FF5F57"

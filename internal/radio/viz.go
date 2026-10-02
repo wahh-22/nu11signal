@@ -47,7 +47,7 @@ func inkOf(st lipgloss.Style) ink {
 
 // Inks of the rain's palette, the equalizer bars' own, from the theme's
 // rain roles: the tips, the bright (bold) and body steps, and the theme's
-// muted and dim for what sits behind the music (the trails; NIGHT CITY
+// muted and dim for what sits behind the music (the trails; REDSHIFT
 // draws yellow tips, bold red, red and its dim reds). The rain's trail steps down
 // them in rainRamp's order, not in their numbers'. inkNone draws unstyled.
 const (

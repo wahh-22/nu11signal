@@ -11,11 +11,11 @@ import (
 
 func TestTheHeaderIsTheWordmarkAlone(t *testing.T) {
 	m := playingModel(t, playbacktest.New())
-	if top := ansi.Strip(strings.Split(m.render(), "\n")[0]); strings.Contains(top, "NIGHT CITY") || !strings.Contains(top, "NU11SIGNAL") {
-		t.Fatalf("header %q; want the wordmark without NIGHT CITY RADIO", top)
+	if top := ansi.Strip(strings.Split(m.render(), "\n")[0]); strings.Contains(top, "REDSHIFT") || !strings.Contains(top, "NU11SIGNAL") {
+		t.Fatalf("header %q; want the wordmark without REDSHIFT RADIO", top)
 	}
-	if v := m.View(); strings.Contains(v.WindowTitle, "NIGHT CITY") {
-		t.Fatalf("window title %q still names NIGHT CITY RADIO", v.WindowTitle)
+	if v := m.View(); strings.Contains(v.WindowTitle, "REDSHIFT") {
+		t.Fatalf("window title %q still names REDSHIFT RADIO", v.WindowTitle)
 	}
 }
 

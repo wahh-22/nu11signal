@@ -1,4 +1,4 @@
-// Package radio is the Nu11Signal terminal UI: a Cyberpunk 2077 style car
+// Package radio is the Nu11Signal terminal UI: a neon car
 // radio driving a playback.Player. It depends only on the playback port.
 package radio
 

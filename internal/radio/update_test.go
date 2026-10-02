@@ -19,16 +19,16 @@ type clock struct{ t time.Time }
 
 func (c *clock) now() time.Time          { return c.t }
 func (c *clock) advance(d time.Duration) { c.t = c.t.Add(d) }
-func newClock() *clock                   { return &clock{t: time.Date(2077, 11, 20, 23, 41, 7, 0, time.UTC)} }
+func newClock() *clock                   { return &clock{t: time.Date(2021, 11, 20, 23, 41, 7, 0, time.UTC)} }
 func key(s string) tea.KeyPressMsg       { return keyMsg(s) }
 func stations() []playback.Playlist {
-	return []playback.Playlist{{ID: "pl-1", Name: "Night Drive"}, {ID: "pl-2", Name: "Samurai"}, {ID: "pl-3", Name: "Body Heat"}}
+	return []playback.Playlist{{ID: "pl-1", Name: "Night Drive"}, {ID: "pl-2", Name: "Fuseway"}, {ID: "pl-3", Name: "Body Heat"}}
 }
 func songs() []playback.Song {
 	return []playback.Song{{ID: "s1", Title: "Stronger"}, {ID: "s2", Title: "Harder"}, {ID: "s3", Title: "Faster"}}
 }
 func playing(pos, dur time.Duration) playback.State {
-	return playback.State{Status: playback.StatusPlaying, Title: "Chippin' In", Artist: "Samurai", Album: "Never Fade Away", SongID: "c1", Position: pos, Duration: dur}
+	return playback.State{Status: playback.StatusPlaying, Title: "Hollow Wire", Artist: "Fuseway", Album: "Long Wire Hymns", SongID: "c1", Position: pos, Duration: dur}
 }
 
 func keyMsg(s string) tea.KeyPressMsg {
@@ -177,7 +177,7 @@ func TestStartupAuthorizesAndLoadsStations(t *testing.T) {
 		t.Fatalf("calls = %v, want Authorize then Playlists", calls)
 	}
 	view := m.render()
-	for _, want := range []string{"088.1", "NIGHT DRIVE", "089.7", "SAMURAI", "AUTH OK"} {
+	for _, want := range []string{"088.1", "NIGHT DRIVE", "089.7", "FUSEWAY", "AUTH OK"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("view missing %q", want)
 		}
@@ -333,13 +333,13 @@ func TestStateMessagesUpdateNowPlayingAndRearm(t *testing.T) {
 		m, _ = step(t, m, tickMsg{gen: m.tickGen})
 	}
 	view := m.render()
-	for _, want := range []string{"CHIPPIN' IN", "SAMURAI", "NEVER FADE AWAY", "01:23 / 03:45", "PLAYING"} {
+	for _, want := range []string{"HOLLOW WIRE", "FUSEWAY", "LONG WIRE HYMNS", "01:23 / 03:45", "PLAYING"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("view missing %q:\n%s", want, view)
 		}
 	}
 
-	f.PushState(playback.State{Status: playback.StatusPaused, Title: "Chippin' In", SongID: "c1"})
+	f.PushState(playback.State{Status: playback.StatusPaused, Title: "Hollow Wire", SongID: "c1"})
 	var msg tea.Msg
 	for _, got := range runAll(t, cmd) {
 		if sm, ok := got.(stateMsg); ok && sm.state.Status == playback.StatusPaused {
@@ -524,7 +524,7 @@ func TestTitleGlitchesOnTrackChangeThenSettles(t *testing.T) {
 }
 
 func TestGlitchText(t *testing.T) {
-	const s = "NIGHT CITY"
+	const s = "REDSHIFT"
 	if got := glitchText(s, 0, 1); got != s {
 		t.Errorf("no glitch changed text: %q", got)
 	}

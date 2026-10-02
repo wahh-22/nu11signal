@@ -30,7 +30,7 @@ func (s *savingSource) Save(c config.Config) error {
 }
 
 // settingsModel is a playing model that read src at startup; it leaves
-// NIGHT CITY applied after the test.
+// REDSHIFT applied after the test.
 func settingsModel(t *testing.T, src config.Source) Model {
 	t.Helper()
 	t.Cleanup(func() { applyTheme(themes[0]) })
@@ -50,7 +50,7 @@ func TestSOpensAndClosesTheSettings(t *testing.T) {
 			t.Fatal("s did not open the settings")
 		}
 		view := plain(m)
-		for _, want := range []string{"SETTINGS", "THEMES", "NIGHT CITY", "BLUE"} {
+		for _, want := range []string{"SETTINGS", "THEMES", "REDSHIFT", "BLUE"} {
 			if !strings.Contains(view, want) {
 				t.Fatalf("settings overlay lacks %q:\n%s", want, view)
 			}
@@ -69,7 +69,7 @@ func TestTheSettingsPickATheme(t *testing.T) {
 	src := &savingSource{cfg: config.Config{Visualizer: "rain"}}
 	m := settingsModel(t, src)
 	m, _ = press(t, m, "s", "down")
-	if m.theme != "NIGHT CITY" {
+	if m.theme != "REDSHIFT" {
 		t.Fatalf("moving applied %q; want enter to apply", m.theme)
 	}
 	m, cmd := press(t, m, "enter")
@@ -90,8 +90,8 @@ func TestTheSettingsPickATheme(t *testing.T) {
 		t.Fatalf("a saved theme reported %q", m.status)
 	}
 	m, _ = press(t, m, "up", "enter")
-	if m.theme != "NIGHT CITY" || !strings.Contains(stLabel.Render("x"), "255;95;87") {
-		t.Fatalf("back to NIGHT CITY: theme %q, stLabel %q", m.theme, stLabel.Render("x"))
+	if m.theme != "REDSHIFT" || !strings.Contains(stLabel.Render("x"), "255;95;87") {
+		t.Fatalf("back to REDSHIFT: theme %q, stLabel %q", m.theme, stLabel.Render("x"))
 	}
 }
 
@@ -217,16 +217,41 @@ func TestStartupAppliesTheSavedTheme(t *testing.T) {
 	}
 	applyTheme(themes[1])
 	m = settingsModel(t, &savingSource{cfg: config.Config{Theme: "neon"}})
-	if m.theme != "NIGHT CITY" || !strings.Contains(stLabel.Render("x"), "255;95;87") {
-		t.Fatalf("unknown theme: theme %q, stLabel %q; want NIGHT CITY", m.theme, stLabel.Render("x"))
+	if m.theme != "REDSHIFT" || !strings.Contains(stLabel.Render("x"), "255;95;87") {
+		t.Fatalf("unknown theme: theme %q, stLabel %q; want REDSHIFT", m.theme, stLabel.Render("x"))
 	}
 	if m.status != "" {
 		t.Fatalf("an unknown theme reported %q; want silence", m.status)
 	}
 }
 
-func TestAThemeChosenBeforeTheSettingsLoadIsKept(t *testing.T) {
+// REDSHIFT was called NIGHT CITY: a settings file with the former name
+// still applies it, and choosing it again saves the current name.
+func TestTheFormerRedshiftNameStillApplies(t *testing.T) {
+	for _, name := range []string{"NIGHT CITY", "night city", " Night City "} {
+		if th, ok := themeNamed(name); !ok || th.name != "REDSHIFT" {
+			t.Fatalf("themeNamed(%q) = %q, %v; want REDSHIFT", name, th.name, ok)
+		}
+	}
+	applyTheme(themes[1])
 	src := &savingSource{cfg: config.Config{Theme: "NIGHT CITY"}}
+	m := settingsModel(t, src)
+	if m.theme != "REDSHIFT" || !strings.Contains(stLabel.Render("x"), "255;95;87") {
+		t.Fatalf("saved NIGHT CITY: theme %q, stLabel %q; want REDSHIFT", m.theme, stLabel.Render("x"))
+	}
+	if m.status != "" {
+		t.Fatalf("the former name reported %q; want silence", m.status)
+	}
+	m, _ = press(t, m, "s", "down", "enter")
+	m, cmd := press(t, m, "up", "enter")
+	m, _ = step(t, m, run(t, cmd))
+	if len(src.saved) != 1 || src.saved[0].Theme != "REDSHIFT" {
+		t.Fatalf("saved %+v; want the theme saved as REDSHIFT", src.saved)
+	}
+}
+
+func TestAThemeChosenBeforeTheSettingsLoadIsKept(t *testing.T) {
+	src := &savingSource{cfg: config.Config{Theme: "REDSHIFT"}}
 	t.Cleanup(func() { applyTheme(themes[0]) })
 	m := New(playbacktest.New(), Options{SkipBoot: true, Now: newClock().now, Seed: 2077, Config: src})
 	load := m.loadConfigCmd()
@@ -274,8 +299,8 @@ func TestAnOlderThemeSaveFinishingLastIsDropped(t *testing.T) {
 	m, newer := press(t, m, "up", "enter")
 	m, _ = step(t, m, run(t, newer))
 	m, _ = step(t, m, run(t, older))
-	if n := len(src.saved); n != 1 || src.saved[0].Theme != "NIGHT CITY" {
-		t.Fatalf("saved %+v; want only the latest choice, NIGHT CITY", src.saved)
+	if n := len(src.saved); n != 1 || src.saved[0].Theme != "REDSHIFT" {
+		t.Fatalf("saved %+v; want only the latest choice, REDSHIFT", src.saved)
 	}
 	if m.status != "" {
 		t.Fatalf("a dropped save reported %q", m.status)

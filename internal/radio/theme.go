@@ -11,7 +11,7 @@ import (
 
 // A theme is the palette every style of the UI is drawn from, by role.
 // The terminal's own background is left alone; only the selected row gets
-// a dark fill. The roles are finer than the themes need (NIGHT CITY
+// a dark fill. The roles are finer than the themes need (REDSHIFT
 // draws most of them in its red, cyan and yellow) so that a theme can
 // tell headings, names, numbers and states apart.
 type theme struct {
@@ -49,13 +49,13 @@ type theme struct {
 	noise [4]string
 }
 
-// nightCity draws every role in the colors the app had before themes:
-// its baseline frames (view_night_city_ansi_80x24.golden,
-// night_city_ansi_views_80x24.golden) hold them byte for byte. It draws
+// redshift draws every role in the colors the app had before themes:
+// its baseline frames (view_redshift_ansi_80x24.golden,
+// redshift_ansi_views_80x24.golden) hold them byte for byte. It draws
 // eight colors: red, its deep and dim shades, a muted red, cyan, yellow,
 // the ink on fills and the selected row's fill.
-var nightCity = theme{
-	name:  "NIGHT CITY",
+var redshift = theme{
+	name:  "REDSHIFT",
 	label: "#FF5F57", text: "#FF5F57", number: "#FF5F57",
 	frame: "#E8554E", dim: "#5A1E1E", muted: "#9A3B37",
 	hi: "#5EF6FF", accent: "#FCEE0A", heading: "#FCEE0A", warn: "#FCEE0A",
@@ -69,7 +69,7 @@ var nightCity = theme{
 
 // themes are the themes SETTINGS offers, the default first.
 //
-// BLUE is NIGHT CITY recolored color for color from the gentleman-blue
+// BLUE is REDSHIFT recolored color for color from the gentleman-blue
 // palette, so it draws with as many colors and every role keeps its
 // place in the design:
 //
@@ -82,8 +82,8 @@ var nightCity = theme{
 //	ink     #0A0A0A -> background  #05070F
 //	select  #0E2A2F -> userSurface #10182E
 //
-// MATRIX recolors NIGHT CITY the same way in the greens of falling code:
-// a mid green where NIGHT CITY is red, the bright code green where it is
+// MATRIX recolors REDSHIFT the same way in the greens of falling code:
+// a mid green where REDSHIFT is red, the bright code green where it is
 // cyan, the pale glow of a drop's head where it is yellow, and dark greens
 // behind:
 //
@@ -115,12 +115,12 @@ func pinkTheme(name, accent, active, success string) theme {
 }
 
 var themes = []theme{
-	nightCity,
-	recolor(nightCity, "BLUE", map[string]string{
+	redshift,
+	recolor(redshift, "BLUE", map[string]string{
 		"#FF5F57": "#347AFF", "#E8554E": "#2A62CC", "#5A1E1E": "#1C2C54", "#9A3B37": "#4A5578",
 		"#5EF6FF": "#5CE1FF", "#FCEE0A": "#7C5CFF", "#0A0A0A": "#05070F", "#0E2A2F": "#10182E",
 	}),
-	recolor(nightCity, "MATRIX", map[string]string{
+	recolor(redshift, "MATRIX", map[string]string{
 		"#FF5F57": "#00C832", "#E8554E": "#009A29", "#5A1E1E": "#0A3314", "#9A3B37": "#1E6B32",
 		"#5EF6FF": "#00FF41", "#FCEE0A": "#D2FFD2", "#0A0A0A": "#000000", "#0E2A2F": "#062610",
 	}),
@@ -152,10 +152,22 @@ func recolor(base theme, name string, colors map[string]string) theme {
 	return t
 }
 
-// themeNamed is the theme called name, case aside.
+// themeAliases are former theme names config.json may still hold, by
+// upper-cased name, mapped to the theme's current name. SETTINGS saves the
+// current name, so a file is rewritten on the next theme choice.
+var themeAliases = map[string]string{
+	"NIGHT CITY": "REDSHIFT",
+}
+
+// themeNamed is the theme called name, case aside, or the one a former
+// name of it (themeAliases) now names.
 func themeNamed(name string) (theme, bool) {
+	name = strings.TrimSpace(name)
+	if current, ok := themeAliases[strings.ToUpper(name)]; ok {
+		name = current
+	}
 	for _, t := range themes {
-		if strings.EqualFold(t.name, strings.TrimSpace(name)) {
+		if strings.EqualFold(t.name, name) {
 			return t, true
 		}
 	}
@@ -167,7 +179,7 @@ func themeNamed(name string) (theme, bool) {
 // all of them would touch nearly every function of the package for a
 // value that changes only when SETTINGS applies one. Only Update (the
 // program's event loop, which also draws) and New change it; tests run
-// one at a time (none calls t.Parallel) and put NIGHT CITY back after
+// one at a time (none calls t.Parallel) and put REDSHIFT back after
 // changing it. Each style is named after its role (see theme).
 var (
 	colLabel, colFrame, colHi, colAccent   color.Color

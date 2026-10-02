@@ -154,7 +154,7 @@ func TestLoopKeyWorksFromThePlayerAndPages(t *testing.T) {
 
 func TestThePlayingHeartIsInTheFocusOrder(t *testing.T) {
 	f := playbacktest.New()
-	m := playingModel(t, f) // Chippin' In, c1, seekable
+	m := playingModel(t, f) // Hollow Wire, c1, seekable
 	// PLAY, up to the bar, up to the favorite over it.
 	m, _ = press(t, m, "right", "up", "up")
 	if !m.focused(ctlFav) {

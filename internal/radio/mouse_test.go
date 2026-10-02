@@ -57,8 +57,8 @@ func TestViewEnablesMouseCellMotion(t *testing.T) {
 func TestClickOnAPlaylistRowOpensIt(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
-	if got := textAt(m, zoneOf(t, m, rowZone(1))); !strings.Contains(got, "SAMURAI") {
-		t.Fatalf("row 1 zone covers %q; want the SAMURAI row", got)
+	if got := textAt(m, zoneOf(t, m, rowZone(1))); !strings.Contains(got, "FUSEWAY") {
+		t.Fatalf("row 1 zone covers %q; want the FUSEWAY row", got)
 	}
 	m, cmd := click(t, m, rowZone(1))
 	if m.stationCursor() != 1 {
@@ -546,7 +546,7 @@ func TestClickOnRecentCrossRemovesOnlyThatTerm(t *testing.T) {
 		t.Fatalf("✕ of row 1 is not on the DAFT PUNK row")
 	}
 	m, cmd := click(t, m, recentDeleteZone(1))
-	if want := []string{"queen", "samurai"}; !reflect.DeepEqual(m.recents, want) {
+	if want := []string{"queen", "fuseway"}; !reflect.DeepEqual(m.recents, want) {
 		t.Fatalf("recents = %q; want %q", m.recents, want)
 	}
 	if m.top().kind != viewSearch {

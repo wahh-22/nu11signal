@@ -149,7 +149,7 @@ func TestCommittedAssetsAreUpToDate(t *testing.T) {
 // Every theme SETTINGS offers has its own render of the main screen.
 func TestEveryThemeHasAMainScreenRender(t *testing.T) {
 	for _, tt := range []struct{ name, title string }{
-		{"night-city", "NIGHT CITY"},
+		{"redshift", "REDSHIFT"},
 		{"blue", "BLUE"},
 		{"matrix", "MATRIX"},
 		{"rose", "ROSE"},
@@ -169,7 +169,7 @@ func TestEveryThemeHasAMainScreenRender(t *testing.T) {
 // Every local image the README shows exists, the banner logo above all:
 // GitHub renders a missing one as a broken image without any error.
 func TestREADMEImagesExist(t *testing.T) {
-	const banner = "docs/assets/brand/logo/nu11signal-night-city.svg"
+	const banner = "docs/assets/brand/logo/nu11signal-redshift.svg"
 	data, err := os.ReadFile(filepath.Join(repoRoot, "README.md"))
 	if err != nil {
 		t.Fatal(err)

@@ -86,7 +86,7 @@ func TestBurstScheduleStaysInRange(t *testing.T) {
 	const stepDur = 50 * time.Millisecond
 	bursts, flashes := 0, 0
 	for seed := uint64(1); seed <= 20; seed++ {
-		start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
+		start := time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
 		var e effects
 		e.on = true
 		var lastEnd time.Time
@@ -126,7 +126,7 @@ func TestBurstScheduleStaysInRange(t *testing.T) {
 }
 
 func TestPausedEffectsNeverBurst(t *testing.T) {
-	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
+	start := time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
 	e := effects{on: true}
 	for now := start; now.Before(start.Add(10 * time.Minute)); now = now.Add(100 * time.Millisecond) {
 		e = e.advance(now, 3, false)
@@ -426,7 +426,7 @@ func TestEffectTimings(t *testing.T) {
 }
 
 func TestBurstsTearAndCorruptLikeASignalLoss(t *testing.T) {
-	start := time.Date(2077, 1, 1, 0, 0, 0, 0, time.UTC)
+	start := time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
 	frames, bars := 0, 0
 	for seed := uint64(1); seed <= 20; seed++ {
 		e := effects{on: true}.advance(start, seed, true)

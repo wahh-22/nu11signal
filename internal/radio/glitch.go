@@ -14,7 +14,7 @@ import (
 // row or few sideways, corrupts a handful of cells and may run a static
 // bar;
 // one burst in noSignalOdds also flashes NO SIGNAL, framed in static, in
-// the theme's alert roles (red in NIGHT CITY).
+// the theme's alert roles (red in REDSHIFT).
 //
 // Everything is drawn over the finished frame (see Model.decorate), cell
 // for cell, so no line changes width and the clickable zones, laid out
@@ -262,7 +262,7 @@ func (m Model) burst(lines []string) {
 }
 
 // noSignalFlash draws the NO SIGNAL sign in the theme's bold alert color
-// (red in NIGHT CITY, violet in BLUE), framed in its static (alertStatic:
+// (red in REDSHIFT, violet in BLUE), framed in its static (alertStatic:
 // red, primary blue), in the middle of the frame:
 //
 //	▓▒░▒▓░▒▓▒░▓▒░▒▓░▒▓▒░▓▒░▒▓
