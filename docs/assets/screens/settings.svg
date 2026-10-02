@@ -19,7 +19,7 @@
 <text x="190" y="91" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">╱</text>
 <text x="210" y="91" textLength="100" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">╱ SEARCH ╱</text>
 <text x="320" y="91" textLength="280" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">────────────────────────────</text>
-<text x="610" y="91" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NODE B8 // NC-GRID</text>
+<text x="610" y="91" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NODE B8 // NU-GRID</text>
 <text x="800" y="91" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">──</text>
 <text x="20" y="111" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#E8554E">╱─</text>
 <text x="40" y="111" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">▮</text>
@@ -30,7 +30,7 @@
 <text x="810" y="131" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="20" y="151" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <rect x="30" y="136" width="780" height="20" fill="#0E2A2F"/>
-<text x="50" y="151" textLength="120" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">◉ NIGHT CITY</text>
+<text x="50" y="151" textLength="100" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">◉ REDSHIFT</text>
 <text x="810" y="151" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="20" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="50" y="171" textLength="60" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">○ BLUE</text>

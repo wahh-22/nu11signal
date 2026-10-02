@@ -1,7 +1,7 @@
 <a id="top"></a>
 
 <div align="center">
-  <img src="docs/assets/brand/logo/nu11signal-night-city.svg" width="900" alt="NU11SIGNAL logo: a masked head with headphones and LED-grid eyes beside the NU11SIGNAL wordmark">
+  <img src="docs/assets/brand/logo/nu11signal-redshift.svg" width="900" alt="NU11SIGNAL logo: a masked head with headphones and LED-grid eyes beside the NU11SIGNAL wordmark">
 </div>
 
 <h1 align="center">nu11signal</h1>
@@ -44,7 +44,7 @@
 <p align="center"><sub>It plays through a tiny windowless MusicKit helper (about 31 MB RSS measured during playback, near 0% CPU) instead of a browser.</sub></p>
 
 <p align="center">
-  <img src="docs/assets/screens/night-city.svg" width="840" alt="nu11signal in the REDSHIFT theme: the PLAYLISTS dial on the left, NOW PLAYING with transport buttons and data rain on the right">
+  <img src="docs/assets/screens/redshift.svg" width="840" alt="nu11signal in the REDSHIFT theme: the PLAYLISTS dial on the left, NOW PLAYING with transport buttons and data rain on the right">
 </p>
 
 > macOS only. Requires an Apple Music subscription. Not affiliated with Apple.
