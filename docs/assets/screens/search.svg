@@ -19,7 +19,7 @@
 <text x="230" y="91" textLength="60" lengthAdjust="spacingAndGlyphs" fill="#0A0A0A" font-weight="bold">SEARCH</text>
 <text x="300" y="91" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">╱</text>
 <text x="320" y="91" textLength="280" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">────────────────────────────</text>
-<text x="610" y="91" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NODE B8 // NC-GRID</text>
+<text x="610" y="91" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NODE B8 // NU-GRID</text>
 <text x="800" y="91" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">──</text>
 <text x="20" y="111" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#E8554E">╱─</text>
 <text x="40" y="111" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">▮</text>
@@ -49,19 +49,19 @@
 <text x="40" y="171" textLength="110" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">R E C E N T</text>
 <text x="490" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="510" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
-<text x="530" y="171" textLength="110" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">CHIPPIN' IN</text>
+<text x="530" y="171" textLength="110" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">HOLLOW WIRE</text>
 <text x="760" y="171" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">[--]</text>
 <text x="810" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
 <text x="20" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="40" y="191" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">NO RECENT SEARCHES</text>
 <text x="490" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="510" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
-<text x="530" y="191" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">SAMURAI</text>
+<text x="530" y="191" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">FUSEWAY</text>
 <text x="810" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
 <text x="20" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="490" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="510" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
-<text x="530" y="211" textLength="150" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NEVER FADE AWAY</text>
+<text x="530" y="211" textLength="150" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">LONG WIRE HYMNS</text>
 <text x="810" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
 <text x="20" y="231" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="490" y="231" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>

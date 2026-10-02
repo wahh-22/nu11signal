@@ -355,7 +355,7 @@ func TestIntroFieldRowsAreNowPlayingsFields(t *testing.T) {
 				}
 				return
 			}
-			want := []string{"SAMURAI", "NEVER FADE AWAY", "CATALOG FEED"}
+			want := []string{"FUSEWAY", "LONG WIRE HYMNS", "CATALOG FEED"}
 			if len(fields) != len(want) {
 				t.Fatalf("field rows %v", fields)
 			}

@@ -22,17 +22,17 @@ const cols, rows = 80, 24
 
 // screens are the screenshots the README and the docs show.
 var screens = []screen{
-	{"night-city", "view_night_city_ansi_80x24.golden", "", "NIGHT CITY", night, red},
+	{"redshift", "view_redshift_ansi_80x24.golden", "", "REDSHIFT", night, red},
 	{"blue", "view_blue_80x24.golden", "", "BLUE", "#05070F", "#347AFF"},
 	{"matrix", "view_matrix_80x24.golden", "", "MATRIX", "#000000", "#00C832"},
 	{"rose", "view_rose_80x24.golden", "", "ROSE", "#060407", "#F095C8"},
 	{"neon-rose", "view_neon_rose_80x24.golden", "", "NEON ROSE", "#060407", "#F43888"},
 	{"boot", "boot_blue_80x24.golden", "", "BOOT", "#05070F", "#347AFF"},
-	{"search", "night_city_ansi_views_80x24.golden", "search", "SEARCH", night, red},
-	{"keys", "night_city_ansi_views_80x24.golden", "help", "KEYS", night, red},
-	{"settings", "night_city_ansi_views_80x24.golden", "settings", "SETTINGS", night, red},
-	{"no-signal", "night_city_ansi_views_80x24.golden", "no signal", "SIGNAL EFFECTS", night, red},
-	{"expanded", "night_city_ansi_views_80x24.golden", "expanded", "PLAYER", night, red},
+	{"search", "redshift_ansi_views_80x24.golden", "search", "SEARCH", night, red},
+	{"keys", "redshift_ansi_views_80x24.golden", "help", "KEYS", night, red},
+	{"settings", "redshift_ansi_views_80x24.golden", "settings", "SETTINGS", night, red},
+	{"no-signal", "redshift_ansi_views_80x24.golden", "no signal", "SIGNAL EFFECTS", night, red},
+	{"expanded", "redshift_ansi_views_80x24.golden", "expanded", "PLAYER", night, red},
 }
 
 // lines reads the screen's 24 rows from its golden under root.

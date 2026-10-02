@@ -203,7 +203,7 @@ func TestMemoryRemoveAndClear(t *testing.T) {
 func TestFileRemovePersistsAcrossInstances(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "recent.json")
 	f := NewFile(path)
-	for _, term := range []string{"queen", "daft punk", "samurai"} {
+	for _, term := range []string{"queen", "daft punk", "fuseway"} {
 		if err := f.Add(term); err != nil {
 			t.Fatal(err)
 		}
@@ -218,7 +218,7 @@ func TestFileRemovePersistsAcrossInstances(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"samurai", "queen"}; !reflect.DeepEqual(got, want) {
+	if want := []string{"fuseway", "queen"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("Load = %q; want %q", got, want)
 	}
 }
@@ -244,11 +244,11 @@ func TestFileClearPersistsAcrossInstances(t *testing.T) {
 	if string(data) != `{"terms":[]}` {
 		t.Fatalf("recent.json = %s; want an empty list", data)
 	}
-	if err := f.Add("samurai"); err != nil {
+	if err := f.Add("fuseway"); err != nil {
 		t.Fatalf("Add after Clear: %v", err)
 	}
-	if got, _ := NewFile(path).Load(); !reflect.DeepEqual(got, []string{"samurai"}) {
-		t.Fatalf("Load after Add = %q; want [samurai]", got)
+	if got, _ := NewFile(path).Load(); !reflect.DeepEqual(got, []string{"fuseway"}) {
+		t.Fatalf("Load after Add = %q; want [fuseway]", got)
 	}
 }
 

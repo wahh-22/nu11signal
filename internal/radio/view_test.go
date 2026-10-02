@@ -114,7 +114,7 @@ func TestSearchViewGolden80x24(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := playbacktest.New()
 			f.SearchCatalogResult = catalog()
-			r := &fakeRecents{terms: []string{"queen", "daft punk", "samurai"}}
+			r := &fakeRecents{terms: []string{"queen", "daft punk", "fuseway"}}
 			m := loadedWithRecents(t, f, r)
 			m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 225*time.Second)})
 			for i := 0; i < 12; i++ {

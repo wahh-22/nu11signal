@@ -594,7 +594,7 @@ func TestShortRecentTermOnlyFillsTheInput(t *testing.T) {
 // withThreeRecents is the search view open on three recent terms.
 func withThreeRecents(t *testing.T, r *fakeRecents) Model {
 	t.Helper()
-	r.terms = []string{"queen", "daft punk", "samurai"}
+	r.terms = []string{"queen", "daft punk", "fuseway"}
 	m := loadedWithRecents(t, playbacktest.New(), r)
 	m, _ = press(t, m, "/")
 	return m
@@ -607,7 +607,7 @@ func TestDeleteKeysRemoveTheSelectedRecentTerm(t *testing.T) {
 			m := withThreeRecents(t, r)
 			m, _ = press(t, m, "down", "down") // DAFT PUNK
 			m, cmd := press(t, m, k)
-			if want := []string{"queen", "samurai"}; !reflect.DeepEqual(m.recents, want) {
+			if want := []string{"queen", "fuseway"}; !reflect.DeepEqual(m.recents, want) {
 				t.Fatalf("recents = %q; want %q", m.recents, want)
 			}
 			if m.cursor() != 1 {
@@ -630,7 +630,7 @@ func TestDeleteKeysRemoveTheSelectedRecentTerm(t *testing.T) {
 func TestDeletingTheLastRecentRowsMovesTheCursorUp(t *testing.T) {
 	r := &fakeRecents{}
 	m := withThreeRecents(t, r)
-	m, _ = press(t, m, "down", "down", "down") // SAMURAI, the last term
+	m, _ = press(t, m, "down", "down", "down") // FUSEWAY, the last term
 	m, _ = press(t, m, "delete")
 	if m.cursor() != 1 {
 		t.Fatalf("cursor = %d; want 1, the new last term", m.cursor())
@@ -662,7 +662,7 @@ func TestRecentEditFailuresOnlyShowStatus(t *testing.T) {
 	if !strings.Contains(plain(m), "RECENT CHANGE NOT SAVED // DISK FULL") {
 		t.Fatalf("status line lacks the remove failure:\n%s", plain(m))
 	}
-	if want := []string{"daft punk", "samurai"}; !reflect.DeepEqual(m.recents, want) {
+	if want := []string{"daft punk", "fuseway"}; !reflect.DeepEqual(m.recents, want) {
 		t.Fatalf("recents = %q; want %q despite the failure", m.recents, want)
 	}
 }

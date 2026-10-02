@@ -19,7 +19,7 @@
 <text x="190" y="91" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#7C5CFF">╱</text>
 <text x="210" y="91" textLength="100" lengthAdjust="spacingAndGlyphs" fill="#347AFF">╱ SEARCH ╱</text>
 <text x="320" y="91" textLength="280" lengthAdjust="spacingAndGlyphs" fill="#1C2C54">────────────────────────────</text>
-<text x="610" y="91" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#4A5578">NODE B8 // NC-GRID</text>
+<text x="610" y="91" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#4A5578">NODE B8 // NU-GRID</text>
 <text x="800" y="91" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#1C2C54">──</text>
 <circle class="dot" cx="197.5" cy="213.5" r="1.9" fill="#347AFF"/>
 <circle class="dot" cx="207.5" cy="208.5" r="1.9" fill="#347AFF"/>

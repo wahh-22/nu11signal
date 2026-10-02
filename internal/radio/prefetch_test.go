@@ -113,7 +113,7 @@ func TestThePlayingSongOffThePageIsReadByTheTick(t *testing.T) {
 	f := playbacktest.New()
 	f.Loved = map[string]bool{"c1": true}
 	m := openSong(t, f, 1)
-	m, _ = step(t, m, stateMsg{state: playing(0, 0)}) // Chippin' In, c1
+	m, _ = step(t, m, stateMsg{state: playing(0, 0)}) // Hollow Wire, c1
 	m, cmd := step(t, m, tickMsg{gen: m.tickGen})
 	m = settle(t, m, cmd)
 	if calls := callsOf(f, "Favorite"); len(calls) != 1 || calls[0].Args[0] != "c1" {

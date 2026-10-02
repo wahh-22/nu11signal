@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="840" height="556" viewBox="0 0 840 556" role="img" aria-label="nu11signal NIGHT CITY screen, 80x24">
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="556" viewBox="0 0 840 556" role="img" aria-label="nu11signal REDSHIFT screen, 80x24">
 <rect x="1" y="1" width="838" height="554" rx="12" fill="#0A0A0A" stroke="#FF5F57" stroke-opacity="0.5" stroke-width="2"/>
 <circle cx="20" cy="20" r="6" fill="#FF5F57"/>
 <circle cx="40" cy="20" r="6" fill="#FEBC2E"/>
 <circle cx="60" cy="20" r="6" fill="#28C840"/>
-<text x="420" y="24" text-anchor="middle" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="13" fill="#8A8A8A">nu11signal — NIGHT CITY — 80×24</text>
+<text x="420" y="24" text-anchor="middle" font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="13" fill="#8A8A8A">nu11signal — REDSHIFT — 80×24</text>
 <g font-family="'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace" font-size="16" xml:space="preserve">
 <text x="370" y="71" textLength="100" lengthAdjust="spacingAndGlyphs" fill="#FF5F57" font-weight="bold">NU11SIGNAL</text>
 <text x="490" y="71" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF">AUTH OK</text>
@@ -19,7 +19,7 @@
 <text x="190" y="91" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">╱</text>
 <text x="210" y="91" textLength="100" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">╱ SEARCH ╱</text>
 <text x="320" y="91" textLength="280" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">────────────────────────────</text>
-<text x="610" y="91" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NODE B8 // NC-GRID</text>
+<text x="610" y="91" textLength="180" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NODE B8 // NU-GRID</text>
 <text x="800" y="91" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">──</text>
 <text x="20" y="111" textLength="20" lengthAdjust="spacingAndGlyphs" fill="#E8554E">╱─</text>
 <text x="40" y="111" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#FCEE0A">▮</text>
@@ -45,10 +45,10 @@
 <text x="810" y="151" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
 <text x="20" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="60" y="171" textLength="50" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">089.7</text>
-<text x="130" y="171" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">SAMURAI</text>
+<text x="130" y="171" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">FUSEWAY</text>
 <text x="490" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="510" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
-<text x="530" y="171" textLength="110" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">CHIPPIN' IN</text>
+<text x="530" y="171" textLength="110" lengthAdjust="spacingAndGlyphs" fill="#5EF6FF" font-weight="bold">HOLLOW WIRE</text>
 <text x="760" y="171" textLength="40" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">[--]</text>
 <text x="810" y="171" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
 <text x="20" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
@@ -56,12 +56,12 @@
 <text x="130" y="191" textLength="90" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">BODY HEAT</text>
 <text x="490" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="510" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
-<text x="530" y="191" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">SAMURAI</text>
+<text x="530" y="191" textLength="70" lengthAdjust="spacingAndGlyphs" fill="#FF5F57">FUSEWAY</text>
 <text x="810" y="191" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
 <text x="20" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="490" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="510" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
-<text x="530" y="211" textLength="150" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">NEVER FADE AWAY</text>
+<text x="530" y="211" textLength="150" lengthAdjust="spacingAndGlyphs" fill="#9A3B37">LONG WIRE HYMNS</text>
 <text x="810" y="211" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#5A1E1E">│</text>
 <text x="20" y="231" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>
 <text x="490" y="231" textLength="10" lengthAdjust="spacingAndGlyphs" fill="#E8554E">│</text>

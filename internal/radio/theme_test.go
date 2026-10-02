@@ -23,15 +23,15 @@ func themedView(t *testing.T) Model {
 	return m
 }
 
-// The NIGHT CITY frame, escape codes included, was recorded before
+// The REDSHIFT frame, escape codes included, was recorded before
 // themes existed: the default theme draws exactly what the app drew.
-func TestNightCityDrawsTheOriginalColors(t *testing.T) {
-	assertGolden(t, "view_night_city_ansi_80x24.golden", themedView(t).View().Content)
+func TestRedshiftDrawsTheOriginalColors(t *testing.T) {
+	assertGolden(t, "view_redshift_ansi_80x24.golden", themedView(t).View().Content)
 }
 
 // useTheme applies the theme named name for the rest of the test, and
-// NIGHT CITY again after it: the styles are package state. A new Model
-// applies NIGHT CITY, so the models are made first.
+// REDSHIFT again after it: the styles are package state. A new Model
+// applies REDSHIFT, so the models are made first.
 func useTheme(t *testing.T, name string) {
 	t.Helper()
 	th, ok := themeNamed(name)
@@ -42,19 +42,19 @@ func useTheme(t *testing.T, name string) {
 	t.Cleanup(func() { applyTheme(themes[0]) })
 }
 
-// nightCityCodes are the escape code colors of the NIGHT CITY palette.
-var nightCityCodes = []string{
+// redshiftCodes are the escape code colors of the REDSHIFT palette.
+var redshiftCodes = []string{
 	"255;95;87", "232;85;78", "94;246;255", "252;238;10",
 	"90;30;30", "154;59;55", "14;42;47", "10;10;10",
 }
 
-func TestThemesStartWithNightCityThenBlue(t *testing.T) {
+func TestThemesStartWithRedshiftThenBlue(t *testing.T) {
 	var names []string
 	for _, th := range themes {
 		names = append(names, th.name)
 	}
-	if strings.Join(names, ",") != "NIGHT CITY,BLUE,MATRIX,ROSE,NEON ROSE" {
-		t.Fatalf("themes %v; want NIGHT CITY, BLUE, MATRIX, ROSE, NEON ROSE", names)
+	if strings.Join(names, ",") != "REDSHIFT,BLUE,MATRIX,ROSE,NEON ROSE" {
+		t.Fatalf("themes %v; want REDSHIFT, BLUE, MATRIX, ROSE, NEON ROSE", names)
 	}
 	if th, ok := themeNamed("blue"); !ok || th.name != "BLUE" {
 		t.Fatalf("themeNamed(blue) = %v, %v; want BLUE, case aside", th.name, ok)
@@ -216,7 +216,7 @@ func TestBlueRecolorsEveryStyle(t *testing.T) {
 	}
 }
 
-func TestBlueLeavesNoNightCityColor(t *testing.T) {
+func TestBlueLeavesNoRedshiftColor(t *testing.T) {
 	m := themedView(t)
 	models := map[string]Model{"view": m}
 	models["help"], _ = press(t, m, "?")
@@ -234,9 +234,9 @@ func TestBlueLeavesNoNightCityColor(t *testing.T) {
 		// The text inputs hold copies of their styles: the Model's own
 		// setTheme refreshes them, as SETTINGS does.
 		frame := m.setTheme(blue).View().Content
-		for _, code := range nightCityCodes {
+		for _, code := range redshiftCodes {
 			if strings.Contains(frame, code) {
-				t.Errorf("%s under BLUE draws the NIGHT CITY color %s", name, code)
+				t.Errorf("%s under BLUE draws the REDSHIFT color %s", name, code)
 			}
 		}
 	}
@@ -268,9 +268,9 @@ func TestNeonRoseGolden80x24(t *testing.T) {
 	assertGolden(t, "view_neon_rose_80x24.golden", m.View().Content)
 }
 
-// nightCityViews are the frames of the views beyond the main one, escape
+// redshiftViews are the frames of the views beyond the main one, escape
 // codes included, under the default theme, joined in name order.
-func nightCityViews(t *testing.T) string {
+func redshiftViews(t *testing.T) string {
 	t.Helper()
 	m := themedView(t)
 	models := map[string]Model{}
@@ -290,20 +290,20 @@ func nightCityViews(t *testing.T) string {
 	return b.String()
 }
 
-// The NIGHT CITY frames of the other views, recorded before the finer
+// The REDSHIFT frames of the other views, recorded before the finer
 // theme roles existed: splitting the roles changed none of their bytes.
-func TestNightCityKeepsItsColorsInEveryView(t *testing.T) {
-	assertGolden(t, "night_city_ansi_views_80x24.golden", nightCityViews(t))
+func TestRedshiftKeepsItsColorsInEveryView(t *testing.T) {
+	assertGolden(t, "redshift_ansi_views_80x24.golden", redshiftViews(t))
 }
 
-// BLUE colors of the roles NIGHT CITY draws with its few colors.
+// BLUE colors of the roles REDSHIFT draws with its few colors.
 const (
 	blueViolet = "124;92;255"
 	bluePink   = "255;61;129"
 	blueCyan   = "92;225;255"
 )
 
-// blueModels are the views of TestBlueLeavesNoNightCityColor, drawn under
+// blueModels are the views of TestBlueLeavesNoRedshiftColor, drawn under
 // BLUE.
 func blueModels(t *testing.T) map[string]string {
 	t.Helper()
@@ -323,25 +323,25 @@ func blueModels(t *testing.T) map[string]string {
 	return frames
 }
 
-// BLUE is NIGHT CITY recolored color for color: the same roles share a
-// color in both, so it draws with as many colors as NIGHT CITY, each one
+// BLUE is REDSHIFT recolored color for color: the same roles share a
+// color in both, so it draws with as many colors as REDSHIFT, each one
 // of gentleman-blue.
-func TestBlueUsesAsManyColorsAsNightCity(t *testing.T) {
+func TestBlueUsesAsManyColorsAsRedshift(t *testing.T) {
 	night, blue := themeRoles(themes[0]), themeRoles(themes[1])
 	if len(night) != len(blue) {
-		t.Fatalf("%d roles in NIGHT CITY, %d in BLUE", len(night), len(blue))
+		t.Fatalf("%d roles in REDSHIFT, %d in BLUE", len(night), len(blue))
 	}
 	pairs := map[string]string{}
 	for i, c := range night {
 		if b, ok := pairs[c]; ok && b != blue[i] {
-			t.Fatalf("role %d: NIGHT CITY's %s is %s here but %s elsewhere in BLUE", i, c, blue[i], b)
+			t.Fatalf("role %d: REDSHIFT's %s is %s here but %s elsewhere in BLUE", i, c, blue[i], b)
 		}
 		pairs[c] = blue[i]
 	}
 	used := map[string]bool{}
 	for _, b := range pairs {
 		if used[b] {
-			t.Fatalf("BLUE merges two NIGHT CITY colors into %s", b)
+			t.Fatalf("BLUE merges two REDSHIFT colors into %s", b)
 		}
 		used[b] = true
 	}
@@ -350,11 +350,11 @@ func TestBlueUsesAsManyColorsAsNightCity(t *testing.T) {
 		"#5EF6FF": "#5CE1FF", "#FCEE0A": "#7C5CFF", "#0A0A0A": "#05070F", "#0E2A2F": "#10182E",
 	}
 	if len(pairs) != len(want) {
-		t.Fatalf("NIGHT CITY draws %d colors; want %d", len(pairs), len(want))
+		t.Fatalf("REDSHIFT draws %d colors; want %d", len(pairs), len(want))
 	}
 	for n, b := range want {
 		if pairs[n] != b {
-			t.Errorf("NIGHT CITY %s is %s in BLUE; want %s", n, pairs[n], b)
+			t.Errorf("REDSHIFT %s is %s in BLUE; want %s", n, pairs[n], b)
 		}
 	}
 }
@@ -380,7 +380,7 @@ func TestBlueNoSignalReadsBlue(t *testing.T) {
 	}
 }
 
-// MATRIX is NIGHT CITY recolored in greens: as many colors, each one a
+// MATRIX is REDSHIFT recolored in greens: as many colors, each one a
 // green (its green channel above red and blue), and SETTINGS offers it.
 func TestMatrixIsAllGreen(t *testing.T) {
 	m, ok := themeNamed("MATRIX")
@@ -391,14 +391,14 @@ func TestMatrixIsAllGreen(t *testing.T) {
 	pairs := map[string]string{}
 	for i, c := range night {
 		if b, seen := pairs[c]; seen && b != green[i] {
-			t.Fatalf("role %d: NIGHT CITY's %s maps to both %s and %s", i, c, b, green[i])
+			t.Fatalf("role %d: REDSHIFT's %s maps to both %s and %s", i, c, b, green[i])
 		}
 		pairs[c] = green[i]
 	}
 	used := map[string]bool{}
 	for _, g := range pairs {
 		if used[g] {
-			t.Fatalf("MATRIX merges two NIGHT CITY colors into %s", g)
+			t.Fatalf("MATRIX merges two REDSHIFT colors into %s", g)
 		}
 		used[g] = true
 		var r, gr, b int

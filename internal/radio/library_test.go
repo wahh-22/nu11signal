@@ -23,7 +23,7 @@ func editableStations() []playback.Playlist {
 	return []playback.Playlist{
 		{ID: "pl-f", Name: "Canciones favoritas"},
 		{ID: "pl-1", Name: "Night Drive", Editable: true},
-		{ID: "pl-2", Name: "Samurai", Editable: true},
+		{ID: "pl-2", Name: "Fuseway", Editable: true},
 	}
 }
 
@@ -184,7 +184,7 @@ func TestLibraryOnlySongsCannotBeLovedOrAdded(t *testing.T) {
 
 func TestLoveActsOnTheSongPlaying(t *testing.T) {
 	f := playbacktest.New()
-	m := playingModel(t, f) // Chippin' In, c1
+	m := playingModel(t, f) // Hollow Wire, c1
 	// On the PLAYLISTS root no song row is selected: l loves the song playing.
 	m, cmd := press(t, m, "l")
 	m = settle(t, m, cmd)
@@ -273,7 +273,7 @@ func TestAddToPlaylistPicker(t *testing.T) {
 		t.Fatalf("a: editor mode %v; want the picker", m.editor.mode)
 	}
 	view := plain(m)
-	for _, want := range []string{"ADD TO PLAYLIST", "DIGITAL LOVE", "+ NEW PLAYLIST", "NIGHT DRIVE", "SAMURAI"} {
+	for _, want := range []string{"ADD TO PLAYLIST", "DIGITAL LOVE", "+ NEW PLAYLIST", "NIGHT DRIVE", "FUSEWAY"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("picker lacks %q:\n%s", want, view)
 		}
@@ -281,14 +281,14 @@ func TestAddToPlaylistPicker(t *testing.T) {
 	if strings.Contains(view, "CANCIONES FAVORITAS") {
 		t.Fatalf("the picker offers a playlist that cannot take songs:\n%s", view)
 	}
-	m, _ = press(t, m, "down", "down") // SAMURAI
+	m, _ = press(t, m, "down", "down") // FUSEWAY
 	m, cmd := press(t, m, "enter")
 	m = settle(t, m, cmd)
 	assertCall(t, f, "AddToPlaylist", "pl-2", []string{"s2"})
 	if m.editor.mode != editClosed || m.top().kind != viewAlbum {
 		t.Fatalf("after adding: editor %v top %v; want the SONG view back", m.editor.mode, m.top().kind)
 	}
-	if view := plain(m); !strings.Contains(view, "ADDED DIGITAL LOVE TO SAMURAI") {
+	if view := plain(m); !strings.Contains(view, "ADDED DIGITAL LOVE TO FUSEWAY") {
 		t.Fatalf("no success notice:\n%s", view)
 	}
 }
@@ -611,12 +611,12 @@ func TestCreateWithAnUnknownOutcomeIgnoresAnOlderNamesake(t *testing.T) {
 	f.MethodErr = map[string]error{"CreatePlaylist": unknownOutcome{}}
 	m := loaded(t, f, newClock())
 	m, _ = press(t, m, "up", "enter")
-	m = typeText(t, m, "Samurai") // the name of a playlist already listed
+	m = typeText(t, m, "Fuseway") // the name of a playlist already listed
 	m, cmd := press(t, m, "enter")
 	m, reread := step(t, m, run(t, cmd))
 	m = settle(t, m, reread)
 	if c := m.stationCursor(); c != -1 {
-		t.Fatalf("cursor %d; want the + NEW PLAYLIST row kept, not the older Samurai", c)
+		t.Fatalf("cursor %d; want the + NEW PLAYLIST row kept, not the older Fuseway", c)
 	}
 }
 

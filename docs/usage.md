@@ -271,8 +271,8 @@ player has closed (or the close timed out) and the splash has shown for at
 least 1 s. During it the footer is blank and every key and click is ignored
 but `ctrl+c`, which exits at once.
 
-The HUD names live state: the nav bar ends in the Night City net node the
-radio is patched through (`NODE 7F // NC-GRID`, flavor, fixed for a session
+The HUD names live state: the nav bar ends in the city net node the
+radio is patched through (`NODE 7F // NU-GRID`, flavor, fixed for a session
 by its seed, cut to fit); the NOW PLAYING frame says where the rain's levels come from
 (`SPECTRUM LIVE` from the player's readings, `SPECTRUM SIM` animated,
 `SPECTRUM HOLD` paused or stopped); and with no message the status line
@@ -347,9 +347,9 @@ section lists the color themes, the active one marked `◉`:
 
 | Theme | Look |
 |-------|------|
-| `NIGHT CITY` | The default: neon red frames and text, cyan and yellow highlights |
-| `BLUE` | NIGHT CITY recolored from the gentleman-blue palette, with as many colors: electric blue where NIGHT CITY is red, violet where it is yellow, cyan where it is cyan, blue-grey shades behind |
-| `MATRIX` | NIGHT CITY recolored in the greens of falling code, with as many colors: mid green where NIGHT CITY is red, code green where it is cyan, a pale glow where it is yellow, dark greens behind |
+| `REDSHIFT` | The default: neon red frames and text, cyan and yellow highlights |
+| `BLUE` | REDSHIFT recolored from the gentleman-blue palette, with as many colors: electric blue where REDSHIFT is red, violet where it is yellow, cyan where it is cyan, blue-grey shades behind |
+| `MATRIX` | REDSHIFT recolored in the greens of falling code, with as many colors: mid green where REDSHIFT is red, code green where it is cyan, a pale glow where it is yellow, dark greens behind |
 | `ROSE` | Soft pink highlights, peach headings, mint success, and muted frames and rain drawn from Gentleman Cute Pi colors |
 | `NEON ROSE` | Vivid pink highlights, peach headings, pearl success, and muted frames and rain drawn from Gentleman Sexy Pi colors |
 
@@ -377,7 +377,7 @@ file renamed over it), private (`0600`, its directory `0700`), keeping the
 fields it does not know and the ones only you write (`"update_check"`,
 `"music_dirs"`, see [Local files](#local-files)). A file that is not valid JSON is left alone and
 the choice is not saved (the status line says so); a theme name nu11signal
-does not know starts `NIGHT CITY` silently.
+does not know starts `REDSHIFT` silently.
 
 When a newer release is known (see [Update check](#update-check)), an
 `UPDATE` line heads the panel with the version and how to upgrade.

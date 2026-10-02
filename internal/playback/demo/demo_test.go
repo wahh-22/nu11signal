@@ -162,11 +162,11 @@ func TestSearchCatalogMatchesArtistsSongsAndSuggestions(t *testing.T) {
 	for _, s := range res.Songs {
 		ids = append(ids, s.ID)
 	}
-	// Chrome Saints' two songs plus "Ghost in the Chrome", in catalog order.
+	// Chrome Saints' two songs plus "Mirror in the Chrome", in catalog order.
 	if want := []string{"d01", "d03", "d08"}; !reflect.DeepEqual(ids, want) {
 		t.Errorf("song ids = %v; want %v", ids, want)
 	}
-	if want := []string{"chrome saints", "ghost in the chrome"}; !reflect.DeepEqual(res.Suggestions, want) {
+	if want := []string{"chrome saints", "mirror in the chrome"}; !reflect.DeepEqual(res.Suggestions, want) {
 		t.Errorf("Suggestions = %v; want %v", res.Suggestions, want)
 	}
 
@@ -190,7 +190,7 @@ func TestSearchCatalogMatchesAlbumsPlaylistsAndTopResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	chromeSaints := playback.Artist{ID: "demo-artist-chrome-saints", Name: "Chrome Saints", Genres: []string{"Synthwave"}}
-	lastCall := playback.Album{ID: "demo-album-last-call-sessions", Title: "Last Call Sessions", Artist: "Chrome Saints", Year: 2076, TrackCount: 2}
+	lastCall := playback.Album{ID: "demo-album-last-call-sessions", Title: "Last Call Sessions", Artist: "Chrome Saints", Year: 2020, TrackCount: 2}
 	essentials := playback.CatalogPlaylist{ID: "demo-playlist-chrome-saints-essentials", Name: "Chrome Saints Essentials", Curator: "Nu11Signal"}
 	// Albums match by title or artist, so Spire Tower (holding "Ghost in
 	// the Chrome") is not one.
@@ -396,7 +396,7 @@ func TestArtistReturnsDeterministicPages(t *testing.T) {
 	}
 
 	d, _ := p.Artist(ctx, "demo-artist-chrome-saints")
-	wantAlbums := []playback.Album{{ID: "demo-album-last-call-sessions", Title: "Last Call Sessions", Artist: "Chrome Saints", Year: 2076, TrackCount: 2}}
+	wantAlbums := []playback.Album{{ID: "demo-album-last-call-sessions", Title: "Last Call Sessions", Artist: "Chrome Saints", Year: 2020, TrackCount: 2}}
 	if !reflect.DeepEqual(d.Albums, wantAlbums) {
 		t.Errorf("Albums = %+v; want %+v", d.Albums, wantAlbums)
 	}
@@ -429,7 +429,7 @@ func TestAlbumReturnsItsTracksAndFacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantAlbum := playback.Album{ID: "demo-album-last-call-sessions", Title: "Last Call Sessions", Artist: "Chrome Saints", Year: 2076, TrackCount: 2}
+	wantAlbum := playback.Album{ID: "demo-album-last-call-sessions", Title: "Last Call Sessions", Artist: "Chrome Saints", Year: 2020, TrackCount: 2}
 	if d.Album != wantAlbum {
 		t.Errorf("Album = %+v; want %+v", d.Album, wantAlbum)
 	}
@@ -439,7 +439,7 @@ func TestAlbumReturnsItsTracksAndFacts(t *testing.T) {
 	if !reflect.DeepEqual(d.Tracks, wantTracks) {
 		t.Errorf("Tracks = %+v; want %+v", d.Tracks, wantTracks)
 	}
-	if d.Genre != "Synthwave" || d.ReleaseDate != "2076-03-14" || d.RecordLabel == "" || d.Copyright != "℗ 2076 Chrome Saints" || d.Notes == "" {
+	if d.Genre != "Synthwave" || d.ReleaseDate != "2020-03-14" || d.RecordLabel == "" || d.Copyright != "℗ 2020 Chrome Saints" || d.Notes == "" {
 		t.Errorf("album facts = %+v", d)
 	}
 }

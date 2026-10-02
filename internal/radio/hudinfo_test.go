@@ -34,7 +34,7 @@ func nodeOf(t *testing.T, m Model) string {
 	return strings.TrimSpace(nav[i+len("─ "):])
 }
 
-var nodePattern = regexp.MustCompile(`^NODE [0-9A-F]{2} // NC-GRID$`)
+var nodePattern = regexp.MustCompile(`^NODE [0-9A-F]{2} // NU-GRID$`)
 
 func TestTheNavBarShowsANetNode(t *testing.T) {
 	f := playbacktest.New()
@@ -42,7 +42,7 @@ func TestTheNavBarShowsANetNode(t *testing.T) {
 	root := loaded(t, f, newClock())
 	want := nodeOf(t, root)
 	if !nodePattern.MatchString(want) {
-		t.Fatalf("nav %q; want a NODE xx // NC-GRID readout, got %q", navOf(root), want)
+		t.Fatalf("nav %q; want a NODE xx // NU-GRID readout, got %q", navOf(root), want)
 	}
 	// The readout is flavor, not a breadcrumb: the same wherever the list
 	// panel is.

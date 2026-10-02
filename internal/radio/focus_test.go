@@ -411,7 +411,7 @@ func TestRecentWritesPersistInIssueOrder(t *testing.T) {
 	m, _ = press(t, m, "down")
 	m, first := press(t, m, "delete")  // QUEEN
 	m, second := press(t, m, "delete") // DAFT PUNK
-	if want := []string{"samurai"}; !reflect.DeepEqual(m.recents, want) {
+	if want := []string{"fuseway"}; !reflect.DeepEqual(m.recents, want) {
 		t.Fatalf("recents %q; want %q", m.recents, want)
 	}
 	// The commands run in the opposite order; the store still sees them
