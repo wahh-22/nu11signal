@@ -1,8 +1,8 @@
 // Package update finds out whether a newer nu11signal release exists: a
 // Checker port answering the latest release, a GitHub adapter (GitHub)
-// asking the releases API, and a Cached decorator keeping the answer in
-// update.json beside the settings file for a day, so a launch hits the
-// API at most once a day. Versions compare as strict semantic versions
+// asking the releases API, and a Cached decorator asking on every launch
+// and keeping the last answer in update.json beside the settings file for
+// when the API cannot be reached. Versions compare as strict semantic versions
 // (Newer); what to show and when is the UI's business.
 package update
 

@@ -9,13 +9,16 @@ import (
 	updatecheck "github.com/wahh-22/nu11signal/internal/update"
 )
 
-// The update check runs once, from Init, as a command: it never blocks
-// the UI and its failures are silent (no network, a rate limit). When it
-// finds a release newer than Options.Version, the idle status line
-// announces it with the command that upgrades (Options.Upgrade, else the
-// release page), a status message still taking precedence while shown,
-// and SETTINGS repeats it on its first line. There is nothing to
-// dismiss: the notice stays until the next launch of the newer version.
+// The update check runs once per launch, from Init, as a command (the
+// checker asks GitHub every time, falling back to its cache offline): it
+// never blocks the UI and its failures are silent (no network, a rate
+// limit). When it finds a release newer than Options.Version, the idle
+// status line announces it with the command that upgrades
+// (Options.Upgrade, else the release page) in the buttons' style
+// (stHiBold), a status message still taking precedence while shown, and
+// SETTINGS repeats it on its first line in the same style. There is
+// nothing to dismiss: the notice stays until the next launch of the newer
+// version.
 
 // releaseCheckTimeout bounds the whole check; the GitHub adapter bounds
 // its request tighter.

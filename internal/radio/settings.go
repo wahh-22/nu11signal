@@ -145,7 +145,7 @@ func (m Model) settingsPanel(w, h int) ([]string, zones) {
 	iw := w - 2
 	// A newer release heads the panel (see release.go).
 	if v, how, ok := m.releaseNotice(); ok {
-		body = append(body, " "+stAccentBold.Render(fit("UPDATE "+v+" // "+how, max(iw-1, 0))), "")
+		body = append(body, " "+stHiBold.Render(fit("UPDATE "+v+" // "+how, max(iw-1, 0))), "")
 	}
 	body = append(body, " "+stHeading.Render("▞ THEMES"))
 	for i, t := range themes {

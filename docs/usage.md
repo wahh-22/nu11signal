@@ -401,12 +401,13 @@ repeats it on its first line. A status message still takes the line while
 it shows. There is nothing to dismiss, and a failed check (no network, a
 rate limit) shows nothing. Startup never waits for it.
 
-The answer is cached for 24 hours in `update.json` beside `config.json`
+The GitHub API (`/repos/wahh-22/nu11signal/releases/latest`, 3 s timeout)
+is asked at every launch, so a release published since the last one shows
+at once. The last answer is kept in `update.json` beside `config.json`
 (`~/Library/Application Support/nu11signal/update.json` on macOS), written
-atomically and private (`0600`), so the GitHub API
-(`/repos/wahh-22/nu11signal/releases/latest`, 3 s timeout) is asked at most
-once a day; a missing or corrupt cache is simply asked again. Pre-releases
-are never offered.
+atomically and private (`0600`), and stands in when GitHub cannot be reached;
+a missing or corrupt cache just means no answer offline. Pre-releases are
+never offered.
 
 No check is made:
 

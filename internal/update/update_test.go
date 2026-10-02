@@ -170,7 +170,6 @@ func (f *fakeChecker) Latest(context.Context) (Release, error) {
 }
 
 var (
-	t0   = time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	r031 = Release{Version: "0.3.1", URL: "https://example.test/v0.3.1"}
 	r032 = Release{Version: "0.3.2", URL: "https://example.test/v0.3.2"}
 )
@@ -186,46 +185,32 @@ func writeCache(t *testing.T, path string, at time.Time, rel Release) {
 	}
 }
 
-func cached(inner Checker, path string, now time.Time) *Cached {
-	c := NewCached(inner, path)
-	c.Now = func() time.Time { return now }
-	return c
+func cached(inner Checker, path string) *Cached {
+	return NewCached(inner, path)
 }
 
-func TestCachedUsesAFreshCacheWithoutCalling(t *testing.T) {
+// A cache of any age no longer short-circuits: every launch asks, so an
+// upgraded user learns of a release published since the last answer.
+func TestCachedAsksEvenWithAFreshCache(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "update.json")
-	writeCache(t, path, t0.Add(-23*time.Hour), r031)
+	writeCache(t, path, time.Now().Add(-time.Minute), r031)
 	inner := &fakeChecker{rel: r032}
-	rel, err := cached(inner, path, t0).Latest(context.Background())
-	if err != nil || rel != r031 {
-		t.Fatalf("got %+v, %v; want the cached %+v", rel, err, r031)
-	}
-	if inner.calls != 0 {
-		t.Fatalf("inner called %d times with a fresh cache", inner.calls)
-	}
-}
-
-func TestCachedRefreshesAStaleCache(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "update.json")
-	writeCache(t, path, t0.Add(-25*time.Hour), r031)
-	inner := &fakeChecker{rel: r032}
-	rel, err := cached(inner, path, t0).Latest(context.Background())
+	rel, err := cached(inner, path).Latest(context.Background())
 	if err != nil || rel != r032 || inner.calls != 1 {
 		t.Fatalf("got %+v, %v after %d calls; want %+v after 1", rel, err, inner.calls, r032)
 	}
-	// The refreshed answer is cached: the next launch does not call.
-	again := &fakeChecker{rel: Release{Version: "9.9.9"}}
-	rel, _ = cached(again, path, t0.Add(time.Hour)).Latest(context.Background())
-	if rel != r032 || again.calls != 0 {
-		t.Fatalf("next launch got %+v after %d calls; want the cached %+v", rel, again.calls, r032)
+	// The answer is cached for the next offline launch.
+	offline := &fakeChecker{err: errors.New("offline")}
+	if rel, err := cached(offline, path).Latest(context.Background()); err != nil || rel != r032 || offline.calls != 1 {
+		t.Fatalf("offline launch got %+v, %v after %d calls; want the cached %+v", rel, err, offline.calls, r032)
 	}
 }
 
-func TestCachedTreatsAFutureTimestampAsStale(t *testing.T) {
+func TestCachedAsksWithAFutureTimestamp(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "update.json")
-	writeCache(t, path, t0.Add(48*time.Hour), r031)
+	writeCache(t, path, time.Now().Add(48*time.Hour), r031)
 	inner := &fakeChecker{rel: r032}
-	if rel, _ := cached(inner, path, t0).Latest(context.Background()); rel != r032 || inner.calls != 1 {
+	if rel, _ := cached(inner, path).Latest(context.Background()); rel != r032 || inner.calls != 1 {
 		t.Fatalf("got %+v after %d calls; want a refresh", rel, inner.calls)
 	}
 }
@@ -233,7 +218,7 @@ func TestCachedTreatsAFutureTimestampAsStale(t *testing.T) {
 func TestCachedWritesAPrivateCacheAndCreatesItsDirectory(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "nu11signal")
 	path := filepath.Join(dir, "update.json")
-	if _, err := cached(&fakeChecker{rel: r031}, path, t0).Latest(context.Background()); err != nil {
+	if _, err := cached(&fakeChecker{rel: r031}, path).Latest(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	fi, err := os.Stat(path)
@@ -261,7 +246,7 @@ func TestCachedToleratesACorruptCache(t *testing.T) {
 				t.Fatal(err)
 			}
 			inner := &fakeChecker{rel: r032}
-			rel, err := cached(inner, path, t0).Latest(context.Background())
+			rel, err := cached(inner, path).Latest(context.Background())
 			if err != nil || rel != r032 || inner.calls != 1 {
 				t.Fatalf("got %+v, %v after %d calls; want a refresh", rel, err, inner.calls)
 			}
@@ -269,18 +254,18 @@ func TestCachedToleratesACorruptCache(t *testing.T) {
 	}
 }
 
-func TestCachedFailureFallsBackToAStaleCacheOrErrors(t *testing.T) {
+func TestCachedFailureFallsBackToTheCacheOrErrors(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "update.json")
 	inner := &fakeChecker{err: errors.New("offline")}
-	if _, err := cached(inner, path, t0).Latest(context.Background()); err == nil {
+	if _, err := cached(inner, path).Latest(context.Background()); err == nil {
 		t.Fatal("a failure without a cache returned no error")
 	}
 	if _, err := os.Stat(path); err == nil {
 		t.Fatal("a failure wrote the cache")
 	}
-	writeCache(t, path, t0.Add(-72*time.Hour), r031)
-	if rel, err := cached(inner, path, t0).Latest(context.Background()); err != nil || rel != r031 {
-		t.Fatalf("got %+v, %v; want the stale %+v", rel, err, r031)
+	writeCache(t, path, time.Now().Add(-72*time.Hour), r031)
+	if rel, err := cached(inner, path).Latest(context.Background()); err != nil || rel != r031 {
+		t.Fatalf("got %+v, %v; want the old cached %+v", rel, err, r031)
 	}
 }
 

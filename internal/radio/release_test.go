@@ -56,8 +56,8 @@ func TestTheIdleStatusLineAnnouncesANewerRelease(t *testing.T) {
 		if !strings.Contains(plain(m), tt.want) {
 			t.Fatalf("view lacks %q:\n%s", tt.want, plain(m))
 		}
-		if got, want := m.statusLine(m.width), stAccentBold.Render(fit(tt.want, m.width)); got != want {
-			t.Fatalf("status line %q; want the accent style %q", got, want)
+		if got, want := m.statusLine(m.width), stHiBold.Render(fit(tt.want, m.width)); got != want {
+			t.Fatalf("status line %q; want the buttons' style %q", got, want)
 		}
 	}
 }
@@ -144,6 +144,11 @@ func TestTheSettingsShowTheNewerRelease(t *testing.T) {
 	view := plain(m)
 	if !strings.Contains(view, "UPDATE v0.3.1 // brew upgrade --cask nu11signal") {
 		t.Fatalf("settings lack the update line:\n%s", view)
+	}
+	// Drawn in the buttons' style, as the status line is.
+	body, _ := m.settingsPanel(m.width, m.height)
+	if !strings.Contains(strings.Join(body, "\n"), stHiBold.Render(fit("UPDATE v0.3.1 // brew upgrade --cask nu11signal", m.width-3))) {
+		t.Fatalf("the settings update line is not in the buttons' style:\n%q", body)
 	}
 	// The theme rows still answer clicks where they are drawn.
 	m, _ = press(t, m, "down", "enter")

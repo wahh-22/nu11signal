@@ -198,7 +198,7 @@ On Linux (x86_64 or ARM64, local files only), install the formula with
 `linux-amd64`/`linux-arm64` release archive on your `PATH`; sound needs
 PulseAudio or PipeWire (see [Install](docs/install.md#linux)).
 
-A release build checks GitHub once a day for a newer release and shows the
+A release build checks GitHub at every launch for a newer release and shows the
 upgrade command on its status line; turn it off with
 `NU11SIGNAL_NO_UPDATE_CHECK=1` or `"update_check": false` (see
 [Update check](docs/usage.md#update-check)).
