@@ -151,8 +151,9 @@ first.
 
 `s` opens SETTINGS: choose NIGHT CITY, BLUE, MATRIX, ROSE, or NEON ROSE.
 The two Pi-inspired pink themes use eight colors each across the UI: ROSE
-pairs soft pink highlights with mint success and muted rose frames, while
-NEON ROSE pairs vivid pink highlights with violet rain.
+pairs soft pink highlights with mint success, while NEON ROSE pairs vivid pink
+highlights with pearl success. Both use Pi's muted color for frames and rain;
+the eight-color limit omits distinct Pi border, champagne, error, and violet.
 The whole UI recolors without changing the terminal background, and the
 choice is saved for the next start.
 
