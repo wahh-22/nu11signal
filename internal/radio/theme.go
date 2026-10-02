@@ -67,9 +67,9 @@ var redshift = theme{
 	noise: [4]string{"#FF5F57", "#5EF6FF", "#FCEE0A", "#5A1E1E"},
 }
 
-// themes are the themes SETTINGS offers, the default first.
+// themes are the themes SETTINGS offers, the default, BLUESHIFT, first.
 //
-// BLUE is REDSHIFT recolored color for color from the gentleman-blue
+// BLUESHIFT is REDSHIFT recolored color for color from the gentleman-blue
 // palette, so it draws with as many colors and every role keeps its
 // place in the design:
 //
@@ -115,11 +115,11 @@ func pinkTheme(name, accent, active, success string) theme {
 }
 
 var themes = []theme{
-	redshift,
-	recolor(redshift, "BLUE", map[string]string{
+	recolor(redshift, "BLUESHIFT", map[string]string{
 		"#FF5F57": "#347AFF", "#E8554E": "#2A62CC", "#5A1E1E": "#1C2C54", "#9A3B37": "#4A5578",
 		"#5EF6FF": "#5CE1FF", "#FCEE0A": "#7C5CFF", "#0A0A0A": "#05070F", "#0E2A2F": "#10182E",
 	}),
+	redshift,
 	recolor(redshift, "MATRIX", map[string]string{
 		"#FF5F57": "#00C832", "#E8554E": "#009A29", "#5A1E1E": "#0A3314", "#9A3B37": "#1E6B32",
 		"#5EF6FF": "#00FF41", "#FCEE0A": "#D2FFD2", "#0A0A0A": "#000000", "#0E2A2F": "#062610",
@@ -157,6 +157,7 @@ func recolor(base theme, name string, colors map[string]string) theme {
 // current name, so a file is rewritten on the next theme choice.
 var themeAliases = map[string]string{
 	"NIGHT CITY": "REDSHIFT",
+	"BLUE":       "BLUESHIFT",
 }
 
 // themeNamed is the theme called name, case aside, or the one a former
@@ -179,7 +180,7 @@ func themeNamed(name string) (theme, bool) {
 // all of them would touch nearly every function of the package for a
 // value that changes only when SETTINGS applies one. Only Update (the
 // program's event loop, which also draws) and New change it; tests run
-// one at a time (none calls t.Parallel) and put REDSHIFT back after
+// one at a time (none calls t.Parallel) and put the default back after
 // changing it. Each style is named after its role (see theme).
 var (
 	colLabel, colFrame, colHi, colAccent   color.Color
@@ -198,7 +199,13 @@ var (
 	stButtonOn, stFillEdge lipgloss.Style
 )
 
-func init() { applyTheme(themes[0]) }
+// defaultTheme is the theme a new Model starts on and the one a settings
+// file naming no theme, or one no theme has, falls back to: the first
+// SETTINGS lists. The tests pin REDSHIFT instead (see TestMain): their
+// goldens were drawn under it.
+var defaultTheme = themes[0]
+
+func init() { applyTheme(defaultTheme) }
 
 // fg is a style drawing text in the color hex.
 func fg(hex string) lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color(hex)) }

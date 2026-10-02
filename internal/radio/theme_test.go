@@ -39,29 +39,13 @@ func useTheme(t *testing.T, name string) {
 		t.Fatalf("no theme %q", name)
 	}
 	applyTheme(th)
-	t.Cleanup(func() { applyTheme(themes[0]) })
+	t.Cleanup(func() { applyTheme(defaultTheme) })
 }
 
 // redshiftCodes are the escape code colors of the REDSHIFT palette.
 var redshiftCodes = []string{
 	"255;95;87", "232;85;78", "94;246;255", "252;238;10",
 	"90;30;30", "154;59;55", "14;42;47", "10;10;10",
-}
-
-func TestThemesStartWithRedshiftThenBlue(t *testing.T) {
-	var names []string
-	for _, th := range themes {
-		names = append(names, th.name)
-	}
-	if strings.Join(names, ",") != "REDSHIFT,BLUE,MATRIX,ROSE,NEON ROSE" {
-		t.Fatalf("themes %v; want REDSHIFT, BLUE, MATRIX, ROSE, NEON ROSE", names)
-	}
-	if th, ok := themeNamed("blue"); !ok || th.name != "BLUE" {
-		t.Fatalf("themeNamed(blue) = %v, %v; want BLUE, case aside", th.name, ok)
-	}
-	if _, ok := themeNamed("neon"); ok {
-		t.Fatal("themeNamed(neon) found a theme")
-	}
 }
 
 func TestGentlemanSemanticRolesAndANSI(t *testing.T) {
@@ -88,7 +72,7 @@ func TestGentlemanSemanticRolesAndANSI(t *testing.T) {
 				}
 			}
 			applyTheme(th)
-			t.Cleanup(func() { applyTheme(themes[0]) })
+			t.Cleanup(func() { applyTheme(defaultTheme) })
 			for role, pair := range map[string][2]string{
 				"number":    {stNumber.Render("x"), tc.number},
 				"highlight": {stHi.Render("x"), tc.hi},
@@ -174,8 +158,8 @@ func TestPinkThemesUseExactlyEightColors(t *testing.T) {
 	}
 }
 
-func TestBlueRecolorsEveryStyle(t *testing.T) {
-	useTheme(t, "BLUE")
+func TestBlueshiftRecolorsEveryStyle(t *testing.T) {
+	useTheme(t, "BLUESHIFT")
 	const primary = "52;122;255"
 	for name, got := range map[string]string{
 		"stLabel":        stLabel.Render("x"),
@@ -185,19 +169,19 @@ func TestBlueRecolorsEveryStyle(t *testing.T) {
 		"stAlertStatic":  stAlertStatic.Render("x"),
 		"stText":         stText.Render("x"),
 		"stNumber":       stNumber.Render("x"),
-		"stHi":           stHi.Render("x") + "/" + blueCyan,
-		"stAccent":       stAccent.Render("x") + "/" + blueViolet,
-		"stOnAir":        stOnAir.Render("x") + "/" + blueViolet,
-		"stHeading":      stHeading.Render("x") + "/" + blueViolet,
-		"stButtonOn":     stButtonOn.Render("x") + "/" + blueViolet,
-		"stFillEdge":     stFillEdge.Render("x") + "/" + blueViolet,
+		"stHi":           stHi.Render("x") + "/" + blueshiftCyan,
+		"stAccent":       stAccent.Render("x") + "/" + blueshiftViolet,
+		"stOnAir":        stOnAir.Render("x") + "/" + blueshiftViolet,
+		"stHeading":      stHeading.Render("x") + "/" + blueshiftViolet,
+		"stButtonOn":     stButtonOn.Render("x") + "/" + blueshiftViolet,
+		"stFillEdge":     stFillEdge.Render("x") + "/" + blueshiftViolet,
 		"stAlertSign":    stAlertSign.Render("x"),
 		"inkBody":        vizInks[inkBody].pre,
-		"inkTip":         vizInks[inkTip].pre + "/" + blueViolet,
-		"stWarn":         stWarn.Render("x") + "/" + blueViolet,
-		"stFocus":        stFocus.Render("x") + "/" + blueViolet,
-		"stFav":          stFav.Render("x") + "/" + blueViolet,
-		"stOK":           stOK.Render("x") + "/" + blueCyan,
+		"inkTip":         vizInks[inkTip].pre + "/" + blueshiftViolet,
+		"stWarn":         stWarn.Render("x") + "/" + blueshiftViolet,
+		"stFocus":        stFocus.Render("x") + "/" + blueshiftViolet,
+		"stFav":          stFav.Render("x") + "/" + blueshiftViolet,
+		"stOK":           stOK.Render("x") + "/" + blueshiftCyan,
 		"stSelected bg":  stSelected.Render("x") + "/16;24;46",
 		"stFrameDim":     stFrameDim.Render("x") + "/28;44;84",
 		"stMuted":        stMuted.Render("x") + "/74;85;120",
@@ -208,15 +192,15 @@ func TestBlueRecolorsEveryStyle(t *testing.T) {
 			got, want = got[:i], got[i+1:]
 		}
 		if !strings.Contains(got, want) {
-			t.Errorf("%s = %q; want the BLUE color %s", name, got, want)
+			t.Errorf("%s = %q; want the BLUESHIFT color %s", name, got, want)
 		}
 	}
 	if c := inputStyles().Cursor.Color; c == nil || fmt.Sprint(c.RGBA()) != fmt.Sprint(lipgloss.Color("#7C5CFF").RGBA()) {
-		t.Errorf("input cursor color %v; want the BLUE focus violet", c)
+		t.Errorf("input cursor color %v; want the BLUESHIFT focus violet", c)
 	}
 }
 
-func TestBlueLeavesNoRedshiftColor(t *testing.T) {
+func TestBlueshiftLeavesNoRedshiftColor(t *testing.T) {
 	m := themedView(t)
 	models := map[string]Model{"view": m}
 	models["help"], _ = press(t, m, "?")
@@ -228,26 +212,26 @@ func TestBlueLeavesNoRedshiftColor(t *testing.T) {
 	models["no signal"] = forceBurst(t, fxModel(t, c), c, true)
 	c = newClock()
 	models["glitch"] = forceBurst(t, fxModel(t, c), c, false)
-	useTheme(t, "BLUE")
-	blue, _ := themeNamed("BLUE")
+	useTheme(t, "BLUESHIFT")
+	blueshift, _ := themeNamed("BLUESHIFT")
 	for name, m := range models {
 		// The text inputs hold copies of their styles: the Model's own
 		// setTheme refreshes them, as SETTINGS does.
-		frame := m.setTheme(blue).View().Content
+		frame := m.setTheme(blueshift).View().Content
 		for _, code := range redshiftCodes {
 			if strings.Contains(frame, code) {
-				t.Errorf("%s under BLUE draws the REDSHIFT color %s", name, code)
+				t.Errorf("%s under BLUESHIFT draws the REDSHIFT color %s", name, code)
 			}
 		}
 	}
 }
 
-// The BLUE frame with its escape codes: the stripped one is the same as
+// The BLUESHIFT frame with its escape codes: the stripped one is the same as
 // view_80x24.golden.
-func TestBlueGolden80x24(t *testing.T) {
+func TestBlueshiftGolden80x24(t *testing.T) {
 	m := themedView(t)
-	useTheme(t, "BLUE")
-	assertGolden(t, "view_blue_80x24.golden", m.View().Content)
+	useTheme(t, "BLUESHIFT")
+	assertGolden(t, "view_blueshift_80x24.golden", m.View().Content)
 }
 
 func TestMatrixGolden80x24(t *testing.T) {
@@ -296,16 +280,16 @@ func TestRedshiftKeepsItsColorsInEveryView(t *testing.T) {
 	assertGolden(t, "redshift_ansi_views_80x24.golden", redshiftViews(t))
 }
 
-// BLUE colors of the roles REDSHIFT draws with its few colors.
+// BLUESHIFT colors of the roles REDSHIFT draws with its few colors.
 const (
-	blueViolet = "124;92;255"
-	bluePink   = "255;61;129"
-	blueCyan   = "92;225;255"
+	blueshiftViolet = "124;92;255"
+	blueshiftPink   = "255;61;129"
+	blueshiftCyan   = "92;225;255"
 )
 
-// blueModels are the views of TestBlueLeavesNoRedshiftColor, drawn under
-// BLUE.
-func blueModels(t *testing.T) map[string]string {
+// blueshiftModels are the views of TestBlueshiftLeavesNoRedshiftColor, drawn under
+// BLUESHIFT.
+func blueshiftModels(t *testing.T) map[string]string {
 	t.Helper()
 	m := themedView(t)
 	models := map[string]Model{"view": m}
@@ -314,34 +298,35 @@ func blueModels(t *testing.T) map[string]string {
 	models["expanded"], _ = press(t, m, "f")
 	c := newClock()
 	models["no signal"] = forceBurst(t, fxModel(t, c), c, true)
-	useTheme(t, "BLUE")
-	blue, _ := themeNamed("BLUE")
+	useTheme(t, "BLUESHIFT")
+	blueshift, _ := themeNamed("BLUESHIFT")
 	frames := map[string]string{}
 	for name, m := range models {
-		frames[name] = m.setTheme(blue).View().Content
+		frames[name] = m.setTheme(blueshift).View().Content
 	}
 	return frames
 }
 
-// BLUE is REDSHIFT recolored color for color: the same roles share a
+// BLUESHIFT is REDSHIFT recolored color for color: the same roles share a
 // color in both, so it draws with as many colors as REDSHIFT, each one
 // of gentleman-blue.
-func TestBlueUsesAsManyColorsAsRedshift(t *testing.T) {
-	night, blue := themeRoles(themes[0]), themeRoles(themes[1])
-	if len(night) != len(blue) {
-		t.Fatalf("%d roles in REDSHIFT, %d in BLUE", len(night), len(blue))
+func TestBlueshiftUsesAsManyColorsAsRedshift(t *testing.T) {
+	bs, _ := themeNamed("BLUESHIFT")
+	night, blueshift := themeRoles(redshift), themeRoles(bs)
+	if len(night) != len(blueshift) {
+		t.Fatalf("%d roles in REDSHIFT, %d in BLUESHIFT", len(night), len(blueshift))
 	}
 	pairs := map[string]string{}
 	for i, c := range night {
-		if b, ok := pairs[c]; ok && b != blue[i] {
-			t.Fatalf("role %d: REDSHIFT's %s is %s here but %s elsewhere in BLUE", i, c, blue[i], b)
+		if b, ok := pairs[c]; ok && b != blueshift[i] {
+			t.Fatalf("role %d: REDSHIFT's %s is %s here but %s elsewhere in BLUESHIFT", i, c, blueshift[i], b)
 		}
-		pairs[c] = blue[i]
+		pairs[c] = blueshift[i]
 	}
 	used := map[string]bool{}
 	for _, b := range pairs {
 		if used[b] {
-			t.Fatalf("BLUE merges two REDSHIFT colors into %s", b)
+			t.Fatalf("BLUESHIFT merges two REDSHIFT colors into %s", b)
 		}
 		used[b] = true
 	}
@@ -354,7 +339,7 @@ func TestBlueUsesAsManyColorsAsRedshift(t *testing.T) {
 	}
 	for n, b := range want {
 		if pairs[n] != b {
-			t.Errorf("REDSHIFT %s is %s in BLUE; want %s", n, pairs[n], b)
+			t.Errorf("REDSHIFT %s is %s in BLUESHIFT; want %s", n, pairs[n], b)
 		}
 	}
 }
@@ -370,24 +355,24 @@ func themeRoles(t theme) []string {
 }
 
 // The NO SIGNAL sign, its static and the burst noise follow the theme:
-// nothing of them reads red under BLUE.
-func TestBlueNoSignalReadsBlue(t *testing.T) {
-	frame := blueModels(t)["no signal"]
-	for _, code := range []string{"255;95;87", bluePink} {
+// nothing of them reads red under BLUESHIFT.
+func TestBlueshiftNoSignalReadsBlue(t *testing.T) {
+	frame := blueshiftModels(t)["no signal"]
+	for _, code := range []string{"255;95;87", blueshiftPink} {
 		if strings.Contains(frame, code) {
-			t.Errorf("NO SIGNAL under BLUE draws the red %s", code)
+			t.Errorf("NO SIGNAL under BLUESHIFT draws the red %s", code)
 		}
 	}
 }
 
 // MATRIX is REDSHIFT recolored in greens: as many colors, each one a
-// green (its green channel above red and blue), and SETTINGS offers it.
+// green (its green channel above red and blueshift), and SETTINGS offers it.
 func TestMatrixIsAllGreen(t *testing.T) {
 	m, ok := themeNamed("MATRIX")
 	if !ok {
 		t.Fatal("no MATRIX theme")
 	}
-	night, green := themeRoles(themes[0]), themeRoles(m)
+	night, green := themeRoles(redshift), themeRoles(m)
 	pairs := map[string]string{}
 	for i, c := range night {
 		if b, seen := pairs[c]; seen && b != green[i] {
@@ -408,5 +393,22 @@ func TestMatrixIsAllGreen(t *testing.T) {
 		if gr < r || gr < b {
 			t.Fatalf("MATRIX color %s is not green", g)
 		}
+	}
+}
+
+// BLUESHIFT is the default: SETTINGS lists it first.
+func TestThemesStartWithBlueshiftThenRedshift(t *testing.T) {
+	var names []string
+	for _, th := range themes {
+		names = append(names, th.name)
+	}
+	if strings.Join(names, ",") != "BLUESHIFT,REDSHIFT,MATRIX,ROSE,NEON ROSE" {
+		t.Fatalf("themes %v; want BLUESHIFT, REDSHIFT, MATRIX, ROSE, NEON ROSE", names)
+	}
+	if th, ok := themeNamed("blueshift"); !ok || th.name != "BLUESHIFT" {
+		t.Fatalf("themeNamed(blueshift) = %v, %v; want BLUESHIFT, case aside", th.name, ok)
+	}
+	if _, ok := themeNamed("neon"); ok {
+		t.Fatal("themeNamed(neon) found a theme")
 	}
 }

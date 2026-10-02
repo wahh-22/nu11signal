@@ -42,7 +42,7 @@ func (m Model) onConfig(msg configMsg) Model {
 	}
 	t, ok := themeNamed(msg.cfg.Theme)
 	if !ok {
-		t = themes[0]
+		t = defaultTheme
 	}
 	return m.setTheme(t)
 }

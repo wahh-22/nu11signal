@@ -745,27 +745,27 @@ func TestOverlaysOpenWithoutAnIntroWhenCalm(t *testing.T) {
 // Moving the SETTINGS cursor or applying a theme changes the marks and
 // the colors, never the text: nothing scrambles again.
 func TestTheSettingsCursorNeverReplaysTheIntro(t *testing.T) {
-	t.Cleanup(func() { applyTheme(themes[0]) })
+	t.Cleanup(func() { applyTheme(defaultTheme) })
 	c := newClock()
 	m := introModel(t, c)
 	m, _ = press(t, m, keySettings)
 	c.advance(introDur)
 	seq := m.intro.seq
-	for _, k := range []string{"down", "up", "down", "enter"} {
+	for _, k := range []string{"up", "down", "up", "enter"} {
 		m, _ = press(t, m, k)
 		if m.intro.seq != seq {
 			t.Fatalf("%q started an intro", k)
 		}
 	}
-	if m.theme != "BLUE" {
-		t.Fatalf("theme %q; want BLUE", m.theme)
+	if m.theme != "BLUESHIFT" {
+		t.Fatalf("theme %q; want BLUESHIFT", m.theme)
 	}
 }
 
 // A click on a theme row applies it while the overlay is still
 // scrambling in: the intro draws over the frame, not its zones.
 func TestAClickDuringTheOverlayIntroAppliesTheTheme(t *testing.T) {
-	t.Cleanup(func() { applyTheme(themes[0]) })
+	t.Cleanup(func() { applyTheme(defaultTheme) })
 	c := newClock()
 	m := introModel(t, c)
 	m, _ = press(t, m, keySettings)
@@ -773,13 +773,13 @@ func TestAClickDuringTheOverlayIntroAppliesTheTheme(t *testing.T) {
 		t.Fatal("no intro running")
 	}
 	_, zs := m.layout()
-	z, ok := zs.find(zoneSettingsTheme + "1")
+	z, ok := zs.find(zoneSettingsTheme + "0")
 	if !ok {
-		t.Fatalf("no zone for the BLUE row in %v", zs)
+		t.Fatalf("no zone for the BLUESHIFT row in %v", zs)
 	}
 	m, _ = pressAt(t, m, z.x+2, z.y)
-	if m.theme != "BLUE" || !m.settings {
-		t.Fatalf("click on BLUE: theme %q, settings open %v", m.theme, m.settings)
+	if m.theme != "BLUESHIFT" || !m.settings {
+		t.Fatalf("click on BLUESHIFT: theme %q, settings open %v", m.theme, m.settings)
 	}
 }
 

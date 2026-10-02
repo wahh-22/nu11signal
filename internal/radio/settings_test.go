@@ -33,7 +33,7 @@ func (s *savingSource) Save(c config.Config) error {
 // REDSHIFT applied after the test.
 func settingsModel(t *testing.T, src config.Source) Model {
 	t.Helper()
-	t.Cleanup(func() { applyTheme(themes[0]) })
+	t.Cleanup(func() { applyTheme(defaultTheme) })
 	m := withConfig(t, playbacktest.New(), newClock(), src)
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m, cmd := step(t, m, run(t, m.authorizeCmd()))
@@ -50,7 +50,7 @@ func TestSOpensAndClosesTheSettings(t *testing.T) {
 			t.Fatal("s did not open the settings")
 		}
 		view := plain(m)
-		for _, want := range []string{"SETTINGS", "THEMES", "REDSHIFT", "BLUE"} {
+		for _, want := range []string{"SETTINGS", "THEMES", "REDSHIFT", "BLUESHIFT"} {
 			if !strings.Contains(view, want) {
 				t.Fatalf("settings overlay lacks %q:\n%s", want, view)
 			}
@@ -68,28 +68,28 @@ func TestSOpensAndClosesTheSettings(t *testing.T) {
 func TestTheSettingsPickATheme(t *testing.T) {
 	src := &savingSource{cfg: config.Config{Visualizer: "rain"}}
 	m := settingsModel(t, src)
-	m, _ = press(t, m, "s", "down")
+	m, _ = press(t, m, "s", "up")
 	if m.theme != "REDSHIFT" {
 		t.Fatalf("moving applied %q; want enter to apply", m.theme)
 	}
 	m, cmd := press(t, m, "enter")
-	if m.theme != "BLUE" || !strings.Contains(stLabel.Render("x"), "52;122;255") {
-		t.Fatalf("enter on BLUE: theme %q, stLabel %q", m.theme, stLabel.Render("x"))
+	if m.theme != "BLUESHIFT" || !strings.Contains(stLabel.Render("x"), "52;122;255") {
+		t.Fatalf("enter on BLUESHIFT: theme %q, stLabel %q", m.theme, stLabel.Render("x"))
 	}
 	if !m.settings {
 		t.Fatal("enter closed the settings; want them open to compare")
 	}
-	if !strings.Contains(plain(m), "◉ BLUE") {
+	if !strings.Contains(plain(m), "◉ BLUESHIFT") {
 		t.Fatalf("the active theme is not marked:\n%s", plain(m))
 	}
 	m, _ = step(t, m, run(t, cmd))
-	if want := (config.Config{Visualizer: "rain", Theme: "BLUE"}); len(src.saved) != 1 || !reflect.DeepEqual(src.saved[0], want) {
+	if want := (config.Config{Visualizer: "rain", Theme: "BLUESHIFT"}); len(src.saved) != 1 || !reflect.DeepEqual(src.saved[0], want) {
 		t.Fatalf("saved %+v; want one save of %+v", src.saved, want)
 	}
 	if m.status != "" {
 		t.Fatalf("a saved theme reported %q", m.status)
 	}
-	m, _ = press(t, m, "up", "enter")
+	m, _ = press(t, m, "down", "enter")
 	if m.theme != "REDSHIFT" || !strings.Contains(stLabel.Render("x"), "255;95;87") {
 		t.Fatalf("back to REDSHIFT: theme %q, stLabel %q", m.theme, stLabel.Render("x"))
 	}
@@ -101,8 +101,8 @@ func TestSettingsSelectGentlemanThemes(t *testing.T) {
 		steps int
 		ansi  string
 	}{
-		{"ROSE", 3, "240;149;200"},
-		{"NEON ROSE", 4, "244;56;136"},
+		{"ROSE", 2, "240;149;200"},
+		{"NEON ROSE", 3, "244;56;136"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			src := &savingSource{}
@@ -134,12 +134,12 @@ func TestSettingsSelectGentlemanThemes(t *testing.T) {
 func TestAFailedThemeSaveSaysSo(t *testing.T) {
 	src := &savingSource{saveErr: errors.New("disk full")}
 	m := settingsModel(t, src)
-	m, cmd := press(t, m, "s", "down", "enter")
+	m, cmd := press(t, m, "s", "up", "enter")
 	m, _ = step(t, m, run(t, cmd))
 	if !strings.Contains(m.status, "SETTINGS NOT SAVED") || !strings.Contains(m.status, "disk full") {
 		t.Fatalf("status %q; want the failed save reported", m.status)
 	}
-	if m.theme != "BLUE" {
+	if m.theme != "BLUESHIFT" {
 		t.Fatalf("a failed save reverted the theme to %q", m.theme)
 	}
 }
@@ -147,7 +147,7 @@ func TestAFailedThemeSaveSaysSo(t *testing.T) {
 func TestTheSettingsIgnoreOtherKeysButCtrlC(t *testing.T) {
 	f := playbacktest.New()
 	m := playingModel(t, f)
-	t.Cleanup(func() { applyTheme(themes[0]) })
+	t.Cleanup(func() { applyTheme(defaultTheme) })
 	m, _ = press(t, m, "s")
 	before := len(f.Calls())
 	m, cmd := press(t, m, "n", "space", "q", "?", "/", "f")
@@ -194,14 +194,14 @@ func TestAClickOnAThemeAppliesIt(t *testing.T) {
 	m := settingsModel(t, &savingSource{})
 	m, _ = press(t, m, "s")
 	lines := strings.Split(plain(m), "\n")
-	y := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "BLUE") })
+	y := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "BLUESHIFT") })
 	if y < 0 {
-		t.Fatalf("no BLUE row:\n%s", plain(m))
+		t.Fatalf("no BLUESHIFT row:\n%s", plain(m))
 	}
-	x := strings.Index(lines[y], "BLUE")
+	x := strings.Index(lines[y], "BLUESHIFT")
 	m, cmd := pressAt(t, m, ansi.StringWidth(lines[y][:x]), y)
-	if m.theme != "BLUE" || cmd == nil {
-		t.Fatalf("click on BLUE: theme %q, save %v", m.theme, cmd != nil)
+	if m.theme != "BLUESHIFT" || cmd == nil {
+		t.Fatalf("click on BLUESHIFT: theme %q, save %v", m.theme, cmd != nil)
 	}
 	// A click off the rows closes the settings, as it closes the help.
 	m, _ = pressAt(t, m, 0, 0)
@@ -211,11 +211,11 @@ func TestAClickOnAThemeAppliesIt(t *testing.T) {
 }
 
 func TestStartupAppliesTheSavedTheme(t *testing.T) {
-	m := settingsModel(t, &savingSource{cfg: config.Config{Theme: "blue"}})
-	if m.theme != "BLUE" || !strings.Contains(stLabel.Render("x"), "52;122;255") {
-		t.Fatalf("saved blue: theme %q, stLabel %q", m.theme, stLabel.Render("x"))
+	m := settingsModel(t, &savingSource{cfg: config.Config{Theme: "blueshift"}})
+	if m.theme != "BLUESHIFT" || !strings.Contains(stLabel.Render("x"), "52;122;255") {
+		t.Fatalf("saved blueshift: theme %q, stLabel %q", m.theme, stLabel.Render("x"))
 	}
-	applyTheme(themes[1])
+	useTheme(t, "MATRIX")
 	m = settingsModel(t, &savingSource{cfg: config.Config{Theme: "neon"}})
 	if m.theme != "REDSHIFT" || !strings.Contains(stLabel.Render("x"), "255;95;87") {
 		t.Fatalf("unknown theme: theme %q, stLabel %q; want REDSHIFT", m.theme, stLabel.Render("x"))
@@ -233,7 +233,7 @@ func TestTheFormerRedshiftNameStillApplies(t *testing.T) {
 			t.Fatalf("themeNamed(%q) = %q, %v; want REDSHIFT", name, th.name, ok)
 		}
 	}
-	applyTheme(themes[1])
+	useTheme(t, "MATRIX")
 	src := &savingSource{cfg: config.Config{Theme: "NIGHT CITY"}}
 	m := settingsModel(t, src)
 	if m.theme != "REDSHIFT" || !strings.Contains(stLabel.Render("x"), "255;95;87") {
@@ -252,13 +252,13 @@ func TestTheFormerRedshiftNameStillApplies(t *testing.T) {
 
 func TestAThemeChosenBeforeTheSettingsLoadIsKept(t *testing.T) {
 	src := &savingSource{cfg: config.Config{Theme: "REDSHIFT"}}
-	t.Cleanup(func() { applyTheme(themes[0]) })
+	t.Cleanup(func() { applyTheme(defaultTheme) })
 	m := New(playbacktest.New(), Options{SkipBoot: true, Now: newClock().now, Seed: 2077, Config: src})
 	load := m.loadConfigCmd()
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
-	m, _ = press(t, m, "s", "down", "enter")
+	m, _ = press(t, m, "s", "up", "enter")
 	m, _ = step(t, m, run(t, load))
-	if m.theme != "BLUE" {
+	if m.theme != "BLUESHIFT" {
 		t.Fatalf("the late settings file reverted the theme to %q", m.theme)
 	}
 }
@@ -304,5 +304,52 @@ func TestAnOlderThemeSaveFinishingLastIsDropped(t *testing.T) {
 	}
 	if m.status != "" {
 		t.Fatalf("a dropped save reported %q", m.status)
+	}
+}
+
+// BLUESHIFT was called BLUE: a settings file with the former name still
+// applies it, and choosing it again saves the current name.
+func TestTheFormerBlueNameStillApplies(t *testing.T) {
+	for _, name := range []string{"BLUE", "blue", " Blue "} {
+		if th, ok := themeNamed(name); !ok || th.name != "BLUESHIFT" {
+			t.Fatalf("themeNamed(%q) = %q, %v; want BLUESHIFT", name, th.name, ok)
+		}
+	}
+	src := &savingSource{cfg: config.Config{Theme: "blue"}}
+	m := settingsModel(t, src)
+	if m.theme != "BLUESHIFT" || !strings.Contains(stLabel.Render("x"), "52;122;255") {
+		t.Fatalf("saved blue: theme %q, stLabel %q; want BLUESHIFT", m.theme, stLabel.Render("x"))
+	}
+	if m.status != "" {
+		t.Fatalf("the former name reported %q; want silence", m.status)
+	}
+	m, _ = press(t, m, "s", "down", "enter")
+	m, cmd := press(t, m, "up", "enter")
+	m, _ = step(t, m, run(t, cmd))
+	if len(src.saved) != 1 || src.saved[0].Theme != "BLUESHIFT" {
+		t.Fatalf("saved %+v; want the theme saved as BLUESHIFT", src.saved)
+	}
+}
+
+// Outside the tests, which pin REDSHIFT (see TestMain), a new Model
+// starts on BLUESHIFT and keeps it when the settings file names no
+// theme, or one no theme has.
+func TestANewModelStartsOnBlueshift(t *testing.T) {
+	pinned := defaultTheme
+	defaultTheme = shippedDefault
+	t.Cleanup(func() { defaultTheme = pinned; applyTheme(pinned) })
+	if shippedDefault.name != "BLUESHIFT" {
+		t.Fatalf("the shipped default is %q; want BLUESHIFT", shippedDefault.name)
+	}
+	m := New(playbacktest.New(), Options{SkipBoot: true, Now: newClock().now, Seed: 2077})
+	if m.theme != "BLUESHIFT" || !strings.Contains(stLabel.Render("x"), "52;122;255") {
+		t.Fatalf("new model: theme %q, stLabel %q; want BLUESHIFT", m.theme, stLabel.Render("x"))
+	}
+	for _, name := range []string{"", "neon"} {
+		applyTheme(redshift)
+		m := withConfig(t, playbacktest.New(), newClock(), &savingSource{cfg: config.Config{Theme: name}})
+		if m.theme != "BLUESHIFT" || !strings.Contains(stLabel.Render("x"), "52;122;255") {
+			t.Fatalf("theme %q in the file: theme %q, stLabel %q; want BLUESHIFT", name, m.theme, stLabel.Render("x"))
+		}
 	}
 }

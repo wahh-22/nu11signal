@@ -377,7 +377,7 @@ func New(p playback.Player, opts Options) Model {
 	}
 	// A new Model starts on the default theme until the settings file
 	// names another (see onConfig).
-	return m.setTheme(themes[0])
+	return m.setTheme(defaultTheme)
 }
 
 // Init authorizes, loads recent searches and the settings, reads the volume, starts
