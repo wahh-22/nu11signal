@@ -69,6 +69,17 @@ helper is windowless and idles near 0% CPU.
 
 ---
 
+### Your own music files too
+
+mp3, flac, ogg and wav from `~/Music` (or the folders you name) play beside
+Apple Music under a LOCAL section, folders and m3u files as playlists, with
+the rain driven by the music itself. On Linux, built from source, they play
+on their own.
+
+**[Docs →](docs/usage.md#local-files)**
+
+---
+
 ### Browse the catalog like Apple Music
 
 <img width="100%" src="docs/assets/screens/search.svg" alt="SEARCH with live suggestions, matching artists and songs">

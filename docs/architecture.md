@@ -17,8 +17,10 @@ How the Go UI and the Swift MusicKit helper fit together, how the binary finds t
 | Part | Where | Role |
 |------|-------|------|
 | Radio UI | `internal/radio` | Model/update/view; depends only on the `Player` port |
-| Player port | `internal/playback` | Domain types and the `Player` interface |
+| Player port | `internal/playback` | Domain types, the `Player` interface, sources and capabilities |
 | Helper adapter | `internal/helper` | Starts the helper, correlates requests, streams state |
+| Local player | `internal/playback/local` | Scans, decodes and plays the computer's music files |
+| Composite player | `internal/playback/composite` | Joins Apple Music and the local files, routing by id namespace (`local:`) |
 | Demo player | `internal/playback/demo` | In-process simulated player for `--demo` |
 | Helper | `helper/` | SwiftPM package; `build.sh` bundles and signs the `.app` |
 

@@ -30,6 +30,24 @@ through the symlink. The cask lives in
 from `packaging/homebrew/nu11signal.rb.template`. The first launch asks for
 Apple Music access.
 
+## Linux
+
+There are no Linux packages yet: build from source with Go (see
+[Building from source](building.md) for the version):
+
+```sh
+git clone https://github.com/wahh-22/nu11signal.git
+cd nu11signal
+go build ./cmd/nu11signal
+./nu11signal
+```
+
+On Linux nu11signal plays your [local music files](usage.md#local-files)
+only: Apple Music needs the macOS helper. Sound goes through PulseAudio
+(PipeWire's `pipewire-pulse` counts) or, without it, ALSA; both are loaded
+at run time, so the build needs no audio headers and no cgo
+(`CGO_ENABLED=0` works).
+
 ## Font
 
 The UI is designed with [Kode Mono](https://fonts.google.com/specimen/Kode+Mono),
