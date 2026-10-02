@@ -13,7 +13,7 @@ Adopt the five user-supplied vector logos (masked head with headphones, 4x4 LED 
 - Website: GitHub Pages from main; deliver through a PR.
 
 ## Tasks
-- [ ] T1 (nu11signal, delegated writer: 2+ files incl. tool and test): logos in repo, README banner, readmeart stops generating the banner.
+- [x] T1 (nu11signal, delegated writer: 2+ files incl. tool and test): logos in repo, README banner, readmeart stops generating the banner.
 - [ ] T2 (nu11signal-web, delegated writer: 4+ files): theme-matched hero logo, favicon, og.png.
 
 ## Checks
@@ -21,3 +21,4 @@ Adopt the five user-supplied vector logos (masked head with headphones, 4x4 LED 
 - T2: `npm run build`, visual check of the built hero in each theme.
 
 ## Progress
+- T1 done, commit `cdf8690` (writer delegated; parent removed the dead banner builders in tools/readmeart/emblem.go). Checks: xmllint on the 5 logos clean; `go test ./tools/readmeart/` pass, regenerated assets not stale; `go test ./...` 1196 passed. Review: medium, slice_budget_reached, consent granted, 1 lens, lineage `review-22e544b08ff604d3` approved and acknowledged; suggestion R3 (no test guards the README logo path), not scheduled.
