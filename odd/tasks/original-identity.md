@@ -10,7 +10,7 @@ Keep the neon look but drop every reference to Cyberpunk 2077 or the word "cyber
 
 ## Tasks
 - [x] O1 (nu11signal, delegated writer): rename the theme (code, config alias, goldens, README art, logo files and ids), remove "cyberpunk" wording (README, docs, code comments, cask/formula templates and caveats), replace the game references in the demo library, test fixtures, header strings and goldens; regenerate goldens and README art.
-- [ ] O2 (nu11signal-web, delegated writer): theme id night-city -> redshift (with a saved-theme migration), logo files, copy without "cyberpunk", screens re-copied from the app.
+- [x] O2 (nu11signal-web, delegated writer): theme id night-city -> redshift (with a saved-theme migration), logo files, copy without "cyberpunk", screens re-copied from the app.
 - [~] O3 (parent): GitHub repo descriptions; tap cask/formula desc at the next release.
 
 ## Checks
@@ -22,3 +22,4 @@ Keep the neon look but drop every reference to Cyberpunk 2077 or the word "cyber
 - Checks: gofmt, vet, `go test -race ./...`, `make test-scripts` 58, readmeart byte-stable, banned-term grep leaves only the alias and its test.
 - Reviews: `c308691` approved (`review-b133074a0633d308`; warnings: docs name REDSHIFT before code — resolved by `3413b75`; demo artist id rename). The radio slice could not be reviewed natively: alone it fails the README asset tests (finding R3-readmeart-assets-missing, a slicing artifact; lineage `review-8c3dbee797efe5c7` correction applied as the assets commit, recovery authorized by the user as successor `review-oi-redshift-r2`), and every test-green slice (code + goldens + generated SVGs) exceeds the reviewer context budget (`lens_context_budget_exceeded`). An earlier attempt `review-3d16f3cf679a9fdb` stopped with corrupted_or_unverifiable_authority. User chose to continue without a receipt for that part under ordinary policy (full tests + CI).
 - O3: GitHub descriptions updated for both repos (no cyberpunk topics existed); the tap's cask/formula desc changes with the next release (`make cask`).
+- O2 done (web branch chore/original-identity): `7a34686` REDSHIFT logo files (under budget), `512f0cc` code/copy/migration approved (`review-eb947cc786299d3f`; warnings: hardcoded logo paths in tools/og-card.mjs and check-brand.mjs), `e7642f8` screens approved (`review-de078b944870a8b3`). Checks: build, check:links, check:brand, astro check; screenshots incl. the localStorage migration.
