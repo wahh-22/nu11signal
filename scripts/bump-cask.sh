@@ -1,33 +1,41 @@
 #!/usr/bin/env bash
-# Updates the Nu11Signal Homebrew cask in a local checkout of the tap.
+# Updates the Nu11Signal Homebrew cask (macOS) and formula (macOS and Linux)
+# in a local checkout of the tap.
 #
 # Usage: scripts/bump-cask.sh VERSION [--push]      (VERSION: x.y.z or x.y.z-pre)
 #
 # Renders packaging/homebrew/nu11signal.rb.template into Casks/nu11signal.rb
 # with VERSION and the sha256 from
-# dist/vVERSION/nu11signal-VERSION-macos-universal.tar.gz.sha256 (written by
-# scripts/release.sh), checks it with `ruby -c` and
-# `brew audit --cask --strict`, and shows the git diff. Nothing is committed
-# unless --push is given: then the change is committed as
-# "chore: bump nu11signal to VERSION" and pushed. An unchanged render creates
-# no commit.
+# dist/vVERSION/nu11signal-VERSION-macos-universal.tar.gz.sha256, and
+# packaging/homebrew/nu11signal-formula.rb.template into Formula/nu11signal.rb
+# with VERSION, the same macOS sha256, and the sha256 of
+# nu11signal-VERSION-linux-{amd64,arm64}.tar.gz (all written by
+# scripts/release.sh). The formula installs on macOS and Linux: it shares its
+# name with the cask, so `brew install` without --cask resolves to it on
+# macOS. It checks both with `ruby -c`, the cask with
+# `brew audit --cask --strict`, and the formula with
+# `brew audit --formula --strict` and `brew style` (the audit does not run
+# every style cop). Then it shows the git diff.
+# Nothing is committed unless --push is given: then the change is committed
+# as "chore: bump nu11signal to VERSION" and pushed. An unchanged render
+# creates no commit.
 #
 # The tap checkout is $NU11SIGNAL_TAP_DIR (default: ../homebrew-tap next to
 # this repository). It is cloned from $NU11SIGNAL_TAP_REPO (default
 # https://github.com/wahh-22/homebrew-tap.git) when missing, fast-forwarded
 # when present and behind its upstream, and refused when it has diverged from
-# its upstream or when any path other than Casks/nu11signal.rb has
-# uncommitted changes or untracked files (a cask rendered by an earlier run
-# without --push is fine).
+# its upstream or when any path other than Casks/nu11signal.rb and
+# Formula/nu11signal.rb has uncommitted changes or untracked files (a cask or
+# formula rendered by an earlier run without --push is fine).
 #
 # Resuming a failed push: when the checkout is ahead of its upstream with
-# "chore: bump nu11signal to VERSION" commits that touch only the cask, and the
-# committed cask matches the render, --push pushes them instead of committing
+# "chore: bump nu11signal to VERSION" commits that touch only the cask and the
+# formula, and both match the render, --push pushes them instead of committing
 # again; without --push the unpushed bump is reported. Any other local commit,
 # or an unpushed bump that no longer matches the render, is refused.
 #
-# Upload the release archive to GitHub before pushing: the cask URL points at
-# the v$VERSION release asset.
+# Upload the release archives to GitHub before pushing: the cask and formula
+# URLs point at the v$VERSION release assets.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -71,21 +79,30 @@ for tool in git ruby brew; do
 done
 
 TEMPLATE="$ROOT/packaging/homebrew/nu11signal.rb.template"
-ARCHIVE_NAME="nu11signal-$VERSION-macos-universal.tar.gz"
-SHA_FILE="$ROOT/dist/v$VERSION/$ARCHIVE_NAME.sha256"
+FORMULA_TEMPLATE="$ROOT/packaging/homebrew/nu11signal-formula.rb.template"
 TAP_REPO="${NU11SIGNAL_TAP_REPO:-https://github.com/wahh-22/homebrew-tap.git}"
 TAP_DIR="${NU11SIGNAL_TAP_DIR:-$ROOT/../homebrew-tap}"
 CASK_REL="Casks/nu11signal.rb"
+FORMULA_REL="Formula/nu11signal.rb"
 
-# --- Checksum --------------------------------------------------------------
+# --- Checksums -------------------------------------------------------------
 
-[[ -f "$SHA_FILE" ]] ||
-  die "checksum not found: $SHA_FILE (build the release first: make release VERSION=$VERSION)"
-read -r SHA256 SHA_NAME <"$SHA_FILE" || true
-[[ "$SHA256" =~ ^[0-9a-f]{64}$ ]] || die "no sha256 digest in $SHA_FILE"
-[[ "$SHA_NAME" == "$ARCHIVE_NAME" ]] ||
-  die "$SHA_FILE is for ${SHA_NAME:-an unnamed file}, not $ARCHIVE_NAME"
-echo "    sha256 $SHA256 ($ARCHIVE_NAME)"
+# read_checksum ARCHIVE: prints the sha256 of ARCHIVE from
+# dist/vVERSION/ARCHIVE.sha256, checking that the file names ARCHIVE.
+read_checksum() {
+  local archive="$1" file="$ROOT/dist/v$VERSION/$1.sha256" sha name
+  [[ -f "$file" ]] ||
+    die "checksum not found: $file (build the release first: make release VERSION=$VERSION)"
+  read -r sha name <"$file" || true
+  [[ "$sha" =~ ^[0-9a-f]{64}$ ]] || die "no sha256 digest in $file"
+  [[ "$name" == "$archive" ]] || die "$file is for ${name:-an unnamed file}, not $archive"
+  echo "    sha256 $sha ($archive)" >&2
+  echo "$sha"
+}
+
+SHA256="$(read_checksum "nu11signal-$VERSION-macos-universal.tar.gz")"
+SHA256_LINUX_AMD64="$(read_checksum "nu11signal-$VERSION-linux-amd64.tar.gz")"
+SHA256_LINUX_ARM64="$(read_checksum "nu11signal-$VERSION-linux-arm64.tar.gz")"
 
 # --- Tap checkout ----------------------------------------------------------
 
@@ -102,13 +119,13 @@ set_upstream() {
 if [[ -d "$TAP_DIR/.git" ]]; then
   TAP_DIR="$(cd "$TAP_DIR" && pwd)"
   step "Updating the tap checkout $TAP_DIR"
-  # Only the cask itself may differ (an earlier run without --push leaves it
-  # rendered; it is regenerated below). Every other status entry, including
-  # untracked files anywhere and renames, is refused.
+  # Only the cask and the formula may differ (an earlier run without --push
+  # leaves them rendered; they are regenerated below). Every other status
+  # entry, including untracked files anywhere and renames, is refused.
   dirty="$(git -C "$TAP_DIR" status --porcelain=v1 --untracked-files=all |
-    grep -vxE "([ MA][ MA]|\?\?) ${CASK_REL//./\\.}" || true)"
+    grep -vxE "([ MA][ MA]|\?\?) (${CASK_REL//./\\.}|${FORMULA_REL//./\\.})" || true)"
   [[ -z "$dirty" ]] ||
-    die "the tap checkout $TAP_DIR has uncommitted changes other than $CASK_REL; commit or discard them first:
+    die "the tap checkout $TAP_DIR has uncommitted changes other than $CASK_REL and $FORMULA_REL; commit or discard them first:
 $dirty"
   set_upstream
   git -C "$TAP_DIR" fetch --quiet ||
@@ -142,7 +159,7 @@ else
 fi
 
 # Commits left by an earlier --push whose push failed. Only bump commits for
-# this VERSION that touch nothing but the cask can be resumed.
+# this VERSION that touch nothing but the cask and the formula can be resumed.
 UNPUSHED="$(git -C "$TAP_DIR" log --format='%h %s' "$UPSTREAM..HEAD")"
 if [[ -n "$UNPUSHED" ]]; then
   BUMP_SUBJECT="chore: bump nu11signal to $VERSION"
@@ -155,42 +172,53 @@ if [[ -n "$UNPUSHED" ]]; then
     die "$TAP_DIR has unpushed commits on $UPSTREAM that are not bump commits for $VERSION (\"$BUMP_SUBJECT\"):
 $others       Push them yourself, or drop them ($DROP_HINT), then rerun."
   # Net change of all unpushed commits against the upstream: it must be
-  # exactly the cask.
+  # limited to the cask and the formula.
   touched="$(git -C "$TAP_DIR" diff --name-only "$UPSTREAM" HEAD)"
   if [[ -z "$touched" ]]; then
     die "the unpushed bump commits for $VERSION in $TAP_DIR make no net change against $UPSTREAM
        (they cancel each other out); drop them ($DROP_HINT) and rerun"
   fi
-  extra="$(grep -vxF "$CASK_REL" <<<"$touched" || true)"
+  extra="$(grep -vxF -e "$CASK_REL" -e "$FORMULA_REL" <<<"$touched" || true)"
   [[ -z "$extra" ]] ||
-    die "the unpushed bump commits for $VERSION in $TAP_DIR change files other than $CASK_REL:
+    die "the unpushed bump commits for $VERSION in $TAP_DIR change files other than $CASK_REL and $FORMULA_REL:
 $(sed 's/^/      /' <<<"$extra")
-       A bump commit may change only the cask; drop them ($DROP_HINT), or fix them by hand, then rerun."
+       A bump commit may change only the cask and the formula; drop them ($DROP_HINT), or fix them by hand, then rerun."
   echo "    unpushed bump commit(s) on $UPSTREAM:"
   printf '%s\n' "$UNPUSHED" | sed 's/^/      /'
 fi
 
 # --- Render ------------------------------------------------------------------
 
-step "Rendering $CASK_REL for $VERSION"
-mkdir -p "$TAP_DIR/Casks"
-# Drop the template's leading comment block (up to and including the first
-# line that is not a comment), then fill in the placeholders.
-awk -v version="$VERSION" -v sha="$SHA256" '
-  !started && /^#/ { next }
-  { started = 1; gsub(/__VERSION__/, version); gsub(/__SHA256__/, sha); print }
-' "$TEMPLATE" >"$TAP_DIR/$CASK_REL"
-if grep -q '__[A-Z0-9]*__' "$TAP_DIR/$CASK_REL"; then
-  die "unfilled placeholder left in $TAP_DIR/$CASK_REL"
-fi
+# render TEMPLATE OUT: drops the template's leading comment block, then fills
+# in __VERSION__, __SHA256__, __SHA256_LINUX_AMD64__, and __SHA256_LINUX_ARM64__.
+render() {
+  mkdir -p "$(dirname "$2")"
+  awk -v version="$VERSION" -v sha="$SHA256" -v amd64="$SHA256_LINUX_AMD64" -v arm64="$SHA256_LINUX_ARM64" '
+    !started && /^#/ { next }
+    {
+      started = 1
+      gsub(/__VERSION__/, version); gsub(/__SHA256__/, sha)
+      gsub(/__SHA256_LINUX_AMD64__/, amd64); gsub(/__SHA256_LINUX_ARM64__/, arm64)
+      print
+    }
+  ' "$1" >"$2"
+  if grep -q '__[A-Z0-9_]*__' "$2"; then
+    die "unfilled placeholder left in $2"
+  fi
+}
+
+step "Rendering $CASK_REL and $FORMULA_REL for $VERSION"
+render "$TEMPLATE" "$TAP_DIR/$CASK_REL"
+render "$FORMULA_TEMPLATE" "$TAP_DIR/$FORMULA_REL"
 
 # --- Checks ------------------------------------------------------------------
 
 step "Checking Ruby syntax"
 ruby -c "$TAP_DIR/$CASK_REL" >/dev/null
+ruby -c "$TAP_DIR/$FORMULA_REL" >/dev/null
 
-# brew audit only takes cask names, and reads a tap's working tree, so the
-# checkout is linked in as a temporary tap for the audit.
+# brew audit only takes cask and formula names, and reads a tap's working
+# tree, so the checkout is linked in as a temporary tap for the audit.
 step "Auditing with brew audit --cask --strict"
 TAPS="$(brew --repository)/Library/Taps"
 AUDIT_USER="nu11signal-bump-$$"
@@ -200,6 +228,9 @@ trap cleanup EXIT
 mkdir -p "$TAPS/$AUDIT_USER"
 ln -s "$TAP_DIR" "$AUDIT_TAP"
 HOMEBREW_NO_AUTO_UPDATE=1 brew audit --cask --strict "$AUDIT_USER/local/nu11signal"
+step "Auditing with brew audit --formula --strict and brew style"
+HOMEBREW_NO_AUTO_UPDATE=1 brew audit --formula --strict "$AUDIT_USER/local/nu11signal"
+HOMEBREW_NO_AUTO_UPDATE=1 brew style "$AUDIT_USER/local/nu11signal"
 cleanup
 trap - EXIT
 
@@ -208,13 +239,14 @@ push_tap() {
 }
 
 step "Changes in $TAP_DIR"
-git -C "$TAP_DIR" add -N "$CASK_REL"
-if git -C "$TAP_DIR" diff --quiet HEAD -- "$CASK_REL"; then
+git -C "$TAP_DIR" add -N "$CASK_REL" "$FORMULA_REL"
+if git -C "$TAP_DIR" diff --quiet HEAD -- "$CASK_REL" "$FORMULA_REL"; then
   if [[ -z "$UNPUSHED" ]]; then
-    echo "    $CASK_REL is already at $VERSION ($SHA256); nothing to commit"
+    echo "    $CASK_REL and $FORMULA_REL are already at $VERSION; nothing to commit"
     exit 0
   fi
-  # The committed cask matches the render: resume the push, never recommit.
+  # The committed cask and formula match the render: resume the push, never
+  # recommit.
   if [[ "$PUSH" != 1 ]]; then
     echo "An unpushed bump commit for $VERSION exists and matches the render; nothing to commit."
     echo "Not pushed. Rerun with --push (make cask VERSION=$VERSION PUSH=1) to push it."
@@ -222,10 +254,10 @@ if git -C "$TAP_DIR" diff --quiet HEAD -- "$CASK_REL"; then
   fi
   step "Pushing the earlier bump commit(s)"
   push_tap
-  echo "Pushed: brew update && brew upgrade --cask nu11signal"
+  echo "Pushed: brew update && brew upgrade --cask nu11signal (macOS) or brew upgrade nu11signal (Linux)"
   exit 0
 fi
-git -C "$TAP_DIR" --no-pager diff HEAD -- "$CASK_REL"
+git -C "$TAP_DIR" --no-pager diff HEAD -- "$CASK_REL" "$FORMULA_REL"
 
 if [[ -n "$UNPUSHED" ]]; then
   msg="the unpushed bump commit for $VERSION in $TAP_DIR does not match the render (diff above);
@@ -242,7 +274,7 @@ fi
 # --- Publish -----------------------------------------------------------------
 
 step "Committing and pushing"
-git -C "$TAP_DIR" add -- "$CASK_REL"
+git -C "$TAP_DIR" add -- "$CASK_REL" "$FORMULA_REL"
 git -C "$TAP_DIR" commit --quiet -m "chore: bump nu11signal to $VERSION"
 push_tap
-echo "Pushed: brew update && brew upgrade --cask nu11signal"
+echo "Pushed: brew update && brew upgrade --cask nu11signal (macOS) or brew upgrade nu11signal (Linux)"

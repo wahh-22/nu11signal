@@ -1,0 +1,26 @@
+# Linux release
+
+## Objective
+Ship nu11signal for Linux in the same release as macOS (user choice 2026-10-02: package Linux first, then one v0.4.0 for both).
+
+## Design
+- Linux archives built by cross-compiling with CGO_ENABLED=0 for linux/amd64 and linux/arm64 (no Swift helper; the app runs local files only on Linux): `nu11signal-<v>-linux-<arch>.tar.gz` holding `nu11signal-<v>/bin/nu11signal`, LICENSE, README.md, plus `.sha256` files, under `dist/v<v>/` next to the macOS artifacts; version stamped with -ldflags like macOS.
+- `make release VERSION=x.y.z` builds macOS (signed/notarized, unchanged) and Linux archives; a `make release-linux` target builds only Linux (no Apple credentials needed); dry-run covers both.
+- Homebrew on Linux: casks are macOS-only, so the tap gains `Formula/nu11signal.rb` (Linux only, per-arch url + sha256, installs bin/nu11signal) rendered from a template by the same bump script that renders the cask; `brew install wahh-22/tap/nu11signal` then works on Linux while macOS keeps the cask.
+- GitHub release gets all artifacts; docs (install.md, releasing.md, README) explain Linux install (brew on Linux or the tarball).
+
+## Tasks
+- [x] R1 — Linux archives in the release tooling + formula template + bump script support + hermetic script tests + docs. Route: delegated writer (writer trigger: 2+ non-trivial files across scripts, tests, packaging, docs).
+  - `scripts/release.sh`: `build_linux_archives` cross-compiles linux/{amd64,arm64} (`CGO_ENABLED=0`, same `-s -w -X main.version` ldflags) into `nu11signal-<v>-linux-<arch>.tar.gz` + `.sha256` in the same staging dir as macOS; `verify_linux_archives` checks checksum, exact entries, ELF machine (header read with `od`), and the version stamp; `--version` is never run (cross-arch). `--linux-only` (`make release-linux`, `DRY_RUN=1`/`FORCE=1`) skips all Apple checks/tools, is promoted atomically like a release, refuses an existing `dist/v<v>` without FORCE, and with FORCE copies the non-Linux entries (macOS artifacts) of the previous dir into the new one (previous dir kept as the usual backup). Full and dry-run releases build and verify the Linux archives too.
+  - `packaging/homebrew/nu11signal-formula.rb.template` → `Formula/nu11signal.rb`, installable on macOS and Linux (follow-up: the formula shares the cask's name, so on macOS `brew install wahh-22/tap/nu11signal` without `--cask` resolves to it; a Linux-only formula failed there with "formula requires at least a URL"). Top-level url + sha256 = macOS universal archive (same sha as the cask), `on_macos { depends_on macos: :sonoma }`, `on_linux { on_intel / on_arm }` url + sha256; install `prefix.install "bin", "libexec"` on macOS (internal/helper/locate.go resolves the symlink and tries `<exeDir>/../libexec/Nu11SignalHelper.app`), `bin.install "bin/nu11signal"` on Linux; caveats per OS; `--version` test. A url inside `on_macos` is rejected by `brew style` (FormulaAudit/ComponentsOrder), hence the top-level macOS url.
+  - `scripts/bump-cask.sh` renders cask + formula in one run from the same values, `ruby -c` both, audits the cask with `brew audit --cask --strict` and the formula with `brew audit --formula --strict` plus `brew style` (audit passed a variant that style rejected, so audit alone does not cover the style cops); dirty-tree, diverged, resume-unpushed, and unchanged-render rules cover both files; one bump commit holds both.
+  - Tests (RED observed first: 14 release + 12 bump failing; GREEN after): `make test-scripts` 54 passed, 0 failed (was 34). Go stub writes a fake ELF per GOARCH (`STUB_GO_WRONG_ARCH` for refusal), brew stub gains `style` and per-type audit exit codes.
+  - Real Homebrew on a rendered sample (fake sha256 values, throwaway scratchpad git repo symlinked as a temporary tap, removed afterwards): `brew style` no offenses; `brew audit --formula --strict` exit 0; `brew info --json=v2 --variations` resolves macOS → macos-universal (requires macOS >= 14), x86_64_linux → linux-amd64, arm64_linux → linux-arm64, each with its own sha256.
+  - Verification: `go build ./...` ok; `go test -race ./...` all ok; real `make release-linux VERSION=0.0.0-test DRY_RUN=1` produced both archives (`file`: ELF 64-bit x86-64 / ARM aarch64, dynamically linked with the glibc loader because oto uses purego), tar layout `nu11signal-0.0.0-test/{bin/nu11signal,LICENSE,README.md}`; build/ removed afterwards; `ruby -c` on a rendered formula: Syntax OK.
+  - Docs: docs/install.md (macOS: cask recommended, formula also works; Linux: brew formula, tarball with checksum, glibc note), docs/releasing.md (Linux artifacts, release-linux, formula), README Get started.
+  - Commit: pending (writer not authorized to commit).
+
+## Progress
+- 2026-10-02: R1 implemented and verified in the worktree; awaiting the parent's work-unit commit.
+- Created 2026-10-02 on branch `feat/linux-release` (worktree) from main 76f73ec.
+- R1 commit `3c8668e`. Review (a39eab0..3c8668e): high, 1028 lines, consent granted, 4 lenses, lineage `review-159e01fb1ca498fa`, APPROVED, acknowledged (burned). Advisories (not scheduled): version-stamp check in Linux binaries is a substring match; release-linux FORCE carries macOS files from the old directory (mixed provenance); ELF type constant unchecked; bump requires the Linux checksums.

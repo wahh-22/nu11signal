@@ -2,7 +2,8 @@
 # process per test (errexit, nounset, and pipefail are on).
 #
 # Every test runs in its own sandbox $T:
-#   $T/root   a copy of the scripts, the cask template, LICENSE, and README.md,
+#   $T/root   a copy of the scripts, the cask and formula templates, LICENSE,
+#             and README.md,
 #             so the scripts' ROOT (and ROOT/dist) is the sandbox, never the repo;
 #   $T/bin    per-test tools (bash, and git: real or stubbed), first on PATH;
 #   scripts/test/stubs  brew, ruby, go, swift, lipo, codesign, security,
@@ -21,7 +22,8 @@ mkdir -p "$T/bin" "$T/home" "$T/root/scripts" "$T/root/packaging/homebrew" "$STU
 : >"$STUB_LOG"
 ln -s "$BASH" "$T/bin/bash"
 cp "$REPO/scripts/release.sh" "$REPO/scripts/bump-cask.sh" "$T/root/scripts/"
-cp "$REPO/packaging/homebrew/nu11signal.rb.template" "$T/root/packaging/homebrew/"
+cp "$REPO/packaging/homebrew/nu11signal.rb.template" \
+  "$REPO/packaging/homebrew/nu11signal-formula.rb.template" "$T/root/packaging/homebrew/"
 cp "$REPO/LICENSE" "$REPO/README.md" "$T/root/"
 
 export HOME="$T/home"
@@ -108,6 +110,8 @@ stub_calls() {
 
 SHA_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 SHA_B="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+SHA_C="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+SHA_D="dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 
 # render_cask VERSION SHA: what bump-cask.sh is expected to write.
 render_cask() {
@@ -117,11 +121,33 @@ render_cask() {
   ' "$T/root/packaging/homebrew/nu11signal.rb.template"
 }
 
-# write_checksum VERSION SHA: the .sha256 file release.sh writes for VERSION.
-write_checksum() {
-  local archive="nu11signal-$1-macos-universal.tar.gz"
+# render_formula VERSION MACOS_SHA AMD64_SHA ARM64_SHA: the formula
+# bump-cask.sh is expected to write.
+render_formula() {
+  awk -v version="$1" -v sha="$2" -v amd64="$3" -v arm64="$4" '
+    !started && /^#/ { next }
+    {
+      started = 1
+      gsub(/__VERSION__/, version); gsub(/__SHA256__/, sha)
+      gsub(/__SHA256_LINUX_AMD64__/, amd64); gsub(/__SHA256_LINUX_ARM64__/, arm64)
+      print
+    }
+  ' "$T/root/packaging/homebrew/nu11signal-formula.rb.template"
+}
+
+# write_sha_file VERSION ARCHIVE SHA: one .sha256 file in dist/vVERSION.
+write_sha_file() {
   mkdir -p "$T/root/dist/v$1"
-  printf '%s  %s\n' "$2" "$archive" >"$T/root/dist/v$1/$archive.sha256"
+  printf '%s  %s\n' "$3" "$2" >"$T/root/dist/v$1/$2.sha256"
+}
+
+# write_checksum VERSION SHA [AMD64_SHA ARM64_SHA]: the .sha256 files
+# release.sh writes for VERSION (macOS archive SHA; Linux archives default to
+# $SHA_C and $SHA_D).
+write_checksum() {
+  write_sha_file "$1" "nu11signal-$1-macos-universal.tar.gz" "$2"
+  write_sha_file "$1" "nu11signal-$1-linux-amd64.tar.gz" "${3:-$SHA_C}"
+  write_sha_file "$1" "nu11signal-$1-linux-arm64.tar.gz" "${4:-$SHA_D}"
 }
 
 # setup_tap: a bare "origin" whose Casks/nu11signal.rb is at 0.2.0 ($SHA_A),
@@ -175,6 +201,43 @@ EOF
 
 release() {
   run "$T/root/scripts/release.sh" "$@"
+}
+
+# elf_machine FILE: the ELF machine of FILE (x86_64, aarch64), or not-elf.
+elf_machine() {
+  local hdr
+  hdr="$(od -An -tx1 -N20 "$1" | tr -d ' \n')"
+  [[ "${hdr:0:8}" == 7f454c46 ]] || { echo not-elf; return; }
+  case "${hdr:36:4}" in
+    3e00) echo x86_64 ;;
+    b700) echo aarch64 ;;
+    *) echo "machine-${hdr:36:4}" ;;
+  esac
+}
+
+# assert_linux_archive DIR VERSION ARCH: DIR holds a verified
+# nu11signal-VERSION-linux-ARCH.tar.gz with the expected layout and an ELF
+# binary for ARCH stamped with VERSION.
+assert_linux_archive() {
+  local dir="$1" v="$2" arch="$3"
+  local archive="nu11signal-$v-linux-$arch.tar.gz" machine
+  [[ -f "$dir/$archive" ]] || fail "missing $dir/$archive"
+  (cd "$dir" && shasum -a 256 -c "$archive.sha256" >/dev/null) || fail "$archive.sha256 does not verify"
+  read -r _ name <"$dir/$archive.sha256"
+  [[ "$name" == "$archive" ]] || fail "$archive.sha256 names $name"
+  [[ "$(tar -tzf "$dir/$archive" | sed 's:/$::' | LC_ALL=C sort | tr '\n' ' ')" == \
+    "nu11signal-$v nu11signal-$v/LICENSE nu11signal-$v/README.md nu11signal-$v/bin nu11signal-$v/bin/nu11signal " ]] ||
+    fail "unexpected entries in $archive: $(tar -tzf "$dir/$archive" | tr '\n' ' ')"
+  local x="$T/extract-$arch"
+  rm -rf "$x" && mkdir -p "$x"
+  tar -C "$x" -xzf "$dir/$archive"
+  [[ -x "$x/nu11signal-$v/bin/nu11signal" ]] || fail "bin/nu11signal in $archive is not executable"
+  case "$arch" in amd64) machine=x86_64 ;; arm64) machine=aarch64 ;; esac
+  [[ "$(elf_machine "$x/nu11signal-$v/bin/nu11signal")" == "$machine" ]] ||
+    fail "bin/nu11signal in $archive is $(elf_machine "$x/nu11signal-$v/bin/nu11signal"), want $machine"
+  grep -qaF "version=$v" "$x/nu11signal-$v/bin/nu11signal" || fail "bin/nu11signal in $archive is not stamped with $v"
+  grep -qE "^go GOOS=linux GOARCH=$arch CGO_ENABLED=0 build -trimpath -ldflags -s -w -X main.version=$v " "$STUB_LOG" ||
+    fail "no linux/$arch build with the release ldflags: $(grep '^go ' "$STUB_LOG")"
 }
 
 # staging_left DIR: prints any staging directory left in DIR.

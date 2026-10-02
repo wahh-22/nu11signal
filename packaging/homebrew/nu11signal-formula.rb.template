@@ -1,0 +1,64 @@
+# Homebrew formula for nu11signal. Rendered into Formula/nu11signal.rb in
+# wahh-22/homebrew-tap by `make cask VERSION=x.y.z` (scripts/bump-cask.sh),
+# which fills __VERSION__, __SHA256__ (the macOS universal archive, shared with
+# the cask), __SHA256_LINUX_AMD64__, and __SHA256_LINUX_ARM64__ from the
+# release checksums. Casks are macOS-only: Linux installs this formula, and on
+# macOS it shares its name with the cask, so `brew install` without --cask
+# must work there too. On macOS bin/ and libexec/ keep the archive's layout:
+# nu11signal resolves its symlink and finds the helper in ../libexec.
+class Nu11signal < Formula
+  desc "Cyberpunk-style terminal radio for Apple Music and local music files"
+  homepage "https://github.com/wahh-22/nu11signal"
+  # The macOS universal archive; on_linux replaces url and sha256 per
+  # architecture (a url inside on_macos is rejected by brew style).
+  url "https://github.com/wahh-22/nu11signal/releases/download/v__VERSION__/nu11signal-__VERSION__-macos-universal.tar.gz"
+  sha256 "__SHA256__"
+  license "MIT"
+
+  on_macos do
+    depends_on macos: :sonoma
+  end
+
+  on_linux do
+    on_intel do
+      url "https://github.com/wahh-22/nu11signal/releases/download/v__VERSION__/nu11signal-__VERSION__-linux-amd64.tar.gz"
+      sha256 "__SHA256_LINUX_AMD64__"
+    end
+    on_arm do
+      url "https://github.com/wahh-22/nu11signal/releases/download/v__VERSION__/nu11signal-__VERSION__-linux-arm64.tar.gz"
+      sha256 "__SHA256_LINUX_ARM64__"
+    end
+  end
+
+  def install
+    if OS.mac?
+      prefix.install "bin", "libexec"
+    else
+      bin.install "bin/nu11signal"
+    end
+  end
+
+  def caveats
+    if OS.mac?
+      <<~EOS
+        The cask is the recommended macOS install (brew install --cask
+        wahh-22/tap/nu11signal): it also installs the Kode Mono font the UI is
+        designed with. This formula installs the same signed, notarized build.
+        Nu11Signal requires an Apple Music subscription; the first launch asks
+        for access to Apple Music (Nu11SignalHelper in System Settings >
+        Privacy & Security > Media & Apple Music).
+      EOS
+    else
+      <<~EOS
+        On Linux nu11signal plays your local music files only (Apple Music needs
+        the macOS helper). It reads ~/Music, or the folders in "music_dirs" in
+        its config.json. Sound goes through PulseAudio or PipeWire
+        (pipewire-pulse), falling back to ALSA.
+      EOS
+    end
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/nu11signal --version")
+  end
+end

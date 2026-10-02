@@ -1,6 +1,7 @@
 # Tests for scripts/release.sh. Run through scripts/test/run.sh.
 
-# assert_release_layout DIR VERSION: DIR is a complete promoted release.
+# assert_release_layout DIR VERSION: DIR is a complete promoted release
+# (macOS and Linux).
 assert_release_layout() {
   local dir="$1" v="$2"
   local archive="nu11signal-$v-macos-universal.tar.gz"
@@ -10,8 +11,12 @@ assert_release_layout() {
   [[ -f "$dir/nu11signal-$v/LICENSE" && -f "$dir/nu11signal-$v/README.md" ]] || fail "missing LICENSE/README.md"
   [[ -f "$dir/$archive" ]] || fail "missing $dir/$archive"
   (cd "$dir" && shasum -a 256 -c "$archive.sha256" >/dev/null) || fail "checksum does not verify"
-  [[ "$(ls -A "$dir" | LC_ALL=C sort | tr '\n' ' ')" == "nu11signal-$v $archive $archive.sha256 " ]] ||
+  local linux="nu11signal-$v-linux"
+  [[ "$(ls -A "$dir" | LC_ALL=C sort | tr '\n' ' ')" == \
+    "nu11signal-$v $linux-amd64.tar.gz $linux-amd64.tar.gz.sha256 $linux-arm64.tar.gz $linux-arm64.tar.gz.sha256 $archive $archive.sha256 " ]] ||
     fail "unexpected entries in $dir: $(ls -A "$dir")"
+  assert_linux_archive "$dir" "$v" amd64
+  assert_linux_archive "$dir" "$v" arm64
   [[ "$(stat -f %Lp "$dir")" == 755 ]] || fail "$dir mode is $(stat -f %Lp "$dir"), want 755"
 }
 
@@ -110,6 +115,8 @@ test_release_dry_run_writes_only_the_dry_run_dir() {
   assert_status 0
   local out="$T/root/build/release-dry-run/v0.2.1/nu11signal-0.2.1"
   [[ -x "$out/bin/nu11signal" ]] || fail "missing $out/bin/nu11signal"
+  assert_linux_archive "$T/root/build/release-dry-run/v0.2.1" 0.2.1 amd64
+  assert_linux_archive "$T/root/build/release-dry-run/v0.2.1" 0.2.1 arm64
   [[ ! -e "$DIST" ]] || fail "a dry run created dist/"
   [[ "$(stub_calls 'xcrun notarytool submit')" == 0 ]] || fail "a dry run notarized"
   release --dry-run 0.2.1
@@ -165,4 +172,146 @@ test_release_refuses_when_only_a_backup_is_left() {
   assert_output_contains "mv $DIST/v0.2.1.replaced-20260101T000000 $DIST/v0.2.1"
   [[ "$(tree_hash "$DIST")" == "$before" ]] || fail "dist/ changed"
   [[ "$(stub_calls go)" == 0 ]] || fail "built before refusing"
+}
+
+test_release_rejects_an_unknown_option() {
+  setup_release
+  release --bogus 0.2.1
+  assert_status 2
+  assert_output_contains "unknown option: --bogus"
+}
+
+test_release_refuses_a_linux_binary_for_the_wrong_arch() {
+  setup_release
+  mkdir -p "$DIST"
+  local before
+  before="$(tree_hash "$DIST")"
+  STUB_GO_WRONG_ARCH=1 release 0.2.1
+  assert_failed
+  assert_output_contains "is not an x86_64 ELF executable (got: aarch64)"
+  [[ "$(stub_calls 'xcrun notarytool submit')" == 0 ]] || fail "notarized before the Linux check"
+  [[ "$(tree_hash "$DIST")" == "$before" ]] || fail "dist/ changed"
+  [[ -z "$(staging_left "$DIST")" ]] || fail "staging left behind"
+}
+
+# --- --linux-only (make release-linux) ----------------------------------------
+
+# assert_linux_release DIR VERSION: DIR holds exactly the Linux artifacts.
+assert_linux_release() {
+  local dir="$1" v="$2" linux="nu11signal-$2-linux"
+  [[ "$(ls -A "$dir" | LC_ALL=C sort | tr '\n' ' ')" == \
+    "$linux-amd64.tar.gz $linux-amd64.tar.gz.sha256 $linux-arm64.tar.gz $linux-arm64.tar.gz.sha256 " ]] ||
+    fail "unexpected entries in $dir: $(ls -A "$dir")"
+  assert_linux_archive "$dir" "$v" amd64
+  assert_linux_archive "$dir" "$v" arm64
+  [[ "$(stat -f %Lp "$dir")" == 755 ]] || fail "$dir mode is $(stat -f %Lp "$dir"), want 755"
+}
+
+test_release_linux_only_needs_no_apple_credentials() {
+  setup_release
+  rm "$T/root/signing/Nu11Signal_DeveloperID.provisionprofile"
+  release --linux-only 0.2.1
+  assert_status 0
+  assert_linux_release "$DIST/v0.2.1" 0.2.1
+  local tool
+  for tool in security xcrun codesign lipo swift spctl helper/build.sh; do
+    [[ "$(stub_calls "$tool")" == 0 ]] || fail "--linux-only called $tool: $(grep "^$tool " "$STUB_LOG")"
+  done
+  [[ "$(stub_calls 'go GOOS=darwin')" == 0 ]] || fail "--linux-only built for darwin"
+  assert_output_lacks "provisioning profile"
+  assert_output_contains "--version not run (cross-arch)"
+}
+
+test_release_linux_only_promotes_with_a_single_rename() {
+  setup_release
+  release --linux-only 0.2.1
+  assert_status 0
+  [[ "$(ls -A "$DIST")" == v0.2.1 ]] || fail "unexpected entries in dist/: $(ls -A "$DIST")"
+  [[ "$(stub_calls mv)" == 1 ]] || fail "expected exactly one mv, got: $(grep '^mv ' "$STUB_LOG")"
+  grep -qE "^mv .*/dist/\.staging-v0\.2\.1\.[^ /]+ $DIST/v0\.2\.1$" "$STUB_LOG" ||
+    fail "the one mv is not the staging dir renamed to dist/v0.2.1: $(grep '^mv ' "$STUB_LOG")"
+}
+
+test_release_linux_only_refuses_a_dirty_tree() {
+  setup_release
+  mkdir -p "$DIST"
+  STUB_GIT_DIRTY=1 release --linux-only 0.2.1
+  assert_failed
+  assert_output_contains "uncommitted changes"
+  [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"
+  [[ "$(stub_calls go)" == 0 ]] || fail "built before refusing"
+}
+
+test_release_linux_only_refuses_to_overwrite_without_force() {
+  setup_release
+  mkdir -p "$DIST/v0.2.1"
+  printf 'published\n' >"$DIST/v0.2.1/marker"
+  local before
+  before="$(tree_hash "$DIST")"
+  release --linux-only 0.2.1
+  assert_failed
+  assert_output_contains "$DIST/v0.2.1 already exists"
+  assert_output_contains "make release-linux VERSION=0.2.1 FORCE=1"
+  [[ "$(tree_hash "$DIST")" == "$before" ]] || fail "dist/ changed"
+  [[ "$(stub_calls go)" == 0 ]] || fail "built before refusing"
+}
+
+test_release_linux_only_force_keeps_the_macos_artifacts() {
+  setup_release
+  release 0.2.1
+  assert_status 0
+  local mac="$DIST/v0.2.1/nu11signal-0.2.1-macos-universal.tar.gz" before_mac before_linux
+  before_mac="$(shasum -a 256 <"$mac")"
+  before_linux="$(cat "$DIST/v0.2.1/nu11signal-0.2.1-linux-amd64.tar.gz.sha256")"
+  sleep 1 # a distinct backup timestamp and archive mtime
+  release --linux-only --force 0.2.1
+  assert_status 0
+  assert_release_layout "$DIST/v0.2.1" 0.2.1
+  [[ "$(shasum -a 256 <"$mac")" == "$before_mac" ]] || fail "the macOS archive changed"
+  [[ "$(cat "$DIST/v0.2.1/nu11signal-0.2.1-linux-amd64.tar.gz.sha256")" != "$before_linux" ]] ||
+    fail "the Linux archives were not rebuilt"
+  local backups
+  backups="$(find "$DIST" -maxdepth 1 -name 'v0.2.1.replaced-*')"
+  [[ -n "$backups" && "$(printf '%s\n' "$backups" | wc -l | tr -d ' ')" == 1 ]] ||
+    fail "expected one backup, got: $backups"
+  [[ -f "$backups/nu11signal-0.2.1-macos-universal.tar.gz" ]] || fail "the backup lacks the macOS archive"
+  assert_output_contains "kept from the previous $DIST/v0.2.1"
+}
+
+test_release_linux_only_failure_leaves_dist_untouched() {
+  setup_release
+  mkdir -p "$DIST/v0.2.0"
+  printf 'published\n' >"$DIST/v0.2.0/marker"
+  local before
+  before="$(tree_hash "$DIST")"
+  STUB_GO_WRONG_ARCH=1 release --linux-only 0.2.1
+  assert_failed
+  assert_output_contains "not an x86_64 ELF"
+  [[ "$(tree_hash "$DIST")" == "$before" ]] || fail "dist/ changed"
+  [[ -z "$(staging_left "$DIST")" ]] || fail "staging left behind: $(staging_left "$DIST")"
+  [[ "$(stub_calls mv)" == 0 ]] || fail "something was promoted"
+}
+
+test_release_linux_only_force_restores_the_previous_release_when_promotion_fails() {
+  setup_release
+  mkdir -p "$DIST/v0.2.1"
+  printf 'published\n' >"$DIST/v0.2.1/marker"
+  local before
+  before="$(tree_hash "$DIST")"
+  STUB_MV_FAIL_STAGING=1 release --linux-only --force 0.2.1
+  assert_failed
+  assert_output_contains "could not rename"
+  [[ "$(tree_hash "$DIST")" == "$before" ]] || fail "dist/ was not restored: $(ls -A "$DIST")"
+}
+
+test_release_linux_only_dry_run_writes_only_the_dry_run_dir() {
+  setup_release
+  rm "$T/root/signing/Nu11Signal_DeveloperID.provisionprofile"
+  STUB_GIT_DIRTY=1 release --linux-only --dry-run 0.2.1
+  assert_status 0
+  assert_linux_release "$T/root/build/release-dry-run/v0.2.1" 0.2.1
+  [[ ! -e "$DIST" ]] || fail "a dry run created dist/"
+  release --linux-only --dry-run 0.2.1
+  assert_status 0
+  [[ -z "$(staging_left "$T/root/build/release-dry-run")" ]] || fail "staging left behind"
 }

@@ -8,7 +8,7 @@ GO     ?= go
 BIN    := bin/nu11signal
 PKG    := ./cmd/nu11signal
 
-.PHONY: all build helper go demo test test-scripts vet fmt-check release release-dry-run cask check-version clean clean-dist
+.PHONY: all build helper go demo test test-scripts vet fmt-check release release-dry-run release-linux cask check-version clean clean-dist
 
 all: build
 
@@ -45,15 +45,19 @@ vet:
 fmt-check:
 	@out="$$(gofmt -l .)"; if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 
-## release: signed, notarized universal archive in dist/vVERSION/ (VERSION=x.y.z required; FORCE=1 replaces an existing dist/vVERSION)
+## release: signed, notarized universal macOS archive and the Linux amd64/arm64 archives in dist/vVERSION/ (VERSION=x.y.z required; FORCE=1 replaces an existing dist/vVERSION)
 release: check-version
 	./scripts/release.sh $(if $(filter 1,$(FORCE)),--force) $(VERSION)
 
-## release-dry-run: assemble the release layout ad hoc in build/release-dry-run/vVERSION, without notarizing
+## release-dry-run: assemble the release layout ad hoc (and the Linux archives) in build/release-dry-run/vVERSION, without notarizing
 release-dry-run: check-version
 	./scripts/release.sh --dry-run $(VERSION)
 
-## cask: render the Homebrew cask for VERSION (sha256 from dist/vVERSION/) into the tap checkout and audit it (PUSH=1 commits and pushes, or pushes an earlier unpushed bump)
+## release-linux: only the Linux amd64/arm64 archives in dist/vVERSION/, no Apple credentials (FORCE=1 replaces them and keeps the macOS artifacts; DRY_RUN=1 writes build/release-dry-run/vVERSION)
+release-linux: check-version
+	./scripts/release.sh --linux-only $(if $(filter 1,$(FORCE)),--force) $(if $(filter 1,$(DRY_RUN)),--dry-run) $(VERSION)
+
+## cask: render the Homebrew cask and formula (macOS and Linux) for VERSION (sha256 from dist/vVERSION/) into the tap checkout and audit them (PUSH=1 commits and pushes, or pushes an earlier unpushed bump)
 cask: check-version
 	./scripts/bump-cask.sh $(VERSION) $(if $(filter 1,$(PUSH)),--push)
 
