@@ -2,6 +2,7 @@ package radio
 
 import (
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -82,7 +83,7 @@ func TestTheSettingsPickATheme(t *testing.T) {
 		t.Fatalf("the active theme is not marked:\n%s", plain(m))
 	}
 	m, _ = step(t, m, run(t, cmd))
-	if want := (config.Config{Visualizer: "rain", Theme: "BLUE"}); len(src.saved) != 1 || src.saved[0] != want {
+	if want := (config.Config{Visualizer: "rain", Theme: "BLUE"}); len(src.saved) != 1 || !reflect.DeepEqual(src.saved[0], want) {
 		t.Fatalf("saved %+v; want one save of %+v", src.saved, want)
 	}
 	if m.status != "" {

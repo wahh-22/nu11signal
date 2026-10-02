@@ -1,7 +1,8 @@
 // Package config reads the user's settings file, config.json in the
 // nu11signal directory of the user's config directory:
 //
-//	{"visualizer": "rain", "theme": "BLUE", "update_check": false}
+//	{"visualizer": "rain", "theme": "BLUE", "update_check": false,
+//	 "music_dirs": ["~/Music", "/srv/music"]}
 //
 // The file is optional: a missing one is the defaults. nu11signal writes
 // it only when a setting is changed in the app (Save), keeping the fields
@@ -31,6 +32,10 @@ type Config struct {
 	// UpdateCheck turns the launch check for a newer release off when
 	// false; nil (left out) is on. See UpdateCheckOn.
 	UpdateCheck *bool `json:"update_check,omitempty"`
+	// MusicDirs are the folders scanned for local music files, as
+	// written (a leading ~ is the home directory, resolved by the
+	// command); nil (left out) is the command's default, ~/Music.
+	MusicDirs []string `json:"music_dirs,omitempty"`
 }
 
 // UpdateCheckOn reports whether the settings allow the update check: on
@@ -112,8 +117,8 @@ func (f *File) Save(c Config) error {
 		return err
 	}
 	// Known fields are replaced, or removed when c leaves them empty;
-	// update_check is only ever written by the user, so a save that leaves
-	// it unset keeps what the file says.
+	// update_check and music_dirs are only ever written by the user, so a
+	// save that leaves them unset keeps what the file says.
 	for _, name := range []string{"visualizer", "theme"} {
 		delete(fields, name)
 	}
