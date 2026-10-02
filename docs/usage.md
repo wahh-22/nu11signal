@@ -382,8 +382,10 @@ reads, until you upgrade:
 ◢◤◢◤ UPDATE v0.3.1 AVAILABLE // brew upgrade --cask nu11signal
 ```
 
-with the Homebrew command when the binary lives under Homebrew (a
-`Caskroom`, or `/opt/homebrew`), else the release page's URL; SETTINGS
+with the Homebrew command when the binary lives under Homebrew
+(`brew upgrade nu11signal` for the formula, installed in a `Cellar`;
+`brew upgrade --cask nu11signal` for the cask, in a `Caskroom` or
+`/opt/homebrew`), else the release page's URL; SETTINGS
 repeats it on its first line. A status message still takes the line while
 it shows. There is nothing to dismiss, and a failed check (no network, a
 rate limit) shows nothing. Startup never waits for it.

@@ -32,15 +32,34 @@ const ReleasesURL = "https://github.com/wahh-22/nu11signal/releases/latest"
 // BrewUpgrade upgrades a Homebrew cask install.
 const BrewUpgrade = "brew upgrade --cask nu11signal"
 
+// BrewUpgradeFormula upgrades a Homebrew formula install (Linux, or macOS
+// without --cask).
+const BrewUpgradeFormula = "brew upgrade nu11signal"
+
 // UpgradeCommand is the command that upgrades the binary at exe (the
-// resolved executable path): BrewUpgrade when it lives under Homebrew (a
+// resolved executable path): BrewUpgradeFormula when it is a formula's
+// keg (Cellar/nu11signal/<version>/bin/nu11signal, under any Homebrew
+// prefix), BrewUpgrade when it lives under the cask's Homebrew (a
 // Caskroom, or the /opt/homebrew prefix), else "" for "download the
 // release" (no subprocess is run to find out).
 func UpgradeCommand(exe string) string {
+	if inFormulaKeg(exe) {
+		return BrewUpgradeFormula
+	}
 	if strings.Contains(exe, "/Caskroom/") || strings.HasPrefix(exe, "/opt/homebrew/") {
 		return BrewUpgrade
 	}
 	return ""
+}
+
+// inFormulaKeg reports whether exe is .../Cellar/nu11signal/<version>/bin/nu11signal.
+func inFormulaKeg(exe string) bool {
+	_, rest, ok := strings.Cut(exe, "/Cellar/nu11signal/")
+	if !ok {
+		return false
+	}
+	version, bin, ok := strings.Cut(rest, "/")
+	return ok && version != "" && bin == "bin/nu11signal"
 }
 
 // semver is a parsed MAJOR.MINOR.PATCH with its pre-release, if any;
