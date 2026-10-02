@@ -19,8 +19,8 @@ Building the real helper needs the one-time signing setup in
 [Building from source](building.md).
 
 The UI's views are pinned by golden files in `internal/radio/testdata`. The
-README's banner, emblem, and screenshots under `docs/assets/` are rendered
-from the emblem and those goldens; after changing either, regenerate them:
+emblem icon and the screenshots under `docs/assets/` are rendered from the
+in-app emblem and those goldens; after changing either, regenerate them:
 
 ```sh
 go run ./tools/readmeart

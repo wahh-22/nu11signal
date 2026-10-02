@@ -37,9 +37,8 @@ func wellFormed(t *testing.T, name string, data []byte) {
 	}
 }
 
-// The large emblem raises 292 Braille dots and the bars beside it 60
-// (five ⣠⡾⠋, 12 dots each): one circle each.
-const emblemDotCount, barDotCount = 292, 60
+// The large emblem raises 292 Braille dots: one circle each.
+const emblemDotCount = 292
 
 func TestEmblemArtIsOneDotPerRaisedBrailleDot(t *testing.T) {
 	for _, tt := range []struct {
@@ -47,7 +46,6 @@ func TestEmblemArtIsOneDotPerRaisedBrailleDot(t *testing.T) {
 		data []byte
 		want int
 	}{
-		{"banner", banner(), emblemDotCount + barDotCount},
 		{"emblem", emblemIcon(), emblemDotCount},
 	} {
 		wellFormed(t, tt.name, tt.data)
@@ -60,9 +58,6 @@ func TestEmblemArtIsOneDotPerRaisedBrailleDot(t *testing.T) {
 		if strings.ContainsFunc(string(tt.data), braille) {
 			t.Errorf("%s: Braille drawn as text, not as dots", tt.name)
 		}
-	}
-	if strings.Contains(string(banner()), "<polygon") {
-		t.Error("banner: still draws the slants")
 	}
 }
 

@@ -1,6 +1,6 @@
 // Command readmeart renders the README's SVG art from the app itself: the
-// null emblem (radio.EmblemArt) as a banner and a square icon, and
-// terminal screenshots from the ANSI view goldens in
+// null emblem (radio.EmblemArt) as a square icon, and terminal
+// screenshots from the ANSI view goldens in
 // internal/radio/testdata. The output is deterministic, so a rerun
 // changes no bytes. Run it from the repository root:
 //
@@ -45,7 +45,6 @@ func main() {
 // render builds every asset, reading the goldens under root.
 func render(root string) ([]asset, error) {
 	assets := []asset{
-		{"docs/assets/brand/nu11signal-banner.svg", banner()},
 		{"docs/assets/brand/nu11signal-emblem.svg", emblemIcon()},
 	}
 	for _, s := range screens {
