@@ -68,20 +68,17 @@ func TestIdleEmblemShowsCenteredInTheRainArea(t *testing.T) {
 			}
 			w, h := m.vizSize()
 			art, ok := idleArtFor(w, h)
-			// The 27 x 8 area at 80x24 is narrower than the large emblem
-			// (52 cells): the compact one, NU11SIGNAL and the bars in it.
-			if w != 27 || h != 8 || !ok || !slices.Equal(art.e.rows, emblemCompact.rows) {
-				t.Fatalf("idleArtFor(%d, %d) = %+v, %v; want the compact emblem in 27 x 8", w, h, art, ok)
+			// The 27 x 8 area at 80x24 is narrower than the logo (52
+			// cells): its head alone.
+			if w != 27 || h != 8 || !ok || !slices.Equal(art.e.rows, emblemHead.rows) {
+				t.Fatalf("idleArtFor(%d, %d) = %+v, %v; want the head alone in 27 x 8", w, h, art, ok)
 			}
-			if wantX, wantY := (w-emblemCompact.width())/2, (h-len(emblemCompact.rows))/2; art.x != wantX || art.y != wantY {
+			if wantX, wantY := (w-emblemHead.width())/2, (h-len(emblemHead.rows))/2; art.x != wantX || art.y != wantY {
 				t.Fatalf("emblem at %d,%d, want centered at %d,%d", art.x, art.y, wantX, wantY)
 			}
 			rows := rainArea(t, m)
 			if !emblemAt(rows, art) {
 				t.Fatalf("rain area lacks the emblem at %d,%d:\n%s", art.x, art.y, strings.Join(rows, "\n"))
-			}
-			if !strings.Contains(strings.Join(rows, "\n"), "NU11SIGNAL") {
-				t.Fatal("rain area lacks the emblem's wordmark")
 			}
 		})
 	}
@@ -96,7 +93,7 @@ func TestPlayingBringsTheRainBack(t *testing.T) {
 		m, _ = step(t, m, tickMsg{gen: m.tickGen})
 	}
 	for _, r := range rainArea(t, m) {
-		if strings.ContainsFunc(r, brailleRune) || strings.Contains(r, "NU11SIGNAL") {
+		if strings.ContainsFunc(r, brailleRune) || strings.Contains(r, "⢾⣉⡉") {
 			t.Fatalf("playing rain area shows the emblem:\n%s", strings.Join(rainArea(t, m), "\n"))
 		}
 	}
@@ -108,28 +105,21 @@ func TestPlayingBringsTheRainBack(t *testing.T) {
 	}
 }
 
-// The idle emblem falls back by size: the large logo, else the compact
-// one, else the large then the compact head alone (no wordmark, no
-// bars), else nothing.
+// The idle emblem falls back by size: the logo, else its head alone (no
+// wordmark, no bars), else nothing.
 func TestIdleEmblemFallsBackBySize(t *testing.T) {
-	lw, lh := emblemLarge.width(), len(emblemLarge.rows)
-	cw, ch := emblemCompact.width(), len(emblemCompact.rows)
-	hw, kw := emblemLargeHead.width(), emblemCompactHead.width()
+	lw, lh := emblemLogo.width(), len(emblemLogo.rows)
+	hw := emblemHead.width()
 	for _, tc := range []struct {
 		w, h int
 		want *emblem
 	}{
-		{lw, lh, &emblemLarge},
-		{lw + 10, lh + 6, &emblemLarge},
-		{lw - 1, lh, &emblemCompact},
-		{lw, lh - 1, &emblemCompact},
-		{cw, ch, &emblemCompact},
-		{cw - 1, lh, &emblemLargeHead},
-		{cw - 1, lh - 1, &emblemCompactHead},
-		{hw - 1, lh, &emblemCompactHead},
-		{kw, ch, &emblemCompactHead},
-		{kw - 1, ch, nil},
-		{cw, ch - 1, nil},
+		{lw, lh, &emblemLogo},
+		{lw + 10, lh + 6, &emblemLogo},
+		{lw - 1, lh, &emblemHead},
+		{hw, lh, &emblemHead},
+		{hw - 1, lh, nil},
+		{lw, lh - 1, nil},
 		{0, 0, nil},
 	} {
 		art, ok := idleArtFor(tc.w, tc.h)
@@ -165,7 +155,7 @@ func TestIdleEmblemLargeInTheExpandedPlayer(t *testing.T) {
 	m := loaded(t, playbacktest.New(), newClock())
 	m.expanded = true
 	art, ok := idleArtFor(m.vizSize())
-	if !ok || !slices.Equal(art.e.rows, emblemLarge.rows) || !emblemAt(rainArea(t, m), art) {
+	if !ok || !slices.Equal(art.e.rows, emblemLogo.rows) || !emblemAt(rainArea(t, m), art) {
 		t.Fatalf("expanded player: emblem %+v, %v", art, ok)
 	}
 }
@@ -400,7 +390,7 @@ func TestPlayingRunsNoIdle(t *testing.T) {
 			t.Fatal("playing: the idle emblem is on")
 		}
 		for _, r := range rainArea(t, m) {
-			if strings.ContainsFunc(r, brailleRune) || strings.Contains(r, "NU11SIGNAL") {
+			if strings.ContainsFunc(r, brailleRune) || strings.Contains(r, "⢾⣉⡉") {
 				t.Fatal("playing: the rain area shows the emblem")
 			}
 		}
@@ -428,17 +418,18 @@ func TestIdleGolden80x24(t *testing.T) {
 
 // The idle glitch reaches the whole logo, the wordmark and the bars
 // beside the head too, and every frame corrupts at least idleNoiseMin
-// cells.
+// cells. The expanded player has room for the whole logo.
 func TestIdleGlitchReachesTheText(t *testing.T) {
 	c := newClock()
 	m := idleFxModel(t, c)
+	m.expanded = true
 	w, h := m.vizSize()
 	art, ok := idleArtFor(w, h)
-	if !ok || !slices.Equal(art.e.rows, emblemCompact.rows) {
-		t.Fatalf("the idle area %dx%d shows no emblem with its wordmark", w, h)
+	if !ok || !slices.Equal(art.e.rows, emblemLogo.rows) {
+		t.Fatalf("the idle area %dx%d shows no logo with its wordmark", w, h)
 	}
 	clean := art.lines(w, h)
-	textFrom := art.x + emblemCompactHead.width()
+	textFrom := art.x + emblemHead.width()
 	onText := 0
 	for i := range 60 {
 		rows := rainArea(t, m)

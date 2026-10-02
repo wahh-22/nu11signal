@@ -43,10 +43,7 @@ func endBoot(t *testing.T, m Model, c *clock) Model {
 // in the mask and every other cell is r or s; every row of a size is as
 // wide as the others.
 func TestEmblemMasksMatchTheirRows(t *testing.T) {
-	for name, e := range map[string]emblem{
-		"large": emblemLarge, "compact": emblemCompact,
-		"large head": emblemLargeHead, "compact head": emblemCompactHead,
-	} {
+	for name, e := range map[string]emblem{"logo": emblemLogo, "head": emblemHead} {
 		if len(e.rows) != len(e.mask) {
 			t.Fatalf("%s: %d rows, %d mask rows", name, len(e.rows), len(e.mask))
 		}
@@ -62,11 +59,11 @@ func TestEmblemMasksMatchTheirRows(t *testing.T) {
 			}
 		}
 	}
-	if got := EmblemRows(); !slices.Equal(got, emblemCompact.rows) {
-		t.Fatalf("EmblemRows() = %q; want the compact rows", got)
+	if got := EmblemRows(); !slices.Equal(got, emblemLogo.rows) {
+		t.Fatalf("EmblemRows() = %q; want the logo's rows", got)
 	}
-	if rows, mask := EmblemArt(); !slices.Equal(rows, emblemLarge.rows) || !slices.Equal(mask, emblemLarge.mask) {
-		t.Fatalf("EmblemArt() = %q %q; want the large rows and mask", rows, mask)
+	if rows, mask := EmblemArt(); !slices.Equal(rows, emblemLogo.rows) || !slices.Equal(mask, emblemLogo.mask) {
+		t.Fatalf("EmblemArt() = %q %q; want the logo's rows and mask", rows, mask)
 	}
 }
 
@@ -86,70 +83,50 @@ func raisedDots(rows []string) int {
 }
 
 // The emblem is the logo: the masked head with its headphones and LED
-// eyes, then NU11SIGNAL over five slanted bars. The large one is 52 x 8
-// cells, all Braille, the wordmark drawn in dots; the compact one 24 x 6,
-// its head Braille and NU11SIGNAL and the bars as text beside it. The
-// heads alone are the first 16 and 12 cells of their rows, a blank
+// eyes, then NU11SIGNAL over five slanted bars, 52 x 8 cells, all
+// Braille. The head alone is the first 16 cells of its rows, a blank
 // column away from the wordmark. NU11 (and the LEDs under the top row)
 // take the secondary color, the rest the primary one.
 func TestEmblemIsTheLogo(t *testing.T) {
-	for _, tt := range []struct {
-		name              string
-		e, head           emblem
-		w, h, headW, dots int
-		nameRow           int
-		nameRun, nameMask string
-		barsRun, barsMask string
+	e := emblemLogo
+	if e.width() != 52 || len(e.rows) != 8 {
+		t.Fatalf("logo %d x %d; want 52 x 8", e.width(), len(e.rows))
+	}
+	if got := raisedDots(e.rows); got != 650 {
+		t.Errorf("logo raises %d Braille dots; want 650", got)
+	}
+	if emblemHead.width() != headWidth || headWidth != 16 || len(emblemHead.rows) != 8 {
+		t.Fatalf("head %d x %d; want 16 x 8", emblemHead.width(), len(emblemHead.rows))
+	}
+	for i, row := range e.rows {
+		cells, kinds := []rune(row), []rune(e.mask[i])
+		if string(cells[:headWidth]) != emblemHead.rows[i] || string(kinds[:headWidth]) != emblemHead.mask[i] {
+			t.Errorf("head row %d = %q; want the logo row's first %d cells", i, emblemHead.rows[i], headWidth)
+		}
+		if cells[headWidth] != ' ' {
+			t.Errorf("row %d: no blank column after the head", i)
+		}
+		for _, r := range cells {
+			if r != ' ' && !brailleRune(r) {
+				t.Errorf("row %d draws %q, not a Braille cell", i, r)
+			}
+		}
+	}
+	for _, run := range []struct {
+		row         int
+		cells, mask string
 	}{
-		{"large", emblemLarge, emblemLargeHead, 52, 8, 16, 648, 3,
-			"⣿⣆⢿⢸⡇⢸⡇⠚⣿ ⠐⢻⡇ ⢾⣉⡉", "sssssssss sss rrr", "", ""},
-		{"compact", emblemCompact, emblemCompactHead, 24, 6, 12, 204, 2,
-			"NU11SIGNAL", "ssssrrrrrr", "⡾⡾⡾⡾⡾", "rrrrr"},
+		{3, "⣿⣆⢿⢸⡇⢸⡇⠴⣿ ⠠⢾⡇ ⢾⣉⡉", "sssssssss sss rrr"}, // N U 1 1 S
+		{5, "⣠⡶⢂⣴⠖⣠⡶⢂⣴⠖⣠⡶⠂", "rrrrrrrrrrrrr"},         // the bars' tops
 	} {
-		if tt.e.width() != tt.w || len(tt.e.rows) != tt.h {
-			t.Fatalf("%s emblem %d x %d; want %d x %d", tt.name, tt.e.width(), len(tt.e.rows), tt.w, tt.h)
+		at := strings.Index(e.rows[run.row], run.cells)
+		if at < 0 {
+			t.Errorf("row %d lacks %q", run.row, run.cells)
+			continue
 		}
-		if got := raisedDots(tt.e.rows); got != tt.dots {
-			t.Errorf("%s emblem raises %d Braille dots; want %d", tt.name, got, tt.dots)
-		}
-		if tt.head.width() != tt.headW || len(tt.head.rows) != tt.h {
-			t.Fatalf("%s head %d x %d; want %d x %d", tt.name, tt.head.width(), len(tt.head.rows), tt.headW, tt.h)
-		}
-		for i, row := range tt.e.rows {
-			cells, kinds := []rune(row), []rune(tt.e.mask[i])
-			if string(cells[:tt.headW]) != tt.head.rows[i] || string(kinds[:tt.headW]) != tt.head.mask[i] {
-				t.Errorf("%s head row %d = %q; want the row's first %d cells", tt.name, i, tt.head.rows[i], tt.headW)
-			}
-			if cells[tt.headW] != ' ' {
-				t.Errorf("%s row %d: no blank column after the head", tt.name, i)
-			}
-			for x, r := range cells {
-				if r != ' ' && !brailleRune(r) && (tt.name == "large" || x < tt.headW) {
-					t.Errorf("%s row %d draws %q in its art, not a Braille cell", tt.name, i, r)
-				}
-			}
-		}
-		for _, run := range []struct{ cells, mask string }{{tt.nameRun, tt.nameMask}, {tt.barsRun, tt.barsMask}} {
-			if run.cells == "" {
-				continue
-			}
-			found := false
-			for i, row := range tt.e.rows {
-				if at := strings.Index(row, run.cells); at >= 0 {
-					x := len([]rune(row[:at]))
-					got := string([]rune(tt.e.mask[i])[x : x+len([]rune(run.cells))])
-					if got != run.mask {
-						t.Errorf("%s %q masked %q; want %q", tt.name, run.cells, got, run.mask)
-					}
-					if run.cells == tt.nameRun && i != tt.nameRow {
-						t.Errorf("%s wordmark on row %d; want %d", tt.name, i, tt.nameRow)
-					}
-					found = true
-				}
-			}
-			if !found {
-				t.Errorf("%s emblem lacks %q", tt.name, run.cells)
-			}
+		x := len([]rune(e.rows[run.row][:at]))
+		if got := string([]rune(e.mask[run.row])[x : x+len([]rune(run.cells))]); got != run.mask {
+			t.Errorf("%q masked %q; want %q", run.cells, got, run.mask)
 		}
 	}
 }
@@ -178,7 +155,7 @@ func TestBrailleIsNotText(t *testing.T) {
 func TestBootShowsTheEmblemAndTheBootLine(t *testing.T) {
 	m := bootModel(t, newClock(), 80, 24, false)
 	screen := plain(m)
-	for _, want := range append(slices.Clone(emblemLarge.rows), bootLine, "LINKING") {
+	for _, want := range append(slices.Clone(emblemLogo.rows), bootLine, "LINKING") {
 		if !strings.Contains(screen, strings.TrimRight(want, " ")) {
 			t.Errorf("boot screen lacks %q:\n%s", want, screen)
 		}
@@ -251,17 +228,17 @@ func TestBootCentersTheBlockAndTheLine(t *testing.T) {
 	for _, sz := range []struct{ w, h int }{{80, 24}, {120, 40}} {
 		t.Run(fmt.Sprintf("%dx%d", sz.w, sz.h), func(t *testing.T) {
 			lines := strings.Split(plain(bootModel(t, newClock(), sz.w, sz.h, false)), "\n")
-			left := (sz.w - emblemLarge.width()) / 2
+			left := (sz.w - emblemLogo.width()) / 2
 			bodyH := sz.h - 4
-			top := 2 + (bodyH-len(emblemLarge.rows)-2)/2
-			for i, row := range emblemLarge.rows {
+			top := 2 + (bodyH-len(emblemLogo.rows)-2)/2
+			for i, row := range emblemLogo.rows {
 				if got, want := lines[top+i], strings.TrimRight(strings.Repeat(" ", left)+row, " "); got != want {
 					t.Fatalf("emblem row %d at line %d reads %q; want %q", i, top+i, got, want)
 				}
 			}
-			line := lines[top+len(emblemLarge.rows)+1]
-			if lines[top+len(emblemLarge.rows)] != "" {
-				t.Fatalf("no blank row under the emblem: %q", lines[top+len(emblemLarge.rows)])
+			line := lines[top+len(emblemLogo.rows)+1]
+			if lines[top+len(emblemLogo.rows)] != "" {
+				t.Fatalf("no blank row under the emblem: %q", lines[top+len(emblemLogo.rows)])
 			}
 			if want := strings.Repeat(" ", (sz.w-ansi.StringWidth(bootLine))/2) + bootLine; line != want {
 				t.Fatalf("BOOTING line reads %q; want %q", line, want)
@@ -270,36 +247,35 @@ func TestBootCentersTheBlockAndTheLine(t *testing.T) {
 	}
 }
 
-// Where the large emblem does not fit the compact one takes its place,
-// and the line goes plain where its spaced form does not fit.
-func TestBootFallsBackToTheCompactEmblem(t *testing.T) {
-	// 60x13 leaves a 9-row body, short of the large emblem's 10 rows;
-	// 51x20 is narrower than its 52 cells.
-	for _, sz := range []struct{ w, h int }{{60, 13}, {51, 20}} {
-		screen := plain(bootModel(t, newClock(), sz.w, sz.h, false))
-		for _, row := range emblemCompact.rows {
-			if !strings.Contains(screen, strings.TrimRight(row, " ")) {
-				t.Fatalf("%dx%d: compact boot screen lacks %q:\n%s", sz.w, sz.h, row, screen)
-			}
+// Where the logo does not fit its head alone takes its place, and the
+// line goes plain where its spaced form does not fit.
+func TestBootFallsBackToTheHead(t *testing.T) {
+	// 51x20 is narrower than the logo's 52 cells.
+	screen := plain(bootModel(t, newClock(), 51, 20, false))
+	for _, row := range emblemHead.rows {
+		if !strings.Contains(screen, strings.TrimRight(row, " ")) {
+			t.Fatalf("head-only boot screen lacks %q:\n%s", row, screen)
 		}
-		if strings.Contains(screen, strings.TrimSpace(emblemLarge.rows[3])) {
-			t.Fatalf("%dx%d: compact boot screen draws the large emblem:\n%s", sz.w, sz.h, screen)
-		}
-		if !strings.Contains(screen, bootLine) && !strings.Contains(screen, bootText) {
-			t.Fatalf("%dx%d: compact boot screen lacks the BOOTING line:\n%s", sz.w, sz.h, screen)
-		}
+	}
+	if strings.Contains(screen, "⢾⣉⡉") {
+		t.Fatalf("head-only boot screen draws the wordmark:\n%s", screen)
+	}
+	if !strings.Contains(screen, bootLine) && !strings.Contains(screen, bootText) {
+		t.Fatalf("head-only boot screen lacks the BOOTING line:\n%s", screen)
 	}
 }
 
-// Where neither emblem fits only the BOOTING line is left.
+// Where neither the logo nor its head fits only the BOOTING line is
+// left.
 func TestBootFallsBackToTheTextAlone(t *testing.T) {
-	// 40x11 leaves a 7-row body, short of the compact emblem's 8 rows.
-	lines := strings.Split(plain(bootModel(t, newClock(), 40, 11, false)), "\n")
+	// 60x13 leaves a 9-row body, short of the logo's and the head's 10
+	// rows.
+	lines := strings.Split(plain(bootModel(t, newClock(), 60, 13, false)), "\n")
 	body := strings.Join(lines[2:len(lines)-2], "\n")
-	if strings.ContainsFunc(body, brailleRune) || strings.Contains(body, "  NU11SIGNAL") {
+	if strings.ContainsFunc(body, brailleRune) {
 		t.Fatalf("text-only boot body draws the emblem:\n%s", body)
 	}
-	if !strings.Contains(body, "BOOTING NU11SIGNAL...") {
+	if !strings.Contains(body, bootLine) && !strings.Contains(body, bootText) {
 		t.Fatalf("text-only boot body lacks the BOOTING line:\n%s", body)
 	}
 }
@@ -430,10 +406,8 @@ func TestAuthorizedViewDropsTheEmblem(t *testing.T) {
 func splashBody(m Model) bool {
 	for _, l := range strings.Split(plain(m), "\n") {
 		side := ansi.Cut(l, 0, listPanelWidthFor(m.width))
-		for _, e := range []emblem{emblemLargeHead, emblemCompactHead} {
-			if strings.Contains(side, e.rows[len(e.rows)/2]) {
-				return true
-			}
+		if strings.Contains(side, emblemHead.rows[len(emblemHead.rows)/2]) {
+			return true
 		}
 	}
 	return false
@@ -467,14 +441,14 @@ func TestEmblemTakesTheThemeColors(t *testing.T) {
 			m := bootModel(t, newClock(), 80, 24, false)
 			useTheme(t, tt.theme)
 			screen := m.render()
-			frame, nu11 := stLogo.Render("⣿⣿⣿⠠⢀⢀"), stLogoAlt.Render("⣿⣆⢿⢸⡇⢸⡇⠚⣿")
+			frame, nu11 := stLogo.Render("⣿⣿⣼⢀"), stLogoAlt.Render("⣿⣆⢿⢸⡇⢸⡇⠴⣿")
 			if !strings.Contains(frame, tt.logo) || !strings.Contains(nu11, tt.logoAlt) {
 				t.Fatalf("styles %q %q lack the theme's logo colors", frame, nu11)
 			}
-			if want := frame + "    " + stLogo.Render("⡀⡀⠄⣿⣿⣿") + " " + nu11; !strings.Contains(screen, want) {
+			if want := frame + "        " + stLogo.Render("⡀⣧⣿⣿") + " " + nu11; !strings.Contains(screen, want) {
 				t.Fatalf("the fourth emblem row is not frame then NU11 colored:\n%s", screen)
 			}
-			if !strings.Contains(screen, stLogoAlt.Render("⠨⢐⢐⠨")) {
+			if !strings.Contains(screen, stLogoAlt.Render("⢐⠨⠨⢐")) {
 				t.Fatalf("the lower LEDs are not logoAlt colored:\n%s", screen)
 			}
 		})

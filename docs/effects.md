@@ -16,8 +16,8 @@ frame, so clicks and keys work during a burst.
 
 At launch nu11signal boots: for about 1.5 s the body shows the logo drawn
 in Braille dots, the masked head with its headphones and LED eyes beside
-`NU11SIGNAL` and five slanted bars, in the theme's logo colors (the compact
-logo on a smaller terminal, the line alone where neither fits), with
+`NU11SIGNAL` and five slanted bars, in the theme's logo colors (the head
+alone where the whole logo does not fit, the line alone where neither does), with
 `BOOTING NU11SIGNAL...`, spaced out and bright, under it, glitching from the first frame (torn
 emblem rows, dense Braille noise cells, now and then a static bar, at about 15 fps), then
 the normal UI scrambles in, whether Apple Music has linked yet or not
@@ -72,9 +72,9 @@ animation tick slows down to once a second.
 
 While no music plays (paused, stopped, nothing loaded) the spectrum area
 shows the logo, the masked head with `NU11SIGNAL` and five bars beside it,
-centered, in place of the rain: the large logo where it fits (the expanded
-player), else the compact one (the 80x24 player), else the head alone without
-the wordmark, else nothing, on blank cells. With the effects on the whole logo
+centered, in place of the rain: the whole logo where it fits (the expanded
+player), else the head alone without the wordmark and the bars (the 80x24
+player), else nothing, on blank cells. With the effects on the whole logo
 glitches all the time: every frame one to four dense Braille cells flicker
 over the head, the wordmark and the bars and, on about one frame in three, one of its
 rows tears a cell sideways. The tick

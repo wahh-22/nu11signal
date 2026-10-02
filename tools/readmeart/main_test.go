@@ -37,8 +37,8 @@ func wellFormed(t *testing.T, name string, data []byte) {
 	}
 }
 
-// The large emblem raises 648 Braille dots: one circle each.
-const emblemDotCount = 648
+// The logo raises 650 Braille dots: one circle each.
+const emblemDotCount = 650
 
 func TestEmblemArtIsOneDotPerRaisedBrailleDot(t *testing.T) {
 	for _, tt := range []struct {

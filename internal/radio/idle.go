@@ -82,11 +82,11 @@ type idleArt struct {
 	x, y int
 }
 
-// idleArtFor places the idle emblem in an area w x h, centered: the large
-// logo where it fits, else the compact one, else the large then the
-// compact head alone (no wordmark, no bars); false where none fits.
+// idleArtFor places the idle emblem in an area w x h, centered: the logo
+// where it fits, else its head alone (no wordmark, no bars); false where
+// neither fits.
 func idleArtFor(w, h int) (idleArt, bool) {
-	for _, e := range []emblem{emblemLarge, emblemCompact, emblemLargeHead, emblemCompactHead} {
+	for _, e := range []emblem{emblemLogo, emblemHead} {
 		if e.width() <= w && len(e.rows) <= h {
 			return idleArt{e: e, x: (w - e.width()) / 2, y: (h - len(e.rows)) / 2}, true
 		}

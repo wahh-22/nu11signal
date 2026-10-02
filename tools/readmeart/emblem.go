@@ -36,7 +36,7 @@ func brailleCell(b *strings.Builder, r rune, x, y, dx, dy, rad float64, fill str
 	}
 }
 
-// emblemDots draws the large emblem, the logo, at (x0, y0) as dots: each
+// emblemDots draws the emblem, the logo, at (x0, y0) as dots: each
 // Braille cell its 2 x 4 grid of pitch d (a cell 2d wide and 4d tall,
 // a terminal cell's shape), one circle per raised dot, in the logo's
 // NIGHT CITY colors as the app paints it: the primary (r, red) for the
@@ -58,7 +58,7 @@ func emblemDots(x0, y0, d float64) string {
 	return b.String()
 }
 
-// emblemSize is the large emblem's size in cells.
+// emblemSize is the logo's size in cells.
 func emblemSize() (w, h int) {
 	rows, _ := radio.EmblemArt()
 	return len([]rune(rows[0])), len(rows)

@@ -11,7 +11,7 @@
 // player instead. --calm (or
 // NU11SIGNAL_CALM=1) starts with the signal effects off; x toggles them.
 // --version prints the release version stamped at link time: under the
-// compact Braille logo on a terminal, the bare version line otherwise. A release
+// Braille logo on a terminal, the bare version line otherwise. A release
 // build checks once a day for a newer release (see internal/update) unless
 // NU11SIGNAL_NO_UPDATE_CHECK=1 or "update_check": false in config.json.
 package main
@@ -237,11 +237,10 @@ func parseFlags(args []string, output io.Writer) (options, error) {
 	return opts, nil
 }
 
-// printVersion writes the version: on a terminal, the compact Braille
-// emblem (the logo with NU11SIGNAL and the bars in it) and the version
-// (v-prefixed when it is a number) under the bars, in NU11SIGNAL's
-// column; elsewhere the bare version line, which scripts and release.sh
-// read.
+// printVersion writes the version: on a terminal, the Braille logo and
+// the version (v-prefixed when it is a number) under the bars, in the
+// wordmark's column (see wordmarkAt); elsewhere the bare version line,
+// which scripts and release.sh read.
 func printVersion(w io.Writer, terminal bool) {
 	if !terminal {
 		fmt.Fprintln(w, version)
@@ -252,21 +251,51 @@ func printVersion(w io.Writer, terminal bool) {
 		shown = "v" + shown
 	}
 	rows := radio.EmblemRows()
-	for i, row := range rows {
-		at := strings.Index(row, "NU11SIGNAL")
-		if at < 0 || i+2 >= len(rows) {
-			continue
-		}
-		col := len([]rune(row[:at]))
-		under := []rune(rows[i+2])
-		rows[i+2] = string(under[:min(col, len(under))]) + shown
-		break
+	col, below := wordmarkAt(rows)
+	if below == len(rows) {
+		rows = append(rows, "")
 	}
+	under := []rune(rows[below])
+	under = append(under, []rune(strings.Repeat(" ", max(col-len(under), 0)))...)
+	rows[below] = string(under[:col]) + shown
 	var b strings.Builder
 	for _, row := range rows {
 		b.WriteString(strings.TrimRight(row, " ") + "\n")
 	}
 	io.WriteString(w, b.String())
+}
+
+// wordmarkAt finds the wordmark in the logo's rows: col, the first
+// column after the blank column that parts it from the head, and below,
+// the first row under everything drawn from col on (len(rows) when the
+// wordmark reaches the last row).
+func wordmarkAt(rows []string) (col, below int) {
+	cells := make([][]rune, len(rows))
+	width := 0
+	for i, row := range rows {
+		cells[i] = []rune(row)
+		width = max(width, len(cells[i]))
+	}
+	drawn := func(x int) bool {
+		for _, r := range cells {
+			if x < len(r) && r[x] != ' ' {
+				return true
+			}
+		}
+		return false
+	}
+	for x := 1; x < width; x++ {
+		if !drawn(x-1) && drawn(x) {
+			col = x
+			break
+		}
+	}
+	for i, r := range cells {
+		if col < len(r) && strings.TrimSpace(string(r[col:])) != "" {
+			below = i + 1
+		}
+	}
+	return col, below
 }
 
 // isTerminal reports whether f is a terminal (a character device).

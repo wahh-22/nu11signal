@@ -13,108 +13,73 @@ import (
 // and the bars; logoAlt, the secondary, for NU11 and the other LED rows,
 // see theme). The boot and shutdown splashes draw it (see splash,
 // boot.go and shutdown.go), the spectrum area shows it while no music
-// plays (see idle.go), and nu11signal --version prints the compact one
-// (see EmblemRows).
+// plays (see idle.go), and nu11signal --version prints it (see
+// EmblemRows). Where it does not fit, the head alone takes its place
+// (emblemHead), else nothing.
 //
-//	  ⢀⡴⠟⣉⡥⠤⠤⢬⣉⠻⢦⡀
-//	 ⣰⠏⡠⠊⠁    ⠈⠑⢄⠹⣆
-//	⣰⣏⢰⠁        ⠈⡆⣹⣆
-//	⣿⣿⣿⠠⢀⢀    ⡀⡀⠄⣿⣿⣿ ⣿⣆⢿⢸⡇⢸⡇⠚⣿ ⠐⢻⡇ ⢾⣉⡉⠈⢹⡏⠁⣾⢉⣉⢸⣷⡸⡇⣾⠉⣷⢸⡇
-//	⣿⣿⣿⠨⢐⢐⠨  ⠅⡂⡂⠅⣿⣿⣿ ⣿⠘⣿⠸⣧⣼⠇⣤⣿⣤⢠⣼⣧⡄⣀⣀⡿⢀⣸⣇⡀⢿⣀⣿⢸⡇⢻⡇⣿⠉⣿⢸⣇⣀⡀
-//	⠛⠛⠻⡈⠐⠐⠨  ⠅⠂⠂⢁⠟⠛⠛             ⣠⡶⢂⣴⠖⣠⡶⢂⣴⠖⣠⡶⠂
-//	   ⠙⢆      ⡰⠋               ⠚⠋⠐⠛⠁⠚⠋⠐⠛⠁⠚⠋
-//	    ⠈⠣⠤⠤⠤⠤⠜⠁
+//	   ⢀⣠⡴⠶⠒⠒⠶⢦⣄⡀
+//	  ⣴⢟⡥⠚⠉⠉⠉⠉⠓⢬⡻⣦
+//	 ⣼⢣⠎        ⠱⡜⣧
+//	⣿⣿⣼⢀        ⡀⣧⣿⣿ ⣿⣆⢿⢸⡇⢸⡇⠴⣿ ⠠⢾⡇ ⢾⣉⡉⠈⢹⡏⠁⣾⢉⣉⢸⣷⡸⡇⣾⠉⣿⢸⡇
+//	⣿⣿⣿⢐⠨⠨⢐  ⡂⠅⠅⡂⣿⣿⣿ ⣿⠘⣿⠘⢧⣸⡇⣀⣿⣀⢀⣸⣇⡀⣀⣀⡿⢀⣸⣇⡀⢿⣀⣿⢸⡇⢻⡇⣿⠉⣿⠸⣇⣀⡀
+//	⠿⠿⢿⠐⠨⠨⢐  ⡂⠅⠅⠂⡿⠿⠿             ⣠⡶⢂⣴⠖⣠⡶⢂⣴⠖⣠⡶⠂
+//	   ⠳⡄      ⢠⠞               ⠚⠋⠐⠛⠁⠚⠋⠐⠛⠁⠚⠋
+//	    ⠘⢆⣀⣀⣀⣀⡰⠃
 //
 //	     B O O T I N G   N U 1 1 S I G N A L . . .
-//
-// The compact one writes the wordmark as text and the bars as five
-// Braille slants:
-//
-//	 ⢀⡴⢋⡩⠥⠬⢍⡙⢦⡀
-//	⢠⠏⡴⠉    ⠉⢦⠹⡄
-//	⣿⣧⡇⠄⡀⡀⢀⢀⠠⢸⣼⣿  NU11SIGNAL
-//	⣿⣿⡇⠅⡂⡂⢐⢐⠨⢸⣿⣿    ⡾⡾⡾⡾⡾
-//	  ⠱⡄    ⢠⠎
-//	   ⠘⠦⠤⠤⠴⠃
 
 // An emblem is the logo drawn cell by cell: rows of one-cell Braille
-// patterns (U+2800..U+28FF, each a 2 x 4 dot grid) or, in the compact
-// wordmark, letters, all as wide, and for each a mask as wide naming what
-// each cell draws, r the logo's primary color, s its secondary one and a
-// space nothing.
+// patterns (U+2800..U+28FF, each a 2 x 4 dot grid), all as wide, and for
+// each a mask as wide naming what each cell draws, r the logo's primary
+// color, s its secondary one and a space nothing.
 type emblem struct {
 	rows, mask []string
 }
 
-// emblemLarge (52 x 8 cells: the head 16 x 8, a 32 x 32 dot grid, the
-// wordmark in a bold 6 x 8 dot font on rows 3-4 and the bars on rows
-// 5-6) and emblemCompact (24 x 6: the head 12 x 6, NU11SIGNAL as text on
-// row 2 and the bars on row 3) are the two sizes of the logo.
-// emblemLargeHead and emblemCompactHead are their heads alone, the
-// first headLarge and headCompact cells of their rows, for the areas too
-// narrow for the wordmark (see idleArtFor).
+// emblemLogo is the logo, 52 x 8 cells: the head 16 x 8, a 32 x 32 dot
+// grid, then a blank column, the wordmark in a bold 6 x 8 dot font after
+// Kode Mono Bold on rows 3-4 and the bars on rows 5-6. emblemHead is its
+// head alone, the first headWidth cells of its rows, for the areas too
+// narrow for the wordmark.
 var (
-	emblemLarge = emblem{
+	emblemLogo = emblem{
 		rows: []string{
-			"  ⢀⡴⠟⣉⡥⠤⠤⢬⣉⠻⢦⡀                                      ",
-			" ⣰⠏⡠⠊⠁    ⠈⠑⢄⠹⣆                                     ",
-			"⣰⣏⢰⠁        ⠈⡆⣹⣆                                    ",
-			"⣿⣿⣿⠠⢀⢀    ⡀⡀⠄⣿⣿⣿ ⣿⣆⢿⢸⡇⢸⡇⠚⣿ ⠐⢻⡇ ⢾⣉⡉⠈⢹⡏⠁⣾⢉⣉⢸⣷⡸⡇⣾⠉⣷⢸⡇  ",
-			"⣿⣿⣿⠨⢐⢐⠨  ⠅⡂⡂⠅⣿⣿⣿ ⣿⠘⣿⠸⣧⣼⠇⣤⣿⣤⢠⣼⣧⡄⣀⣀⡿⢀⣸⣇⡀⢿⣀⣿⢸⡇⢻⡇⣿⠉⣿⢸⣇⣀⡀",
-			"⠛⠛⠻⡈⠐⠐⠨  ⠅⠂⠂⢁⠟⠛⠛             ⣠⡶⢂⣴⠖⣠⡶⢂⣴⠖⣠⡶⠂          ",
-			"   ⠙⢆      ⡰⠋               ⠚⠋⠐⠛⠁⠚⠋⠐⠛⠁⠚⠋            ",
-			"    ⠈⠣⠤⠤⠤⠤⠜⠁                                        ",
+			"   ⢀⣠⡴⠶⠒⠒⠶⢦⣄⡀                                       ",
+			"  ⣴⢟⡥⠚⠉⠉⠉⠉⠓⢬⡻⣦                                      ",
+			" ⣼⢣⠎        ⠱⡜⣧                                     ",
+			"⣿⣿⣼⢀        ⡀⣧⣿⣿ ⣿⣆⢿⢸⡇⢸⡇⠴⣿ ⠠⢾⡇ ⢾⣉⡉⠈⢹⡏⠁⣾⢉⣉⢸⣷⡸⡇⣾⠉⣿⢸⡇  ",
+			"⣿⣿⣿⢐⠨⠨⢐  ⡂⠅⠅⡂⣿⣿⣿ ⣿⠘⣿⠘⢧⣸⡇⣀⣿⣀⢀⣸⣇⡀⣀⣀⡿⢀⣸⣇⡀⢿⣀⣿⢸⡇⢻⡇⣿⠉⣿⠸⣇⣀⡀",
+			"⠿⠿⢿⠐⠨⠨⢐  ⡂⠅⠅⠂⡿⠿⠿             ⣠⡶⢂⣴⠖⣠⡶⢂⣴⠖⣠⡶⠂          ",
+			"   ⠳⡄      ⢠⠞               ⠚⠋⠐⠛⠁⠚⠋⠐⠛⠁⠚⠋            ",
+			"    ⠘⢆⣀⣀⣀⣀⡰⠃                                        ",
 		},
 		mask: []string{
+			"   rrrrrrrrrr                                       ",
 			"  rrrrrrrrrrrr                                      ",
-			" rrrrr    rrrrr                                     ",
-			"rrrr        rrrr                                    ",
-			"rrrrrr    rrrrrr sssssssss sss rrrrrrrrrrrrrrrrrrr  ",
+			" rrr        rrr                                     ",
+			"rrrr        rrrr sssssssss sss rrrrrrrrrrrrrrrrrrr  ",
 			"rrrssss  ssssrrr ssssssssssssssrrrrrrrrrrrrrrrrrrrrr",
 			"rrrssss  ssssrrr             rrrrrrrrrrrrr          ",
 			"   rr      rr               rrrrrrrrrrrr            ",
 			"    rrrrrrrr                                        ",
 		},
 	}
-	emblemCompact = emblem{
-		rows: []string{
-			" ⢀⡴⢋⡩⠥⠬⢍⡙⢦⡀             ",
-			"⢠⠏⡴⠉    ⠉⢦⠹⡄            ",
-			"⣿⣧⡇⠄⡀⡀⢀⢀⠠⢸⣼⣿  NU11SIGNAL",
-			"⣿⣿⡇⠅⡂⡂⢐⢐⠨⢸⣿⣿    ⡾⡾⡾⡾⡾   ",
-			"  ⠱⡄    ⢠⠎              ",
-			"   ⠘⠦⠤⠤⠴⠃               ",
-		},
-		mask: []string{
-			" rrrrrrrrrr             ",
-			"rrrr    rrrr            ",
-			"rrrrrrrrrrrr  ssssrrrrrr",
-			"rrrssssssrrr    rrrrr   ",
-			"  rr    rr              ",
-			"   rrrrrr               ",
-		},
-	}
-	emblemLargeHead   = emblemLarge.head(headLarge)
-	emblemCompactHead = emblemCompact.head(headCompact)
+	emblemHead = emblemLogo.head(headWidth)
 )
 
-// headLarge and headCompact are the widths of the head in the large and
-// the compact emblem; a blank column parts it from the wordmark.
-const (
-	headLarge   = 16
-	headCompact = 12
-)
+// headWidth is the width of the logo's head; a blank column parts it
+// from the wordmark.
+const headWidth = 16
 
-// EmblemRows are the plain rows of the compact emblem, NU11SIGNAL and
-// the bars included, as wide as each other, for the command line to
-// print (nu11signal --version).
-func EmblemRows() []string { return append([]string(nil), emblemCompact.rows...) }
+// EmblemRows are the plain rows of the logo, as wide as each other, for
+// the command line to print (nu11signal --version).
+func EmblemRows() []string { return append([]string(nil), emblemLogo.rows...) }
 
-// EmblemArt is the large emblem cell by cell, for the README art
+// EmblemArt is the logo cell by cell, for the README art
 // (tools/readmeart): its rows of Braille cells and, as wide, their masks
 // (r the logo's primary color, s its secondary one, a space nothing).
 func EmblemArt() (rows, mask []string) {
-	return append([]string(nil), emblemLarge.rows...), append([]string(nil), emblemLarge.mask...)
+	return append([]string(nil), emblemLogo.rows...), append([]string(nil), emblemLogo.mask...)
 }
 
 // head is the emblem cut to its first w cells: the head without the
@@ -166,11 +131,11 @@ func paintRow(row, mask string) string {
 }
 
 // splash renders the body of the boot or shutdown splash, w x h cells:
-// the large emblem, centered on the width, and one blank row under it
-// the line text (bootText or shutdownText, see
-// splashText), centered on the width on its own; together they are
-// centered on the height. The compact emblem takes the large one's place
-// where that does not fit, and only the line is left where neither does.
+// the logo, centered on the width, and one blank row under it the line
+// text (bootText or shutdownText, see splashText), centered on the width
+// on its own; together they are centered on the height. The head alone
+// takes the logo's place where that does not fit, and only the line is
+// left where neither does.
 // The line is spaced out where it fits, plain otherwise, and drawn bright
 // (stHiBold, the transport's cyan in bold) so it reads clearly under the
 // emblem.
@@ -180,7 +145,7 @@ func splash(w, h int, text string) []string {
 		line = text
 	}
 	var block []string
-	for _, e := range []emblem{emblemLarge, emblemCompact} {
+	for _, e := range []emblem{emblemLogo, emblemHead} {
 		if e.width() <= w && len(e.rows)+2 <= h {
 			pad := strings.Repeat(" ", (w-e.width())/2)
 			for _, l := range e.block() {
