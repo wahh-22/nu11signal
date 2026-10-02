@@ -18,6 +18,11 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/sponsors/wahh-22"><img src="https://img.shields.io/badge/sponsor-%E2%99%A5-FF5F57?style=for-the-badge&labelColor=0A0A0A&logo=githubsponsors&logoColor=FF5F57" alt="Sponsor on GitHub"></a>
+  <a href="https://buymeacoffee.com/wahh.dev"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-%E2%98%95-FCEE0A?style=for-the-badge&labelColor=0A0A0A&logo=buymeacoffee&logoColor=FCEE0A" alt="Buy me a coffee"></a>
+</p>
+
+<p align="center">
   <strong>
     <a href="https://nu11signal.wahh.dev/">Website</a>
     &nbsp;·&nbsp;
@@ -26,6 +31,8 @@
     <a href="#documentation">Docs</a>
     &nbsp;·&nbsp;
     <a href="https://github.com/wahh-22/nu11signal/releases">Releases</a>
+    &nbsp;·&nbsp;
+    <a href="#support-the-signal">Support</a>
   </strong>
 </p>
 
@@ -40,6 +47,13 @@
 </p>
 
 > macOS only. Requires an Apple Music subscription. Not affiliated with Apple.
+
+## Support the signal
+
+Nu11Signal is free and open source. If it plays in your terminal and you
+want to keep it on air, you can
+[sponsor on GitHub](https://github.com/sponsors/wahh-22) or
+[buy me a coffee](https://buymeacoffee.com/wahh.dev).
 
 ## Features
 
@@ -192,13 +206,6 @@ bin/nu11signal     # play for real
 Issues and pull requests are welcome. Start with `make demo`, and run
 `make test` before opening a pull request; see
 [Contributing](docs/contributing.md).
-
-## Support the signal
-
-Nu11Signal is free and open source. If it plays in your terminal and you
-want to keep it on air, you can
-[sponsor on GitHub](https://github.com/sponsors/wahh-22) or
-[buy me a coffee](https://buymeacoffee.com/wahh.dev).
 
 ## License
 
