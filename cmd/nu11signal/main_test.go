@@ -110,3 +110,67 @@ func TestRunVersionAsksWhetherStdoutIsATerminal(t *testing.T) {
 		t.Errorf("without a terminal check run(--version) wrote %q; want the bare version", out.String())
 	}
 }
+
+func TestWordmarkAt(t *testing.T) {
+	tests := []struct {
+		name      string
+		rows      []string
+		col, rest int
+		ok        bool
+	}{
+		{
+			name: "a free row under the wordmark",
+			rows: []string{"HH WORD", "HH WORD", "HH", "HH"},
+			col:  3, rest: 2, ok: true,
+		},
+		{
+			// The wordmark reaches the last row: below is len(rows), and
+			// the version needs a row of its own.
+			name: "no free row under the bars",
+			rows: []string{"HH", "HH WORD", "HH WORD"},
+			col:  3, rest: 3, ok: true,
+		},
+		{
+			// Nothing parts a head from a wordmark: no column to align to.
+			name: "no blank column",
+			rows: []string{"HEADWORD", "HEADWORD"},
+			ok:   false,
+		},
+		{
+			name: "no art at all",
+			rows: nil,
+			ok:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			col, below, ok := wordmarkAt(tt.rows)
+			if ok != tt.ok || (ok && (col != tt.col || below != tt.rest)) {
+				t.Fatalf("wordmarkAt(%q) = %d, %d, %v; want %d, %d, %v", tt.rows, col, below, ok, tt.col, tt.rest, tt.ok)
+			}
+		})
+	}
+}
+
+// The version line is never dropped: under the wordmark when the art has
+// one (in a row of its own when the wordmark reaches the last row), on its
+// own line under the art otherwise.
+func TestLogoWithVersion(t *testing.T) {
+	tests := []struct {
+		name string
+		rows []string
+		want string
+	}{
+		{"in the free row", []string{"HH WORD", "HH"}, "HH WORD\nHH v1.2.3\n"},
+		{"in an added row", []string{"HH", "HH WORD"}, "HH\nHH WORD\n   v1.2.3\n"},
+		{"on its own line without a wordmark", []string{"HEADWORD"}, "HEADWORD\nv1.2.3\n"},
+		{"alone without art", nil, "v1.2.3\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := logoWithVersion(tt.rows, "v1.2.3"); got != tt.want {
+				t.Fatalf("logoWithVersion(%q) = %q; want %q", tt.rows, got, tt.want)
+			}
+		})
+	}
+}

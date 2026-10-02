@@ -252,7 +252,7 @@ func noOutput() error {
 	if runtime.GOOS == "linux" {
 		hint = "is PulseAudio or PipeWire running?"
 	}
-	return fmt.Errorf("%w // %s", playback.ErrNoOutput, hint)
+	return &playback.NoOutputError{Hint: hint}
 }
 
 // render fills dst with the next stereo frames; the sink calls it.

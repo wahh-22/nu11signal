@@ -449,15 +449,17 @@ func (m Model) playCmd(seq uint64, op, station string, queue []playback.Song, re
 // failure is the status line for a failed player call (op, as "PLAY"
 // FAILED) or an asynchronous player error (op "SIGNAL ERROR", which does
 // not take FAILED). An audio output that does not work stands alone, as
-// what the user can act on: "NO AUDIO OUTPUT // " and the player's hint
-// (see playback.ErrNoOutput).
+// what the user can act on: "NO AUDIO OUTPUT", then " // " and the
+// player's hint when it gives one (see playback.NoOutputError).
 func failure(op string, err error) string {
-	text := err.Error()
 	if errors.Is(err, playback.ErrNoOutput) {
-		if i := strings.LastIndex(text, playback.ErrNoOutput.Error()); i >= 0 {
-			return strings.ToUpper(text[i:])
+		var hinted *playback.NoOutputError
+		if !errors.As(err, &hinted) {
+			hinted = &playback.NoOutputError{}
 		}
+		return strings.ToUpper(hinted.Error())
 	}
+	text := err.Error()
 	if op == "SIGNAL ERROR" {
 		return op + " // " + text
 	}

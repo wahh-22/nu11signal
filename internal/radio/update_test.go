@@ -427,7 +427,8 @@ func TestAsyncErrorsShowInStatusLineAndRearm(t *testing.T) {
 }
 
 func TestNoAudioOutputShowsItsHint(t *testing.T) {
-	noOutput := fmt.Errorf("local: the audio output took no audio for 5s: %w // is PulseAudio or PipeWire running?", playback.ErrNoOutput)
+	hint := &playback.NoOutputError{Hint: "is PulseAudio or PipeWire running?"}
+	noOutput := fmt.Errorf("local: the audio output took no audio for 5s: %w", hint)
 	const want = "NO AUDIO OUTPUT // IS PULSEAUDIO OR PIPEWIRE RUNNING?"
 
 	f := playbacktest.New()
@@ -440,12 +441,37 @@ func TestNoAudioOutputShowsItsHint(t *testing.T) {
 	}
 
 	f = playbacktest.New()
-	f.MethodErr = map[string]error{"Next": fmt.Errorf("local: audio output did not open within 5s: %w // is PulseAudio or PipeWire running?", playback.ErrNoOutput)}
+	f.MethodErr = map[string]error{"Next": fmt.Errorf("local: audio output did not open within 5s: %w", hint)}
 	m = loaded(t, f, newClock())
 	m, cmd := press(t, m, "n")
 	m, _ = step(t, m, run(t, cmd))
 	if view := m.render(); !strings.Contains(view, want) {
 		t.Fatalf("failed call with no output: status line lacks %q:\n%s", want, view)
+	}
+}
+
+// The no-output status comes from the error's typed hint, never from its
+// text: whatever the text says, the hint (or none) is what shows.
+func TestFailureBuildsTheNoOutputStatusFromTheTypedHint(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			"the hint, not the text around it",
+			fmt.Errorf("no audio output // stale text: %w", &playback.NoOutputError{Hint: "check the output device"}),
+			"NO AUDIO OUTPUT // CHECK THE OUTPUT DEVICE",
+		},
+		{"without a hint", fmt.Errorf("local: %w: device busy", playback.ErrNoOutput), "NO AUDIO OUTPUT"},
+		{"another error", errors.New("nothing queued"), "PLAY FAILED // nothing queued"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := failure("PLAY", tt.err); got != tt.want {
+				t.Fatalf("failure(PLAY, %v) = %q; want %q", tt.err, got, tt.want)
+			}
+		})
 	}
 }
 

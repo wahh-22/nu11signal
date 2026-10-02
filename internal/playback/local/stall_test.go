@@ -163,3 +163,36 @@ func TestAwaitOutputBoundsTheOpen(t *testing.T) {
 		t.Fatalf("open that finished: error = %v", err)
 	}
 }
+
+// A play that stops waiting while the output is still opening leaves it
+// open to a later play; a context that failed fails for good. Both wrap
+// playback.ErrNoOutput with its hint.
+func TestSettleOutput(t *testing.T) {
+	never := make(chan struct{})
+	fired := make(chan time.Time, 1)
+	fired <- time.Time{}
+	failed, err := settleOutput(never, fired, func() error { t.Fatal("Err asked before ready"); return nil })
+	if failed != nil || !errors.Is(err, playback.ErrNoOutput) {
+		t.Fatalf("still opening: failed %v, err %v; want no failure, an error wrapping playback.ErrNoOutput", failed, err)
+	}
+
+	ready := make(chan struct{})
+	close(ready)
+	broken := errors.New("pulse: connection refused")
+	failed, err = settleOutput(ready, make(chan time.Time), func() error { return broken })
+	var hint *playback.NoOutputError
+	if failed == nil || err != failed || !errors.Is(err, broken) || !errors.As(err, &hint) || hint.Hint == "" {
+		t.Fatalf("failed context: failed %v, err %v; want the same error wrapping %v and a NoOutputError with a hint", failed, err, broken)
+	}
+
+	if failed, err = settleOutput(ready, make(chan time.Time), func() error { return nil }); failed != nil || err != nil {
+		t.Fatalf("open context: failed %v, err %v; want neither", failed, err)
+	}
+}
+
+func TestNoOutputCarriesItsHint(t *testing.T) {
+	var hint *playback.NoOutputError
+	if err := noOutput(); !errors.Is(err, playback.ErrNoOutput) || !errors.As(err, &hint) || hint.Hint == "" {
+		t.Fatalf("noOutput() = %v; want a NoOutputError with a hint, wrapping playback.ErrNoOutput", err)
+	}
+}

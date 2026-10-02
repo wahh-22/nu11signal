@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -161,6 +162,30 @@ func TestEveryThemeHasAMainScreenRender(t *testing.T) {
 		}
 		if s := screens[i]; s.title != tt.title || s.section != "" || !strings.HasPrefix(s.golden, "view_") {
 			t.Errorf("%s screen = %+v, want the %s main view golden", tt.name, s, tt.title)
+		}
+	}
+}
+
+// Every local image the README shows exists, the banner logo above all:
+// GitHub renders a missing one as a broken image without any error.
+func TestREADMEImagesExist(t *testing.T) {
+	const banner = "docs/assets/brand/logo/nu11signal-night-city.svg"
+	data, err := os.ReadFile(filepath.Join(repoRoot, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var local []string
+	for _, m := range regexp.MustCompile(`<img[^>]*\ssrc="([^"]+)"`).FindAllStringSubmatch(string(data), -1) {
+		if !strings.Contains(m[1], "://") {
+			local = append(local, m[1])
+		}
+	}
+	if !slices.Contains(local, banner) {
+		t.Errorf("README.md does not show the banner %s; local images: %q", banner, local)
+	}
+	for _, path := range local {
+		if _, err := os.Stat(filepath.Join(repoRoot, filepath.FromSlash(path))); err != nil {
+			t.Errorf("README.md shows %s: %v", path, err)
 		}
 	}
 }
