@@ -146,7 +146,7 @@ func TestConfirmingQuitShowsTheShutdownSplash(t *testing.T) {
 	f := playbacktest.New()
 	m := confirmQuit(t, f, loaded(t, f, newClock()), false)
 	screen := plain(m)
-	for _, want := range append(slices.Clone(emblemLarge.rows), "S I G N A L", shutdownLine) {
+	for _, want := range append(slices.Clone(emblemLogo.rows), shutdownLine) {
 		if !strings.Contains(screen, strings.TrimRight(want, " ")) {
 			t.Errorf("shutdown splash lacks %q:\n%s", want, screen)
 		}

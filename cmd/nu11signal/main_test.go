@@ -65,16 +65,19 @@ func TestPrintVersion(t *testing.T) {
 	}
 }
 
-// On a terminal it prints the compact Braille emblem with the name and
-// the version beside it, on its two middle rows, 3 cells right of it.
+// On a terminal it prints the Braille logo and the version under the
+// bars, in the wordmark's column (the first after the blank column
+// parting it from the head).
 func TestPrintVersionOnATerminal(t *testing.T) {
-	art := func(name, ver string) string {
-		return "   ⣀⣀ ⢠⣤\n" +
-			" ⣠⣾⠟⠻⣷⣿⠁\n" +
-			" ⣿⠃⢠⣾⠟⣿    " + name + "\n" +
-			" ⣿⣴⡿⠃⢠⣿    " + ver + "\n" +
-			"⢀⣿⢿⣦⣴⡿⠋\n" +
-			"⠛⠃ ⠉⠉\n"
+	art := func(_, ver string) string {
+		return "   ⢀⣠⡴⠶⠒⠒⠶⢦⣄⡀\n" +
+			"  ⣴⢟⡥⠚⠉⠉⠉⠉⠓⢬⡻⣦\n" +
+			" ⣼⢣⠎        ⠱⡜⣧\n" +
+			"⣿⣿⣼⢀        ⡀⣧⣿⣿ ⣿⣆⢿⢸⡇⢸⡇⠴⣿ ⠠⢾⡇ ⢾⣉⡉⠈⢹⡏⠁⣾⢉⣉⢸⣷⡸⡇⣾⠉⣿⢸⡇\n" +
+			"⣿⣿⣿⢐⠨⠨⢐  ⡂⠅⠅⡂⣿⣿⣿ ⣿⠘⣿⠘⢧⣸⡇⣀⣿⣀⢀⣸⣇⡀⣀⣀⡿⢀⣸⣇⡀⢿⣀⣿⢸⡇⢻⡇⣿⠉⣿⠸⣇⣀⡀\n" +
+			"⠿⠿⢿⠐⠨⠨⢐  ⡂⠅⠅⠂⡿⠿⠿             ⣠⡶⢂⣴⠖⣠⡶⢂⣴⠖⣠⡶⠂\n" +
+			"   ⠳⡄      ⢠⠞               ⠚⠋⠐⠛⠁⠚⠋⠐⠛⠁⠚⠋\n" +
+			"    ⠘⢆⣀⣀⣀⣀⡰⠃     " + ver + "\n"
 	}
 	for _, tt := range []struct{ version, want string }{
 		{"dev", art("NU11SIGNAL", "dev")},

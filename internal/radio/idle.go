@@ -9,18 +9,19 @@ import (
 
 // The idle emblem: while no music plays (paused, stopped, nothing loaded,
 // the signal lost: not isPlaying, the rain's own Playing input) the
-// spectrum area at the bottom of NOW PLAYING shows the null emblem with
-// its text, centered in the area, instead of the rain (see idleArtFor for
-// the sizes it falls back through). The rain keeps its drops, held still
+// spectrum area at the bottom of NOW PLAYING shows the emblem, the logo
+// with its wordmark and bars, centered in the area, instead of the rain
+// (see idleArtFor for the sizes it falls back through). The rain keeps its drops, held still
 // while paused, and comes back as playback does.
 //
 // With the signal effects active (see fxActive) the block glitches all
 // the time: every idle frame (idleFrameTick, from the clock, not the tick
 // count) draws idleNoiseMin..idleNoiseMax Braille noise cells
-// (emblemNoiseGlyphs, never the glyph a cell shows) over the block's
-// drawn cells, the emblem, the name and the bars alike, and, on one frame
-// in idleTearOdds, tears one of its rows 1 cell sideways, inside its box
-// (see idleArt.box); it never draws letters over it. Nothing is drawn behind it. Everything comes from the
+// (emblemNoiseGlyphs, never the glyph a cell shows) over the emblem's
+// drawn cells, the head, the wordmark and the bars alike, and, on one
+// frame in idleTearOdds, tears one of its rows 1 cell sideways, inside
+// its box (see idleArt.box); it never draws letters over it. Nothing is
+// drawn behind it. Everything comes from the
 // seed and the idle frame, drawn inside the area, so nothing else moves.
 // When playback starts or stops the area dissolves between the emblem
 // and the rain instead of cutting (see vizswap.go).
@@ -74,43 +75,27 @@ func (m Model) idleShown() bool {
 // the signal effects active.
 func (m Model) idleActive() bool { return m.fxActive() && m.idleShown() }
 
-// idleArt is the emblem the spectrum area shows while idle, with its text
-// or not, its block's top left x, y cells into the area.
+// idleArt is the emblem the spectrum area shows while idle, its top left
+// x, y cells into the area.
 type idleArt struct {
 	e    emblem
-	text bool
 	x, y int
 }
 
-// idleArtFor places the idle emblem in an area w x h, centered: the large
-// emblem with its text where it fits, else the compact one with its text,
-// else the large then the compact emblem alone; false where none fits.
+// idleArtFor places the idle emblem in an area w x h, centered: the logo
+// where it fits, else its head alone (no wordmark, no bars); false where
+// neither fits.
 func idleArtFor(w, h int) (idleArt, bool) {
-	for _, text := range []bool{true, false} {
-		for _, e := range []emblem{emblemLarge, emblemCompact} {
-			bw := e.width()
-			if text {
-				bw = e.blockWidth()
-			}
-			if bw <= w && len(e.rows) <= h {
-				return idleArt{e: e, text: text, x: (w - bw) / 2, y: (h - len(e.rows)) / 2}, true
-			}
+	for _, e := range []emblem{emblemLogo, emblemHead} {
+		if e.width() <= w && len(e.rows) <= h {
+			return idleArt{e: e, x: (w - e.width()) / 2, y: (h - len(e.rows)) / 2}, true
 		}
 	}
 	return idleArt{}, false
 }
 
 // block is the art's styled lines, one per emblem row, not padded.
-func (a idleArt) block() []string {
-	if a.text {
-		return a.e.block()
-	}
-	lines := make([]string, len(a.e.rows))
-	for i, row := range a.e.rows {
-		lines[i] = paintRow(row, a.e.mask[i])
-	}
-	return lines
-}
+func (a idleArt) block() []string { return a.e.block() }
 
 // plain is the art's lines without their styles.
 func (a idleArt) plain() []string {
@@ -125,11 +110,7 @@ func (a idleArt) plain() []string {
 // keep to themselves: the art and a cell on either side, the room a tear
 // moves it into.
 func (a idleArt) box(w int) (x0, x1 int) {
-	bw := a.e.width()
-	if a.text {
-		bw = a.e.blockWidth()
-	}
-	return max(a.x-1, 0), min(a.x+bw+1, w)
+	return max(a.x-1, 0), min(a.x+a.e.width()+1, w)
 }
 
 // lines renders the area w x h: the art at its place, every row padded
@@ -182,8 +163,8 @@ func (m Model) idleRows(w, h int) []string {
 // idleGlitchDraw draws a frame's glitch, from r, over segs, the block's
 // rows in its box from column x0 of the area: on one frame in
 // idleTearOdds one row torn 1 cell sideways, then idleNoiseMin..
-// idleNoiseMax Braille noise cells over the block's drawn cells, the
-// emblem's (its mask's) and, beside it, the name's and the bars'.
+// idleNoiseMax Braille noise cells over the emblem's drawn cells (its
+// mask's): the head's and, beside it, the wordmark's and the bars'.
 func idleGlitchDraw(segs []string, a idleArt, x0 int, r uint64) {
 	if r>>8%idleTearOdds == 0 {
 		i := int(r >> 16 % uint64(len(segs)))

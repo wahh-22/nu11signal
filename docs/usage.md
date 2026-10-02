@@ -263,8 +263,9 @@ HUD keys like the player's (QUIT filled, as `enter`'s action; STAY in cyan
 brackets), are clickable, and a click outside the panel closes it.
 
 A confirmed quit shuts down like the boot in reverse: the panel closes and
-the body shows the null emblem again with `SHUTTING DOWN...`, spaced out,
-under it (glitching like the boot with the effects on, still without them)
+the body shows the Braille logo again (its head alone on a terminal too
+narrow for the whole logo, the line alone where even that does not fit) with
+`SHUTTING DOWN...`, spaced out, under it (glitching like the boot with the effects on, still without them)
 while the player closes and the music fades out; nu11signal exits once the
 player has closed (or the close timed out) and the splash has shown for at
 least 1 s. During it the footer is blank and every key and click is ignored

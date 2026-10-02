@@ -8,7 +8,7 @@ import (
 
 // The shutdown splash is the boot splash run backwards: once the quit
 // modal is confirmed (y, enter, q or ctrl+c again, or its QUIT button,
-// see quit.go), the modal closes and the body shows the null emblem
+// see quit.go), the modal closes and the body shows the emblem, the logo,
 // again (see splash), with the SHUTTING DOWN line (shutdownText) in the
 // BOOTING line's place, while the player closes (see closeCmd: the
 // helper fades the music out and pauses before it tears down). The

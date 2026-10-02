@@ -123,10 +123,11 @@ drizzles decoratively with the playback state.
 
 Every so often the screen loses the signal: torn rows, corrupted cells, static
 bars, and now and then a red `NO SIGNAL`. New content scrambles in, and the app
-boots and shuts down over the null emblem. `x` toggles the effects;
-`nu11signal --calm` starts without them.
+boots and shuts down over the Braille logo (its head alone on a narrow
+terminal), which also rests in the spectrum area while nothing plays. `x`
+toggles the effects; `nu11signal --calm` starts without them.
 
-<img width="100%" src="docs/assets/screens/boot.svg" alt="The boot splash: the null emblem over BOOTING NU11SIGNAL">
+<img width="100%" src="docs/assets/screens/boot.svg" alt="The boot splash: the Braille logo over BOOTING NU11SIGNAL">
 
 **[Docs →](docs/effects.md#signal-effects)**
 

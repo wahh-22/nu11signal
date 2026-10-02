@@ -129,6 +129,7 @@ func TestPinkThemesUsePiCoreRoles(t *testing.T) {
 				"selectBg/selectedBg": {th.selectBg, "#28121E"}, "muted": {th.muted, "#A78E9B"},
 				"hi/accent": {th.hi, tc.accent}, "accent/activePink": {th.accent, tc.active},
 				"warn/warning": {th.warn, "#F2B86D"}, "ok/success": {th.ok, tc.success},
+				"logo/accent": {th.logo, tc.accent}, "logoAlt/activePink": {th.logoAlt, tc.active},
 			} {
 				if pair[0] != pair[1] {
 					t.Errorf("%s = %s; want %s", role, pair[0], pair[1])
@@ -352,6 +353,7 @@ func themeRoles(t theme) []string {
 		t.label, t.text, t.number, t.frame, t.dim, t.muted,
 		t.hi, t.accent, t.heading, t.warn, t.onAir, t.favorite, t.focus, t.ok,
 		t.fill, t.ink, t.selectBg, t.alert, t.alertStatic, t.rainTip, t.rainBright, t.rainBody,
+		t.logo, t.logoAlt,
 	}, t.noise[:]...)
 }
 
