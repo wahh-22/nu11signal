@@ -28,8 +28,8 @@ import (
 // Id prefixes: every id this package hands out starts with songPrefix, so
 // a router can tell local ids from Apple Music ones; playlists add "pl:".
 const (
-	songPrefix     = "local:"
-	playlistPrefix = "local:pl:"
+	songPrefix     = playback.LocalPrefix
+	playlistPrefix = playback.LocalPrefix + "pl:"
 )
 
 // audioExts are the extensions Scan picks up, lower case.
@@ -97,7 +97,7 @@ func Scan(ctx context.Context, roots []string) (*Library, error) {
 	}
 	for dir, ids := range s.folders {
 		slices.SortFunc(ids, s.lib.trackOrder)
-		s.lib.playlists = append(s.lib.playlists, list{playback.Playlist{ID: playlistID(dir), Name: filepath.Base(dir)}, ids})
+		s.lib.playlists = append(s.lib.playlists, list{playback.Playlist{ID: playlistID(dir), Name: filepath.Base(dir), Source: playback.SourceLocal}, ids})
 	}
 	slices.SortFunc(s.lib.playlists, func(a, b list) int {
 		return cmp.Or(cmp.Compare(strings.ToLower(a.playlist.Name), strings.ToLower(b.playlist.Name)),
@@ -213,7 +213,7 @@ func (s *scanner) readM3U(path string) error {
 		}
 	}
 	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	s.lib.playlists = append(s.lib.playlists, list{playback.Playlist{ID: playlistID(path), Name: name}, ids})
+	s.lib.playlists = append(s.lib.playlists, list{playback.Playlist{ID: playlistID(path), Name: name, Source: playback.SourceLocal}, ids})
 	return nil
 }
 

@@ -15,8 +15,9 @@ import (
 
 // ErrUnsupported is returned by the Player methods local files have no
 // answer for: the catalog (search, artist, album and catalog playlist
-// pages), playlist editing and favorites.
-var ErrUnsupported = errors.New("local: not available for local files")
+// pages), playlist editing and favorites. It is the port's
+// playback.ErrUnsupported.
+var ErrUnsupported = playback.ErrUnsupported
 
 // ErrClosed is returned by calls made after Close.
 var ErrClosed = errors.New("local: player closed")
@@ -86,7 +87,9 @@ func (t *track) close() {
 // app volume (square law, also ramped). Close fades out over 200 ms, as
 // the helper's quiet exit, before closing the device.
 type Player struct {
-	lib       *Library
+	// lib is the library played, swapped whole by SetLibrary.
+	lib       atomic.Pointer[Library]
+	changed   chan struct{}
 	rate      int
 	sink      sink
 	clk       clock
@@ -131,7 +134,8 @@ type Player struct {
 
 // New makes a Player for the library, playing on the default output
 // device. The device is opened on the first play, so a machine without
-// one can still browse the library; that play then fails.
+// one can still browse the library; that play then fails. A nil library
+// is an empty one, until SetLibrary: the scan can run after startup.
 func New(lib *Library, opts Options) *Player {
 	st, lt := time.NewTicker(stateInterval), time.NewTicker(levelInterval)
 	p := newPlayer(lib, opts, &otoSink{}, clock{stateTick: st.C, levelTick: lt.C})
@@ -146,25 +150,56 @@ func newPlayer(lib *Library, opts Options, s sink, clk clock) *Player {
 	}
 	step := rampStep(rate, rampSeconds)
 	p := &Player{
-		lib: lib, rate: rate, sink: s, clk: clk, done: make(chan struct{}),
-		states: make(chan playback.State, stateBuffer),
-		errs:   make(chan error, errorBuffer),
-		levels: make(chan playback.Spectrum, 1),
-		status: playback.StatusStopped,
-		repeat: playback.RepeatOff,
-		level:  1,
-		step:   step,
-		fade:   ramp{step: step},
-		gain:   ramp{cur: 1, target: 1, step: step},
-		faded:  make(chan struct{}),
-		ring:   newRing(2 * fftSize),
-		an:     newAnalyzer(rate),
-		sm:     newSmoother(numBands),
+		rate: rate, sink: s, clk: clk, done: make(chan struct{}),
+		changed: make(chan struct{}, 1),
+		states:  make(chan playback.State, stateBuffer),
+		errs:    make(chan error, errorBuffer),
+		levels:  make(chan playback.Spectrum, 1),
+		status:  playback.StatusStopped,
+		repeat:  playback.RepeatOff,
+		level:   1,
+		step:    step,
+		fade:    ramp{step: step},
+		gain:    ramp{cur: 1, target: 1, step: step},
+		faded:   make(chan struct{}),
+		ring:    newRing(2 * fftSize),
+		an:      newAnalyzer(rate),
+		sm:      newSmoother(numBands),
 	}
+	if lib == nil {
+		lib = emptyLibrary()
+	}
+	p.lib.Store(lib)
 	p.wg.Add(1)
 	go p.run()
 	return p
 }
+
+// SetLibrary replaces the library (nil is an empty one), as when a scan
+// started after New ends, and signals LibraryChanged. The queue keeps
+// playing: ids are stable across scans, and a song the new library lacks
+// is skipped when it comes up. Nothing happens after Close.
+func (p *Player) SetLibrary(lib *Library) {
+	if lib == nil {
+		lib = emptyLibrary()
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return
+	}
+	p.lib.Store(lib)
+	select {
+	case p.changed <- struct{}{}:
+	default:
+	}
+}
+
+func emptyLibrary() *Library { return &Library{songs: map[string]entry{}} }
+
+// LibraryChanged delivers a value after each SetLibrary, keeping only the
+// latest (see playback.LibraryWatcher). Closed by Close.
+func (p *Player) LibraryChanged() <-chan struct{} { return p.changed }
 
 func (p *Player) run() {
 	defer p.wg.Done()
@@ -313,7 +348,7 @@ func (p *Player) mixTailLocked(dst []float32) {
 
 // open opens the song with the id at the output rate.
 func (p *Player) open(id string) (*track, error) {
-	path := p.lib.path(id)
+	path := p.lib.Load().path(id)
 	if path == "" {
 		return nil, fmt.Errorf("local: unknown song %q", id)
 	}
@@ -418,7 +453,7 @@ func (p *Player) stateLocked() playback.State {
 	if len(p.queue) == 0 {
 		return s
 	}
-	song, _ := p.lib.Song(p.queue[p.index])
+	song, _ := p.lib.Load().Song(p.queue[p.index])
 	s.SongID, s.Title, s.Artist, s.Album, s.Duration = song.ID, song.Title, song.Artist, song.Album, song.Duration
 	if p.cur != nil {
 		if p.cur.length > 0 {
@@ -483,7 +518,7 @@ func (p *Player) Authorize(ctx context.Context) (playback.AuthStatus, error) {
 // Playlists lists the library's playlists, alphabetically.
 func (p *Player) Playlists(ctx context.Context) ([]playback.Playlist, error) {
 	var out []playback.Playlist
-	err := p.do(ctx, false, func() error { out = p.lib.Playlists(); return nil })
+	err := p.do(ctx, false, func() error { out = p.lib.Load().Playlists(); return nil })
 	return out, err
 }
 
@@ -492,7 +527,7 @@ func (p *Player) LibraryPlaylist(ctx context.Context, playlistID string) (playba
 	var d playback.PlaylistDetail
 	err := p.do(ctx, false, func() error {
 		var ok bool
-		if d, ok = p.lib.Playlist(playlistID); !ok {
+		if d, ok = p.lib.Load().Playlist(playlistID); !ok {
 			return fmt.Errorf("local: unknown playlist %q", playlistID)
 		}
 		return nil
@@ -511,7 +546,7 @@ func (p *Player) PlaySongs(ctx context.Context, ids []string, start int) (playba
 	}
 	queue, at := make([]string, 0, len(ids)), -1
 	for i, id := range ids {
-		if _, ok := p.lib.Song(id); !ok {
+		if _, ok := p.lib.Load().Song(id); !ok {
 			rep.Missing = append(rep.Missing, id)
 			continue
 		}
@@ -548,7 +583,7 @@ func (p *Player) PlayPlaylist(ctx context.Context, id string) error {
 
 // PlayPlaylistFrom plays a playlist from the song at index start.
 func (p *Player) PlayPlaylistFrom(ctx context.Context, playlistID string, start int) error {
-	d, ok := p.lib.Playlist(playlistID)
+	d, ok := p.lib.Load().Playlist(playlistID)
 	if !ok {
 		return fmt.Errorf("local: unknown playlist %q", playlistID)
 	}
@@ -846,11 +881,13 @@ func (p *Player) Close() error {
 		close(p.states)
 		close(p.errs)
 		close(p.levels)
+		close(p.changed)
 	})
 	return p.closeErr
 }
 
 var (
-	_ playback.Player      = (*Player)(nil)
-	_ playback.LevelSource = (*Player)(nil)
+	_ playback.Player         = (*Player)(nil)
+	_ playback.LevelSource    = (*Player)(nil)
+	_ playback.LibraryWatcher = (*Player)(nil)
 )
