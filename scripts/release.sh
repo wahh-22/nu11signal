@@ -15,9 +15,11 @@
 # with VERSION, but never run (cross-arch).
 #
 # --linux-only (make release-linux) builds only the Linux archives and needs
-# no Apple credentials, signing, or Xcode tools. With --force it replaces the
-# Linux archives of an existing dist/vVERSION and keeps everything else in it
-# (the macOS artifacts are copied into the new directory).
+# no Apple credentials, signing, or Xcode tools. With --force it replaces an
+# existing dist/vVERSION with a directory that holds only the Linux archives
+# of this build: artifacts of different builds are never mixed, so the macOS
+# artifacts are not carried over (they stay in the backup, and the run lists
+# them). Rebuild everything with --force without --linux-only to publish both.
 #
 # Everything is built in dist/.staging-vVERSION.XXXXXX (same filesystem) and
 # promoted only after notarization and the final checks pass, with a single
@@ -242,14 +244,23 @@ promote() {
 }
 
 # elf_machine FILE: the machine of a 64-bit little-endian ELF executable
-# (x86_64, aarch64, machine-<hex>), or not-elf.
+# (x86_64, aarch64, machine-<hex>); e_type-<n> for an ELF that is neither
+# ET_EXEC (2) nor ET_DYN (3, position-independent); or not-elf.
 elf_machine() {
   local hdr
   hdr="$(od -An -tx1 -N20 "$1" | tr -d ' \n')"
-  [[ "${hdr:0:8}" == 7f454c46 && "${hdr:8:4}" == 0201 && "${hdr:32:4}" == 0200 ]] || {
+  [[ "${hdr:0:8}" == 7f454c46 && "${hdr:8:4}" == 0201 && ${#hdr} == 40 ]] || {
     echo not-elf
     return
   }
+  # e_type: offset 16, two bytes, little-endian.
+  case "${hdr:32:4}" in
+    0200 | 0300) ;;
+    *)
+      echo "e_type-$((16#${hdr:34:2}${hdr:32:2}))"
+      return
+      ;;
+  esac
   case "${hdr:36:4}" in
     3e00) echo x86_64 ;;
     b700) echo aarch64 ;;
@@ -259,8 +270,10 @@ elf_machine() {
 
 # check_linux_binary FILE GOARCH: FILE is an executable ELF for GOARCH and
 # carries VERSION (stamped with -X main.version). It cannot be run here.
+# The stamp must appear as a whole token: a maximal run of version characters
+# equal to VERSION, so 0.5.0 matches neither 0.5.01, 10.5.0, nor go10.5.0.
 check_linux_binary() {
-  local file="$1" want got
+  local file="$1" want got tokens
   case "$2" in
     amd64) want=x86_64 ;;
     arm64) want=aarch64 ;;
@@ -269,7 +282,8 @@ check_linux_binary() {
   [[ -f "$file" && -x "$file" ]] || die "$file is missing or not executable"
   got="$(elf_machine "$file")"
   [[ "$got" == "$want" ]] || die "$file is not an $want ELF executable (got: $got)"
-  LC_ALL=C grep -qaF -- "$VERSION" "$file" || die "$file is not stamped with version $VERSION"
+  tokens="$(LC_ALL=C grep -aoE -- "[0-9A-Za-z.+-]*${VERSION//./\\.}[0-9A-Za-z.+-]*" "$file" || true)"
+  grep -qxF -- "$VERSION" <<<"$tokens" || die "$file is not stamped with version $VERSION"
 }
 
 # build_linux_archives: cross-compiles nu11signal for each Linux architecture
@@ -312,11 +326,13 @@ verify_linux_archives() {
   done
 }
 
-# keep_previous_entries: with --linux-only, copies everything in an existing
-# DEST except its Linux archives into the staging directory, so replacing DEST
-# keeps the macOS artifacts (the previous DEST itself becomes the backup).
-keep_previous_entries() {
-  local entry base arch skip
+# report_dropped_entries: with --linux-only, lists what an existing DEST
+# holds besides the Linux archives this run replaces. Those entries (the macOS
+# artifacts) come from another build and are not carried over: the new DEST
+# holds only this build's archives, and the previous DEST becomes the backup
+# (or, in a dry run, is replaced).
+report_dropped_entries() {
+  local entry base arch skip dropped=()
   [[ -d "$DEST" ]] || return 0
   shopt -s nullglob dotglob
   for entry in "$DEST"/*; do
@@ -325,18 +341,19 @@ keep_previous_entries() {
     for arch in "${LINUX_ARCHS[@]}"; do
       [[ "$base" == "$NAME-linux-$arch.tar.gz" || "$base" == "$NAME-linux-$arch.tar.gz.sha256" ]] && skip=1
     done
-    if [[ "$skip" == 0 ]]; then
-      cp -pR "$entry" "$STAGE_ROOT/" || die "could not copy $entry into the staging directory"
-      echo "    kept from the previous $DEST: $base"
-    fi
+    [[ "$skip" == 1 ]] || dropped+=("$base")
   done
   shopt -u nullglob dotglob
+  ((${#dropped[@]} > 0)) || return 0
+  echo "    not carried over from the previous $DEST (another build; artifacts are never mixed):"
+  printf '      %s\n' "${dropped[@]}"
+  echo "    To publish macOS and Linux together, rebuild both: make release VERSION=$VERSION FORCE=1"
 }
 
 if [[ "$LINUX_ONLY" == 1 ]]; then
   build_linux_archives
   verify_linux_archives
-  keep_previous_entries
+  report_dropped_entries
   step "Promoting the Linux archives to $DEST"
   promote
   if [[ "$DRY_RUN" == 1 ]]; then

@@ -53,7 +53,7 @@ release: check-version
 release-dry-run: check-version
 	./scripts/release.sh --dry-run $(VERSION)
 
-## release-linux: only the Linux amd64/arm64 archives in dist/vVERSION/, no Apple credentials (FORCE=1 replaces them and keeps the macOS artifacts; DRY_RUN=1 writes build/release-dry-run/vVERSION)
+## release-linux: only the Linux amd64/arm64 archives in dist/vVERSION/, no Apple credentials (FORCE=1 replaces the directory; the earlier build's macOS artifacts are dropped and stay in its backup; DRY_RUN=1 writes build/release-dry-run/vVERSION)
 release-linux: check-version
 	./scripts/release.sh --linux-only $(if $(filter 1,$(FORCE)),--force) $(if $(filter 1,$(DRY_RUN)),--dry-run) $(VERSION)
 

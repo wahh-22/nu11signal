@@ -194,6 +194,34 @@ test_release_refuses_a_linux_binary_for_the_wrong_arch() {
   [[ -z "$(staging_left "$DIST")" ]] || fail "staging left behind"
 }
 
+test_release_refuses_a_linux_elf_that_is_not_an_executable() {
+  setup_release
+  mkdir -p "$DIST"
+  STUB_GO_ELF_TYPE=1 release --linux-only 0.2.1
+  assert_failed
+  assert_output_contains "is not an x86_64 ELF executable (got: e_type-1)"
+  [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"
+}
+
+test_release_accepts_a_position_independent_linux_executable() {
+  setup_release
+  STUB_GO_ELF_TYPE=3 release --linux-only 0.2.1
+  assert_status 0
+  assert_linux_release "$DIST/v0.2.1" 0.2.1
+}
+
+test_release_refuses_a_linux_binary_stamped_with_a_longer_version() {
+  setup_release
+  mkdir -p "$DIST"
+  STUB_GO_VERSION_SUFFIX=1 release --linux-only 0.2.1
+  assert_failed
+  assert_output_contains "is not stamped with version 0.2.1"
+  STUB_GO_VERSION_PREFIX=1 release --linux-only 0.2.1
+  assert_failed
+  assert_output_contains "is not stamped with version 0.2.1"
+  [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"
+}
+
 # --- --linux-only (make release-linux) ----------------------------------------
 
 # assert_linux_release DIR VERSION: DIR holds exactly the Linux artifacts.
@@ -256,26 +284,28 @@ test_release_linux_only_refuses_to_overwrite_without_force() {
   [[ "$(stub_calls go)" == 0 ]] || fail "built before refusing"
 }
 
-test_release_linux_only_force_keeps_the_macos_artifacts() {
+test_release_linux_only_force_drops_the_artifacts_of_the_earlier_build() {
   setup_release
   release 0.2.1
   assert_status 0
-  local mac="$DIST/v0.2.1/nu11signal-0.2.1-macos-universal.tar.gz" before_mac before_linux
-  before_mac="$(shasum -a 256 <"$mac")"
+  local before_linux
   before_linux="$(cat "$DIST/v0.2.1/nu11signal-0.2.1-linux-amd64.tar.gz.sha256")"
   sleep 1 # a distinct backup timestamp and archive mtime
   release --linux-only --force 0.2.1
   assert_status 0
-  assert_release_layout "$DIST/v0.2.1" 0.2.1
-  [[ "$(shasum -a 256 <"$mac")" == "$before_mac" ]] || fail "the macOS archive changed"
+  # Only this build's Linux archives: never the macOS artifacts of another build.
+  assert_linux_release "$DIST/v0.2.1" 0.2.1
   [[ "$(cat "$DIST/v0.2.1/nu11signal-0.2.1-linux-amd64.tar.gz.sha256")" != "$before_linux" ]] ||
     fail "the Linux archives were not rebuilt"
   local backups
   backups="$(find "$DIST" -maxdepth 1 -name 'v0.2.1.replaced-*')"
   [[ -n "$backups" && "$(printf '%s\n' "$backups" | wc -l | tr -d ' ')" == 1 ]] ||
     fail "expected one backup, got: $backups"
-  [[ -f "$backups/nu11signal-0.2.1-macos-universal.tar.gz" ]] || fail "the backup lacks the macOS archive"
-  assert_output_contains "kept from the previous $DIST/v0.2.1"
+  assert_release_layout "$backups" 0.2.1
+  assert_output_contains "not carried over from the previous $DIST/v0.2.1"
+  assert_output_contains "nu11signal-0.2.1-macos-universal.tar.gz"
+  assert_output_contains "make release VERSION=0.2.1 FORCE=1"
+  assert_output_lacks "kept from the previous"
 }
 
 test_release_linux_only_failure_leaves_dist_untouched() {

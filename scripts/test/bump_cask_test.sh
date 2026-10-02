@@ -17,7 +17,7 @@ test_bump_requires_the_versioned_checksum() {
 
 test_bump_rejects_a_checksum_for_another_archive() {
   setup_tap
-  mkdir -p "$T/root/dist/v0.2.1"
+  write_checksum 0.2.1 "$SHA_B"
   printf '%s  nu11signal-0.2.0-macos-universal.tar.gz\n' "$SHA_B" \
     >"$T/root/dist/v0.2.1/nu11signal-0.2.1-macos-universal.tar.gz.sha256"
   bump 0.2.1
@@ -289,6 +289,19 @@ test_bump_requires_the_linux_checksums() {
   assert_failed
   assert_output_contains "checksum not found: $T/root/dist/v0.2.1/nu11signal-0.2.1-linux-amd64.tar.gz.sha256"
   assert_output_contains "make release VERSION=0.2.1"
+  [[ ! -e "$TAP" ]] || fail "the tap was cloned without the Linux checksums"
+}
+
+test_bump_names_every_missing_linux_checksum_and_how_to_build_it() {
+  setup_tap
+  write_sha_file 0.2.1 nu11signal-0.2.1-macos-universal.tar.gz "$SHA_B"
+  bump 0.2.1
+  assert_failed
+  assert_output_contains "checksum not found: $T/root/dist/v0.2.1/nu11signal-0.2.1-linux-amd64.tar.gz.sha256"
+  assert_output_contains "checksum not found: $T/root/dist/v0.2.1/nu11signal-0.2.1-linux-arm64.tar.gz.sha256"
+  assert_output_lacks "macos-universal.tar.gz.sha256"
+  assert_output_contains "make release VERSION=0.2.1 FORCE=1"
+  assert_output_contains "make release-linux"
   [[ ! -e "$TAP" ]] || fail "the tap was cloned without the Linux checksums"
 }
 

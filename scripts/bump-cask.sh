@@ -87,12 +87,38 @@ FORMULA_REL="Formula/nu11signal.rb"
 
 # --- Checksums -------------------------------------------------------------
 
+MACOS_ARCHIVE="nu11signal-$VERSION-macos-universal.tar.gz"
+LINUX_ARCHIVES=("nu11signal-$VERSION-linux-amd64.tar.gz" "nu11signal-$VERSION-linux-arm64.tar.gz")
+
+# check_checksum_files: every .sha256 file release.sh writes for VERSION
+# exists; otherwise names each missing one and how to build it.
+check_checksum_files() {
+  local archive missing=() macos_missing=0 dist="$ROOT/dist/v$VERSION"
+  for archive in "$MACOS_ARCHIVE" "${LINUX_ARCHIVES[@]}"; do
+    if [[ ! -f "$dist/$archive.sha256" ]]; then
+      missing+=("checksum not found: $dist/$archive.sha256")
+      [[ "$archive" == "$MACOS_ARCHIVE" ]] && macos_missing=1
+    fi
+  done
+  ((${#missing[@]} > 0)) || return 0
+  printf 'error: %s\n' "${missing[@]}" >&2
+  if [[ ! -e "$dist" ]]; then
+    echo "       Build the release first: make release VERSION=$VERSION (macOS and Linux archives)" >&2
+  elif [[ "$macos_missing" == 1 ]]; then
+    echo "       Rebuild the release: make release VERSION=$VERSION FORCE=1 (macOS and Linux archives;" >&2
+    echo "       make release-linux builds only the Linux ones)" >&2
+  else
+    echo "       Rebuild the release: make release VERSION=$VERSION FORCE=1 (macOS and Linux archives;" >&2
+    echo "       make release-linux VERSION=$VERSION FORCE=1 would build the Linux ones but replace" >&2
+    echo "       $dist without its macOS archive, which comes from another build)" >&2
+  fi
+  exit 1
+}
+
 # read_checksum ARCHIVE: prints the sha256 of ARCHIVE from
 # dist/vVERSION/ARCHIVE.sha256, checking that the file names ARCHIVE.
 read_checksum() {
   local archive="$1" file="$ROOT/dist/v$VERSION/$1.sha256" sha name
-  [[ -f "$file" ]] ||
-    die "checksum not found: $file (build the release first: make release VERSION=$VERSION)"
   read -r sha name <"$file" || true
   [[ "$sha" =~ ^[0-9a-f]{64}$ ]] || die "no sha256 digest in $file"
   [[ "$name" == "$archive" ]] || die "$file is for ${name:-an unnamed file}, not $archive"
@@ -100,9 +126,10 @@ read_checksum() {
   echo "$sha"
 }
 
-SHA256="$(read_checksum "nu11signal-$VERSION-macos-universal.tar.gz")"
-SHA256_LINUX_AMD64="$(read_checksum "nu11signal-$VERSION-linux-amd64.tar.gz")"
-SHA256_LINUX_ARM64="$(read_checksum "nu11signal-$VERSION-linux-arm64.tar.gz")"
+check_checksum_files
+SHA256="$(read_checksum "$MACOS_ARCHIVE")"
+SHA256_LINUX_AMD64="$(read_checksum "${LINUX_ARCHIVES[0]}")"
+SHA256_LINUX_ARM64="$(read_checksum "${LINUX_ARCHIVES[1]}")"
 
 # --- Tap checkout ----------------------------------------------------------
 
