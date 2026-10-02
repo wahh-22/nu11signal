@@ -13,10 +13,11 @@ cask "nu11signal" do
   desc "Cyberpunk-style terminal radio for Apple Music"
   homepage "https://github.com/wahh-22/nu11signal"
 
-  depends_on macos: :sonoma
   # Kode Mono is the font the UI is designed with; the terminal draws the
   # UI, so it only shows once the terminal is set to use it (see caveats).
+  # brew style wants the cask dependency before the macOS one.
   depends_on cask: "font-kode-mono"
+  depends_on macos: :sonoma
 
   binary "nu11signal-#{version}/bin/nu11signal"
 
