@@ -349,6 +349,12 @@ section lists the color themes, the active one marked `◉`:
 | `NIGHT CITY` | The default: neon red frames and text, cyan and yellow highlights |
 | `BLUE` | NIGHT CITY recolored from the gentleman-blue palette, with as many colors: electric blue where NIGHT CITY is red, violet where it is yellow, cyan where it is cyan, blue-grey shades behind |
 | `MATRIX` | NIGHT CITY recolored in the greens of falling code, with as many colors: mid green where NIGHT CITY is red, code green where it is cyan, a pale glow where it is yellow, dark greens behind |
+| `GENTLEMAN CUTE` | Soft pink highlights, champagne headings, mint success, and muted rose frames from the Gentleman Cute Pi palette |
+| `GENTLEMAN SEXY` | Vivid pink highlights, champagne headings, pearl success, and violet rain from the Gentleman Sexy Pi palette |
+
+The Gentleman themes map semantic Pi colors to radio roles (warnings, success,
+frames, selection, and rain), rather than recoloring NIGHT CITY color for color.
+Themes style the UI without changing the terminal's background.
 
 `↑`/`↓` move, `enter` (or a click on a row) applies the theme at once, the
 whole UI recolored (frames, text, buttons, the rain, the signal effects),

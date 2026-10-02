@@ -53,14 +53,62 @@ func TestThemesStartWithNightCityThenBlue(t *testing.T) {
 	for _, th := range themes {
 		names = append(names, th.name)
 	}
-	if strings.Join(names, ",") != "NIGHT CITY,BLUE,MATRIX" {
-		t.Fatalf("themes %v; want NIGHT CITY, BLUE, MATRIX", names)
+	if strings.Join(names, ",") != "NIGHT CITY,BLUE,MATRIX,GENTLEMAN CUTE,GENTLEMAN SEXY" {
+		t.Fatalf("themes %v; want NIGHT CITY, BLUE, MATRIX, GENTLEMAN CUTE, GENTLEMAN SEXY", names)
 	}
 	if th, ok := themeNamed("blue"); !ok || th.name != "BLUE" {
 		t.Fatalf("themeNamed(blue) = %v, %v; want BLUE, case aside", th.name, ok)
 	}
 	if _, ok := themeNamed("neon"); ok {
 		t.Fatal("themeNamed(neon) found a theme")
+	}
+}
+
+func TestGentlemanSemanticRolesAndANSI(t *testing.T) {
+	cases := []struct {
+		name, lookup, label, number, hi, heading, warn, ok, fill, ink, selected string
+	}{
+		{"GENTLEMAN CUTE", " gentleman cute ", "#F6EFF3", "#F2B86D", "#F095C8", "#E0C27A", "#F2B86D", "#B4E7C7", "#FFB1DD", "#060407", "#28121E"},
+		{"GENTLEMAN SEXY", " gentleman sexy ", "#F6EFF3", "#D7A0B8", "#F43888", "#E0C27A", "#F2B86D", "#D2CBD0", "#FF4F9A", "#060407", "#28121E"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			th, ok := themeNamed(tc.lookup)
+			if !ok || th.name != tc.name {
+				t.Fatalf("lookup %q: %q, %v", tc.lookup, th.name, ok)
+			}
+			for role, pair := range map[string][2]string{
+				"label": {th.label, tc.label}, "number": {th.number, tc.number}, "hi": {th.hi, tc.hi},
+				"heading": {th.heading, tc.heading}, "warn": {th.warn, tc.warn},
+				"ok": {th.ok, tc.ok}, "fill": {th.fill, tc.fill},
+				"ink": {th.ink, tc.ink}, "selectBg": {th.selectBg, tc.selected},
+			} {
+				if pair[0] != pair[1] {
+					t.Errorf("%s = %s; want %s", role, pair[0], pair[1])
+				}
+			}
+			applyTheme(th)
+			t.Cleanup(func() { applyTheme(themes[0]) })
+			for role, pair := range map[string][2]string{
+				"number":    {stNumber.Render("x"), tc.number},
+				"highlight": {stHi.Render("x"), tc.hi},
+				"heading":   {stHeading.Render("x"), tc.heading},
+				"warning":   {stWarn.Render("x"), tc.warn},
+				"success":   {stOK.Render("x"), tc.ok},
+				"button":    {stButtonOn.Render("x"), tc.fill},
+				"selection": {stSelected.Render("x"), tc.selected},
+			} {
+				var r, g, b int
+				fmt.Sscanf(pair[1], "#%02x%02x%02x", &r, &g, &b)
+				code := fmt.Sprintf("%d;%d;%d", r, g, b)
+				if !strings.Contains(pair[0], code) {
+					t.Errorf("%s ANSI %q lacks %s", role, pair[0], code)
+				}
+			}
+			if strings.Contains(stText.Render("x"), "\x1b[48;") {
+				t.Error("ordinary text changes terminal background")
+			}
+		})
 	}
 }
 

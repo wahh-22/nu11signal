@@ -95,6 +95,42 @@ func TestTheSettingsPickATheme(t *testing.T) {
 	}
 }
 
+func TestSettingsSelectGentlemanThemes(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		steps int
+		ansi  string
+	}{
+		{"GENTLEMAN CUTE", 3, "240;149;200"},
+		{"GENTLEMAN SEXY", 4, "244;56;136"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			src := &savingSource{}
+			m := settingsModel(t, src)
+			m, _ = press(t, m, "s")
+			if !strings.Contains(plain(m), tc.name) {
+				t.Fatalf("settings lacks %s", tc.name)
+			}
+			for range tc.steps {
+				m, _ = press(t, m, "down")
+			}
+			var cmd tea.Cmd
+			m, cmd = press(t, m, "enter")
+			if m.theme != tc.name || !strings.Contains(stHi.Render("x"), tc.ansi) {
+				t.Fatalf("selected %q, highlight %q", m.theme, stHi.Render("x"))
+			}
+			m, _ = step(t, m, run(t, cmd))
+			if len(src.saved) != 1 || src.saved[0].Theme != tc.name {
+				t.Fatalf("saved %+v", src.saved)
+			}
+			m = settingsModel(t, &savingSource{cfg: config.Config{Theme: strings.ToLower(tc.name)}})
+			if m.theme != tc.name {
+				t.Fatalf("startup theme %q", m.theme)
+			}
+		})
+	}
+}
+
 func TestAFailedThemeSaveSaysSo(t *testing.T) {
 	src := &savingSource{saveErr: errors.New("disk full")}
 	m := settingsModel(t, src)
