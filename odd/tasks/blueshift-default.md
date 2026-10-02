@@ -11,7 +11,7 @@ Rename the BLUE theme to BLUESHIFT (user choice) and make it the app's and the b
 
 ## Tasks
 - [x] B1 (nu11signal, delegated writer): rename, alias, default, SETTINGS order, test pin, README art and logo, docs.
-- [ ] B2 (nu11signal-web, delegated writer): theme id, default, logos, favicon, og card, screens, migration, copy.
+- [x] B2 (nu11signal-web, delegated writer): theme id, default, logos, favicon, og card, screens, migration, copy.
 
 ## Checks
 - app: gofmt, vet, go test -race ./..., make test-scripts, readmeart byte-stable, grep for stale "BLUE" theme mentions.
@@ -19,3 +19,4 @@ Rename the BLUE theme to BLUESHIFT (user choice) and make it the app's and the b
 
 ## Progress
 - B1 done (writer delegated; parent fixed the config.go example and the glitch.go alert color comment). Commit `feat(radio): BLUE becomes BLUESHIFT, the default theme`: alias BLUE -> BLUESHIFT, `defaultTheme` (themes[0]) used at startup and as fallback, test `TestMain` pins REDSHIFT so goldens keep their bytes (only the SETTINGS order lines changed; blue goldens renamed), README banner and main screenshot BLUESHIFT. Checks: gofmt, vet, `go test -race ./...`, `make test-scripts` 58, readmeart byte-stable, logo render byte-identical. Review medium, approved (`review-c1604a889f561619`; suggestion: older versions do not know BLUESHIFT).
+- B2 done (web branch feat/blueshift-default): `de02fd5` logo files (under budget), `913936f` default theme, migration, favicon, og card — approved (`review-ffe0f119e8ffa775`; warnings: ThemeArt asset list and fallback tokens hardcoded; suggestion: migration untested), `8de7521` screens (under budget). Full range exceeded the reviewer budget. Checks: build, check:links, check:brand, astro check; screenshots of the default and both migrations.
