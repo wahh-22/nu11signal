@@ -181,6 +181,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errorsClosedMsg:
 		m.lostErrs = true
 		return m, nil
+	case libraryChangedMsg:
+		return m.onLibraryChanged()
+	case libraryClosedMsg:
+		return m, nil
 	}
 	if m.editor.mode == editName {
 		// Cursor blinks and other input internals of the name.
@@ -224,7 +228,7 @@ func (m Model) onState(s playback.State) Model {
 	// With nothing left to seek in, the bar focus falls back to the
 	// button below it; with no song, the favorite focus to PLAY.
 	m.onBar = m.onBar && m.seekable()
-	if _, ok := m.playingSong(); !ok && m.control == ctlFav {
+	if _, ok := m.heartSong(); !ok && m.control == ctlFav {
 		m.control = ctlPlay
 	}
 	return m

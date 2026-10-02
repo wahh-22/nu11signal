@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -16,18 +17,34 @@ import (
 	"github.com/wahh-22/nu11signal/internal/helper"
 	"github.com/wahh-22/nu11signal/internal/history"
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/composite"
 	"github.com/wahh-22/nu11signal/internal/playback/demo"
+	"github.com/wahh-22/nu11signal/internal/playback/playbacktest"
 	"github.com/wahh-22/nu11signal/internal/update"
 )
 
-// fakePlayer is a helper-backed player stand-in that records Close calls.
-// Calling any other Player method panics (nil embedded interface).
+// fakePlayer is a helper-backed player stand-in that records Close calls;
+// its States and Errors deliver nothing until closed. Calling any other
+// Player method panics (nil embedded interface).
 type fakePlayer struct {
 	playback.Player
 	closed int
+	states chan playback.State
+	errs   chan error
 }
 
+func newFakePlayer() *fakePlayer {
+	return &fakePlayer{states: make(chan playback.State), errs: make(chan error)}
+}
+
+func (p *fakePlayer) States() <-chan playback.State { return p.states }
+func (p *fakePlayer) Errors() <-chan error          { return p.errs }
+
 func (p *fakePlayer) Close() error {
+	if p.closed == 0 {
+		close(p.states)
+		close(p.errs)
+	}
 	p.closed++
 	return nil
 }
@@ -42,6 +59,10 @@ type testEnv struct {
 	uiCalm         bool
 	uiUpdates      update.Checker
 	uiRuns         int
+	// local is the local backend openLocal returned, and localDirs the
+	// folders it was given.
+	local     *playbacktest.Fake
+	localDirs []string
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -50,6 +71,11 @@ func newTestEnv(t *testing.T) *testEnv {
 	e.d = deps{
 		stdout: &e.stdout,
 		stderr: &e.stderr,
+		goos:   "darwin",
+		openLocal: func(dirs []string) playback.Player {
+			e.local, e.localDirs = playbacktest.New(), dirs
+			return e.local
+		},
 		locateHelper: func() (string, error) {
 			t.Error("locateHelper called unexpectedly")
 			return "", errors.New("unexpected locate")
@@ -103,24 +129,89 @@ func TestRunUnknownFlagExitsTwo(t *testing.T) {
 	}
 }
 
-func TestRunHelperNotFoundExitsOne(t *testing.T) {
+// tempHome points the user's config directory at a temporary home.
+func tempHome(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", home)
+	return home
+}
+
+// assertLocalOnly checks the UI got a player of the local files alone,
+// closed on exit.
+func assertLocalOnly(t *testing.T, e *testEnv) {
+	t.Helper()
+	c, ok := e.uiPlayer.(*composite.Player)
+	if !ok {
+		t.Fatalf("UI got player %T; want *composite.Player", e.uiPlayer)
+	}
+	if c.Supports(playback.CapCatalogSearch, "") {
+		t.Error("a local-only player offers the catalog")
+	}
+	if e.local == nil || !e.local.Closed() {
+		t.Error("the local backend was not opened and closed")
+	}
+}
+
+func TestRunHelperNotFoundPlaysLocalFiles(t *testing.T) {
+	tempHome(t)
 	e := newTestEnv(t)
 	e.d.locateHelper = func() (string, error) {
 		return "", fmt.Errorf("%w: set NU11SIGNAL_HELPER or build the helper", helper.ErrHelperNotFound)
 	}
-	if code := run(nil, e.d); code != 1 {
-		t.Fatalf("exit code = %d; want 1", code)
+	if code := run(nil, e.d); code != 0 {
+		t.Fatalf("exit code = %d (stderr %q); want 0, local files only", code, e.stderr.String())
 	}
-	want := "nu11signal: nu11signal-helper not found: set NU11SIGNAL_HELPER or build the helper\n"
-	if got := e.stderr.String(); got != want {
-		t.Fatalf("stderr = %q; want %q", got, want)
+	assertLocalOnly(t, e)
+}
+
+func TestRunOffMacOSPlaysLocalFilesWithoutTheHelper(t *testing.T) {
+	tempHome(t)
+	e := newTestEnv(t) // locateHelper fails the test if called
+	e.d.goos = "linux"
+	if code := run(nil, e.d); code != 0 {
+		t.Fatalf("exit code = %d (stderr %q)", code, e.stderr.String())
 	}
-	if e.uiRuns != 0 {
-		t.Fatal("the UI started without a helper")
+	assertLocalOnly(t, e)
+}
+
+func TestRunLocalFlagSkipsTheHelper(t *testing.T) {
+	tempHome(t)
+	e := newTestEnv(t) // locateHelper fails the test if called
+	if code := run([]string{"--local"}, e.d); code != 0 {
+		t.Fatalf("exit code = %d (stderr %q)", code, e.stderr.String())
+	}
+	assertLocalOnly(t, e)
+}
+
+func TestRunScansMusicDirs(t *testing.T) {
+	home := tempHome(t)
+	e := newTestEnv(t)
+	e.d.goos = "linux"
+	if run(nil, e.d); !reflect.DeepEqual(e.localDirs, []string{filepath.Join(home, "Music")}) {
+		t.Errorf("default dirs = %q; want ~/Music", e.localDirs)
+	}
+	path, err := config.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"music_dirs": ["~/tapes", "/srv/music", "~"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e = newTestEnv(t)
+	e.d.goos = "linux"
+	want := []string{filepath.Join(home, "tapes"), "/srv/music", home}
+	if run(nil, e.d); !reflect.DeepEqual(e.localDirs, want) {
+		t.Errorf("configured dirs = %q; want %q", e.localDirs, want)
 	}
 }
 
 func TestRunHelperStartFailureExitsOne(t *testing.T) {
+	tempHome(t)
 	e := newTestEnv(t)
 	e.d.locateHelper = func() (string, error) { return "/opt/helper", nil }
 	var gotPath string
@@ -146,17 +237,22 @@ func TestRunPlaysThroughHelperAndClosesIt(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", home)
 	e := newTestEnv(t)
-	player := &fakePlayer{}
+	player := newFakePlayer()
 	e.d.locateHelper = func() (string, error) { return "/opt/helper", nil }
 	e.d.startHelper = func(context.Context, string) (playback.Player, error) { return player, nil }
 	if code := run(nil, e.d); code != 0 {
 		t.Fatalf("exit code = %d; want 0 (stderr %q)", code, e.stderr.String())
 	}
-	if e.uiPlayer != playback.Player(player) {
-		t.Fatalf("UI got player %T; want the helper player", e.uiPlayer)
+	// Apple Music and the local files, joined.
+	c, ok := e.uiPlayer.(*composite.Player)
+	if !ok || !c.Supports(playback.CapCatalogSearch, "") {
+		t.Fatalf("UI got player %T; want the helper joined with the local files", e.uiPlayer)
 	}
 	if player.closed != 1 {
 		t.Fatalf("player closed %d times; want 1", player.closed)
+	}
+	if e.local == nil || !e.local.Closed() {
+		t.Fatal("the local backend was not opened and closed")
 	}
 	if _, ok := e.uiRecents.(*history.File); !ok {
 		t.Fatalf("UI got recents %T; want the recent-searches file", e.uiRecents)
@@ -260,7 +356,7 @@ func updateEnv(t *testing.T, v, noCheck, settings string) *testEnv {
 	}
 	e := newTestEnv(t)
 	e.d.locateHelper = func() (string, error) { return "/opt/helper", nil }
-	e.d.startHelper = func(context.Context, string) (playback.Player, error) { return &fakePlayer{}, nil }
+	e.d.startHelper = func(context.Context, string) (playback.Player, error) { return newFakePlayer(), nil }
 	return e
 }
 

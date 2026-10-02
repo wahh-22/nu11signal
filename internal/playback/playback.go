@@ -137,12 +137,16 @@ type PlaylistDetail struct {
 
 // Playlist is a library playlist; the UI presents it as a radio station.
 type Playlist struct {
-	// ID is the Apple Music API library id ("p.…").
+	// ID is the Apple Music API library id ("p.…"), or a local one
+	// (LocalPrefix).
 	ID   string
 	Name string
 	// Editable reports whether songs may be added to it: false for a
-	// playlist followed from the catalog.
+	// playlist followed from the catalog, and for local ones.
 	Editable bool
+	// Source is the backend the playlist comes from; empty is the
+	// primary one (Apple Music), as a backend that names none.
+	Source Source
 }
 
 // Status is the player's playback status.

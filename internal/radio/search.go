@@ -137,8 +137,12 @@ func (m Model) deleteRecentAt(i int) (Model, tea.Cmd) {
 // resumeOrOpenSearch brings back the parked search branch exactly as it
 // was left (top page and cursors); with nothing parked, it pushes a fresh
 // search view with an empty input (showing recent terms). / and tab from
-// the stations both call it.
+// the stations both call it. Without a catalog it only says so.
 func (m Model) resumeOrOpenSearch() (tea.Model, tea.Cmd) {
+	if !m.canSearch() {
+		m.setStatus(noSearch)
+		return m, nil
+	}
 	if !m.restoreBranch() {
 		m.resetSearch()
 		m.input.Reset()

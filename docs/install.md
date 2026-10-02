@@ -30,6 +30,34 @@ through the symlink. The cask lives in
 from `packaging/homebrew/nu11signal.rb.template`. The first launch asks for
 Apple Music access.
 
+## Linux
+
+There are no Linux packages yet: build from source with Go (see
+[Building from source](building.md) for the version):
+
+```sh
+git clone https://github.com/wahh-22/nu11signal.git
+cd nu11signal
+go build ./cmd/nu11signal
+./nu11signal
+```
+
+On Linux nu11signal plays your [local music files](usage.md#local-files)
+only: Apple Music needs the macOS helper. Sound goes through PulseAudio
+(PipeWire's `pipewire-pulse` counts) or, without it, ALSA; both are loaded
+at run time, so the build needs no audio headers and no cgo
+(`CGO_ENABLED=0` works).
+
+| Need | Notes |
+|------|-------|
+| Go (see `go.mod`) | Builds the binary; no C compiler, no `libasound2-dev` |
+| PulseAudio or PipeWire with `pipewire-pulse` | Found at `$XDG_RUNTIME_DIR/pulse/native`, which desktop sessions set; elsewhere (`su`, some SSH or container shells) point `PULSE_SERVER` at the socket, for example `export PULSE_SERVER="$(pactl info \| sed -n 's/^Server String: //p')"` |
+| `libasound.so.2` (ALSA) | Used only when PulseAudio cannot be reached; needs a real sound card, since ALSA's `default` without one stops taking audio after the first fraction of a second |
+
+CI builds and tests on Linux (Ubuntu) and plays a short tone through the
+real audio path against a PulseAudio null sink
+(`go test -tags audiosmoke -run Smoke ./internal/playback/local/...`).
+
 ## Font
 
 The UI is designed with [Kode Mono](https://fonts.google.com/specimen/Kode+Mono),

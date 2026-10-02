@@ -2,7 +2,7 @@
 
 [← Back to the README](../README.md) · [Documentation index](../README.md#documentation)
 
-Browsing, editing your library, every key and mouse binding, the settings, and the update check.
+Browsing, editing your library, local music files, every key and mouse binding, the settings, and the update check.
 
 ## Browsing the catalog
 
@@ -104,6 +104,42 @@ Limitations:
 
 Songs only in your library cannot be loved or added (the ratings and
 playlist endpoints take catalog ids): `l` and `a` show a notice.
+
+## Local files
+
+nu11signal also plays the music files on your computer, on macOS beside
+Apple Music and on Linux (or without the helper, or with `--local`) on
+their own. The folders come from `"music_dirs"` in `config.json` (see
+[Settings](#settings)), `~` meaning your home; without it, `~/Music`:
+
+```json
+{"music_dirs": ["~/Music", "/Volumes/Archive/music"]}
+```
+
+- **Formats:** mp3, flac, ogg vorbis (`.ogg`, `.oga`) and wav. Titles,
+  artists and albums come from the tags; a file without a title is named
+  after the file, without an album after its folder. Hidden files and
+  folders are skipped.
+- **Playlists:** every folder that holds audio files is a playlist, its
+  songs in disc and track order, and so is every `.m3u`/`.m3u8` file. They
+  are listed under a `LOCAL` header in PLAYLISTS, after the Apple Music
+  ones, and play like them.
+- **Startup:** the folders are scanned in the background; the local
+  playlists appear once the scan ends, startup never waits for it. A
+  folder that does not exist is skipped.
+- **Playback:** the files are decoded in nu11signal and played through the
+  system output (CoreAudio on macOS; PulseAudio, PipeWire's PulseAudio
+  server or ALSA on Linux), with the app's own volume and the rain driven
+  by the music itself (`SPECTRUM LIVE`). Playing a local song stops Apple
+  Music, and the other way round; a queue never mixes the two.
+- **Not available for local songs:** search (there is no catalog; without
+  Apple Music the SEARCH tab is hidden), artist and album pages, loving
+  (`<3`) and adding to a playlist (no `<3` or `+` on their rows), and
+  creating playlists (no `+ NEW PLAYLIST` without Apple Music).
+
+When Apple Music access is refused, nu11signal says so on the status line
+and keeps playing the local files; grant access (System Settings › Privacy
+& Security › Media & Apple Music) and restart to get the catalog back.
 
 ## Keys
 
@@ -328,7 +364,8 @@ The choice is saved to `"theme"` in `nu11signal/config.json` under
 
 The file is written only when a theme is chosen, atomically (a temporary
 file renamed over it), private (`0600`, its directory `0700`), keeping the
-fields it does not know. A file that is not valid JSON is left alone and
+fields it does not know and the ones only you write (`"update_check"`,
+`"music_dirs"`, see [Local files](#local-files)). A file that is not valid JSON is left alone and
 the choice is not saved (the status line says so); a theme name nu11signal
 does not know starts `NIGHT CITY` silently.
 

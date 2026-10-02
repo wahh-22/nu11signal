@@ -12,6 +12,7 @@
   <a href="https://github.com/wahh-22/nu11signal/releases/latest"><img src="https://img.shields.io/github/v/release/wahh-22/nu11signal?style=for-the-badge&labelColor=0A0A0A&color=FF5F57" alt="Latest release"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/macOS-14%2B-5EF6FF?style=for-the-badge&labelColor=0A0A0A&logo=apple&logoColor=5EF6FF" alt="macOS 14 or later"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/brew-wahh--22%2Ftap-FCEE0A?style=for-the-badge&labelColor=0A0A0A&logo=homebrew&logoColor=FCEE0A" alt="Homebrew cask wahh-22/tap/nu11signal"></a>
+  <a href="https://github.com/wahh-22/nu11signal/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/wahh-22/nu11signal/ci.yml?branch=main&style=for-the-badge&labelColor=0A0A0A&label=CI" alt="CI status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/wahh-22/nu11signal?style=for-the-badge&labelColor=0A0A0A&color=FF5F57" alt="MIT license"></a>
   <a href="https://github.com/wahh-22/nu11signal/stargazers"><img src="https://img.shields.io/github/stars/wahh-22/nu11signal?style=for-the-badge&labelColor=0A0A0A&color=FF5F57" alt="GitHub stars"></a>
   <a href="https://github.com/wahh-22/nu11signal/commits/main"><img src="https://img.shields.io/github/last-commit/wahh-22/nu11signal?style=for-the-badge&labelColor=0A0A0A&color=9A3B37" alt="Last commit"></a>
@@ -66,6 +67,17 @@ through MusicKit's `ApplicationMusicPlayer`. No browser and no app window: the
 helper is windowless and idles near 0% CPU.
 
 **[Docs →](docs/architecture.md)**
+
+---
+
+### Your own music files too
+
+mp3, flac, ogg and wav from `~/Music` (or the folders you name) play beside
+Apple Music under a LOCAL section, folders and m3u files as playlists, with
+the rain driven by the music itself. On Linux, built from source, they play
+on their own.
+
+**[Docs →](docs/usage.md#local-files)**
 
 ---
 

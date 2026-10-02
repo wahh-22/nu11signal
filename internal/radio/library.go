@@ -218,6 +218,16 @@ func (m Model) playingSong() (playback.Song, bool) {
 	return playback.Song{ID: m.state.SongID, Title: m.state.Title, Artist: m.state.Artist, Album: m.state.Album}, true
 }
 
+// heartSong is the song playing when its source has favorites: the one
+// NOW PLAYING draws the favorite of.
+func (m Model) heartSong() (playback.Song, bool) {
+	s, ok := m.playingSong()
+	if !ok || !m.supports(playback.CapFavorites, s.ID) {
+		return playback.Song{}, false
+	}
+	return s, true
+}
+
 // songTarget is the song l and a act on: the selected song row while the
 // list has the focus, else the song playing.
 func (m Model) songTarget() (playback.Song, bool) {
@@ -276,11 +286,11 @@ func (m Model) readFavorites() (Model, tea.Cmd) {
 }
 
 // favoriteTargets are the songs whose state the UI shows: the selected
-// song and the song playing, those with a catalog id.
+// song and the song playing, those with a catalog id and favorites.
 func (m Model) favoriteTargets() []playback.Song {
 	var out []playback.Song
 	add := func(s playback.Song, ok bool) {
-		if ok && s.ID != "" && !s.LibraryOnly && !slices.ContainsFunc(out, func(o playback.Song) bool { return o.ID == s.ID }) {
+		if ok && s.ID != "" && !s.LibraryOnly && m.supports(playback.CapFavorites, s.ID) && !slices.ContainsFunc(out, func(o playback.Song) bool { return o.ID == s.ID }) {
 			out = append(out, s)
 		}
 	}
@@ -290,8 +300,8 @@ func (m Model) favoriteTargets() []playback.Song {
 }
 
 // prefetchFavorites reads, in one call, the favorite states of the songs
-// of a page just loaded: those with a catalog id that are not known, being
-// read or changed.
+// of a page just loaded: those with a catalog id and favorites that are
+// not known, being read or changed.
 func (m Model) prefetchFavorites(songs []playback.Song) (Model, tea.Cmd) {
 	if m.auth != authOK || m.signalLost() {
 		return m, nil
@@ -299,7 +309,7 @@ func (m Model) prefetchFavorites(songs []playback.Song) (Model, tea.Cmd) {
 	var ids []string
 	for _, s := range songs {
 		f := m.favs[s.ID]
-		if s.ID == "" || s.LibraryOnly || f.known || f.reading || f.writing || slices.Contains(ids, s.ID) {
+		if s.ID == "" || s.LibraryOnly || !m.supports(playback.CapFavorites, s.ID) || f.known || f.reading || f.writing || slices.Contains(ids, s.ID) {
 			continue
 		}
 		ids = append(ids, s.ID)
@@ -381,6 +391,10 @@ func (m Model) loveTarget() (Model, tea.Cmd) {
 // unknown state counts as not loved. The row shows the change at once; it
 // is sent now, or once the change in flight for s answers.
 func (m Model) toggleFavorite(s playback.Song) (Model, tea.Cmd) {
+	if !m.supports(playback.CapFavorites, s.ID) {
+		m.setStatus(unsupported(s, "LOVED"))
+		return m, nil
+	}
 	if s.LibraryOnly {
 		m.setStatus(notInCatalog(s, "LOVED"))
 		return m, nil
@@ -438,11 +452,19 @@ func (m Model) onSetFavorite(msg setFavoriteMsg) (Model, tea.Cmd) {
 
 // songActions renders the end of a song row, songActionsWidth cells: on
 // the selected row its favorite mark (<3 or --) and + controls, elsewhere
-// a lit <3 when the song is known to be loved.
+// a lit <3 when the song is known to be loved. A control the song's
+// source does not offer is blank.
 func (m Model) songActions(s playback.Song, selected bool) string {
 	on, _ := m.favoriteOf(s.ID)
 	if selected {
-		return stSelected.Render(" " + favoriteMark(on) + " + ")
+		mark, add := favoriteMark(on), "+"
+		if !m.supports(playback.CapFavorites, s.ID) {
+			mark = "  "
+		}
+		if !m.supports(playback.CapEditPlaylists, s.ID) {
+			add = " "
+		}
+		return stSelected.Render(" " + mark + " " + add + " ")
 	}
 	if on {
 		return " " + stFav.Render(favoriteOnMark) + "   "
@@ -451,10 +473,10 @@ func (m Model) songActions(s playback.Song, selected bool) string {
 }
 
 // songRow renders a song row in w cells with row, ended by its controls
-// when w leaves room for them; actions reports that the selected row's
-// controls are drawn (see pageBody).
+// when w leaves room for them and its source offers any; actions reports
+// that the selected row's controls are drawn (see pageBody).
 func (m Model) songRow(s playback.Song, selected bool, w int, row func(w int) string) (text string, actions bool) {
-	if w < songActionsMinWidth {
+	if w < songActionsMinWidth || !m.supports(playback.CapFavorites, s.ID) && !m.supports(playback.CapEditPlaylists, s.ID) {
 		return row(w), false
 	}
 	return row(w-songActionsWidth) + m.songActions(s, selected), selected
@@ -480,7 +502,7 @@ func addActionZones(zs *zones, w, y int) {
 // favorite button of the song playing, [<3] (lit) or [--] (dim), while there is one and room for it (w of at
 // least heartTitleMinWidth); the zones are in the line's coordinates.
 func (m Model) heartTitle(title string, w int) (string, zones) {
-	s, ok := m.playingSong()
+	s, ok := m.heartSong()
 	if !ok || w < heartTitleMinWidth {
 		return title, nil
 	}
@@ -519,6 +541,10 @@ func (m Model) searchTyping() bool {
 // focus; the SEARCH input, if it was typing, gets the keys back when the
 // picker closes.
 func (m Model) openPicker(s playback.Song) (Model, tea.Cmd) {
+	if !m.supports(playback.CapEditPlaylists, s.ID) {
+		m.setStatus(unsupported(s, "ADDED"))
+		return m, nil
+	}
 	if s.LibraryOnly {
 		m.setStatus(notInCatalog(s, "ADDED"))
 		return m, nil
@@ -755,7 +781,7 @@ func (m Model) onCreated(msg createdMsg) (Model, tea.Cmd) {
 }
 
 // withCreated lists the playlists created here among pls, alphabetically,
-// those pls lacks.
+// those pls lacks: among the Apple Music ones, before the LOCAL section.
 func withCreated(pls, created []playback.Playlist) []playback.Playlist {
 	out := slices.Clone(pls)
 	for _, c := range created {
@@ -764,7 +790,7 @@ func withCreated(pls, created []playback.Playlist) []playback.Playlist {
 		}
 		at := len(out)
 		for i, p := range out {
-			if strings.ToLower(p.Name) > strings.ToLower(c.Name) {
+			if p.Source == playback.SourceLocal || strings.ToLower(p.Name) > strings.ToLower(c.Name) {
 				at = i
 				break
 			}

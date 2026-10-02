@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -38,7 +39,7 @@ func TestLoad(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Load() error = %v; want error %v", err, tt.wantErr)
 			}
-			if got != tt.want {
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("Load() = %+v; want %+v", got, tt.want)
 			}
 		})
@@ -48,7 +49,7 @@ func TestLoad(t *testing.T) {
 func TestLoadMissingFileIsTheDefault(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nu11signal", "config.json")
 	got, err := NewFile(path).Load()
-	if err != nil || got != (Config{}) {
+	if err != nil || !reflect.DeepEqual(got, Config{}) {
 		t.Fatalf("Load() = %+v, %v; want the zero Config and no error", got, err)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -81,7 +82,7 @@ func TestDefaultPath(t *testing.T) {
 
 func TestLoadReadsTheTheme(t *testing.T) {
 	got, err := NewFile(write(t, `{"visualizer": "rain", "theme": "BLUE"}`)).Load()
-	if err != nil || got != (Config{Visualizer: "rain", Theme: "BLUE"}) {
+	if err != nil || !reflect.DeepEqual(got, Config{Visualizer: "rain", Theme: "BLUE"}) {
 		t.Fatalf("Load() = %+v, %v; want the visualizer and the theme", got, err)
 	}
 }
@@ -95,7 +96,7 @@ func TestSaveRoundTripsPrivately(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := f.Load()
-	if err != nil || got != want {
+	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Load() after Save = %+v, %v; want %+v", got, err, want)
 	}
 	for p, mode := range map[string]os.FileMode{dir: 0o700, path: 0o600} {
@@ -204,5 +205,32 @@ func TestSaveKeepsAndRemovesUpdateCheck(t *testing.T) {
 	data, _ = os.ReadFile(path)
 	if !strings.Contains(string(data), `"update_check": false`) {
 		t.Fatalf("saved %s; want update_check false kept by a save that leaves it unset", data)
+	}
+}
+
+func TestLoadReadsTheMusicDirs(t *testing.T) {
+	got, err := NewFile(write(t, `{"music_dirs": ["~/Music", "/srv/tapes"]}`)).Load()
+	if err != nil || !reflect.DeepEqual(got.MusicDirs, []string{"~/Music", "/srv/tapes"}) {
+		t.Fatalf("Load() = %+v, %v", got, err)
+	}
+}
+
+func TestSaveKeepsTheMusicDirs(t *testing.T) {
+	path := write(t, `{"music_dirs": ["/srv/tapes"], "theme": "NIGHT CITY"}`)
+	f := NewFile(path)
+	// A theme chosen in the app, from a Config that never read the dirs.
+	if err := f.Save(Config{Theme: "BLUE"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.Load()
+	if err != nil || got.Theme != "BLUE" || !reflect.DeepEqual(got.MusicDirs, []string{"/srv/tapes"}) {
+		t.Fatalf("after a theme save: %+v, %v; want the music dirs kept", got, err)
+	}
+	// Saved with dirs, they round-trip.
+	if err := f.Save(Config{Theme: "BLUE", MusicDirs: []string{"/a", "/b"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := f.Load(); err != nil || !reflect.DeepEqual(got.MusicDirs, []string{"/a", "/b"}) {
+		t.Fatalf("round trip: %+v, %v", got, err)
 	}
 }

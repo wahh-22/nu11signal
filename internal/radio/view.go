@@ -522,7 +522,7 @@ func (m Model) barMark() string {
 }
 
 // feedLine names where the music comes from, at the head of NOW PLAYING:
-// a station's frequency or the catalog.
+// a station's frequency, the catalog, or the local files.
 func (m Model) feedLine() string {
 	for i, s := range m.stations {
 		if s.ID == m.playingStation {
@@ -530,6 +530,9 @@ func (m Model) feedLine() string {
 		}
 	}
 	if m.hasState && m.state.Title != "" {
+		if playback.SourceOf(m.state.SongID) == playback.SourceLocal {
+			return stAccent.Render("▞ LOCAL FEED") + stMuted.Render(" // DIRECT")
+		}
 		return stAccent.Render("▞ CATALOG FEED") + stMuted.Render(" // DIRECT")
 	}
 	return stDim.Render("▞ ---.- MHZ // NO FEED")
@@ -569,7 +572,8 @@ func (m Model) listView(w, h int) (title, code string, body []string, zs zones) 
 }
 
 // stationRows renders the visible window of the station list, the + NEW
-// PLAYLIST row over it once the library is reachable, scrolled so the
+// PLAYLIST row over it once the library is reachable (and playlists can
+// be created), the local playlists under a LOCAL header, scrolled so the
 // cursor stays on screen.
 func (m Model) stationRows(w, h int) ([]string, zones) {
 	if h <= 0 {
@@ -577,16 +581,36 @@ func (m Model) stationRows(w, h int) ([]string, zones) {
 	}
 	n := len(m.stations)
 	cur := m.stationCursor()
+	// lines are the stations cursors drawn, top to bottom; localHead
+	// marks the LOCAL header, which is not a row.
+	const localHead = -2
+	var lines []int
+	at := 0 // the cursor's line
+	for i := m.firstStationRow(); i < n; i++ {
+		if i >= 0 && m.stations[i].Source == playback.SourceLocal && (i == 0 || m.stations[i-1].Source != playback.SourceLocal) {
+			lines = append(lines, localHead)
+		}
+		if i == cur {
+			at = len(lines)
+		}
+		lines = append(lines, i)
+	}
 	rows := make([]string, 0, h)
 	var zs zones
-	for i := max(m.firstStationRow(), cur-h+1); i < n && len(rows) < h; i++ {
-		if i < 0 {
+	for _, i := range lines[min(max(at-h+1, 0), len(lines)):] {
+		if len(rows) >= h {
+			break
+		}
+		switch {
+		case i == localHead:
+			rows = append(rows, fit(" "+stAccent.Render("▞ ")+stMuted.Render(spaced("LOCAL")), w))
+		case i < 0:
 			zs.add(zoneNewPlaylist, 0, len(rows), w)
 			rows = append(rows, newPlaylistLine(cur < 0, w))
-			continue
+		default:
+			zs.add(rowZone(i), 0, len(rows), w)
+			rows = append(rows, m.stationRow(i, i == cur, w))
 		}
-		zs.add(rowZone(i), 0, len(rows), w)
-		rows = append(rows, m.stationRow(i, i == cur, w))
 	}
 	if n == 0 && len(rows) < h {
 		msg := "SCANNING BANDS..."
@@ -697,6 +721,9 @@ func (m Model) hintLine(w int) string {
 		hints = artistHints
 	case kind == viewAlbum, kind == viewPlaylist:
 		hints = trackHints
+	}
+	if !m.canSearch() {
+		hints = slices.DeleteFunc(slices.Clone(hints), func(h hint) bool { return h.key == keySearch })
 	}
 	return fitHints(hints, w)
 }

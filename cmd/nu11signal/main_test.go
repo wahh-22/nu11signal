@@ -19,6 +19,7 @@ func TestParseFlags(t *testing.T) {
 		{"version flag", []string{"--version"}, options{version: true}},
 		{"single-dash version", []string{"-version"}, options{version: true}},
 		{"calm starts the effects off", []string{"--demo", "--calm"}, options{demo: true, calm: true}},
+		{"local files only", []string{"--local"}, options{local: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

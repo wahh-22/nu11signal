@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux (Go, audio smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
+
+      # oto loads PulseAudio (pure Go) and ALSA (purego) at run time, so the
+      # whole module, ALSA fallback included, builds without cgo.
+      - name: go build (no cgo)
+        run: CGO_ENABLED=0 go build ./...
+
+      - name: go vet (audiosmoke tag)
+        run: CGO_ENABLED=0 go vet -tags audiosmoke ./internal/playback/local/...
+
+      - name: go test -race
+        run: go test -race ./...
+
+      - name: Start PulseAudio with a null sink
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pulseaudio pulseaudio-utils
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=ci
+          pactl set-default-sink ci
+          # oto's pure Go client looks only at $XDG_RUNTIME_DIR/pulse/native
+          # or $PULSE_SERVER; pin the socket pactl found.
+          echo "PULSE_SERVER=$(pactl info | sed -n 's/^Server String: //p')" >> "$GITHUB_ENV"
+          pactl info | grep -E 'Server String|Default Sink'
+
+      - name: Audio smoke test (real oto sink on PulseAudio)
+        run: go test -count=1 -v -tags audiosmoke -run Smoke ./internal/playback/local/...
+
+  macos:
+    name: macOS (Go, scripts, Swift)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: go test -race
+        run: go test -race ./...
+
+      - name: Script tests
+        run: make test-scripts
+
+      # The protocol tests need no signing: the signed helper bundle is
+      # only built by `make helper`.
+      - name: Swift tests
+        working-directory: helper
+        run: swift test

@@ -276,7 +276,10 @@ type Model struct {
 	// when playback started (zero while it does not play). barsDecorative
 	// says the last frame's bars were decorative; barsHandover counts the
 	// frames left to glide onto the readings (see stepBars).
-	levels         <-chan playback.Spectrum
+	levels <-chan playback.Spectrum
+	// libraryChanged reports playlist changes (nil when the player has
+	// none to report, see caps.go).
+	libraryChanged <-chan struct{}
 	spectrum       playback.Spectrum
 	spectrumAt     time.Time
 	playSince      time.Time
@@ -345,22 +348,27 @@ func New(p playback.Player, opts Options) Model {
 	if src, ok := p.(playback.LevelSource); ok {
 		levels = src.Levels()
 	}
+	var changed <-chan struct{}
+	if w, ok := p.(playback.LibraryWatcher); ok {
+		changed = w.LibraryChanged()
+	}
 	m := Model{
-		player:       p,
-		levels:       levels,
-		now:          opts.Now,
-		seed:         opts.Seed,
-		timeout:      opts.CallTimeout,
-		closeTimeout: opts.CloseTimeout,
-		stack:        []frame{{kind: viewStations}},
-		volumeBusy:   true, // Init reads the volume
-		fx:           effects{on: opts.Effects},
-		boot:         !opts.SkipBoot,
-		configSource: opts.Config,
-		updates:      opts.Updates,
-		version:      opts.Version,
-		upgrade:      opts.Upgrade,
-		configSaves:  &configSaves{},
+		player:         p,
+		levels:         levels,
+		libraryChanged: changed,
+		now:            opts.Now,
+		seed:           opts.Seed,
+		timeout:        opts.CallTimeout,
+		closeTimeout:   opts.CloseTimeout,
+		stack:          []frame{{kind: viewStations}},
+		volumeBusy:     true, // Init reads the volume
+		fx:             effects{on: opts.Effects},
+		boot:           !opts.SkipBoot,
+		configSource:   opts.Config,
+		updates:        opts.Updates,
+		version:        opts.Version,
+		upgrade:        opts.Upgrade,
+		configSaves:    &configSaves{},
 
 		input:         in,
 		nameInput:     name,
@@ -375,7 +383,7 @@ func New(p playback.Player, opts Options) Model {
 // Init authorizes, loads recent searches and the settings, reads the volume, starts
 // listening to the player, starts animating, and checks for a newer release.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.loadConfigCmd(), m.readVolumeCmd(0), m.waitStates(), m.waitErrors(), tickAfter(idleTick, tickMsg{gen: m.tickGen}), m.checkReleaseCmd())
+	return tea.Batch(m.authorizeCmd(), m.loadRecentsCmd(), m.loadConfigCmd(), m.readVolumeCmd(0), m.waitStates(), m.waitErrors(), m.waitLibrary(), tickAfter(idleTick, tickMsg{gen: m.tickGen}), m.checkReleaseCmd())
 }
 
 // Messages produced by the model's commands.
@@ -624,9 +632,10 @@ func (m Model) stationCursor() int { return m.stack[0].cursor }
 func (m *Model) setStationCursor(c int) { m.setCursorAt(0, c) }
 
 // firstStationRow is the stations cursor of the top row: -1, the + NEW
-// PLAYLIST row, once the library is reachable, else the first playlist.
+// PLAYLIST row, once the library is reachable and playlists can be
+// created, else the first playlist.
 func (m Model) firstStationRow() int {
-	if m.auth == authOK {
+	if m.auth == authOK && m.supports(playback.CapEditPlaylists, "") {
 		return -1
 	}
 	return 0
