@@ -1,7 +1,7 @@
 <a id="top"></a>
 
 <div align="center">
-  <img src="docs/assets/brand/nu11signal-banner.svg" width="1200" alt="nu11signal: the null emblem beside N U 1 1 / S I G N A L">
+  <img src="docs/assets/brand/logo/nu11signal-night-city.svg" width="900" alt="NU11SIGNAL logo: a masked head with headphones and LED-grid eyes beside the NU11SIGNAL wordmark">
 </div>
 
 <h1 align="center">nu11signal</h1>

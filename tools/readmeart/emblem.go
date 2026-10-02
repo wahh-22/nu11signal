@@ -56,73 +56,10 @@ func emblemDots(x0, y0, d float64) string {
 	return b.String()
 }
 
-// emblemBars are the five thin Braille bars under the name, as the app
-// draws them beside the emblem.
-var emblemBars = strings.Repeat("⣠⡾⠋", 5)
-
-// bars draws emblemBars from (x, y) as yellow dots of pitch d, one cell
-// 2d wide.
-func bars(x, y, d float64) string {
-	var b strings.Builder
-	for i, c := range []rune(emblemBars) {
-		brailleCell(&b, c, x+float64(2*i)*d, y, d, d, 0.4*d, yellow)
-	}
-	return b.String()
-}
-
 // emblemSize is the large emblem's size in cells.
 func emblemSize() (w, h int) {
 	rows, _ := radio.EmblemArt()
 	return len([]rune(rows[0])), len(rows)
-}
-
-// corners draws HUD brackets of arm length a at the corners of the box
-// inset i from a w x h frame.
-func corners(w, h, i, a float64, color string) string {
-	var b strings.Builder
-	for _, c := range [][4]float64{{i, i, 1, 1}, {w - i, i, -1, 1}, {i, h - i, 1, -1}, {w - i, h - i, -1, -1}} {
-		x, y, dx, dy := c[0], c[1], c[2], c[3]
-		fmt.Fprintf(&b, `<path d="M%s %sV%sH%s" fill="none" stroke="%s" stroke-width="3"/>`+"\n",
-			num(x), num(y+dy*a), num(y), num(x+dx*a), color)
-	}
-	return b.String()
-}
-
-// banner is the README header: the emblem with the name spaced out
-// beside it over the bars, on the emblem's rows 2..4 and textGap cells
-// right of it as on the boot splash, in a framed night-black panel.
-func banner() []byte {
-	const (
-		w, h  = 1200.0, 360.0
-		d     = 8.0   // dot pitch
-		cellW = 2 * d // one cell, emblem or text
-		rowH  = 4 * d // one row
-		font  = cellW / 0.6
-		gap   = 3 * cellW // emblem to text
-	)
-	ew, eh := emblemSize()
-	text := []string{"N U 1 1", "S I G N A L"}
-	textW := float64(len([]rune(emblemBars))) * cellW
-	x0 := (w - (float64(ew)*cellW + gap + textW)) / 2
-	y0 := (h - float64(eh)*rowH) / 2
-	tx := x0 + float64(ew)*cellW + gap
-
-	var b strings.Builder
-	fmt.Fprintf(&b, `<rect x="1.5" y="1.5" width="%s" height="%s" rx="16" fill="%s" stroke="%s" stroke-opacity="0.45" stroke-width="3"/>`+"\n",
-		num(w-3), num(h-3), night, red)
-	b.WriteString(corners(w, h, 20, 28, cyan))
-	fmt.Fprintf(&b, `<text x="44" y="52" font-family="%s" font-size="15" letter-spacing="3" fill="%s">SIG ▂▄▆█  //  AUTH OK</text>`+"\n", monoFonts, dimRed)
-	fmt.Fprintf(&b, `<text x="%s" y="52" text-anchor="end" font-family="%s" font-size="15" letter-spacing="3" fill="%s">NODE 7F // NC-GRID</text>`+"\n", num(w-44), monoFonts, dimRed)
-	b.WriteString(emblemDots(x0, y0, d))
-	// The name on the emblem's rows 2 and 3, the bars on row 4.
-	for i, line := range text {
-		fmt.Fprintf(&b, `<text x="%s" y="%s" textLength="%s" lengthAdjust="spacingAndGlyphs" font-family="%s" font-size="%s" font-weight="bold" fill="%s">%s</text>`+"\n",
-			num(tx), num(y0+float64(i+2)*rowH+rowH*0.8), num(float64(len([]rune(line)))*cellW), monoFonts, num(font), red, esc(line))
-	}
-	b.WriteString(bars(tx, y0+4*rowH, d))
-	fmt.Fprintf(&b, `<text x="%s" y="%s" text-anchor="middle" font-family="%s" font-size="16" letter-spacing="6" fill="%s">APPLE MUSIC  //  TERMINAL RADIO</text>`+"\n",
-		num(w/2), num(h-40), monoFonts, cyan)
-	return svgDoc(w, h, "nu11signal: the null emblem beside N U 1 1 / S I G N A L", b.String())
 }
 
 // emblemIcon is the emblem alone on a square night-black tile.
