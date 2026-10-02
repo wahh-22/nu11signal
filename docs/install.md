@@ -2,7 +2,7 @@
 
 [← Back to the README](../README.md) · [Documentation index](../README.md#documentation)
 
-Install a signed, notarized build and set up the font the UI is designed with. To build from source instead, see [Building from source](building.md).
+Install a signed, notarized macOS build or a Linux build, and set up the font the UI is designed with. To build from source instead, see [Building from source](building.md).
 
 ## Download
 
@@ -10,11 +10,16 @@ Signed, notarized builds (macOS 14 or later, Apple Silicon and Intel) are
 published on [GitHub Releases](https://github.com/wahh-22/nu11signal/releases).
 No Apple Developer account is needed to run them.
 
-With [Homebrew](https://brew.sh):
+With [Homebrew](https://brew.sh), the cask is the recommended install (it
+also installs the Kode Mono font, see [Font](#font)):
 
 ```sh
 brew install --cask wahh-22/tap/nu11signal
 ```
+
+The tap's formula installs the same signed, notarized build without the font
+(`brew install wahh-22/tap/nu11signal`, which is also what that command
+resolves to without `--cask`); install only one of them.
 
 Or manually from a release archive:
 
@@ -25,14 +30,49 @@ nu11signal-<version>/bin/nu11signal --version
 ```
 
 Symlink `bin/nu11signal` onto your `PATH` if you like; the helper is found
-through the symlink. The cask lives in
-[wahh-22/homebrew-tap](https://github.com/wahh-22/homebrew-tap) and is generated
-from `packaging/homebrew/nu11signal.rb.template`. The first launch asks for
+through the symlink. The cask and the formula live in
+[wahh-22/homebrew-tap](https://github.com/wahh-22/homebrew-tap) and are
+generated from `packaging/homebrew/nu11signal.rb.template` and
+`packaging/homebrew/nu11signal-formula.rb.template`. The first launch asks for
 Apple Music access.
 
 ## Linux
 
-There are no Linux packages yet: build from source with Go (see
+Releases include Linux builds for x86_64 (`amd64`) and ARM64 (`arm64`). On
+Linux nu11signal plays your [local music files](usage.md#local-files) only:
+Apple Music needs the macOS helper.
+
+With [Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux) (the
+formula; casks are macOS-only):
+
+```sh
+brew install wahh-22/tap/nu11signal
+```
+
+Or from a release archive on
+[GitHub Releases](https://github.com/wahh-22/nu11signal/releases) (use
+`arm64` on ARM machines):
+
+```sh
+curl -LO https://github.com/wahh-22/nu11signal/releases/download/v<version>/nu11signal-<version>-linux-amd64.tar.gz
+curl -LO https://github.com/wahh-22/nu11signal/releases/download/v<version>/nu11signal-<version>-linux-amd64.tar.gz.sha256
+sha256sum -c nu11signal-<version>-linux-amd64.tar.gz.sha256
+tar -xzf nu11signal-<version>-linux-amd64.tar.gz
+install -m 755 nu11signal-<version>/bin/nu11signal ~/.local/bin/   # any directory on your PATH
+nu11signal --version
+```
+
+The archive holds only `bin/nu11signal`, `LICENSE`, and `README.md`; the
+binary is self-contained, so it can live anywhere on your `PATH`.
+
+Sound goes through PulseAudio (PipeWire's `pipewire-pulse` counts) or,
+without it, ALSA; both are loaded at run time, so the binary needs no audio
+packages to start and the build needs no audio headers and no cgo
+(`CGO_ENABLED=0` works). Loading them needs a glibc-based distribution (the
+binary uses the system's `ld-linux` loader; musl systems such as Alpine are
+not supported).
+
+To build from source instead, with Go (see
 [Building from source](building.md) for the version):
 
 ```sh
@@ -42,15 +82,9 @@ go build ./cmd/nu11signal
 ./nu11signal
 ```
 
-On Linux nu11signal plays your [local music files](usage.md#local-files)
-only: Apple Music needs the macOS helper. Sound goes through PulseAudio
-(PipeWire's `pipewire-pulse` counts) or, without it, ALSA; both are loaded
-at run time, so the build needs no audio headers and no cgo
-(`CGO_ENABLED=0` works).
-
 | Need | Notes |
 |------|-------|
-| Go (see `go.mod`) | Builds the binary; no C compiler, no `libasound2-dev` |
+| Go (see `go.mod`), source builds only | Builds the binary; no C compiler, no `libasound2-dev` |
 | PulseAudio or PipeWire with `pipewire-pulse` | Found at `$XDG_RUNTIME_DIR/pulse/native`, which desktop sessions set; elsewhere (`su`, some SSH or container shells) point `PULSE_SERVER` at the socket, for example `export PULSE_SERVER="$(pactl info \| sed -n 's/^Server String: //p')"` |
 | `libasound.so.2` (ALSA) | Used only when PulseAudio cannot be reached; needs a real sound card, since ALSA's `default` without one stops taking audio after the first fraction of a second |
 

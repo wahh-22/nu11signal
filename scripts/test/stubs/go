@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# Test stub: `go build ... -ldflags "... -X main.version=V" -o OUT PKG` writes a
-# script to OUT that prints V for --version.
-echo "go $*" >>"$STUB_LOG"
+# Test stub: `go build ... -ldflags "... -X main.version=V" -o OUT PKG`.
+# For GOOS=linux it writes a fake ELF to OUT: a 64-bit little-endian header
+# whose machine matches GOARCH (amd64: x86_64, arm64: aarch64), followed by
+# "version=V". Otherwise it writes a script that prints V for --version.
+# STUB_GO_WRONG_ARCH=1 swaps the ELF machine (an arm64 build comes out x86_64).
+# Calls are logged as "go GOOS=.. GOARCH=.. CGO_ENABLED=.. ARGS".
+echo "go GOOS=${GOOS:-} GOARCH=${GOARCH:-} CGO_ENABLED=${CGO_ENABLED:-} $*" >>"$STUB_LOG"
 [[ "${1:-}" == build ]] || { echo "go stub: unsupported: $*" >&2; exit 1; }
 out="" version=dev prev=""
 for arg in "$@"; do
@@ -13,5 +17,22 @@ for arg in "$@"; do
   prev="$arg"
 done
 [[ -n "$out" ]] || { echo "go stub: no -o" >&2; exit 1; }
-printf '#!/bin/sh\necho %s\n' "$version" >"$out"
+if [[ "${GOOS:-}" == linux ]]; then
+  arch="${GOARCH:-}"
+  if [[ "${STUB_GO_WRONG_ARCH:-0}" == 1 ]]; then
+    case "$arch" in amd64) arch=arm64 ;; arm64) arch=amd64 ;; esac
+  fi
+  case "$arch" in
+    amd64) machine='\076\000' ;;
+    arm64) machine='\267\000' ;;
+    *) echo "go stub: unsupported GOARCH: ${GOARCH:-}" >&2; exit 1 ;;
+  esac
+  {
+    printf '\177ELF\002\001\001\000\000\000\000\000\000\000\000\000\002\000'
+    printf "$machine"
+    printf '\nversion=%s\n' "$version"
+  } >"$out"
+else
+  printf '#!/bin/sh\necho %s\n' "$version" >"$out"
+fi
 chmod +x "$out"

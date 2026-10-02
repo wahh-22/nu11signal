@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 # Test stub: `brew --repository` points at the sandbox; `brew audit` succeeds
-# unless STUB_BREW_AUDIT_EXIT says otherwise.
+# unless STUB_BREW_AUDIT_EXIT says otherwise (STUB_BREW_FORMULA_AUDIT_EXIT for
+# `brew audit --formula`); `brew style` succeeds unless STUB_BREW_STYLE_EXIT.
 echo "brew $*" >>"$STUB_LOG"
 case "${1:-}" in
   --repository) echo "$STUB_BREW_REPO" ;;
-  audit) exit "${STUB_BREW_AUDIT_EXIT:-0}" ;;
+  audit)
+    if [[ "${2:-}" == --formula ]]; then
+      exit "${STUB_BREW_FORMULA_AUDIT_EXIT:-${STUB_BREW_AUDIT_EXIT:-0}}"
+    fi
+    exit "${STUB_BREW_AUDIT_EXIT:-0}"
+    ;;
+  style) exit "${STUB_BREW_STYLE_EXIT:-0}" ;;
   *) echo "brew stub: unsupported: $*" >&2; exit 1 ;;
 esac

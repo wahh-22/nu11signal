@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Test stub for release.sh (linked as `git`): a clean working tree at abc1234.
+# Test stub for release.sh (linked as `git`): a clean working tree at abc1234,
+# or one with a modified tracked file when STUB_GIT_DIRTY=1.
 echo "git $*" >>"$STUB_LOG"
 case "${1:-}" in
-  status) exit 0 ;;
+  status) [[ "${STUB_GIT_DIRTY:-0}" == 1 ]] && echo " M README.md"; exit 0 ;;
   rev-parse) echo abc1234 ;;
   *) echo "git stub: unsupported: $*" >&2; exit 1 ;;
 esac

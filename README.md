@@ -74,7 +74,7 @@ helper is windowless and idles near 0% CPU.
 
 mp3, flac, ogg and wav from `~/Music` (or the folders you name) play beside
 Apple Music under a LOCAL section, folders and m3u files as playlists, with
-the rain driven by the music itself. On Linux, built from source, they play
+the rain driven by the music itself. On Linux they play
 on their own.
 
 **[Docs →](docs/usage.md#local-files)**
@@ -181,9 +181,17 @@ nu11signal
 The first launch asks for Apple Music access. The UI is designed with
 [Kode Mono](https://fonts.google.com/specimen/Kode+Mono): the cask installs it
 (releases after v0.2.1; by hand, `brew install --cask font-kode-mono`). Set
-your terminal's font to it for the intended look; any monospaced font works. Release archives for a manual install are on
+your terminal's font to it for the intended look; any monospaced font works.
+The tap's formula (`brew install wahh-22/tap/nu11signal`) installs the same
+build without the font. Release archives for a manual install are on
 [GitHub Releases](https://github.com/wahh-22/nu11signal/releases); see
 [Install](docs/install.md).
+
+On Linux (x86_64 or ARM64, local files only), install the formula with
+[Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux),
+`brew install wahh-22/tap/nu11signal`, or put `bin/nu11signal` from a
+`linux-amd64`/`linux-arm64` release archive on your `PATH`; sound needs
+PulseAudio or PipeWire (see [Install](docs/install.md#linux)).
 
 A release build checks GitHub once a day for a newer release and shows the
 upgrade command on its status line; turn it off with
@@ -203,13 +211,13 @@ bin/nu11signal     # play for real
 
 | Guide | What it covers |
 |-------|----------------|
-| [Install](docs/install.md) | Homebrew, release archives, the Kode Mono font |
+| [Install](docs/install.md) | Homebrew (cask and formula), release archives, the Kode Mono font |
 | [Usage](docs/usage.md) | Browsing the catalog, editing the library, every key, the mouse, settings, the update check |
 | [Signal effects and rain](docs/effects.md) | Glitch bursts, boot and shutdown splashes, content intros, the rain visualizer |
 | [App volume and spectrum](docs/audio.md) | The Core Audio tap behind `VOL`, and the live spectrum that drives the rain |
 | [Architecture](docs/architecture.md) | Go UI and Swift helper, helper lookup, the JSON lines protocol |
 | [Building from source](docs/building.md) | Requirements, one-time MusicKit signing setup, make targets |
-| [Releasing](docs/releasing.md) | Signed, notarized releases and the Homebrew cask |
+| [Releasing](docs/releasing.md) | Signed, notarized releases, Linux archives, and the Homebrew cask and formula |
 | [Troubleshooting](docs/troubleshooting.md) | Common failures and fixes |
 | [Contributing](docs/contributing.md) | Development checks, regenerating the README art, repository notes |
 
