@@ -43,11 +43,15 @@ Linux nu11signal plays your [local music files](usage.md#local-files) only:
 Apple Music needs the macOS helper.
 
 With [Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux) (the
-formula; casks are macOS-only):
+formula; the nu11signal cask is macOS-only):
 
 ```sh
 brew install wahh-22/tap/nu11signal
+brew install --cask font-kode-mono   # optional: the font the UI is designed with
 ```
+
+A formula cannot install a cask, so the font is a separate step; Homebrew on
+Linux installs font casks into `~/.local/share/fonts` (see [Font](#font)).
 
 Or from a release archive on
 [GitHub Releases](https://github.com/wahh-22/nu11signal/releases) (use
@@ -96,8 +100,9 @@ real audio path against a PulseAudio null sink
 
 The UI is designed with [Kode Mono](https://fonts.google.com/specimen/Kode+Mono),
 which the cask installs (`depends_on cask: "font-kode-mono"`, in releases
-after v0.2.1; by hand:
-`brew install --cask font-kode-mono`). A terminal UI cannot choose its font:
+after v0.2.1; by hand, on macOS or Linux:
+`brew install --cask font-kode-mono`, into `~/Library/Fonts` on macOS and
+`~/.local/share/fonts` on Linux). A terminal UI cannot choose its font:
 the terminal draws every character with the font it is set to, so Kode Mono
 shows once your terminal uses it, for example `font-family = Kode Mono` in
 Ghostty's config or the profile font in Terminal.app or iTerm2. Any

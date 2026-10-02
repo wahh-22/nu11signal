@@ -54,6 +54,9 @@ class Nu11signal < Formula
         the macOS helper). It reads ~/Music, or the folders in "music_dirs" in
         its config.json. Sound goes through PulseAudio or PipeWire
         (pipewire-pulse), falling back to ALSA.
+        The UI is designed with the Kode Mono font, which a formula cannot
+        install; install it with: brew install --cask font-kode-mono
+        (into ~/.local/share/fonts), then set your terminal's font to it.
       EOS
     end
   end
