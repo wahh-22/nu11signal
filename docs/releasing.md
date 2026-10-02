@@ -89,10 +89,19 @@ make release-linux VERSION=0.2.0 DRY_RUN=1   # same in build/release-dry-run/v0.
 only the two Linux archives, with no Apple credentials, signing, or Xcode
 tools; only the clean-tree check applies. It is promoted the same way (staging
 directory, one rename) and also refuses an existing `dist/v0.2.0`. With
-`FORCE=1` it replaces the Linux archives of an existing `dist/v0.2.0` and
-copies everything else in it (the macOS artifacts) into the new directory;
-the previous directory is kept as the `dist/v0.2.0.replaced-<timestamp>`
-backup as usual.
+`FORCE=1` it replaces an existing `dist/v0.2.0` with a directory that holds
+only the Linux archives of this build. Artifacts of different builds are
+never mixed, so the macOS artifacts of the earlier build are not carried over:
+the run lists them, and they stay in the previous directory, kept as the
+`dist/v0.2.0.replaced-<timestamp>` backup as usual. To publish macOS and
+Linux archives together, rebuild both with `make release VERSION=0.2.0
+FORCE=1`; `make cask` refuses a `dist/v0.2.0` without the macOS checksum.
+
+The Linux binaries cannot be run on the build machine, so each is checked
+instead: a 64-bit little-endian ELF for its architecture whose type is an
+executable (`ET_EXEC`, or `ET_DYN` for a position-independent build), stamped
+with exactly the release version (a whole token, so `0.5.0` matches neither
+`0.5.01` nor `10.5.0`).
 
 ## Publishing and Homebrew
 
@@ -111,7 +120,8 @@ with the same macOS sha256 and those of both Linux archives into
 `Formula/nu11signal.rb`, in a checkout of
 [wahh-22/homebrew-tap](https://github.com/wahh-22/homebrew-tap):
 `NU11SIGNAL_TAP_DIR` (default `../homebrew-tap`), cloned when missing and
-fast-forwarded when behind its upstream. All three checksums must exist.
+fast-forwarded when behind its upstream. All three checksums must exist;
+a missing one is named, with the `make release` command that builds it.
 
 The formula installs on both systems. It shares its name with the cask, so on
 macOS `brew install wahh-22/tap/nu11signal` without `--cask` resolves to it:

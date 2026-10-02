@@ -256,6 +256,18 @@ func TestMatrixGolden80x24(t *testing.T) {
 	assertGolden(t, "view_matrix_80x24.golden", m.View().Content)
 }
 
+func TestRoseGolden80x24(t *testing.T) {
+	m := themedView(t)
+	useTheme(t, "ROSE")
+	assertGolden(t, "view_rose_80x24.golden", m.View().Content)
+}
+
+func TestNeonRoseGolden80x24(t *testing.T) {
+	m := themedView(t)
+	useTheme(t, "NEON ROSE")
+	assertGolden(t, "view_neon_rose_80x24.golden", m.View().Content)
+}
+
 // nightCityViews are the frames of the views beyond the main one, escape
 // codes included, under the default theme, joined in name order.
 func nightCityViews(t *testing.T) string {

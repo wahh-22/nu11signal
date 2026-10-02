@@ -19,35 +19,84 @@ import (
 // default is half a second), against the risk of an underrun.
 const otoBuffer = 60 * time.Millisecond
 
+// openTimeout bounds how long a play waits for the audio output to open
+// (oto opens it on its own goroutine, trying PulseAudio, then ALSA): a
+// device that never answers fails the play rather than freezing it.
+const openTimeout = 5 * time.Second
+
 // oto supports one context per process, at one sample rate, so it is
-// shared by every otoSink.
+// shared by every otoSink. A context still opening when a play gave up on
+// it is kept, with its ready channel, for the next play to wait on: oto
+// would refuse a second one. Once one fails, every play fails as it did,
+// until nu11signal is restarted: a fixed audio setup cannot be retried.
 var (
-	otoMu   sync.Mutex
-	otoCtx  *oto.Context
-	otoRate int
+	otoMu    sync.Mutex
+	otoCtx   *oto.Context
+	otoReady chan struct{}
+	otoRate  int
+	otoErr   error
+	otoOpen  bool // otoCtx is open: ready and without error
 )
 
 func otoContext(rate int) (*oto.Context, error) {
 	otoMu.Lock()
 	defer otoMu.Unlock()
-	if otoCtx != nil {
-		if rate != otoRate {
-			return nil, fmt.Errorf("local: audio output already open at %d Hz", otoRate)
-		}
+	if otoErr != nil {
+		return nil, otoErr
+	}
+	if otoCtx != nil && rate != otoRate {
+		return nil, fmt.Errorf("local: audio output already open at %d Hz", otoRate)
+	}
+	if otoOpen {
 		return otoCtx, nil
 	}
-	ctx, ready, err := oto.NewContext(&oto.NewContextOptions{
-		SampleRate: rate, ChannelCount: 2, Format: oto.FormatFloat32LE, ApplicationName: "nu11signal",
-	})
+	if otoCtx == nil {
+		ctx, ready, err := oto.NewContext(&oto.NewContextOptions{
+			SampleRate: rate, ChannelCount: 2, Format: oto.FormatFloat32LE, ApplicationName: "nu11signal",
+		})
+		if err != nil {
+			return nil, fmt.Errorf("local: audio output: %w", err)
+		}
+		otoCtx, otoReady, otoRate = ctx, ready, rate
+	}
+	timer := time.NewTimer(openTimeout)
+	defer timer.Stop()
+	failed, err := settleOutput(otoReady, timer.C, otoCtx.Err)
+	if failed != nil {
+		otoErr = failed
+	}
 	if err != nil {
-		return nil, fmt.Errorf("local: audio output: %w", err)
+		return nil, err
 	}
-	<-ready
-	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("local: audio output: %w", err)
+	otoOpen = true
+	return otoCtx, nil
+}
+
+// settleOutput waits for the shared context's opening and tells what came
+// of it: err for this play, and failed when the context failed for good
+// (ctxErr, asked once ready, reports why). An opening that is still going
+// when timeout fires is no failure: a later play waits on it again. Both
+// errors wrap playback.ErrNoOutput with its hint.
+func settleOutput(ready <-chan struct{}, timeout <-chan time.Time, ctxErr func() error) (failed, err error) {
+	if err := awaitOutput(ready, timeout); err != nil {
+		return nil, err
 	}
-	otoCtx, otoRate = ctx, rate
-	return ctx, nil
+	if err := ctxErr(); err != nil {
+		failed = fmt.Errorf("local: audio output: %w: %w", err, noOutput())
+		return failed, failed
+	}
+	return nil, nil
+}
+
+// awaitOutput waits for an audio output opening to be ready, or reports
+// it as missing (playback.ErrNoOutput) once timeout fires.
+func awaitOutput(ready <-chan struct{}, timeout <-chan time.Time) error {
+	select {
+	case <-ready:
+		return nil
+	case <-timeout:
+		return fmt.Errorf("local: audio output did not open within %v: %w", openTimeout, noOutput())
+	}
 }
 
 // otoSink plays the rendered audio on the default output device: macOS

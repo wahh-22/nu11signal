@@ -37,11 +37,15 @@ const BrewUpgrade = "brew upgrade --cask nu11signal"
 const BrewUpgradeFormula = "brew upgrade nu11signal"
 
 // UpgradeCommand is the command that upgrades the binary at exe (the
-// resolved executable path): BrewUpgradeFormula when it is a formula's
-// keg (Cellar/nu11signal/<version>/bin/nu11signal, under any Homebrew
-// prefix), BrewUpgrade when it lives under the cask's Homebrew (a
-// Caskroom, or the /opt/homebrew prefix), else "" for "download the
-// release" (no subprocess is run to find out).
+// resolved executable path), checked in this order:
+//   - BrewUpgradeFormula for a formula keg
+//     (.../Cellar/nu11signal/<version>/bin/nu11signal, under any Homebrew
+//     prefix, /opt/homebrew included);
+//   - BrewUpgrade for the cask: a path in a Caskroom, or any other path
+//     under /opt/homebrew;
+//   - "" otherwise, for "download the release".
+//
+// No subprocess is run to find out.
 func UpgradeCommand(exe string) string {
 	if inFormulaKeg(exe) {
 		return BrewUpgradeFormula

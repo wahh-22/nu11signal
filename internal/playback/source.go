@@ -14,6 +14,30 @@ import (
 // Supports first and hides what is unsupported, so it should not see it.
 var ErrUnsupported = errors.New("not available for this source")
 
+// ErrNoOutput is wrapped by the errors of a Player whose audio output
+// does not work: it would not open, or it stopped taking audio while a
+// song played (as ALSA's default device does on Linux without a sound
+// card). A Player that has a hint for the user wraps a *NoOutputError,
+// which wraps ErrNoOutput.
+var ErrNoOutput = errors.New("no audio output")
+
+// NoOutputError is ErrNoOutput with a hint for the user, such as "is
+// PulseAudio or PipeWire running?". Find it with errors.As; its text is
+// "no audio output // " and the hint.
+type NoOutputError struct {
+	Hint string
+}
+
+func (e *NoOutputError) Error() string {
+	if e.Hint == "" {
+		return ErrNoOutput.Error()
+	}
+	return ErrNoOutput.Error() + " // " + e.Hint
+}
+
+// Unwrap makes errors.Is(err, ErrNoOutput) hold.
+func (e *NoOutputError) Unwrap() error { return ErrNoOutput }
+
 // Source names a backend.
 type Source string
 

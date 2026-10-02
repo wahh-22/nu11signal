@@ -239,7 +239,7 @@ func parseFlags(args []string, output io.Writer) (options, error) {
 
 // printVersion writes the version: on a terminal, the Braille logo and
 // the version (v-prefixed when it is a number) under the bars, in the
-// wordmark's column (see wordmarkAt); elsewhere the bare version line,
+// wordmark's column (see logoWithVersion); elsewhere the bare version line,
 // which scripts and release.sh read.
 func printVersion(w io.Writer, terminal bool) {
 	if !terminal {
@@ -250,26 +250,38 @@ func printVersion(w io.Writer, terminal bool) {
 	if shown != "" && shown[0] >= '0' && shown[0] <= '9' {
 		shown = "v" + shown
 	}
-	rows := radio.EmblemRows()
-	col, below := wordmarkAt(rows)
-	if below == len(rows) {
-		rows = append(rows, "")
+	io.WriteString(w, logoWithVersion(radio.EmblemRows(), shown))
+}
+
+// logoWithVersion draws rows with shown under the wordmark, in its column
+// (see wordmarkAt), in a row added for it when the wordmark reaches the
+// last row. Art without a wordmark to align to cannot host it: then shown
+// goes on its own line under the art, so the version is never dropped.
+func logoWithVersion(rows []string, shown string) string {
+	rows = append([]string(nil), rows...)
+	if col, below, ok := wordmarkAt(rows); ok {
+		if below == len(rows) {
+			rows = append(rows, "")
+		}
+		under := []rune(rows[below])
+		under = append(under, []rune(strings.Repeat(" ", max(col-len(under), 0)))...)
+		rows[below] = string(under[:col]) + shown
+	} else {
+		rows = append(rows, shown)
 	}
-	under := []rune(rows[below])
-	under = append(under, []rune(strings.Repeat(" ", max(col-len(under), 0)))...)
-	rows[below] = string(under[:col]) + shown
 	var b strings.Builder
 	for _, row := range rows {
 		b.WriteString(strings.TrimRight(row, " ") + "\n")
 	}
-	io.WriteString(w, b.String())
+	return b.String()
 }
 
 // wordmarkAt finds the wordmark in the logo's rows: col, the first
 // column after the blank column that parts it from the head, and below,
 // the first row under everything drawn from col on (len(rows) when the
-// wordmark reaches the last row).
-func wordmarkAt(rows []string) (col, below int) {
+// wordmark reaches the last row). ok is false when no blank column parts
+// a head from a wordmark (or there is no art).
+func wordmarkAt(rows []string) (col, below int, ok bool) {
 	cells := make([][]rune, len(rows))
 	width := 0
 	for i, row := range rows {
@@ -286,16 +298,19 @@ func wordmarkAt(rows []string) (col, below int) {
 	}
 	for x := 1; x < width; x++ {
 		if !drawn(x-1) && drawn(x) {
-			col = x
+			col, ok = x, true
 			break
 		}
+	}
+	if !ok {
+		return 0, 0, false
 	}
 	for i, r := range cells {
 		if col < len(r) && strings.TrimSpace(string(r[col:])) != "" {
 			below = i + 1
 		}
 	}
-	return col, below
+	return col, below, true
 }
 
 // isTerminal reports whether f is a terminal (a character device).

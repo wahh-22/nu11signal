@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -141,6 +142,50 @@ func TestCommittedAssetsAreUpToDate(t *testing.T) {
 		}
 		if !bytes.Equal(got, a.data) {
 			t.Errorf("%s is stale: run go run ./tools/readmeart", a.path)
+		}
+	}
+}
+
+// Every theme SETTINGS offers has its own render of the main screen.
+func TestEveryThemeHasAMainScreenRender(t *testing.T) {
+	for _, tt := range []struct{ name, title string }{
+		{"night-city", "NIGHT CITY"},
+		{"blue", "BLUE"},
+		{"matrix", "MATRIX"},
+		{"rose", "ROSE"},
+		{"neon-rose", "NEON ROSE"},
+	} {
+		i := slices.IndexFunc(screens, func(s screen) bool { return s.name == tt.name })
+		if i < 0 {
+			t.Errorf("no %s screen", tt.name)
+			continue
+		}
+		if s := screens[i]; s.title != tt.title || s.section != "" || !strings.HasPrefix(s.golden, "view_") {
+			t.Errorf("%s screen = %+v, want the %s main view golden", tt.name, s, tt.title)
+		}
+	}
+}
+
+// Every local image the README shows exists, the banner logo above all:
+// GitHub renders a missing one as a broken image without any error.
+func TestREADMEImagesExist(t *testing.T) {
+	const banner = "docs/assets/brand/logo/nu11signal-night-city.svg"
+	data, err := os.ReadFile(filepath.Join(repoRoot, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var local []string
+	for _, m := range regexp.MustCompile(`<img[^>]*\ssrc="([^"]+)"`).FindAllStringSubmatch(string(data), -1) {
+		if !strings.Contains(m[1], "://") {
+			local = append(local, m[1])
+		}
+	}
+	if !slices.Contains(local, banner) {
+		t.Errorf("README.md does not show the banner %s; local images: %q", banner, local)
+	}
+	for _, path := range local {
+		if _, err := os.Stat(filepath.Join(repoRoot, filepath.FromSlash(path))); err != nil {
+			t.Errorf("README.md shows %s: %v", path, err)
 		}
 	}
 }

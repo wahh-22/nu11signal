@@ -4,6 +4,8 @@
 # whose machine matches GOARCH (amd64: x86_64, arm64: aarch64), followed by
 # "version=V". Otherwise it writes a script that prints V for --version.
 # STUB_GO_WRONG_ARCH=1 swaps the ELF machine (an arm64 build comes out x86_64).
+# STUB_GO_ELF_TYPE=N sets the ELF e_type (default 2, ET_EXEC; 3 is ET_DYN).
+# STUB_GO_VERSION_PREFIX and STUB_GO_VERSION_SUFFIX are stamped around V.
 # Calls are logged as "go GOOS=.. GOARCH=.. CGO_ENABLED=.. ARGS".
 echo "go GOOS=${GOOS:-} GOARCH=${GOARCH:-} CGO_ENABLED=${CGO_ENABLED:-} $*" >>"$STUB_LOG"
 [[ "${1:-}" == build ]] || { echo "go stub: unsupported: $*" >&2; exit 1; }
@@ -28,9 +30,10 @@ if [[ "${GOOS:-}" == linux ]]; then
     *) echo "go stub: unsupported GOARCH: ${GOARCH:-}" >&2; exit 1 ;;
   esac
   {
-    printf '\177ELF\002\001\001\000\000\000\000\000\000\000\000\000\002\000'
+    printf '\177ELF\002\001\001\000\000\000\000\000\000\000\000\000'
+    printf "\\00${STUB_GO_ELF_TYPE:-2}\\000"
     printf "$machine"
-    printf '\nversion=%s\n' "$version"
+    printf '\nversion=%s%s%s\n' "${STUB_GO_VERSION_PREFIX:-}" "$version" "${STUB_GO_VERSION_SUFFIX:-}"
   } >"$out"
 else
   printf '#!/bin/sh\necho %s\n' "$version" >"$out"

@@ -92,6 +92,19 @@ go build ./cmd/nu11signal
 | PulseAudio or PipeWire with `pipewire-pulse` | Found at `$XDG_RUNTIME_DIR/pulse/native`, which desktop sessions set; elsewhere (`su`, some SSH or container shells) point `PULSE_SERVER` at the socket, for example `export PULSE_SERVER="$(pactl info \| sed -n 's/^Server String: //p')"` |
 | `libasound.so.2` (ALSA) | Used only when PulseAudio cannot be reached; needs a real sound card, since ALSA's `default` without one stops taking audio after the first fraction of a second |
 
+When the sound output does not work, nu11signal says so instead of
+freezing: an output that has not opened after 5 seconds fails the play,
+and a song that plays for 5 seconds without the output taking any audio
+(ALSA's `default` without a sound card) is stopped. Either way the status
+line reads `NO AUDIO OUTPUT // IS PULSEAUDIO OR PIPEWIRE RUNNING?`; start
+PulseAudio or PipeWire (or set `PULSE_SERVER`, above), then restart
+nu11signal. A paused song is not watched.
+
+Known limitation: fixing the audio setup takes effect only after a restart.
+The audio library (oto) allows one audio output per process, opened once, so
+an output that failed (or that opened on ALSA without a sound card) stays
+failed until nu11signal is restarted.
+
 CI builds and tests on Linux (Ubuntu) and plays a short tone through the
 real audio path against a PulseAudio null sink
 (`go test -tags audiosmoke -run Smoke ./internal/playback/local/...`).
