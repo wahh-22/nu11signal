@@ -8,9 +8,6 @@ import (
 	"time"
 )
 
-// CacheTTL is how long a cached answer stands before Cached asks again.
-const CacheTTL = 24 * time.Hour
-
 // CachePath is update.json in the directory of the settings file at
 // configPath (config.DefaultPath).
 func CachePath(configPath string) string {
@@ -23,42 +20,31 @@ type cacheFile struct {
 	Latest    Release   `json:"latest"`
 }
 
-// Cached is a Checker answering from a cache file while it is fresh
-// (checked less than CacheTTL ago, and not in the future) and asking
-// Inner otherwise, caching a successful answer. A missing or corrupt
-// file is a stale one; a failed write is ignored (the next launch asks
-// again).
+// Cached is a Checker asking Inner on every call and keeping its last
+// successful answer in a cache file, the answer when Inner fails (offline,
+// a rate limit) whatever its age. A missing or corrupt file is no answer;
+// a failed write is ignored (the next launch asks again).
 type Cached struct {
 	Inner Checker
 	Path  string
-	// Now is the clock; time.Now by default.
-	Now func() time.Time
 }
 
 // NewCached returns a Cached over inner with its file at path.
 func NewCached(inner Checker, path string) *Cached {
-	return &Cached{Inner: inner, Path: path, Now: time.Now}
+	return &Cached{Inner: inner, Path: path}
 }
 
-// Latest answers from the cache while fresh, else asks Inner; when Inner
-// fails, a stale cached answer is still returned, and without one the
-// error.
+// Latest asks Inner and caches a successful answer; when Inner fails, the
+// cached answer is returned, and without one the error.
 func (c *Cached) Latest(ctx context.Context) (Release, error) {
-	now := c.Now()
-	cache, ok := c.read()
-	if ok {
-		if age := now.Sub(cache.CheckedAt); age >= 0 && age < CacheTTL {
-			return cache.Latest, nil
-		}
-	}
 	rel, err := c.Inner.Latest(ctx)
 	if err != nil {
-		if ok {
+		if cache, ok := c.read(); ok {
 			return cache.Latest, nil
 		}
 		return Release{}, err
 	}
-	c.write(cacheFile{CheckedAt: now, Latest: rel})
+	c.write(cacheFile{CheckedAt: time.Now(), Latest: rel})
 	return rel, nil
 }
 

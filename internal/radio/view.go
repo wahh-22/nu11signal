@@ -654,7 +654,7 @@ func (m Model) statusLine(w int) string {
 		return stWarn.Render("▲ " + strings.ToUpper(m.status))
 	}
 	if v, how, ok := m.releaseNotice(); ok {
-		return stAccentBold.Render(fit("◢◤◢◤ UPDATE "+v+" AVAILABLE // "+how, w))
+		return stHiBold.Render(fit("◢◤◢◤ UPDATE "+v+" AVAILABLE // "+how, w))
 	}
 	return stDim.Render(fit("◢◤◢◤ "+m.idleStatus(), w))
 }

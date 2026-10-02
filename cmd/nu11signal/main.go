@@ -12,7 +12,7 @@
 // NU11SIGNAL_CALM=1) starts with the signal effects off; x toggles them.
 // --version prints the release version stamped at link time: under the
 // Braille logo on a terminal, the bare version line otherwise. A release
-// build checks once a day for a newer release (see internal/update) unless
+// build checks at every launch for a newer release (see internal/update) unless
 // NU11SIGNAL_NO_UPDATE_CHECK=1 or "update_check": false in config.json.
 package main
 
@@ -162,8 +162,9 @@ func openConfig() config.Source {
 	return config.NewFile(path)
 }
 
-// openUpdates returns the update checker: GitHub's latest release,
-// cached a day in update.json beside the settings file. nil, no check,
+// openUpdates returns the update checker: GitHub's latest release, asked
+// at every launch, the last answer kept in update.json beside the settings
+// file for an offline launch. nil, no check,
 // for the demo (a simulated session stays offline), a build whose
 // version does not compare ("dev"), NU11SIGNAL_NO_UPDATE_CHECK=1,
 // "update_check": false in the settings (a settings file that cannot be
