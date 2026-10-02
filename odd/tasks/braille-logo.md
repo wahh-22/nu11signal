@@ -10,10 +10,11 @@ Replace the in-app null emblem (Braille slashed zero beside "N U 1 1 / S I G N A
 - Generator kept outside the repo (scratchpad); the art is committed as data.
 
 ## Tasks
-- [ ] T1 (delegated writer: emblem, theme, splash/idle layout, goldens, readmeart, docs): swap the emblem art and its coloring.
+- [x] T1 (delegated writer: emblem, theme, splash/idle layout, goldens, readmeart, docs): swap the emblem art and its coloring.
 
 ## Checks
 - `go vet ./...`, `gofmt -l .`, `go test ./...` (goldens regenerated and reviewed), `go run ./tools/readmeart` leaves no stale assets.
 - Visual check of boot splash, idle emblem (expanded and 80x24) and `--version` output.
 
 ## Progress
+- T1 done (writer delegated; parent narrowed `TestSwapDissolvesTheEmblemIntoTheRain`'s mix window to 0.3-0.6 because the 80x24 logo's last cells leave by about 0.66 with seed 2077). Commits `0329228` (code, tests, goldens, docs) and `7911ff9` (regenerated emblem and boot SVGs). Checks: gofmt clean, `go vet ./...`, `go test -race ./...` all pass, readmeart assets byte-stable, `--version` prints the compact logo. Reviews: `0329228` medium slice_budget_reached, granted, approved (`review-8618f3527d7e7390`; warning R3-stale-readme-assets resolved by `7911ff9`; suggestions on the splash glitch test, the narrowed swap window, --version dropping the version line silently); `7911ff9` granted, approved (`review-b3881cc9cb3ebe07`).
