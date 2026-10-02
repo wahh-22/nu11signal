@@ -193,6 +193,13 @@ Issues and pull requests are welcome. Start with `make demo`, and run
 `make test` before opening a pull request; see
 [Contributing](docs/contributing.md).
 
+## Support the signal
+
+Nu11Signal is free and open source. If it plays in your terminal and you
+want to keep it on air, you can
+[sponsor on GitHub](https://github.com/sponsors/wahh-22) or
+[buy me a coffee](https://buymeacoffee.com/wahh.dev).
+
 ## License
 
 MIT, see [LICENSE](LICENSE). Nu11Signal was formerly named soul-king; v0.1.0
