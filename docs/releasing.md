@@ -49,7 +49,11 @@ cross-compiles `nu11signal` for linux/amd64 and linux/arm64 (same
 `-X main.version` ldflags) and archives each with `LICENSE` and `README.md`;
 each unpacked Linux archive is checked to hold exactly those files, to match
 its checksum, and to contain an ELF executable for its architecture stamped
-with the version (it cannot be run on the Mac, so `--version` is skipped).
+with the version. It cannot be run on the Mac, so `--version` is skipped:
+every build also stamps `-X main.versionStamp=nu11signal-version:VERSION;`,
+and the check looks for exactly those bytes in the binary. The fixed prefix
+and the `;` terminator mean no other version (`v0.2.0`, `10.2.0`, `0.2.01`)
+can pass for it.
 Each version gets its own directory:
 
 ```text

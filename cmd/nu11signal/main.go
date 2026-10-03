@@ -11,7 +11,9 @@
 // player instead. --calm (or
 // NU11SIGNAL_CALM=1) starts with the signal effects off; x toggles them.
 // --version prints the release version stamped at link time: under the
-// Braille logo on a terminal, the bare version line otherwise. A release
+// Braille logo on a terminal, the bare version line otherwise. Release
+// builds also stamp versionStamp, which scripts/release.sh finds in Linux
+// binaries it cannot run (see stampFor). A release
 // build checks at every launch for a newer release (see internal/update) unless
 // NU11SIGNAL_NO_UPDATE_CHECK=1 or "update_check": false in config.json.
 package main
@@ -44,6 +46,25 @@ import (
 
 // version is stamped by release builds with -ldflags "-X main.version=x.y.z".
 var version = "dev"
+
+// versionStamp is stamped by release builds next to version, with
+// -ldflags "-X main.versionStamp=nu11signal-version:x.y.z;" (stampFor):
+// the version between a fixed prefix and terminator, so scripts/release.sh
+// can find it byte for byte in a cross-built binary without mistaking
+// another version for it. Unstamped builds leave it empty. run reads it
+// (see stampMismatch), so the linker keeps it in stripped builds.
+var versionStamp string
+
+// stampFor returns the versionStamp a release build of version v carries.
+func stampFor(v string) string {
+	return "nu11signal-version:" + v + ";"
+}
+
+// stampMismatch reports a versionStamp that names another version than
+// version: a broken release build.
+func stampMismatch() bool {
+	return versionStamp != "" && versionStamp != stampFor(version)
+}
 
 // startTimeout bounds launching the helper until it reports ready.
 const startTimeout = 10 * time.Second
@@ -105,6 +126,9 @@ func run(args []string, d deps) int {
 		return 2
 	}
 	if opts.version {
+		if stampMismatch() {
+			fmt.Fprintf(d.stderr, "nu11signal: build stamp %q does not match version %s\n", versionStamp, version)
+		}
 		printVersion(d.stdout, d.stdoutTerminal != nil && d.stdoutTerminal())
 		return 0
 	}
