@@ -231,7 +231,7 @@ test_release_refuses_a_linux_binary_stamped_with_another_version() {
     assert_failed
     assert_output_contains "is not stamped with version 0.2.1"
   done
-  # A shorter release version is not found inside a longer stamp.
+  # A longer release version (0.2.10) is not satisfied by a shorter stamp (0.2.1).
   STUB_GO_STAMP="nu11signal-version:0.2.1;" release --linux-only 0.2.10
   assert_failed
   assert_output_contains "is not stamped with version 0.2.10"
