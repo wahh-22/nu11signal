@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/wahh-22/nu11signal/releases/latest"><img src="https://img.shields.io/github/v/release/wahh-22/nu11signal?style=for-the-badge&labelColor=0A0A0A&color=FF5F57" alt="Latest release"></a>
-  <a href="docs/install.md"><img src="https://img.shields.io/badge/macOS-14%2B-5EF6FF?style=for-the-badge&labelColor=0A0A0A&logo=apple&logoColor=5EF6FF" alt="macOS 14 or later"></a>
+  <a href="docs/install.md"><img src="https://img.shields.io/badge/macOS%2014%2B%20%C2%B7%20Linux-5EF6FF?style=for-the-badge&labelColor=0A0A0A" alt="macOS 14 or later, and Linux"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/brew-wahh--22%2Ftap-FCEE0A?style=for-the-badge&labelColor=0A0A0A&logo=homebrew&logoColor=FCEE0A" alt="Homebrew cask wahh-22/tap/nu11signal"></a>
   <a href="https://github.com/wahh-22/nu11signal/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/wahh-22/nu11signal/ci.yml?branch=main&style=for-the-badge&labelColor=0A0A0A&label=CI" alt="CI status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/wahh-22/nu11signal?style=for-the-badge&labelColor=0A0A0A&color=FF5F57" alt="MIT license"></a>
@@ -27,7 +27,7 @@
   <strong>
     <a href="https://nu11signal.wahh.dev/">Website</a>
     &nbsp;·&nbsp;
-    <a href="#get-started">Quickstart</a>
+    <a href="#install">Install</a>
     &nbsp;·&nbsp;
     <a href="#documentation">Docs</a>
     &nbsp;·&nbsp;
@@ -39,9 +39,7 @@
 
 <br>
 
-<p align="center">Your library playlists sit on a pseudo FM dial, beside a now-playing panel, a volume readout, and data rain that plays the music.<br><strong>Search and browse the Apple Music catalog, edit playlists, and love songs without leaving the terminal.</strong></p>
-
-<p align="center"><sub>It plays through a tiny windowless MusicKit helper (about 31 MB RSS measured during playback, near 0% CPU) instead of a browser.</sub></p>
+<p align="center">Your playlists on a pseudo FM dial, a now-playing panel, and data rain that plays the music.<br><strong>Apple Music and your own music files, without leaving the terminal.</strong></p>
 
 <p align="center">
   <img src="docs/assets/demo/overview.gif" width="900" alt="nu11signal in action: launching from the shell, the boot splash, opening a playlist, playing a song, and the data rain reacting to the music">
@@ -49,187 +47,68 @@
 
 > macOS and Linux. Apple Music needs macOS and a subscription; on Linux it plays your local music files. Not affiliated with Apple.
 
-## Support the signal
+## What it does
 
-Nu11Signal is free and open source. If it plays in your terminal and you
-want to keep it on air, you can
-[sponsor on GitHub](https://github.com/sponsors/wahh-22) or
-[buy me a coffee](https://buymeacoffee.com/wahh.dev).
-
-## Features
-
----
-
-### Apple Music, as a terminal radio
-
-A Bubble Tea UI in Go talks JSON lines to a signed Swift helper that plays
-through MusicKit's `ApplicationMusicPlayer`. No browser and no app window: the
-helper is windowless and idles near 0% CPU.
-
-**[Docs →](docs/architecture.md)**
-
----
-
-### Your own music files too
-
-mp3, flac, ogg and wav from `~/Music` (or the folders you name) play beside
-Apple Music under a LOCAL section, folders and m3u files as playlists, with
-the rain driven by the music itself. On Linux they play
-on their own.
-
-**[Docs →](docs/usage.md#local-files)**
-
----
-
-### Browse the catalog like Apple Music
+- **Apple Music in the terminal.** It plays through a tiny windowless MusicKit helper (near 0% CPU), not a browser or the Music app. [Architecture →](docs/architecture.md)
+- **Your own music files.** mp3, flac, ogg and wav from `~/Music` play beside Apple Music; on Linux, on their own. [Local files →](docs/usage.md#local-files)
+- **Search and browse the catalog.** Live suggestions, artists, albums and playlists; love songs and edit playlists on the way. [Browsing →](docs/usage.md#browsing-the-catalog)
 
 <img width="100%" src="docs/assets/demo/search.gif" alt="SEARCH in action: recent searches, live suggestions while typing, then an artist page with its top songs, albums and playlists, and a song playing">
 
-Views stack like Apple Music's: PLAYLISTS → SEARCH → RESULTS → ARTIST → ALBUM,
-SONG, or PLAYLIST. Live suggestions as you type, recent searches, artist pages
-with top songs and discography, album and playlist pages. A song picked from a
-list plays with the rest of that list queued around it.
+## Themes and keys
 
-**[Docs →](docs/usage.md#browsing-the-catalog)**
-
----
-
-### Playlists and favorites
-
-Love a song (`l`, the `<3` mark), add it to a playlist (`a`), or create a new
-playlist on the spot, from any song row or the song playing. Every page reads
-its songs' favorite state in one call, so the hearts show at once.
-
-**[Docs →](docs/usage.md#editing-the-library)**
-
----
-
-### Data rain that plays the music
-
-Hex digits and half-width katakana fall under NOW PLAYING. With app volume on
-macOS 15 or later the helper measures the real spectrum: loud bands rain
-harder, bass hits send a wave of drops, and silence is dry. Otherwise the rain
-drizzles decoratively with the playback state.
-
-**[Docs →](docs/effects.md#rain)**
-
----
-
-### Signal glitches, intros, and a boot splash
-
-Every so often the screen loses the signal: torn rows, corrupted cells, static
-bars, and now and then a red `NO SIGNAL`. New content scrambles in, and the app
-boots and shuts down over the Braille logo (its head alone on a narrow
-terminal), which also rests in the spectrum area while nothing plays. `x`
-toggles the effects; `nu11signal --calm` starts without them.
-
-**[Docs →](docs/effects.md#signal-effects)**
-
----
-
-### A HUD you can drive with keys or the mouse
-
-Bracketed HUD buttons for transport, loop, volume, and expand; every control
-answers to both the keyboard focus and a click, and the wheel scrolls the
-lists. `?` opens KEYS, every binding in one panel, and quitting always asks
-first.
-
-**[Docs →](docs/usage.md#keys)** &nbsp;·&nbsp; **[Mouse →](docs/usage.md#mouse)**
-
----
-
-### Themes
+Five color themes in SETTINGS (`s`), BLUESHIFT by default. Everything works
+from the keyboard or the mouse, and `?` lists every key.
+[Settings →](docs/usage.md#settings) · [Keys →](docs/usage.md#keys) · [Mouse →](docs/usage.md#mouse)
 
 <img width="100%" src="docs/assets/demo/themes.gif" alt="SETTINGS in action: switching between the BLUESHIFT, REDSHIFT and NEON ROSE themes, then quitting through the QUIT NU11SIGNAL? confirmation and the shutdown splash">
 
-`s` opens SETTINGS: choose BLUESHIFT (the default), REDSHIFT, MATRIX, ROSE,
-or NEON ROSE.
-The two Pi-inspired pink themes use eight colors each across the UI: ROSE
-pairs soft pink highlights with mint success, while NEON ROSE pairs vivid pink
-highlights with pearl success. Both use Pi's muted color for frames and rain;
-the eight-color limit omits distinct Pi border, champagne, error, and violet.
-The whole UI recolors without changing the terminal background, and the
-choice is saved for the next start.
-Quitting asks first (QUIT NU11SIGNAL?) and signs off over the shutdown
-splash.
+## Install
 
-**[Docs →](docs/usage.md#settings)**
-
----
-
-### Its own volume
-
-nu11signal's `VOL` is independent of the system volume: the helper taps its
-own audio with a Core Audio process tap (macOS 14.2+) and plays it through a
-private aggregate device, falling back to the system volume (`SYS`) when it
-cannot. Set `NU11SIGNAL_VOLUME_MODE=system` to opt out.
-
-**[Docs →](docs/audio.md#app-volume)**
-
----
-
-## Get started
-
-Install the signed, notarized build (macOS 14 or later, Apple Silicon and
-Intel) with [Homebrew](https://brew.sh):
+macOS 14+ (Apple Silicon and Intel), signed and notarized, with [Homebrew](https://brew.sh):
 
 ```sh
 brew install --cask wahh-22/tap/nu11signal
 nu11signal
 ```
 
-The first launch asks for Apple Music access. The UI is designed with
-[Kode Mono](https://fonts.google.com/specimen/Kode+Mono): the cask installs it
-(releases after v0.2.1; by hand, `brew install --cask font-kode-mono`). Set
-your terminal's font to it for the intended look; any monospaced font works.
-The tap's formula (`brew install wahh-22/tap/nu11signal`) installs the same
-build without the font. Release archives for a manual install are on
-[GitHub Releases](https://github.com/wahh-22/nu11signal/releases); see
-[Install](docs/install.md).
-
-On Linux (x86_64 or ARM64, local files only), install the formula with
-[Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux),
-`brew install wahh-22/tap/nu11signal`, or put `bin/nu11signal` from a
-`linux-amd64`/`linux-arm64` release archive on your `PATH`; sound needs
-PulseAudio or PipeWire (see [Install](docs/install.md#linux)).
-
-A release build checks GitHub at every launch for a newer release and shows the
-upgrade command on its status line; turn it off with
-`NU11SIGNAL_NO_UPDATE_CHECK=1` or `"update_check": false` (see
-[Update check](docs/usage.md#update-check)).
-
-From a source checkout, try the UI against a simulated player, or build and
-sign your own (see [Building from source](docs/building.md)):
+Linux (x86_64 or ARM64, local files), with [Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux):
 
 ```sh
-make demo          # try the UI with a simulated player (no Apple Music, no signing)
-make build         # signed helper + Go binary (needs the one-time setup)
-bin/nu11signal     # play for real
+brew install wahh-22/tap/nu11signal
 ```
+
+Release archives, the Kode Mono font the UI is designed with, and building
+from source are covered in [Install](docs/install.md) and
+[Building from source](docs/building.md).
 
 ## Documentation
 
 | Guide | What it covers |
 |-------|----------------|
-| [Install](docs/install.md) | Homebrew (cask and formula), release archives, the Kode Mono font |
-| [Usage](docs/usage.md) | Browsing the catalog, editing the library, every key, the mouse, settings, the update check |
-| [Signal effects and rain](docs/effects.md) | Glitch bursts, boot and shutdown splashes, content intros, the rain visualizer |
-| [App volume and spectrum](docs/audio.md) | The Core Audio tap behind `VOL`, and the live spectrum that drives the rain |
-| [Architecture](docs/architecture.md) | Go UI and Swift helper, helper lookup, the JSON lines protocol |
-| [Building from source](docs/building.md) | Requirements, one-time MusicKit signing setup, make targets |
-| [Releasing](docs/releasing.md) | Signed, notarized releases, Linux archives, and the Homebrew cask and formula |
+| [Install](docs/install.md) | Homebrew (cask and formula), release archives, Linux, the Kode Mono font |
+| [Usage](docs/usage.md) | The catalog, the library, local files, keys, mouse, settings, update check |
+| [Signal effects and rain](docs/effects.md) | Glitches, boot and shutdown splashes, intros, the rain |
+| [App volume and spectrum](docs/audio.md) | The independent `VOL` and the live spectrum |
+| [Architecture](docs/architecture.md) | Go UI, Swift helper, JSON lines protocol |
+| [Building from source](docs/building.md) | Requirements, signing setup, make targets |
+| [Releasing](docs/releasing.md) | Signed releases, Linux archives, the Homebrew tap |
 | [Troubleshooting](docs/troubleshooting.md) | Common failures and fixes |
-| [Contributing](docs/contributing.md) | Development checks, regenerating the README art, repository notes |
+| [Contributing](docs/contributing.md) | Development checks and repository notes |
+
+## Support the signal
+
+nu11signal is free and open source. To keep it on air,
+[sponsor on GitHub](https://github.com/sponsors/wahh-22) or
+[buy me a coffee](https://buymeacoffee.com/wahh.dev).
 
 ## Contributing
 
-Issues and pull requests are welcome. Start with `make demo`, and run
-`make test` before opening a pull request; see
-[Contributing](docs/contributing.md).
+Issues and pull requests are welcome: start with `make demo` and run
+`make test` before opening one. See [Contributing](docs/contributing.md).
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Nu11Signal was formerly named soul-king; v0.1.0
-was released under that name.
+MIT, see [LICENSE](LICENSE).
 
 <p align="right"><a href="#top">Back to top ↑</a></p>
