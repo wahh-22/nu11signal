@@ -385,6 +385,42 @@ func TestCloseFadesAndIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestCloseSignalsFadedOnlyAfterSilence pins the order the idempotence test
+// above relies on: Close may return as soon as the fade is signalled, so the
+// render that signals it must already be silence, not the fade's last frames
+// (which a fast Close would otherwise leave as the final samples rendered).
+func TestCloseSignalsFadedOnlyAfterSilence(t *testing.T) {
+	lib, ids := testLibrary(t)
+	s := &fakeSink{}
+	p := newPlayer(lib, Options{SampleRate: testRate}, s, clock{})
+	_, _ = p.PlaySongs(ctx, ids, 0)
+	s.pull(1000)
+	done := make(chan error)
+	go func() { done <- p.Close() }()
+	for closing := false; !closing; {
+		p.mu.Lock()
+		closing = p.closing
+		p.mu.Unlock()
+	}
+	for frames := 0; ; frames += 64 {
+		chunk := s.pull(64)
+		select {
+		case <-p.faded:
+			if got := peak(chunk); got != 0 {
+				t.Errorf("the fade was signalled by a render holding audio (peak %v)", got)
+			}
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			return
+		default:
+		}
+		if frames > testRate {
+			t.Fatal("the fade was never signalled")
+		}
+	}
+}
+
 func TestCloseWithoutAPullingDeviceStillReturns(t *testing.T) {
 	lib, ids := testLibrary(t)
 	p, _ := newTestPlayer(t, lib)

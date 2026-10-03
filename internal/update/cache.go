@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 // CachePath is update.json in the directory of the settings file at
@@ -14,10 +13,13 @@ func CachePath(configPath string) string {
 	return filepath.Join(filepath.Dir(configPath), "update.json")
 }
 
-// cacheFile is the content of update.json.
+// cacheFile is the content of update.json. Earlier versions also wrote a
+// checked_at timestamp that nothing read; it is no longer written, and old
+// files holding it load as before (unknown fields are ignored). An older
+// version reading a new file sees no timestamp, a zero one, which can only
+// make it ask again.
 type cacheFile struct {
-	CheckedAt time.Time `json:"checked_at"`
-	Latest    Release   `json:"latest"`
+	Latest Release `json:"latest"`
 }
 
 // Cached is a Checker asking Inner on every call and keeping its last
@@ -44,7 +46,7 @@ func (c *Cached) Latest(ctx context.Context) (Release, error) {
 		}
 		return Release{}, err
 	}
-	c.write(cacheFile{CheckedAt: time.Now(), Latest: rel})
+	c.write(cacheFile{Latest: rel})
 	return rel, nil
 }
 

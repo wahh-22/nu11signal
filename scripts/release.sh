@@ -268,12 +268,46 @@ elf_machine() {
   esac
 }
 
+# extends_version BEFORE AFTER VERSION: the characters around an occurrence of
+# VERSION would make it part of another version: a digit or "." before it
+# (10.5.0, 1.0.5.0); a digit after it, any letter or digit when VERSION has a
+# pre-release (0.5.0-rc -> 0.5.0-rc1), or ".", "-" or "+" and a letter or
+# digit (0.5.0.1, 0.5.0-rc1, 0.5.0+meta).
+extends_version() {
+  local before="$1" after="$2" version="$3"
+  [[ "${before: -1}" == [0-9.] ]] && return 0
+  [[ "${after:0:1}" == [0-9] ]] && return 0
+  [[ "$version" == *-* && "${after:0:1}" == [A-Za-z] ]] && return 0
+  [[ "${after:0:1}" == [.+-] && "${after:1:1}" == [0-9A-Za-z] ]] && return 0
+  return 1
+}
+
+# has_version_stamp FILE VERSION: FILE holds VERSION as a version of its own,
+# not as part of another one (see extends_version). Go stores the stamped
+# string without separators, so other strings may touch it: letters next to
+# it are fine (go0.5.0abc), digits are not (go10.5.0). -trimpath leaves the
+# ldflags out of the build info, so the value itself is all there is to find.
+# VERSION is matched literally, never as a regular expression.
+has_version_stamp() {
+  local file="$1" version="$2" token seen rest before
+  while IFS= read -r token; do
+    seen="" rest="$token"
+    while [[ "$rest" == *"$version"* ]]; do
+      before="${rest%%"$version"*}"
+      extends_version "$seen$before" "${rest#*"$version"}" "$version" || return 0
+      seen+="$before${version:0:1}"
+      rest="${rest#"$before"}"
+      rest="${rest:1}"
+    done
+  done < <(LC_ALL=C tr -c '0-9A-Za-z.+-' '\n' <"$file" | LC_ALL=C grep -F -- "$version" || true)
+  return 1
+}
+
 # check_linux_binary FILE GOARCH: FILE is an executable ELF for GOARCH and
-# carries VERSION (stamped with -X main.version). It cannot be run here.
-# The stamp must appear as a whole token: a maximal run of version characters
-# equal to VERSION, so 0.5.0 matches neither 0.5.01, 10.5.0, nor go10.5.0.
+# carries VERSION (stamped with -X main.version; see has_version_stamp). It
+# cannot be run here.
 check_linux_binary() {
-  local file="$1" want got tokens
+  local file="$1" want got
   case "$2" in
     amd64) want=x86_64 ;;
     arm64) want=aarch64 ;;
@@ -282,8 +316,7 @@ check_linux_binary() {
   [[ -f "$file" && -x "$file" ]] || die "$file is missing or not executable"
   got="$(elf_machine "$file")"
   [[ "$got" == "$want" ]] || die "$file is not an $want ELF executable (got: $got)"
-  tokens="$(LC_ALL=C grep -aoE -- "[0-9A-Za-z.+-]*${VERSION//./\\.}[0-9A-Za-z.+-]*" "$file" || true)"
-  grep -qxF -- "$VERSION" <<<"$tokens" || die "$file is not stamped with version $VERSION"
+  has_version_stamp "$file" "$VERSION" || die "$file is not stamped with version $VERSION"
 }
 
 # build_linux_archives: cross-compiles nu11signal for each Linux architecture

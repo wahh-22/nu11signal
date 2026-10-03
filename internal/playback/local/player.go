@@ -264,6 +264,10 @@ func (p *Player) render(dst []float32) {
 		return
 	}
 	p.pulls++
+	// The fade counts as rendered only on the first render after it ended:
+	// that render is silence, so the fade's last frames have been handed to
+	// the device before Close may return and close it.
+	silent := p.closing && p.fade.cur == 0 && p.tail == nil
 	if p.cur != nil && (p.status == playback.StatusPlaying && !p.closing || p.fade.cur > 0) {
 		n := p.fillLocked(dst)
 		for i := range n {
@@ -283,7 +287,7 @@ func (p *Player) render(dst []float32) {
 		dst[i] *= g
 		dst[i+1] *= g
 	}
-	if p.closing && p.fade.cur == 0 && p.tail == nil && !p.fadedSent {
+	if silent && !p.fadedSent {
 		p.fadedSent = true
 		close(p.faded)
 	}

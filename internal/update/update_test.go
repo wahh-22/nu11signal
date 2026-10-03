@@ -229,8 +229,8 @@ func TestCachedWritesAPrivateCacheAndCreatesItsDirectory(t *testing.T) {
 		t.Fatalf("cache mode = %o; want 600", perm)
 	}
 	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), `"checked_at"`) || !strings.Contains(string(data), `"0.3.1"`) {
-		t.Fatalf("cache = %s", data)
+	if strings.Contains(string(data), `"checked_at"`) || !strings.Contains(string(data), `"0.3.1"`) {
+		t.Fatalf("cache = %s; want the release and no checked_at", data)
 	}
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 1 {
@@ -266,6 +266,24 @@ func TestCachedFailureFallsBackToTheCacheOrErrors(t *testing.T) {
 	writeCache(t, path, time.Now().Add(-72*time.Hour), r031)
 	if rel, err := cached(inner, path).Latest(context.Background()); err != nil || rel != r031 {
 		t.Fatalf("got %+v, %v; want the old cached %+v", rel, err, r031)
+	}
+}
+
+// Earlier versions wrote a checked_at timestamp beside the release; their
+// cache files still load.
+func TestCachedReadsACacheWithCheckedAt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "update.json")
+	old := `{
+  "checked_at": "2026-09-01T10:00:00.123456+02:00",
+  "latest": {"version": "0.3.1", "url": "https://example.test/v0.3.1"}
+}
+`
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	offline := &fakeChecker{err: errors.New("offline")}
+	if rel, err := cached(offline, path).Latest(context.Background()); err != nil || rel != r031 {
+		t.Fatalf("got %+v, %v; want the cached %+v", rel, err, r031)
 	}
 }
 

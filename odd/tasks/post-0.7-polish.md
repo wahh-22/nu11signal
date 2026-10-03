@@ -20,3 +20,10 @@ Older backlog advisories in other odd/tasks files stay out of scope.
 - web: build, check:links, check:brand, astro check, screenshots of the badge in the three themes.
 
 ## Progress
+- Q1 + Q3 (app) implemented by the delegated writer (route: delegated, 2+ non-trivial files), uncommitted.
+  - Q1 root cause: `render` signalled `faded` in the same call that rendered the fade's last frames (at 8000 Hz the 200 ms fade is 1600 frames = 25 pulls of 64, so it ends exactly at a chunk end), so a Close that returned before the test's next pull left the fade's tail (~0.001) as the final samples. Fix: `faded` is signalled only by the first render that begins with the fade done (silence), so the fade's last frames reach the device before Close closes it. Could not reproduce by `-count=300` / `-cpu 1,2,8`; RED via new deterministic `TestCloseSignalsFadedOnlyAfterSilence` (peak 0.0082 in the signalling render). GREEN: `-count=200 -race` passes.
+  - release.sh: `has_version_stamp` matches VERSION literally (tr + grep -F, no regex) and rejects only boundaries that extend a version (digit/`.` before; digit, pre-release letters, or `.`/`-`/`+` + alnum after). `-trimpath` drops ldflags from build info, so no marker exists. Tests: adjacency (RED then GREEN), prerelease/longer stamps, literal 0x5y0, truncated ELF.
+  - bump-cask.sh: one shared rebuild hint line; archives named by arch; `read_checksum` checks its own file-exists precondition (normally reported earlier by `check_checksum_files`).
+  - update cache: `checked_at` no longer written; old files still load (test); older versions treat a missing timestamp as stale and ask.
+  - docs: usage.md BLUESHIFT downgrade note; releasing.md stamp rule.
+  - Checks: gofmt empty, vet ok, `go test -race ./...` ok, `make test-scripts` 62 passed, `bash -n` ok.
