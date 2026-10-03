@@ -7,7 +7,7 @@
 # must work there too. On macOS bin/ and libexec/ keep the archive's layout:
 # nu11signal resolves its symlink and finds the helper in ../libexec.
 class Nu11signal < Formula
-  desc "Neon terminal radio for Apple Music and local music files"
+  desc "Terminal-native music player for Apple Music and local files"
   homepage "https://github.com/wahh-22/nu11signal"
   # The macOS universal archive; on_linux replaces url and sha256 per
   # architecture (a url inside on_macos is rejected by brew style).

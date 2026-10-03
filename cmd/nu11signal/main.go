@@ -1,4 +1,4 @@
-// Command nu11signal is a neon terminal radio for Apple
+// Command nu11signal is a terminal-native music player for Apple
 // Music and the computer's own music files.
 //
 // On macOS it starts the signed MusicKit helper, found only through
