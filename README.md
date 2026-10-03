@@ -44,10 +44,10 @@
 <p align="center"><sub>It plays through a tiny windowless MusicKit helper (about 31 MB RSS measured during playback, near 0% CPU) instead of a browser.</sub></p>
 
 <p align="center">
-  <img src="docs/assets/screens/blueshift.svg" width="840" alt="nu11signal in the BLUESHIFT theme: the PLAYLISTS dial on the left, NOW PLAYING with transport buttons and data rain on the right">
+  <img src="docs/assets/demo/overview.gif" width="900" alt="nu11signal in action: launching from the shell, the boot splash, opening a playlist, playing a song, and the data rain reacting to the music">
 </p>
 
-> macOS only. Requires an Apple Music subscription. Not affiliated with Apple.
+> macOS and Linux. Apple Music needs macOS and a subscription; on Linux it plays your local music files. Not affiliated with Apple.
 
 ## Support the signal
 
