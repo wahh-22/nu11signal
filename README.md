@@ -83,7 +83,7 @@ on their own.
 
 ### Browse the catalog like Apple Music
 
-<img width="100%" src="docs/assets/screens/search.svg" alt="SEARCH with live suggestions, matching artists and songs">
+<img width="100%" src="docs/assets/demo/search.gif" alt="SEARCH in action: recent searches, live suggestions while typing, then an artist page with its top songs, albums and playlists, and a song playing">
 
 Views stack like Apple Music's: PLAYLISTS → SEARCH → RESULTS → ARTIST → ALBUM,
 SONG, or PLAYLIST. Live suggestions as you type, recent searches, artist pages
