@@ -235,8 +235,8 @@ assert_linux_archive() {
   case "$arch" in amd64) machine=x86_64 ;; arm64) machine=aarch64 ;; esac
   [[ "$(elf_machine "$x/nu11signal-$v/bin/nu11signal")" == "$machine" ]] ||
     fail "bin/nu11signal in $archive is $(elf_machine "$x/nu11signal-$v/bin/nu11signal"), want $machine"
-  grep -qaF "version=$v" "$x/nu11signal-$v/bin/nu11signal" || fail "bin/nu11signal in $archive is not stamped with $v"
-  grep -qE "^go GOOS=linux GOARCH=$arch CGO_ENABLED=0 build -trimpath -ldflags -s -w -X main.version=$v " "$STUB_LOG" ||
+  grep -qaF "nu11signal-version:$v;" "$x/nu11signal-$v/bin/nu11signal" || fail "bin/nu11signal in $archive is not stamped with $v"
+  grep -qF "go GOOS=linux GOARCH=$arch CGO_ENABLED=0 build -trimpath -ldflags -s -w -X main.version=$v -X main.versionStamp=nu11signal-version:$v; " "$STUB_LOG" ||
     fail "no linux/$arch build with the release ldflags: $(grep '^go ' "$STUB_LOG")"
 }
 

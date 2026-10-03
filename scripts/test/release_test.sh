@@ -210,49 +210,48 @@ test_release_accepts_a_position_independent_linux_executable() {
   assert_linux_release "$DIST/v0.2.1" 0.2.1
 }
 
-test_release_refuses_a_linux_binary_stamped_with_a_longer_version() {
+test_release_refuses_a_linux_binary_without_the_version_stamp() {
   setup_release
   mkdir -p "$DIST"
-  STUB_GO_VERSION_SUFFIX=1 release --linux-only 0.2.1
+  # The bare version alone is not enough: only the stamp is unambiguous.
+  STUB_GO_STAMP= release --linux-only 0.2.1
   assert_failed
   assert_output_contains "is not stamped with version 0.2.1"
-  STUB_GO_VERSION_PREFIX=1 release --linux-only 0.2.1
+  [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"
+}
+
+test_release_refuses_a_linux_binary_stamped_with_another_version() {
+  setup_release
+  mkdir -p "$DIST"
+  local stamp
+  for stamp in "nu11signal-version:v0.2.1;" "nu11signal-version:0.2.11;" \
+    "nu11signal-version:10.2.1;" "nu11signal-version:0.2;" "nu11signal-version:0.2.1-rc1;" \
+    "nu11signal-version:0.3.0;" "nu11signal-version:0.2.1" "0.2.1;"; do
+    STUB_GO_STAMP="$stamp" release --linux-only 0.2.1
+    assert_failed
+    assert_output_contains "is not stamped with version 0.2.1"
+  done
+  # A shorter release version is not found inside a longer stamp.
+  STUB_GO_STAMP="nu11signal-version:0.2.1;" release --linux-only 0.2.10
   assert_failed
-  assert_output_contains "is not stamped with version 0.2.1"
+  assert_output_contains "is not stamped with version 0.2.10"
   [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"
 }
 
 test_release_accepts_a_stamp_next_to_other_strings() {
   setup_release
-  # The linker packs strings without separators: letters touching the stamp
-  # cannot extend a version, so they do not hide it.
-  STUB_GO_VERSION_PREFIX=runtime STUB_GO_VERSION_SUFFIX=GOROOT release --linux-only 0.2.1
+  # The linker packs strings without separators; the stamp's own prefix and
+  # terminator delimit it, whatever touches it.
+  STUB_GO_STAMP_PREFIX=runtime1 STUB_GO_STAMP_SUFFIX=0GOROOT release --linux-only 0.2.1
   assert_status 0
-  rm -rf "$DIST/v0.2.1"
-  STUB_GO_VERSION_PREFIX=v STUB_GO_VERSION_SUFFIX=abc release --linux-only 0.2.1
-  assert_status 0
+  assert_linux_release "$DIST/v0.2.1" 0.2.1
 }
 
-test_release_refuses_a_linux_binary_stamped_with_a_prerelease_of_the_version() {
-  setup_release
-  mkdir -p "$DIST"
-  STUB_GO_VERSION_SUFFIX=-rc1 release --linux-only 0.2.1
-  assert_failed
-  assert_output_contains "is not stamped with version 0.2.1"
-  STUB_GO_VERSION_SUFFIX=.1 release --linux-only 0.2.1
-  assert_failed
-  assert_output_contains "is not stamped with version 0.2.1"
-  STUB_GO_VERSION_SUFFIX=x release --linux-only 0.2.1-rc
-  assert_failed
-  assert_output_contains "is not stamped with version 0.2.1-rc"
-  [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"
-}
-
-test_release_matches_the_version_literally() {
+test_release_matches_the_stamp_literally() {
   setup_release
   mkdir -p "$DIST"
   # As a regular expression, 0.5.0 would match 0x5y0.
-  STUB_GO_STAMP=0x5y0 release --linux-only 0.5.0
+  STUB_GO_STAMP="nu11signal-version:0x5y0;" release --linux-only 0.5.0
   assert_failed
   assert_output_contains "is not stamped with version 0.5.0"
   [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"

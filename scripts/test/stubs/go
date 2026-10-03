@@ -1,22 +1,28 @@
 #!/usr/bin/env bash
-# Test stub: `go build ... -ldflags "... -X main.version=V" -o OUT PKG`.
-# For GOOS=linux it writes a fake ELF to OUT: a 64-bit little-endian header
-# whose machine matches GOARCH (amd64: x86_64, arm64: aarch64), followed by
-# "version=V". Otherwise it writes a script that prints V for --version.
+# Test stub: `go build ... -ldflags "... -X main.version=V -X main.versionStamp=S"
+# -o OUT PKG`. For GOOS=linux it writes a fake ELF to OUT: a 64-bit
+# little-endian header whose machine matches GOARCH (amd64: x86_64, arm64:
+# aarch64), followed by the bare V and then S, as the linker packs strings.
+# Otherwise it writes a script that prints V for --version.
 # STUB_GO_WRONG_ARCH=1 swaps the ELF machine (an arm64 build comes out x86_64).
 # STUB_GO_ELF_TYPE=N sets the ELF e_type (default 2, ET_EXEC; 3 is ET_DYN).
-# STUB_GO_VERSION_PREFIX and STUB_GO_VERSION_SUFFIX are stamped around V
-# (as other strings the linker may place right next to it); STUB_GO_STAMP
-# replaces V in the stamp. STUB_GO_TRUNCATE=N cuts the ELF to its first N bytes.
+# STUB_GO_STAMP replaces S (empty: no stamp at all, only the bare V).
+# STUB_GO_STAMP_PREFIX and STUB_GO_STAMP_SUFFIX are written right around S
+# (as other strings the linker may place next to it).
+# STUB_GO_TRUNCATE=N cuts the ELF to its first N bytes.
 # Calls are logged as "go GOOS=.. GOARCH=.. CGO_ENABLED=.. ARGS".
 echo "go GOOS=${GOOS:-} GOARCH=${GOARCH:-} CGO_ENABLED=${CGO_ENABLED:-} $*" >>"$STUB_LOG"
 [[ "${1:-}" == build ]] || { echo "go stub: unsupported: $*" >&2; exit 1; }
-out="" version=dev prev=""
+out="" version=dev stamp="" prev=""
 for arg in "$@"; do
   [[ "$prev" == -o ]] && out="$arg"
   if [[ "$arg" == *main.version=* ]]; then
     version="${arg##*main.version=}"
     version="${version%% *}"
+  fi
+  if [[ "$arg" == *main.versionStamp=* ]]; then
+    stamp="${arg##*main.versionStamp=}"
+    stamp="${stamp%% *}"
   fi
   prev="$arg"
 done
@@ -35,7 +41,8 @@ if [[ "${GOOS:-}" == linux ]]; then
     printf '\177ELF\002\001\001\000\000\000\000\000\000\000\000\000'
     printf "\\00${STUB_GO_ELF_TYPE:-2}\\000"
     printf "$machine"
-    printf '\nversion=%s%s%s\n' "${STUB_GO_VERSION_PREFIX:-}" "${STUB_GO_STAMP:-$version}" "${STUB_GO_VERSION_SUFFIX:-}"
+    printf 'go1.26%s' "$version"
+    printf '%s%s%s' "${STUB_GO_STAMP_PREFIX:-}" "${STUB_GO_STAMP-$stamp}" "${STUB_GO_STAMP_SUFFIX:-}"
   } >"$out"
   if [[ -n "${STUB_GO_TRUNCATE:-}" ]]; then
     head -c "$STUB_GO_TRUNCATE" "$out" >"$out.cut"

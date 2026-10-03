@@ -268,43 +268,22 @@ elf_machine() {
   esac
 }
 
-# extends_version BEFORE AFTER VERSION: the characters around an occurrence of
-# VERSION would make it part of another version: a digit or "." before it
-# (10.5.0, 1.0.5.0); a digit after it, any letter or digit when VERSION has a
-# pre-release (0.5.0-rc -> 0.5.0-rc1), or ".", "-" or "+" and a letter or
-# digit (0.5.0.1, 0.5.0-rc1, 0.5.0+meta).
-extends_version() {
-  local before="$1" after="$2" version="$3"
-  [[ "${before: -1}" == [0-9.] ]] && return 0
-  [[ "${after:0:1}" == [0-9] ]] && return 0
-  [[ "$version" == *-* && "${after:0:1}" == [A-Za-z] ]] && return 0
-  [[ "${after:0:1}" == [.+-] && "${after:1:1}" == [0-9A-Za-z] ]] && return 0
-  return 1
+# version_stamp VERSION: the string release builds stamp next to main.version
+# (-X main.versionStamp; see cmd/nu11signal): VERSION between a fixed prefix
+# and a terminator, neither of which a semver contains. Found byte for byte
+# in a binary, it cannot be part of another version (v0.5.0, 10.5.0, 0.5.01).
+version_stamp() {
+  printf 'nu11signal-version:%s;' "$1"
 }
 
-# has_version_stamp FILE VERSION: FILE holds VERSION as a version of its own,
-# not as part of another one (see extends_version). Go stores the stamped
-# string without separators, so other strings may touch it: letters next to
-# it are fine (go0.5.0abc), digits are not (go10.5.0). -trimpath leaves the
-# ldflags out of the build info, so the value itself is all there is to find.
-# VERSION is matched literally, never as a regular expression.
+# has_version_stamp FILE VERSION: FILE contains version_stamp VERSION, matched
+# literally (never as a regular expression) anywhere in its bytes.
 has_version_stamp() {
-  local file="$1" version="$2" token seen rest before
-  while IFS= read -r token; do
-    seen="" rest="$token"
-    while [[ "$rest" == *"$version"* ]]; do
-      before="${rest%%"$version"*}"
-      extends_version "$seen$before" "${rest#*"$version"}" "$version" || return 0
-      seen+="$before${version:0:1}"
-      rest="${rest#"$before"}"
-      rest="${rest:1}"
-    done
-  done < <(LC_ALL=C tr -c '0-9A-Za-z.+-' '\n' <"$file" | LC_ALL=C grep -F -- "$version" || true)
-  return 1
+  LC_ALL=C grep -qaF -- "$(version_stamp "$2")" "$1"
 }
 
 # check_linux_binary FILE GOARCH: FILE is an executable ELF for GOARCH and
-# carries VERSION (stamped with -X main.version; see has_version_stamp). It
+# carries VERSION (stamped with -X main.versionStamp; see version_stamp). It
 # cannot be run here.
 check_linux_binary() {
   local file="$1" want got
@@ -330,7 +309,7 @@ build_linux_archives() {
     archive="$NAME-linux-$arch.tar.gz"
     mkdir -p "$tree/$NAME/bin"
     GOOS=linux GOARCH="$arch" CGO_ENABLED=0 go build -trimpath \
-      -ldflags "-s -w -X main.version=$VERSION" \
+      -ldflags "-s -w -X main.version=$VERSION -X main.versionStamp=$(version_stamp "$VERSION")" \
       -o "$tree/$NAME/bin/nu11signal" ./cmd/nu11signal
     check_linux_binary "$tree/$NAME/bin/nu11signal" "$arch"
     cp LICENSE README.md "$tree/$NAME/"
@@ -402,7 +381,7 @@ fi
 step "Building universal nu11signal $VERSION"
 for arch in arm64 amd64; do
   GOOS=darwin GOARCH="$arch" CGO_ENABLED=0 go build -trimpath \
-    -ldflags "-s -w -X main.version=$VERSION" \
+    -ldflags "-s -w -X main.version=$VERSION -X main.versionStamp=$(version_stamp "$VERSION")" \
     -o "$WORK_DIR/nu11signal-$arch" ./cmd/nu11signal
 done
 lipo -create -output "$STAGE/bin/nu11signal" "$WORK_DIR/nu11signal-arm64" "$WORK_DIR/nu11signal-amd64"
