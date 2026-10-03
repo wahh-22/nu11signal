@@ -87,81 +87,16 @@ func TestBrailleDotsFollowTheBrailleNumbering(t *testing.T) {
 // braille reports whether r is a Braille pattern.
 func braille(r rune) bool { return r >= 0x2800 && r <= 0x28FF }
 
-func TestParseLineSplitsSpansBySGRStyle(t *testing.T) {
-	line := "ab\x1b[1;38;2;255;95;87mN\x1b[m \x1b[38;2;1;2;3;48;2;4;5;6mx<\x1b[m"
-	got := parseLine(line)
-	want := []span{
-		{col: 0, width: 2, text: "ab"},
-		{col: 2, width: 1, text: "N", style: style{fg: "#FF5F57", bold: true}},
-		{col: 3, width: 1, text: " "},
-		{col: 4, width: 2, text: "x<", style: style{fg: "#010203", bg: "#040506"}},
-	}
-	if len(got) != len(want) {
-		t.Fatalf("got %d spans %+v, want %d", len(got), got, len(want))
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("span %d = %+v, want %+v", i, got[i], want[i])
-		}
-	}
-}
-
-func TestScreensRenderWellFormedFromTheGoldens(t *testing.T) {
-	for _, s := range screens {
-		data, err := s.render(repoRoot)
-		if err != nil {
-			t.Fatal(err)
-		}
-		wellFormed(t, s.name, data)
-		if !strings.Contains(string(data), "<text") {
-			t.Errorf("%s: no text drawn", s.name)
-		}
-		// Braille cells (the emblem) are drawn as dots, so the screens
-		// read right without a font that has them.
-		if strings.ContainsFunc(string(data), braille) {
-			t.Errorf("%s: Braille drawn as text, not as dots", s.name)
-		}
-		if s.name == "boot" && !strings.Contains(string(data), `<circle class="dot"`) {
-			t.Errorf("%s: the emblem draws no dots", s.name)
-		}
-	}
-}
-
 // The committed SVGs are what the generator renders now: rerun
-// go run ./tools/readmeart after changing the emblem, a golden, or this
-// tool.
+// go run ./tools/readmeart after changing the emblem or this tool.
 func TestCommittedAssetsAreUpToDate(t *testing.T) {
-	assets, err := render(repoRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, a := range assets {
+	for _, a := range render() {
 		got, err := os.ReadFile(filepath.Join(repoRoot, a.path))
 		if err != nil {
 			t.Fatalf("%s: %v (run go run ./tools/readmeart)", a.path, err)
 		}
 		if !bytes.Equal(got, a.data) {
 			t.Errorf("%s is stale: run go run ./tools/readmeart", a.path)
-		}
-	}
-}
-
-// Every theme SETTINGS offers has its own render of the main screen.
-func TestEveryThemeHasAMainScreenRender(t *testing.T) {
-	for _, tt := range []struct{ name, title string }{
-		{"blueshift", "BLUESHIFT"},
-		{"redshift", "REDSHIFT"},
-		{"matrix", "MATRIX"},
-		{"rose", "ROSE"},
-		{"neon-rose", "NEON ROSE"},
-	} {
-		i := slices.IndexFunc(screens, func(s screen) bool { return s.name == tt.name })
-		if i < 0 {
-			t.Errorf("no %s screen", tt.name)
-			continue
-		}
-		if s := screens[i]; s.title != tt.title || s.section != "" || !strings.HasPrefix(s.golden, "view_") {
-			t.Errorf("%s screen = %+v, want the %s main view golden", tt.name, s, tt.title)
 		}
 	}
 }

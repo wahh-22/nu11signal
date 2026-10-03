@@ -106,8 +106,6 @@ its songs' favorite state in one call, so the hearts show at once.
 
 ### Data rain that plays the music
 
-<img width="100%" src="docs/assets/screens/expanded.svg" alt="The expanded player with the data rain under the transport controls">
-
 Hex digits and half-width katakana fall under NOW PLAYING. With app volume on
 macOS 15 or later the helper measures the real spectrum: loud bands rain
 harder, bass hits send a wave of drops, and silence is dry. Otherwise the rain
@@ -119,23 +117,17 @@ drizzles decoratively with the playback state.
 
 ### Signal glitches, intros, and a boot splash
 
-<img width="100%" src="docs/assets/screens/no-signal.svg" alt="A glitch burst tearing rows and flashing NO SIGNAL over the UI">
-
 Every so often the screen loses the signal: torn rows, corrupted cells, static
 bars, and now and then a red `NO SIGNAL`. New content scrambles in, and the app
 boots and shuts down over the Braille logo (its head alone on a narrow
 terminal), which also rests in the spectrum area while nothing plays. `x`
 toggles the effects; `nu11signal --calm` starts without them.
 
-<img width="100%" src="docs/assets/screens/boot.svg" alt="The boot splash: the Braille logo over BOOTING NU11SIGNAL">
-
 **[Docs →](docs/effects.md#signal-effects)**
 
 ---
 
 ### A HUD you can drive with keys or the mouse
-
-<img width="100%" src="docs/assets/screens/keys.svg" alt="The KEYS overlay listing every binding by group">
 
 Bracketed HUD buttons for transport, loop, volume, and expand; every control
 answers to both the keyboard focus and a click, and the wheel scrolls the
@@ -148,7 +140,7 @@ first.
 
 ### Themes
 
-<img width="100%" src="docs/assets/screens/redshift.svg" alt="nu11signal in the REDSHIFT theme">
+<img width="100%" src="docs/assets/demo/themes.gif" alt="SETTINGS in action: switching between the BLUESHIFT, REDSHIFT and NEON ROSE themes, then quitting through the QUIT NU11SIGNAL? confirmation and the shutdown splash">
 
 `s` opens SETTINGS: choose BLUESHIFT (the default), REDSHIFT, MATRIX, ROSE,
 or NEON ROSE.
@@ -158,6 +150,8 @@ highlights with pearl success. Both use Pi's muted color for frames and rain;
 the eight-color limit omits distinct Pi border, champagne, error, and violet.
 The whole UI recolors without changing the terminal background, and the
 choice is saved for the next start.
+Quitting asks first (QUIT NU11SIGNAL?) and signs off over the shutdown
+splash.
 
 **[Docs →](docs/usage.md#settings)**
 

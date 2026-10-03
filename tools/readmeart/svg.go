@@ -12,12 +12,7 @@ const (
 	red    = "#FF5F57"
 	cyan   = "#5EF6FF"
 	yellow = "#FCEE0A"
-	dimRed = "#9A3B37"
 )
-
-// monoFonts is the font stack of every text: Kode Mono, the font the UI
-// is designed with, then common monospaced fallbacks.
-const monoFonts = `'Kode Mono','JetBrains Mono','SF Mono',Menlo,Consolas,monospace`
 
 // num formats v with at most two decimals and no trailing zeros, so the
 // output never depends on floating-point noise.
