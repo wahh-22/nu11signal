@@ -10,7 +10,7 @@ cask "nu11signal" do
 
   url "https://github.com/wahh-22/nu11signal/releases/download/v#{version}/nu11signal-#{version}-macos-universal.tar.gz"
   name "Nu11Signal"
-  desc "Neon terminal radio for Apple Music"
+  desc "Terminal-native music player for Apple Music and local files"
   homepage "https://github.com/wahh-22/nu11signal"
 
   # Kode Mono is the font the UI is designed with; the terminal draws the

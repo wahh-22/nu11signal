@@ -6,7 +6,7 @@
 
 <h1 align="center">nu11signal</h1>
 
-<p align="center"><strong>A neon car radio for Apple Music, in your terminal.</strong></p>
+<p align="center"><strong>A terminal-native music player for Apple Music and local files.</strong></p>
 
 <p align="center">
   <a href="https://github.com/wahh-22/nu11signal/releases/latest"><img src="https://img.shields.io/github/v/release/wahh-22/nu11signal?style=for-the-badge&labelColor=0A0A0A&color=FF5F57" alt="Latest release"></a>
@@ -39,7 +39,7 @@
 
 <br>
 
-<p align="center">Your playlists on a pseudo FM dial, a now-playing panel, and data rain that plays the music.<br><strong>Apple Music and your own music files, without leaving the terminal.</strong></p>
+<p align="center">Built for the terminal: instant search, keyboard and mouse control, and beautiful visuals.<br>Browse and play without leaving your shell.</p>
 
 <p align="center">
   <img src="docs/assets/demo/overview.gif" width="900" alt="nu11signal in action: launching from the shell, the boot splash, opening a playlist, playing a song, and the data rain reacting to the music">
