@@ -222,6 +222,55 @@ test_release_refuses_a_linux_binary_stamped_with_a_longer_version() {
   [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"
 }
 
+test_release_accepts_a_stamp_next_to_other_strings() {
+  setup_release
+  # The linker packs strings without separators: letters touching the stamp
+  # cannot extend a version, so they do not hide it.
+  STUB_GO_VERSION_PREFIX=runtime STUB_GO_VERSION_SUFFIX=GOROOT release --linux-only 0.2.1
+  assert_status 0
+  rm -rf "$DIST/v0.2.1"
+  STUB_GO_VERSION_PREFIX=v STUB_GO_VERSION_SUFFIX=abc release --linux-only 0.2.1
+  assert_status 0
+}
+
+test_release_refuses_a_linux_binary_stamped_with_a_prerelease_of_the_version() {
+  setup_release
+  mkdir -p "$DIST"
+  STUB_GO_VERSION_SUFFIX=-rc1 release --linux-only 0.2.1
+  assert_failed
+  assert_output_contains "is not stamped with version 0.2.1"
+  STUB_GO_VERSION_SUFFIX=.1 release --linux-only 0.2.1
+  assert_failed
+  assert_output_contains "is not stamped with version 0.2.1"
+  STUB_GO_VERSION_SUFFIX=x release --linux-only 0.2.1-rc
+  assert_failed
+  assert_output_contains "is not stamped with version 0.2.1-rc"
+  [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"
+}
+
+test_release_matches_the_version_literally() {
+  setup_release
+  mkdir -p "$DIST"
+  # As a regular expression, 0.5.0 would match 0x5y0.
+  STUB_GO_STAMP=0x5y0 release --linux-only 0.5.0
+  assert_failed
+  assert_output_contains "is not stamped with version 0.5.0"
+  [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"
+}
+
+test_release_refuses_a_truncated_linux_elf() {
+  setup_release
+  mkdir -p "$DIST"
+  STUB_GO_TRUNCATE=10 release --linux-only 0.2.1
+  assert_failed
+  assert_output_contains "is not an x86_64 ELF executable (got: not-elf)"
+  STUB_GO_TRUNCATE=0 release --linux-only 0.2.1
+  assert_failed
+  assert_output_contains "is not an x86_64 ELF executable (got: not-elf)"
+  [[ -z "$(ls -A "$DIST")" ]] || fail "dist/ changed: $(ls -A "$DIST")"
+  [[ -z "$(staging_left "$DIST")" ]] || fail "staging left behind"
+}
+
 # --- --linux-only (make release-linux) ----------------------------------------
 
 # assert_linux_release DIR VERSION: DIR holds exactly the Linux artifacts.

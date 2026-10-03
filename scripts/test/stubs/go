@@ -5,7 +5,9 @@
 # "version=V". Otherwise it writes a script that prints V for --version.
 # STUB_GO_WRONG_ARCH=1 swaps the ELF machine (an arm64 build comes out x86_64).
 # STUB_GO_ELF_TYPE=N sets the ELF e_type (default 2, ET_EXEC; 3 is ET_DYN).
-# STUB_GO_VERSION_PREFIX and STUB_GO_VERSION_SUFFIX are stamped around V.
+# STUB_GO_VERSION_PREFIX and STUB_GO_VERSION_SUFFIX are stamped around V
+# (as other strings the linker may place right next to it); STUB_GO_STAMP
+# replaces V in the stamp. STUB_GO_TRUNCATE=N cuts the ELF to its first N bytes.
 # Calls are logged as "go GOOS=.. GOARCH=.. CGO_ENABLED=.. ARGS".
 echo "go GOOS=${GOOS:-} GOARCH=${GOARCH:-} CGO_ENABLED=${CGO_ENABLED:-} $*" >>"$STUB_LOG"
 [[ "${1:-}" == build ]] || { echo "go stub: unsupported: $*" >&2; exit 1; }
@@ -33,8 +35,13 @@ if [[ "${GOOS:-}" == linux ]]; then
     printf '\177ELF\002\001\001\000\000\000\000\000\000\000\000\000'
     printf "\\00${STUB_GO_ELF_TYPE:-2}\\000"
     printf "$machine"
-    printf '\nversion=%s%s%s\n' "${STUB_GO_VERSION_PREFIX:-}" "$version" "${STUB_GO_VERSION_SUFFIX:-}"
+    printf '\nversion=%s%s%s\n' "${STUB_GO_VERSION_PREFIX:-}" "${STUB_GO_STAMP:-$version}" "${STUB_GO_VERSION_SUFFIX:-}"
   } >"$out"
+  if [[ -n "${STUB_GO_TRUNCATE:-}" ]]; then
+    head -c "$STUB_GO_TRUNCATE" "$out" >"$out.cut"
+    cat "$out.cut" >"$out" # not mv: the mv stub counts renames
+    rm "$out.cut"
+  fi
 else
   printf '#!/bin/sh\necho %s\n' "$version" >"$out"
 fi

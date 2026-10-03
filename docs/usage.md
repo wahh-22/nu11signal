@@ -381,6 +381,12 @@ does not know starts `BLUESHIFT` silently. A former theme name still applies
 its theme (`"BLUE"` is `BLUESHIFT`, `"NIGHT CITY"` is `REDSHIFT`), saved
 under the current name the next time a theme is chosen.
 
+`BLUESHIFT` arrived in 0.7.0. A version before it does not know the name, so
+after a downgrade it starts its own default theme (`REDSHIFT` in 0.6) and
+leaves the saved `"BLUESHIFT"` in place until a theme is chosen there, so it
+applies again after an upgrade; current versions also accept the older
+`"BLUE"` and `"NIGHT CITY"`.
+
 When a newer release is known (see [Update check](#update-check)), an
 `UPDATE` line heads the panel with the version and how to upgrade.
 

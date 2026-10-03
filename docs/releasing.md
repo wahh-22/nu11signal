@@ -100,8 +100,11 @@ FORCE=1`; `make cask` refuses a `dist/v0.2.0` without the macOS checksum.
 The Linux binaries cannot be run on the build machine, so each is checked
 instead: a 64-bit little-endian ELF for its architecture whose type is an
 executable (`ET_EXEC`, or `ET_DYN` for a position-independent build), stamped
-with exactly the release version (a whole token, so `0.5.0` matches neither
-`0.5.01` nor `10.5.0`).
+with exactly the release version, matched literally and not as part of
+another version: `0.5.0` matches none of `0.5.01`, `10.5.0`, `0.5.0.1` or
+`0.5.0-rc1`, but letters the linker happens to place next to it do not hide
+it (`go0.5.0abc` still matches). `-trimpath` keeps the ldflags out of the
+build info, so the stamped string is the only evidence in the binary.
 
 ## Publishing and Homebrew
 
