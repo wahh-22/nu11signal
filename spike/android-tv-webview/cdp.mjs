@@ -6,8 +6,11 @@
 //   node cdp.mjs 'document.title'
 //   node cdp.mjs --reload
 //
-// CDP_PORT overrides the forwarded port (default 9222).
+// CDP_PORT overrides the forwarded port (default 9222). CDP_TARGET picks the
+// page whose URL contains it (default music.apple.com): MusicKit's sign-in
+// window is a second page target.
 const port = process.env.CDP_PORT ?? "9222";
+const wanted = process.env.CDP_TARGET ?? "music.apple.com";
 const arg = process.argv[2];
 if (!arg) {
   console.error("usage: node cdp.mjs <expression> | --reload");
@@ -15,8 +18,8 @@ if (!arg) {
 }
 
 const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-const page = targets.find((t) => t.type === "page");
-if (!page) throw new Error("no page target");
+const page = targets.find((t) => t.type === "page" && t.url.includes(wanted));
+if (!page) throw new Error(`no page target with a URL containing ${wanted}`);
 
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => {
