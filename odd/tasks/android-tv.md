@@ -107,6 +107,15 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   remote, search, play, background, relaunch keeps the session).
 
 ## Progress
+- 2026-10-10: A3b guide `96c7b66` (review `review-dfe0f1a4305c8bd7` approved).
+  User signed in with the remote only; verified `isAuthorized: true` and
+  persistent `media-user-token`; session survives an app restart (6 library
+  playlists, storefront `co`). First-session defects (empty library, page on
+  storefront `us`) fixed in `17a975d` (RED: TestLateAuthorizationReloadsLibrary,
+  TestLibraryChangeRetriesFailedFavorites,
+  TestLateAuthorizationWaitsForAccountDocument; 1524 tests pass; review
+  `review-9573a2b326cfbfe3` approved). Device check of that fix needs a
+  fresh sign-in (pending the user's go-ahead).
 - 2026-10-10: first remote sign-in attempt went to the spike app (both
   apps were installed and both showed in chrome://inspect); the real app's
   cookie DB held only `geo`. Spike uninstalled from the TV and removed from
