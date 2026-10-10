@@ -99,6 +99,26 @@ confirms authorization by closing active sign-in, a centered "Signed in to
 Apple Music" banner appears over the terminal for four seconds. Leaving
 with Back does not show this confirmation.
 
+After first sign-in, Go hides the sign-in view and navigates the music
+WebView once to `https://music.apple.com/`. Apple then selects the account's
+storefront instead of keeping the anonymous storefront (for example, `/us`
+becomes `/co`). Go owns this handoff so authorization cannot reach the
+composite player before the new document is ready. An old-document marker
+also prevents an authorized status polled just before navigation from
+prematurely completing the handoff. An already-signed-in launch does not
+need this extra navigation.
+
+The TUI remains usable during the refresh. Navigation failures such as
+`page navigated` and MusicKit's `ready:false` keep Apple Music pending,
+without transient library errors or a fixed readiness deadline; on a Google
+TV Streamer this can take about 40 seconds. A bridge disconnect or canceled
+poll still propagates normally. Once the new document is ready and
+signed in, the composite emits a library-change notification. On every
+platform, the radio then reloads playlists and retries failed favorite
+reads without an app restart. Returning with Back does not itself trigger
+navigation; if the account finishes signing in later, the same Go-owned
+handoff runs when authorization is observed.
+
 | Key during sign-in | Action |
 | --- | --- |
 | D-pad arrows | Move pointer; holding accelerates from 8 to 48 dp per repeat |

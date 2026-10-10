@@ -1,7 +1,9 @@
 package radio
 
 import (
+	"context"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/composite"
 	"github.com/wahh-22/nu11signal/internal/playback/playbacktest"
 )
 
@@ -209,6 +212,68 @@ func TestLibraryChangeReloadsThePlaylists(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("stations after a library change = %+v", m.stations)
+	}
+}
+
+type lateLibrary struct {
+	*playbacktest.Fake
+	authorized atomic.Bool
+}
+
+func (p *lateLibrary) AuthorizesLate() bool { return true }
+func (p *lateLibrary) Authorize(context.Context) (playback.AuthStatus, error) {
+	if p.authorized.Load() {
+		return playback.AuthAuthorized, nil
+	}
+	return playback.AuthNotDetermined, nil
+}
+func (p *lateLibrary) Playlists(ctx context.Context) ([]playback.Playlist, error) {
+	if !p.authorized.Load() {
+		return nil, nil
+	}
+	return p.Fake.Playlists(ctx)
+}
+
+func TestRadioShowsLibraryAfterCompositeLateAuthorization(t *testing.T) {
+	apple := &lateLibrary{Fake: playbacktest.New()}
+	apple.PlaylistsResult = []playback.Playlist{{ID: "p.after", Name: "After sign-in"}}
+	p := composite.New(apple, playbacktest.New())
+	defer p.Close()
+	m := New(p, Options{SkipBoot: true, Now: newClock().now, Seed: 2077})
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	m, cmd := step(t, m, run(t, m.authorizeCmd()))
+	m, _ = step(t, m, run(t, cmd))
+	if len(m.stations) != 0 {
+		t.Fatalf("before sign-in: %v", m.stations)
+	}
+	apple.authorized.Store(true)
+	if _, err := p.Authorize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	changed := make(chan tea.Msg, 1)
+	go func() { changed <- m.waitLibrary()() }()
+	select {
+	case msg := <-changed:
+		m, _ = step(t, m, msg)
+	case <-time.After(time.Second):
+		t.Fatal("late authorization did not reach the radio")
+	}
+	// Execute the library read, not the re-armed long-lived watch.
+	m, _ = step(t, m, run(t, m.loadPlaylistsCmd()))
+	if len(m.stations) != 1 || m.stations[0].ID != "p.after" {
+		t.Fatalf("after sign-in: %v", m.stations)
+	}
+	if !strings.Contains(plain(m), "AFTER SIGN-IN") {
+		t.Fatal("playlist is not visible")
+	}
+}
+
+func TestLibraryChangeRetriesFailedFavorites(t *testing.T) {
+	m, _ := loadedSourced(t, false, nil)
+	m.favs = map[string]favorite{"s1": {failedAt: m.now()}}
+	m, _ = step(t, m, libraryChangedMsg{})
+	if !m.favs["s1"].failedAt.IsZero() {
+		t.Fatal("library change retained the unauthorized favorite failure")
 	}
 }
 

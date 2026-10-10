@@ -339,6 +339,9 @@ func (p *Player) Authorize(ctx context.Context) (playback.AuthStatus, error) {
 	s, err := p.primary.Authorize(ctx)
 	if err == nil && s == playback.AuthAuthorized {
 		p.mu.Lock()
+		if p.applePending {
+			p.libraryChangedLocked()
+		}
 		p.applePending = false
 		p.mu.Unlock()
 		return s, nil
@@ -462,6 +465,8 @@ func (p *Player) settle(s playback.AuthStatus, err error) {
 	if !ready {
 		p.appleOff = true
 		p.leavePrimary()
+	} else {
+		p.libraryChangedLocked()
 	}
 	p.mu.Unlock()
 	if ready {
@@ -469,6 +474,18 @@ func (p *Player) settle(s playback.AuthStatus, err error) {
 		return
 	}
 	p.notify(unavailable(s, err))
+}
+
+// libraryChangedLocked announces newly reachable library data. p.mu must
+// be held, ordering the notification against Close and authorization.
+func (p *Player) libraryChangedLocked() {
+	if p.closed {
+		return
+	}
+	select {
+	case p.changed <- struct{}{}:
+	default:
+	}
 }
 
 // leavePrimary makes the local backend active in place of the primary.

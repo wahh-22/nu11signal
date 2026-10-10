@@ -5,12 +5,14 @@ package androidtv
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -201,7 +203,68 @@ func (r *Runtime) Relay(ctx context.Context, input *os.File, output io.Writer) <
 
 // Player keeps all webplayer optional capabilities while replacing its
 // desktop sign-in instruction.
-type Player struct{ *webplayer.Player }
+type Player struct {
+	*webplayer.Player
+	page      webplayer.Evaluator
+	hideLogin func(context.Context, webplayer.BridgeMessage) error
+	// SignIn and the composite recheck share this handoff. Neither may
+	// publish authorization before the account's new document is ready.
+	authMu                         sync.Mutex
+	pending, refreshing, refreshed bool
+}
+
+// Authorize refreshes the anonymous storefront once after late sign-in.
+// The old-document marker prevents a poll racing navigation from publishing
+// its stale authorized status. A new document reinstalls the webplayer script;
+// its ready:false status keeps the composite pending for as long as needed.
+func (p *Player) Authorize(ctx context.Context) (playback.AuthStatus, error) {
+	p.authMu.Lock()
+	defer p.authMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if p.refreshing {
+		raw, err := p.page.Evaluate(ctx, "Boolean(window.__nu11StorefrontReload)")
+		if err != nil {
+			if ctx.Err() != nil || errors.Is(err, webplayer.ErrBrowserGone) {
+				return "", err
+			}
+			return playback.AuthNotDetermined, nil
+		}
+		var old bool
+		if json.Unmarshal(raw, &old) != nil || old {
+			return playback.AuthNotDetermined, nil
+		}
+	}
+	s, err := p.Player.Authorize(ctx)
+	if err != nil {
+		return s, err
+	}
+	if s != playback.AuthAuthorized {
+		p.pending = true
+		return s, nil
+	}
+	if p.pending && !p.refreshed && p.page != nil {
+		// Return to the TUI immediately; Apple chooses the account storefront
+		// on the root navigation, rather than retaining the anonymous /us page.
+		if err := p.hideLogin(ctx, webplayer.BridgeMessage{Type: "login", Show: false}); err != nil {
+			return "", err
+		}
+		_, err := p.page.Evaluate(ctx, `(() => { window.__nu11StorefrontReload = true; window.location.replace("https://music.apple.com/"); return true; })()`)
+		if err != nil && !strings.Contains(err.Error(), "page navigated") {
+			if ctx.Err() != nil || errors.Is(err, webplayer.ErrBrowserGone) {
+				return "", err
+			}
+			// The command may not have reached the page. Retry on the next
+			// poll, rather than accepting the still-old authorized document.
+			return playback.AuthNotDetermined, nil
+		}
+		p.refreshing, p.refreshed = true, true
+		return playback.AuthNotDetermined, nil
+	}
+	p.refreshing = false
+	return s, nil
+}
 
 // AuthorizationHint names the TV app, not a desktop browser command.
 func (p *Player) AuthorizationHint() string { return "relaunch nu11signal on the TV to sign in" }
@@ -214,7 +277,7 @@ func (r *Runtime) NewPlayer(ctx context.Context) (*Player, error) {
 		p.Close()
 		return nil, err
 	}
-	return &Player{Player: p}, nil
+	return &Player{Player: p, page: r.Bridge, hideLogin: r.Bridge.Send}, nil
 }
 
 // SignIn shows the music WebView only if authorization is still needed,
@@ -224,7 +287,30 @@ func (r *Runtime) NewPlayer(ctx context.Context) (*Player, error) {
 // must not prevent the initial login control or end the sign-in attempt.
 // ctx also cancels an in-flight poll.
 func (r *Runtime) SignIn(ctx context.Context, p *Player) error {
-	return coordinateLogin(ctx, p.Authorize, r.Bridge.Send, r.loginClosed, time.Second)
+	return coordinateLogin(ctx, p.loginStatus, p.sendLogin, r.loginClosed, time.Second)
+}
+
+// The sign-in view ends as soon as the account is signed in, even though
+// the composite must wait longer for the refreshed document's MusicKit.
+func (p *Player) loginStatus(ctx context.Context) (playback.AuthStatus, error) {
+	s, err := p.Authorize(ctx)
+	p.authMu.Lock()
+	defer p.authMu.Unlock()
+	if err == nil && p.refreshed {
+		return playback.AuthAuthorized, nil
+	}
+	return s, err
+}
+
+func (p *Player) sendLogin(ctx context.Context, m webplayer.BridgeMessage) error {
+	p.authMu.Lock()
+	defer p.authMu.Unlock()
+	// An initial SignIn poll can race the composite's completed sign-in.
+	// Do not reopen the view after the handoff has already hidden it.
+	if m.Show && p.refreshed {
+		return nil
+	}
+	return p.hideLogin(ctx, m)
 }
 
 func coordinateLogin(ctx context.Context, poll func(context.Context) (playback.AuthStatus, error), send func(context.Context, webplayer.BridgeMessage) error, closed <-chan struct{}, every time.Duration) error {

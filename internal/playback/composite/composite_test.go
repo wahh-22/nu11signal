@@ -552,6 +552,34 @@ func noTick(t *testing.T, ticks chan<- time.Time) {
 	}
 }
 
+func TestLateAuthorizationReloadsLibrary(t *testing.T) {
+	for _, recheck := range []bool{false, true} {
+		t.Run(map[bool]string{false: "Authorize", true: "recheck"}[recheck], func(t *testing.T) {
+			p, apple, _ := newLate(t)
+			ticks, _ := manualTicks(p)
+			apple.PlaylistsResult = []playback.Playlist{{ID: "p.after", Name: "After sign-in"}}
+			mustAuthorize(t, p)
+			if pls, err := p.Playlists(ctx); err != nil || len(pls) != 0 {
+				t.Fatalf("before sign-in = %v, %v", pls, err)
+			}
+			quiet(t, p.LibraryChanged())
+			apple.set(playback.AuthAuthorized)
+			if recheck {
+				mustTick(t, ticks)
+			} else {
+				mustAuthorize(t, p)
+			}
+			recv(t, p.LibraryChanged())
+			pls, err := p.Playlists(ctx)
+			if err != nil || len(pls) != 1 || pls[0].ID != "p.after" {
+				t.Fatalf("after change = %v, %v", pls, err)
+			}
+			mustAuthorize(t, p)
+			quiet(t, p.LibraryChanged())
+		})
+	}
+}
+
 func TestAPendingPrimaryIsAskedAgainUntilAuthorized(t *testing.T) {
 	p, apple, _ := newLate(t)
 	ticks, started := manualTicks(p)
