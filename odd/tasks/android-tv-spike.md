@@ -31,8 +31,20 @@ developer token (user goal 2026-10-10: listen to Apple Music on the TV).
   leanback-launchable activity, min 28 / target 34. Installed on the TV
   (`adb install -r`: Success), launched, WebView devtools socket present.
   Parent added `cdp.mjs` (one-expression CDP evaluator, `--reload`).
-- [ ] S2 — Install on the TV; verify launch, page load, and Widevine EME
+- [x] S2 — Install on the TV; verify launch, page load, and Widevine EME
   (`requestMediaKeySystemAccess('com.widevine.alpha')`) over CDP.
+  Woke the TV (`input keyevent KEYCODE_WAKEUP`). Page: "Apple Music - Web
+  Player", `readyState=complete`, MusicKit `AppleMusic-2640.11.0-external`,
+  storefront us. EME: Widevine default ok, `SW_SECURE_CRYPTO` ok,
+  `HW_SECURE_ALL` NotSupportedError, FairPlay NotSupportedError.
+  `PROTECTED_MEDIA_ID` requested and granted (logcat).
+  Sign-in blocker found and fixed: `authorize()` calls
+  `window.open("https://authorize.music.apple.com/woa?...",
+  "apple-music-service-view", ...)`, which returned `null` in a single-window
+  WebView. The Activity now enables multiple windows and opens the child
+  window as a second WebView over the first (`onCreateWindow`, closed on
+  `onCloseWindow` or Back); after that the child window loads
+  `idmsa.apple.com/IDMSWebAuth/auth`.
 - [ ] S3 — User signs in; verify page MusicKit authorization and play one
   song (`playbackState` playing, audio heard on the TV).
 - [ ] S4 — Record the go/no-go findings and the next step.
