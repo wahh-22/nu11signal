@@ -2,18 +2,26 @@ package dev.wahh.nu11signal.tv;
 
 import android.app.Activity;
 import android.content.pm.ApplicationInfo;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Rect;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
 import android.os.SystemClock;
 import android.system.Os;
 import android.util.Base64;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.InputDevice;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.view.WindowInsets;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputConnectionWrapper;
@@ -30,6 +38,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import org.json.JSONObject;
 import java.io.BufferedReader;
@@ -50,6 +59,13 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private WebView music, terminal, popup;
     private EditText keyboard;
+    private View pointer;
+    private TextView pointerHint;
+    private float pointerX, pointerY;
+    private WebView touchTarget;
+    private long touchDownTime;
+    private float touchX, touchY;
+    private Runnable touchContinuation;
     private boolean loginShown, keyboardShown, started, centerLong, backLong;
     private volatile boolean destroyed, startupFailed, connected;
     private volatile int cols = 120, rows = 34;
@@ -130,6 +146,37 @@ public class MainActivity extends Activity {
         keyboard.setImeOptions(EditorInfo.IME_ACTION_SEND | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         keyboard.setAlpha(0f);
         root.addView(keyboard, new FrameLayout.LayoutParams(1, 1));
+        pointer = new View(this) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            @Override protected void onDraw(Canvas canvas) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setColor(0xff000000);
+                paint.setStrokeWidth(dp(6));
+                canvas.drawCircle(pointerX, pointerY, dp(13), paint);
+                paint.setColor(0xffffffff);
+                paint.setStrokeWidth(dp(3));
+                canvas.drawCircle(pointerX, pointerY, dp(13), paint);
+            }
+        };
+        pointer.setFocusable(false);
+        pointer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        pointer.setVisibility(View.GONE);
+        root.addView(pointer, fill());
+        pointerHint = new TextView(this);
+        pointerHint.setText("Arrows move the pointer · OK selects · Back returns to nu11signal");
+        pointerHint.setTextColor(0xffffffff);
+        pointerHint.setTextSize(20);
+        pointerHint.setBackgroundColor(0xb3000000);
+        pointerHint.setPadding((int) dp(12), (int) dp(6), (int) dp(12), (int) dp(6));
+        pointerHint.setFocusable(false);
+        pointerHint.setVisibility(View.GONE);
+        root.addView(pointerHint, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+        root.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            pointerX = Math.max(0, Math.min(pointerX, Math.max(0, root.getWidth() - 1)));
+            pointerY = Math.max(0, Math.min(pointerY, Math.max(0, root.getHeight() - 1)));
+            pointer.invalidate();
+        });
         setContentView(root);
         music.loadUrl("https://music.apple.com/");
         terminal.loadUrl("file:///android_asset/terminal.html");
@@ -184,6 +231,7 @@ public class MainActivity extends Activity {
                 closePopup();
                 popup = newMusicView();
                 root.addView(popup, fill());
+                raisePointer();
                 popup.requestFocus();
                 ((WebView.WebViewTransport) result.obj).setWebView(popup);
                 result.sendToTarget();
@@ -196,6 +244,7 @@ public class MainActivity extends Activity {
 
     private void closePopup() {
         if (popup == null) return;
+        cancelPointerTouch();
         root.removeView(popup);
         popup.destroy();
         popup = null;
@@ -205,10 +254,108 @@ public class MainActivity extends Activity {
     private void showLogin(boolean show) {
         if (show && keyboardShown) toggleKeyboard();
         if (!show) closePopup();
+        boolean entering = show && !loginShown;
         loginShown = show;
+        if (!show) cancelPointerTouch();
+        pointer.setVisibility(show ? View.VISIBLE : View.GONE);
+        pointerHint.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (entering) {
+            centerLong = false;
+            pointerX = root.getWidth() / 2f;
+            pointerY = root.getHeight() / 2f;
+            pointer.invalidate();
+        }
+        raisePointer();
         // Keep the music WebView running underneath the opaque terminal.
         terminal.setVisibility(show ? View.GONE : View.VISIBLE);
         (show ? music : terminal).requestFocus();
+    }
+
+    private float dp(float value) { return value * getResources().getDisplayMetrics().density; }
+
+    private void raisePointer() {
+        if (pointer != null) pointer.bringToFront();
+        if (pointerHint != null) pointerHint.bringToFront();
+    }
+
+    private boolean loginImeVisible() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsets insets = root.getRootWindowInsets();
+            if (insets != null) return insets.isVisible(WindowInsets.Type.ime());
+        }
+        // API 28/29: visible-frame shrink also covers adjustPan keyboards.
+        Rect visible = new Rect();
+        root.getWindowVisibleDisplayFrame(visible);
+        return root.getRootView().getHeight() - visible.bottom > dp(100);
+    }
+
+    private void movePointer(int key, int repeats) {
+        float step = dp(Math.min(48, 8 + repeats * 4));
+        float maxX = Math.max(0, root.getWidth() - 1), maxY = Math.max(0, root.getHeight() - 1);
+        float dy = key == KeyEvent.KEYCODE_DPAD_UP ? -step : key == KeyEvent.KEYCODE_DPAD_DOWN ? step : 0;
+        boolean edge = dy < 0 && pointerY == 0 || dy > 0 && pointerY == maxY;
+        if (key == KeyEvent.KEYCODE_DPAD_LEFT) pointerX -= step;
+        if (key == KeyEvent.KEYCODE_DPAD_RIGHT) pointerX += step;
+        pointerX = Math.max(0, Math.min(pointerX, maxX));
+        pointerY = Math.max(0, Math.min(pointerY + dy, maxY));
+        pointer.invalidate();
+        if (edge) startPointerTouch(dy);
+    }
+
+    private void dispatchPointerTouch(int action) {
+        MotionEvent touch = MotionEvent.obtain(touchDownTime, SystemClock.uptimeMillis(), action, touchX, touchY, 0);
+        touch.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        touchTarget.dispatchTouchEvent(touch);
+        touch.recycle();
+    }
+
+    private void cancelPointerTouch() {
+        if (touchContinuation != null) root.removeCallbacks(touchContinuation);
+        touchContinuation = null;
+        if (touchTarget != null) {
+            dispatchPointerTouch(MotionEvent.ACTION_CANCEL);
+            touchTarget = null;
+        }
+    }
+
+    private void startPointerTouch(float scroll) {
+        if (touchTarget != null || !loginShown || destroyed) return;
+        WebView target = popup != null ? popup : music;
+        int[] rootLocation = new int[2], targetLocation = new int[2];
+        root.getLocationOnScreen(rootLocation);
+        target.getLocationOnScreen(targetLocation);
+        float x = pointerX + rootLocation[0] - targetLocation[0];
+        float y = pointerY + rootLocation[1] - targetLocation[1];
+        float distance = Math.min(dp(48) + Math.abs(scroll), target.getHeight() / 3f);
+        if (scroll != 0) {
+            // Drag inside the page, not scrollBy: DOM inner scroll containers
+            // receive native touch scrolling too. Finger motion opposes scrolling.
+            y = scroll > 0 ? target.getHeight() - 1 - distance - dp(8) : distance + dp(8);
+        }
+        touchX = Math.max(0, Math.min(x, target.getWidth() - 1));
+        touchY = Math.max(0, Math.min(y, target.getHeight() - 1));
+        final float startY = touchY;
+        touchTarget = target;
+        touchDownTime = SystemClock.uptimeMillis();
+        target.requestFocus();
+        dispatchPointerTouch(MotionEvent.ACTION_DOWN);
+        touchContinuation = new Runnable() {
+            private int frame;
+            @Override public void run() {
+                if (touchTarget != target) return;
+                if (scroll != 0 && frame < 4) {
+                    frame++;
+                    touchY = startY + (scroll > 0 ? -distance : distance) * frame / 4;
+                    dispatchPointerTouch(MotionEvent.ACTION_MOVE);
+                    root.postDelayed(this, 30);
+                } else {
+                    dispatchPointerTouch(MotionEvent.ACTION_UP);
+                    touchTarget = null;
+                    touchContinuation = null;
+                }
+            }
+        };
+        root.postDelayed(touchContinuation, scroll == 0 ? 50 : 30);
     }
 
     public final class TerminalBridge {
@@ -412,6 +559,30 @@ public class MainActivity extends Activity {
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         int key = event.getKeyCode();
         if (loginShown || popup != null) {
+            // Media input must not reach either the hidden TUI or Apple's page.
+            if (key >= KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE && key <= KeyEvent.KEYCODE_MEDIA_FAST_FORWARD
+                    || key == KeyEvent.KEYCODE_MEDIA_PLAY || key == KeyEvent.KEYCODE_MEDIA_PAUSE
+                    || key == KeyEvent.KEYCODE_MEDIA_CLOSE || key == KeyEvent.KEYCODE_MEDIA_EJECT
+                    || key == KeyEvent.KEYCODE_MEDIA_RECORD || key == KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK
+                    || key == KeyEvent.KEYCODE_MEDIA_SKIP_FORWARD || key == KeyEvent.KEYCODE_MEDIA_SKIP_BACKWARD
+                    || key == KeyEvent.KEYCODE_MEDIA_STEP_FORWARD || key == KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD) return true;
+            if (loginImeVisible()) return super.dispatchKeyEvent(event);
+            if (loginShown && (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN
+                    || key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) movePointer(key, event.getRepeatCount());
+                return true;
+            }
+            if (loginShown && (key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER
+                    || key == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    if (event.getRepeatCount() == 0) centerLong = false;
+                    if (event.isLongPress()) centerLong = true;
+                } else if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled() && !centerLong
+                        && event.getEventTime() - event.getDownTime() < android.view.ViewConfiguration.getLongPressTimeout()) {
+                    startPointerTouch(0);
+                }
+                return true;
+            }
             if (key == KeyEvent.KEYCODE_BACK) {
                 if (event.getAction() == KeyEvent.ACTION_UP) onBackPressed();
                 return true;
@@ -460,7 +631,11 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (popup != null) { closePopup(); return; }
+        if (popup != null) {
+            cancelPointerTouch();
+            if (popup.canGoBack()) popup.goBack(); else closePopup();
+            return;
+        }
         if (loginShown) {
             showLogin(false);
             try { send(new JSONObject().put("type", "login").put("closed", true)); }
@@ -471,6 +646,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         destroyed = true;
+        cancelPointerTouch();
         LocalSocket connection = socket;
         if (connection != null) try { connection.close(); } catch (Exception ignored) { }
         Process child = process;

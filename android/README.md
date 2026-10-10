@@ -83,10 +83,37 @@ forwards terminal query replies to Go through the local-only JS interface.
 
 The invisible EditText receives IME commits; each Unicode code point is
 serialized to Go stdin. Keyboard Enter/Send sends carriage return. Volume
-keys retain system behavior. While sign-in is visible, D-pad and typing
-are handled by the music WebView instead. Back closes a child sign-in
-window first; a subsequent Back returns to the terminal and tells Go that
-login was closed. D-pad pointer support belongs to A3.
+keys retain system behavior.
+
+While sign-in is visible, a high-contrast ring pointer starts at screen
+center over the music page (or its Apple ID child window). A hint bar shows
+the login controls; both overlays disappear when returning to the TUI.
+
+| Key during sign-in | Action |
+| --- | --- |
+| D-pad arrows | Move pointer; holding accelerates from 8 to 48 dp per repeat |
+| Up/down at the screen edge | Scroll the page under the pointer |
+| D-pad center / Enter | Tap at pointer; text fields open the TV keyboard |
+| Long D-pad center / Enter | Ignored |
+| Back | Go back in child window history, then close it; otherwise return to TUI and notify Go |
+| Media keys | Ignored while the TUI is hidden |
+
+With the soft keyboard visible, arrows and OK use normal IME/WebView
+handling instead of moving or tapping the pointer. Back can dismiss the
+keyboard normally. Visibility uses IME WindowInsets on API 30+ and a
+visible-window-height fallback on API 28/29.
+
+Taps dispatch touchscreen MotionEvents directly to the topmost WebView:
+DOWN and UP share a downTime, with UP posted 50 ms later. Pointer positions
+are converted from root coordinates to WebView-local coordinates using
+their screen locations, not CSS pixels. Edge scrolling dispatches DOWN,
+four MOVE events 30 ms apart, then UP, with finger motion opposite the
+scroll direction. The drag starts inset from the vertical edge in the
+pointer's column and travels 48 dp plus the current movement step (bounded
+by the viewport). Native touch drags, rather than `scrollBy`, allow inner
+DOM scroll containers to handle scrolling. Gestures do not overlap;
+repeats during a gesture are skipped. Closing login or its child window
+cancels any pending touch. No JavaScript clicks are used.
 
 ## Process and bridge
 

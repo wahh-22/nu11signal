@@ -87,6 +87,14 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   unauthorized the music WebView is VISIBLE+focused with the terminal GONE
   (`dumpsys activity top`). `go test -race ./...` 1517 passed. Note:
   `adb screencap` shows this app black; inspect through CDP instead.
+  Commits `3c8ecef` (vendored xterm, third-party minified: not reviewed) and
+  `f61e536` (app). The cumulative branch review hit
+  `lens_context_budget_exceeded` (vendored xterm), so the app commit was
+  reviewed against `3c8ecef`: `review-5d726ca856fdd7a3` (high, 4 lenses,
+  1006 lines) APPROVED, acknowledged. Advisories (later): a fatal Go exit
+  can stay hidden behind the login view (MainActivity.java:286), IME
+  composition text can be lost (108-121), navigation-failed evaluations are
+  not retried by the app (166; Go re-polls).
 - [ ] A3 — Sign-in mode: D-pad pointer over the music WebView, driven by the
   bridge `login` message.
 - [ ] A4 — Foreground media service + MediaSession (background playback,
