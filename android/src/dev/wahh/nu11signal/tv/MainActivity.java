@@ -38,6 +38,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import org.json.JSONObject;
@@ -60,7 +61,9 @@ public class MainActivity extends Activity {
     private WebView music, terminal, popup;
     private EditText keyboard;
     private View pointer;
-    private TextView pointerHint;
+    private TextView pointerHint, loginConfirmation;
+    private LinearLayout loginGuide;
+    private final Runnable hideLoginConfirmation = () -> loginConfirmation.setVisibility(View.GONE);
     private float pointerX, pointerY;
     private WebView touchTarget;
     private long touchDownTime;
@@ -172,6 +175,32 @@ public class MainActivity extends Activity {
         pointerHint.setVisibility(View.GONE);
         root.addView(pointerHint, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+        loginGuide = new LinearLayout(this);
+        loginGuide.setOrientation(LinearLayout.VERTICAL);
+        loginGuide.setGravity(Gravity.CENTER_VERTICAL);
+        loginGuide.setPadding((int) dp(32), (int) dp(24), (int) dp(32), (int) dp(24));
+        loginGuide.setBackgroundColor(0xff101010);
+        loginGuide.setFocusableInTouchMode(true);
+        loginGuide.setClickable(true);
+        addGuideText("Sign in to Apple Music", 40);
+        addGuideText("nu11signal plays your Apple Music through Apple's web player. Sign in once on this TV; it stays signed in.", 26);
+        addGuideText("1. Use the arrows to move the white circle to Sign In (top right of the page), then press OK.", 26);
+        addGuideText("2. In the Apple ID window, move the circle to each field and press OK to open the keyboard. Type your Apple ID, password and verification code.", 26);
+        addGuideText("3. When you finish, nu11signal returns by itself.", 26);
+        addGuideText("Press OK to start · Back to skip for now", 26);
+        loginGuide.setVisibility(View.GONE);
+        root.addView(loginGuide, fill());
+        loginConfirmation = new TextView(this);
+        loginConfirmation.setText("Signed in to Apple Music");
+        loginConfirmation.setTextSize(32);
+        loginConfirmation.setTextColor(0xffffffff);
+        loginConfirmation.setBackgroundColor(0xd9000000);
+        loginConfirmation.setGravity(Gravity.CENTER);
+        loginConfirmation.setPadding((int) dp(24), (int) dp(16), (int) dp(24), (int) dp(16));
+        loginConfirmation.setFocusable(false);
+        loginConfirmation.setVisibility(View.GONE);
+        root.addView(loginConfirmation, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         root.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
             pointerX = Math.max(0, Math.min(pointerX, Math.max(0, root.getWidth() - 1)));
             pointerY = Math.max(0, Math.min(pointerY, Math.max(0, root.getHeight() - 1)));
@@ -181,6 +210,34 @@ public class MainActivity extends Activity {
         music.loadUrl("https://music.apple.com/");
         terminal.loadUrl("file:///android_asset/terminal.html");
         terminal.requestFocus();
+    }
+
+    private void addGuideText(String text, int size) {
+        TextView label = new TextView(this);
+        label.setText(text);
+        label.setTextSize(size);
+        label.setTextColor(0xffffffff);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.bottomMargin = (int) dp(12);
+        loginGuide.addView(label, params);
+    }
+
+    private boolean guideVisible() { return loginGuide.getVisibility() == View.VISIBLE; }
+
+    private void startLoginPointer() {
+        loginGuide.setVisibility(View.GONE);
+        pointer.setVisibility(View.VISIBLE);
+        pointerHint.setVisibility(View.VISIBLE);
+        raisePointer();
+        (popup != null ? popup : music).requestFocus();
+    }
+
+    private void confirmLogin() {
+        root.removeCallbacks(hideLoginConfirmation);
+        loginConfirmation.setVisibility(View.VISIBLE);
+        loginConfirmation.bringToFront();
+        root.postDelayed(hideLoginConfirmation, 4000);
     }
 
     private static FrameLayout.LayoutParams fill() {
@@ -257,18 +314,24 @@ public class MainActivity extends Activity {
         boolean entering = show && !loginShown;
         loginShown = show;
         if (!show) cancelPointerTouch();
-        pointer.setVisibility(show ? View.VISIBLE : View.GONE);
-        pointerHint.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (show) {
+            root.removeCallbacks(hideLoginConfirmation);
+            loginConfirmation.setVisibility(View.GONE);
+        }
+        if (!show) loginGuide.setVisibility(View.GONE);
         if (entering) {
+            loginGuide.setVisibility(View.VISIBLE);
             centerLong = false;
             pointerX = root.getWidth() / 2f;
             pointerY = root.getHeight() / 2f;
             pointer.invalidate();
         }
+        pointer.setVisibility(show && !guideVisible() ? View.VISIBLE : View.GONE);
+        pointerHint.setVisibility(show && !guideVisible() ? View.VISIBLE : View.GONE);
         raisePointer();
         // Keep the music WebView running underneath the opaque terminal.
         terminal.setVisibility(show ? View.GONE : View.VISIBLE);
-        (show ? music : terminal).requestFocus();
+        (guideVisible() ? loginGuide : show ? music : terminal).requestFocus();
     }
 
     private float dp(float value) { return value * getResources().getDisplayMetrics().density; }
@@ -276,6 +339,7 @@ public class MainActivity extends Activity {
     private void raisePointer() {
         if (pointer != null) pointer.bringToFront();
         if (pointerHint != null) pointerHint.bringToFront();
+        if (loginGuide != null && guideVisible()) loginGuide.bringToFront();
     }
 
     private boolean loginImeVisible() {
@@ -474,7 +538,12 @@ public class MainActivity extends Activity {
                 String type = message.getString("type");
                 if ("login".equals(type)) {
                     boolean show = message.getBoolean("show");
-                    runOnUiThread(() -> { if (!destroyed) showLogin(show); });
+                    runOnUiThread(() -> {
+                        if (destroyed) return;
+                        boolean signedIn = !show && loginShown;
+                        showLogin(show);
+                        if (signedIn) confirmLogin();
+                    });
                 } else if ("evaluate".equals(type)) {
                     long id = message.getLong("id");
                     String expr = message.getString("expr");
@@ -558,6 +627,17 @@ public class MainActivity extends Activity {
 
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         int key = event.getKeyCode();
+        // Route the guide before IME, pointer, media, or terminal handling.
+        // Activate on release so the same OK cannot also tap Apple's page.
+        if (guideVisible()) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                if (key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER
+                        || key == KeyEvent.KEYCODE_NUMPAD_ENTER) startLoginPointer();
+                else if (key == KeyEvent.KEYCODE_BACK) onBackPressed();
+            }
+            return key == KeyEvent.KEYCODE_VOLUME_UP || key == KeyEvent.KEYCODE_VOLUME_DOWN
+                    || key == KeyEvent.KEYCODE_VOLUME_MUTE ? super.dispatchKeyEvent(event) : true;
+        }
         if (loginShown || popup != null) {
             // Media input must not reach either the hidden TUI or Apple's page.
             if (key >= KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE && key <= KeyEvent.KEYCODE_MEDIA_FAST_FORWARD
@@ -631,6 +711,12 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
+        if (guideVisible()) {
+            showLogin(false);
+            try { send(new JSONObject().put("type", "login").put("closed", true)); }
+            catch (Exception e) { Log.w(TAG, "Login close failed", e); }
+            return;
+        }
         if (popup != null) {
             cancelPointerTouch();
             if (popup.canGoBack()) popup.goBack(); else closePopup();
@@ -646,6 +732,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         destroyed = true;
+        root.removeCallbacks(hideLoginConfirmation);
         cancelPointerTouch();
         LocalSocket connection = socket;
         if (connection != null) try { connection.close(); } catch (Exception ignored) { }

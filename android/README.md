@@ -85,9 +85,19 @@ The invisible EditText receives IME commits; each Unicode code point is
 serialized to Go stdin. Keyboard Enter/Send sends carriage return. Volume
 keys retain system behavior.
 
-While sign-in is visible, a high-contrast ring pointer starts at screen
-center over the music page (or its Apple ID child window). A hint bar shows
-the login controls; both overlays disappear when returning to the TUI.
+Each time sign-in starts, a full-screen native guide covers the music page
+with large, high-contrast text explaining why Apple Music sign-in is needed
+and how to use the pointer, Apple ID fields, and verification code. Press
+OK / Enter to dismiss the guide and start; Back skips sign-in for now,
+returns to the TUI, and notifies Go. While the guide is visible, arrows and
+media keys are ignored and the pointer is hidden.
+
+After the guide, a high-contrast ring pointer starts at screen center over
+the music page (or its Apple ID child window). A hint bar shows the login
+controls; both overlays disappear when returning to the TUI. When Go
+confirms authorization by closing active sign-in, a centered "Signed in to
+Apple Music" banner appears over the terminal for four seconds. Leaving
+with Back does not show this confirmation.
 
 | Key during sign-in | Action |
 | --- | --- |

@@ -107,6 +107,12 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   remote, search, play, background, relaunch keeps the session).
 
 ## Progress
+- 2026-10-10: first remote sign-in attempt went to the spike app (both
+  apps were installed and both showed in chrome://inspect); the real app's
+  cookie DB held only `geo`. Spike uninstalled from the TV and removed from
+  the Doze whitelist (user approved). Follow-up A3b: a clear on-screen
+  sign-in guide and a signed-in confirmation; the user guide documents only
+  the remote-control path.
 - Created 2026-10-10 on branch `feat/android-tv` from `spike/android-tv-webview` b595d9e.
 - Probe: `nu11signal` builds for `android/arm` with the NDK 28.2 clang
   (`CGO_ENABLED=1`, 17.7 MB) and `--version` runs on the TV; a Go probe
