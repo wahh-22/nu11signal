@@ -87,7 +87,7 @@ const calmEnv = "NU11SIGNAL_CALM"
 const noUpdateCheckEnv = "NU11SIGNAL_NO_UPDATE_CHECK"
 
 func main() {
-	os.Exit(run(os.Args[1:], deps{
+	d := deps{
 		stdout: os.Stdout,
 		stderr: os.Stderr,
 		stdoutTerminal: func() bool {
@@ -100,7 +100,9 @@ func main() {
 		openWebPlayer:   openWebPlayer,
 		loginAppleMusic: webplayer.Login,
 		runUI:           runUI,
-	}))
+	}
+	d.playAndroidTV = func(socket string, calm bool) error { return playAndroidTV(socket, calm, d) }
+	os.Exit(run(os.Args[1:], d))
 }
 
 // deps are run's side effects, injected so its exit paths are testable.
@@ -126,6 +128,8 @@ type deps struct {
 	// loginAppleMusic signs in to Apple Music in a browser window on
 	// Linux (webplayer.Login), telling the user what to do on out.
 	loginAppleMusic func(ctx context.Context, out io.Writer) error
+	// playAndroidTV owns the app connection, PTY and sign-in lifetime.
+	playAndroidTV func(socket string, calm bool) error
 	// runUI runs the radio UI against player until the user quits; recents
 	// stores recent searches (nil keeps them in memory only); settings is
 	// the settings file (nil keeps the defaults); calm starts the signal
@@ -145,6 +149,16 @@ func run(args []string, d deps) int {
 	if err != nil {
 		return 2
 	}
+	if opts.androidTV != "" {
+		if d.goos != "android" {
+			fmt.Fprintln(d.stderr, "nu11signal: --android-tv is only supported on Android")
+			return 2
+		}
+		if opts.demo || opts.local || opts.login || opts.version {
+			fmt.Fprintln(d.stderr, "nu11signal: --android-tv cannot be combined with --demo, --local, --apple-music-login or --version")
+			return 2
+		}
+	}
 	if opts.version {
 		if stampMismatch() {
 			fmt.Fprintf(d.stderr, "nu11signal: build stamp %q does not match version %s\n", versionStamp, version)
@@ -160,7 +174,13 @@ func run(args []string, d deps) int {
 		return 0
 	}
 	calm := opts.calm || os.Getenv(calmEnv) == "1"
-	if err := play(opts, calm, d); err != nil {
+	var playErr error
+	if opts.androidTV != "" {
+		playErr = d.playAndroidTV(opts.androidTV, calm)
+	} else {
+		playErr = play(opts, calm, d)
+	}
+	if err := playErr; err != nil {
 		fmt.Fprintln(d.stderr, "nu11signal:", err)
 		return 1
 	}
@@ -171,6 +191,9 @@ func run(args []string, d deps) int {
 // signed in (or was already), an interrupt cancels it, or it fails; the
 // window is closed in every case.
 func login(d deps) error {
+	if d.goos == "android" {
+		return errors.New("--apple-music-login is not supported on Android; sign in through the Android TV app")
+	}
 	if d.goos == "darwin" {
 		return errors.New("--apple-music-login is for Linux; on macOS Apple Music signs in through the helper")
 	}
@@ -264,6 +287,12 @@ func upgradeCommand() string {
 }
 
 func runUI(player playback.Player, recents history.Recents, settings config.Source, calm bool, updates update.Checker) error {
+	return runUIWithOptions(player, recents, settings, calm, updates)
+}
+
+// runUIWithOptions shares the model with the app mode, whose real terminal
+// is a PTY slave rather than process stdin/stdout.
+func runUIWithOptions(player playback.Player, recents history.Recents, settings config.Source, calm bool, updates update.Checker, options ...tea.ProgramOption) error {
 	model := radio.New(player, radio.Options{
 		Seed:    uint64(time.Now().UnixNano()),
 		Recents: recents,
@@ -273,7 +302,8 @@ func runUI(player playback.Player, recents history.Recents, settings config.Sour
 		Version: version,
 		Upgrade: upgradeCommand(),
 	})
-	_, err := tea.NewProgram(model, tea.WithFPS(radio.RenderFPS)).Run()
+	options = append(options, tea.WithFPS(radio.RenderFPS))
+	_, err := tea.NewProgram(model, options...).Run()
 	return err
 }
 
@@ -285,6 +315,8 @@ type options struct {
 	version bool
 	// login signs in to Apple Music for the web player (Linux) and exits.
 	login bool
+	// androidTV is the private app bridge socket; empty means desktop mode.
+	androidTV string
 }
 
 // parseFlags parses args (without the program name); errors and usage go
@@ -298,7 +330,19 @@ func parseFlags(args []string, output io.Writer) (options, error) {
 	fs.BoolVar(&opts.calm, "calm", false, "start with the signal effects (glitches, text glitches, alerts) off; also "+calmEnv+"=1")
 	fs.BoolVar(&opts.version, "version", false, "print the version and exit")
 	fs.BoolVar(&opts.login, "apple-music-login", false, "Linux: open a browser window to sign in to Apple Music for the web player, then exit")
+	fs.StringVar(&opts.androidTV, "android-tv", "", "internal: started by the Android TV app with its private socket path")
 	if err := fs.Parse(args); err != nil {
+		return options{}, err
+	}
+	var emptySocket bool
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "android-tv" && opts.androidTV == "" {
+			emptySocket = true
+		}
+	})
+	if emptySocket {
+		err := errors.New("--android-tv requires a nonempty socket path")
+		fmt.Fprintln(output, err)
 		return options{}, err
 	}
 	return opts, nil
@@ -400,6 +444,16 @@ func openPlayer(opts options, settings config.Source, d deps) (playback.Player, 
 		return demo.New(demo.Options{}), nil
 	}
 	dirs := musicDirs(settings)
+	// Plain Android keeps the previous local-only behavior. The app mode
+	// supplies its bridge-backed opener and never joins local files (v1).
+	if d.goos == "android" {
+		if opts.androidTV == "" {
+			return composite.New(nil, d.openLocal(dirs)), nil
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), webplayer.DefaultLoadTimeout)
+		defer cancel()
+		return d.openWebPlayer(ctx)
+	}
 	if opts.local || (d.goos != "darwin" && d.goos != "linux") {
 		return composite.New(nil, d.openLocal(dirs)), nil
 	}

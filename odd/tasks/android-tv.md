@@ -1,0 +1,85 @@
+# Android TV
+
+## Objective
+Run nu11signal itself (the same Bubble Tea TUI) on Android TV as an APK and
+play Apple Music there, with every step the user takes documented (user
+choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
+
+## Design
+- One APK, two parts:
+  - **Go:** the real `nu11signal` binary, cross-compiled with the NDK for
+    `android/arm` (armeabi-v7a, the Google TV Streamer's userspace) and
+    `android/arm64`, shipped as `lib/<abi>/libnu11signal.so` (an executable
+    in the native library dir, the only place an app may exec from) and
+    started by the app with `--android-tv <socket>`.
+  - **Java (no Gradle, no AndroidX, as the spike):** one Activity holding a
+    full-screen terminal WebView (vendored xterm.js, local asset, no network)
+    over a hidden music WebView on music.apple.com.
+- **Terminal:** in `--android-tv` mode Go opens a PTY itself (`/dev/ptmx`,
+  proven on the TV from adb), runs the TUI on the slave, and relays the
+  master to its stdin/stdout, which the app pipes to xterm.js. Env set by the
+  app: `HOME` and `XDG_CONFIG_HOME` in app-private storage, `TERM=xterm-256color`,
+  `COLORTERM=truecolor`. Resize goes through the bridge (TIOCSWINSZ).
+- **Bridge:** a Unix socket Go listens on in the app's private dir (0700),
+  JSON lines. Go -> app: `evaluate {id, expr}`, `login {show}`; app -> Go:
+  `result {id, ok, value|error}`, `resize {cols, rows}`. The app runs each
+  expression in the music WebView inside an async wrapper and reports the
+  settled promise back through a `@JavascriptInterface` (correlated by id,
+  concurrent, errors short and sanitized like `ScriptError`).
+- **Go reuse:** `webplayer.New(page Evaluator, ...)` already takes the one
+  method we need (`Evaluate(ctx, expr) (json.RawMessage, error)`), so the
+  Player, page script, catalog and library are reused unchanged. New: an
+  Evaluator over the bridge, an android branch in `openPlayer` before the
+  unsupported-OS fallback, and an Android login path (show the music
+  WebView, wait for `isAuthorized`).
+- **Sign-in on the TV:** the page's Sign In needs a real user gesture, so in
+  login mode the app shows the music WebView with a D-pad-driven pointer
+  (arrows move it, OK taps with real MotionEvents); text fields open the TV
+  keyboard. Back leaves login mode.
+- **Remote keys:** arrows -> arrow keys, OK -> enter, Back -> esc (long Back
+  -> q, the quit confirmation), play/pause -> space, next/previous -> n/p,
+  menu -> `/` (SEARCH). Typing uses the TV keyboard (or the Google TV phone
+  app's keyboard), forwarded as text.
+- **Background:** a foreground media service with a MediaSession keeps
+  playback alive with the app in the background and takes the remote's media
+  keys.
+- **Non-goals (v1):** local files on the TV (oto/Oboe compiles but scoped
+  storage needs a separate design), Play Store distribution, a native TV UI.
+- **Docs:** `docs/android-tv.md` is the user guide: requirements, install
+  (sideload), first launch, sign-in step by step, remote key map, typing,
+  background playback, updating, troubleshooting, uninstalling. Building the
+  APK goes in `docs/releasing.md` / developer docs.
+
+## Tasks
+- [x] A1 — Go: `--android-tv` mode (PTY relay, bridge socket, Evaluator over
+  the bridge, android branch in `openPlayer`, Android login) + tests.
+  Route: delegated writer. `webplayer` bridge Evaluator (JSON lines,
+  correlated concurrent ids, ctx cancel, sanitized ScriptError,
+  ErrBrowserGone on close, bounded lines); `internal/androidtv` (private
+  socket, single timed accept, PTY + relay + resize/SIGWINCH, sign-in
+  coordination, Android hint wrapper); `--android-tv` flag (Android only,
+  exit 2 elsewhere), TUI on the PTY slave; plain Android stays local-only;
+  `--apple-music-login` on Android points to the app. RED observed
+  (`TestAndroidTVFlag`, `TestAndroidTVBackendSelection`,
+  `TestAndroidLoginPointsToApp`, compile failures for new APIs). Verifier:
+  `go build`, `go vet` ok; `go test -race ./...` 1511 passed in 14 packages;
+  NDK builds android/arm and android/arm64 ok. PTY tests skip on macOS.
+- [ ] A2 — App shell: Activity with xterm.js terminal and hidden music
+  WebView, process launch with env, bridge client, resize, remote key map;
+  build script producing the APK with the Go binaries.
+- [ ] A3 — Sign-in mode: D-pad pointer over the music WebView, driven by the
+  bridge `login` message.
+- [ ] A4 — Foreground media service + MediaSession (background playback,
+  media keys).
+- [ ] A5 — Build and release tooling: `make android`, signing with the
+  user's own key, artifacts.
+- [ ] A6 — User guide `docs/android-tv.md` + README/install links +
+  developer build docs.
+- [ ] A7 — End-to-end verification on the TV (install, sign in with the
+  remote, search, play, background, relaunch keeps the session).
+
+## Progress
+- Created 2026-10-10 on branch `feat/android-tv` from `spike/android-tv-webview` b595d9e.
+- Probe: `nu11signal` builds for `android/arm` with the NDK 28.2 clang
+  (`CGO_ENABLED=1`, 17.7 MB) and `--version` runs on the TV; a Go probe
+  opened `/dev/ptmx` + `/dev/pts/0` there (as the adb shell user).
