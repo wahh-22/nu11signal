@@ -23,7 +23,8 @@ case "$(uname -s)" in
 esac
 CLANG="$NDK/toolchains/llvm/prebuilt/$HOST/bin"
 [[ -f "$ANDROID_JAR" && -x "$TOOLS/aapt2" && -x "$CLANG/clang" ]] || { echo 'Missing Android SDK/NDK tools' >&2; exit 1; }
-[[ -f "$ROOT/assets/xterm/xterm.js" && -f "$ROOT/assets/xterm/addon-fit.js" ]] || { echo 'Run android/vendor-xterm.sh first.' >&2; exit 1; }
+[[ -f "$ROOT/assets/xterm/xterm.js" && -f "$ROOT/assets/xterm/addon-fit.js" && -f "$ROOT/assets/xterm/addon-webgl.js" ]] || { echo 'Missing xterm assets: run android/vendor-xterm.sh first.' >&2; exit 1; }
+[[ -f "$ROOT/assets/fonts/KodeMono.ttf" && -f "$ROOT/assets/fonts/OFL.txt" ]] || { echo 'Missing Kode Mono font/license: run android/vendor-font.sh first.' >&2; exit 1; }
 OUT="$ROOT/build"
 APK="$OUT/nu11signal-tv-$VERSION.apk"
 mkdir -p "$OUT/lib/armeabi-v7a" "$OUT/lib/arm64-v8a"

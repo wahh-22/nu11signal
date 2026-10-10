@@ -15,11 +15,14 @@ fetch() {
 }
 fetch xterm https://registry.npmjs.org/@xterm/xterm/-/xterm-6.0.0.tgz TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==
 fetch fit https://registry.npmjs.org/@xterm/addon-fit/-/addon-fit-0.11.0.tgz jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==
+fetch webgl https://registry.npmjs.org/@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A==
 # These are the UMD/global builds, not the ES module distributions.
 cp "$TMP/xterm/package/lib/xterm.js" "$ROOT/assets/xterm/xterm.js"
 cp "$TMP/xterm/package/css/xterm.css" "$ROOT/assets/xterm/xterm.css"
 cp "$TMP/fit/package/lib/addon-fit.js" "$ROOT/assets/xterm/addon-fit.js"
 cp "$TMP/xterm/package/LICENSE" "$ROOT/assets/xterm/LICENSE-xterm"
 cp "$TMP/fit/package/LICENSE" "$ROOT/assets/xterm/LICENSE-addon-fit"
+cp "$TMP/webgl/package/lib/addon-webgl.js" "$ROOT/assets/xterm/addon-webgl.js"
+cp "$TMP/webgl/package/LICENSE" "$ROOT/assets/xterm/LICENSE-addon-webgl"
 printf 'Vendored assets: %s\n' "$ROOT/assets/xterm"
 # Keep verified archives under the ignored build directory for inspection.

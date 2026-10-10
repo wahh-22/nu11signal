@@ -97,6 +97,16 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   not retried by the app (166; Go re-polls).
 - [ ] A3 — Sign-in mode: D-pad pointer over the music WebView, driven by the
   bridge `login` message.
+- [ ] A2b — Desktop fidelity (user feedback 2026-10-10: plays and reads
+  well, but): Kode Mono font bundled (OFL), xterm WebGL renderer so the
+  rain's block/braille glyphs match a desktop terminal, and a terminal grid
+  sized like the user's desktop terminal so NOW PLAYING gets the same share
+  (list panel caps at 72 columns, `listPanelWidthFor`; 120 TV columns leave
+  the player 47).
+- [ ] A8 — Spike: real spectrum for the rain on Android (desktop has it only
+  on macOS through the Core Audio tap; Linux is decorative). Try
+  `android.media.audiofx.Visualizer` on the output mix with Widevine audio;
+  needs RECORD_AUDIO. Go/no-go before any build-out.
 - [ ] A4 — Foreground media service + MediaSession (background playback,
   media keys).
 - [ ] A5 — Build and release tooling: `make android`, signing with the

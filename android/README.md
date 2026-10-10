@@ -50,17 +50,33 @@ ANDROID_SERIAL=<serial> android/build.sh install
 
 ## Assets and terminal
 
-`android/vendor-xterm.sh` downloads pinned xterm 6.0.0 and addon-fit 0.11.0
-archives and verifies their SHA-512 digests before copying UMD assets and
+`android/vendor-xterm.sh` downloads pinned xterm 6.0.0, addon-fit 0.11.0,
+and compatible addon-webgl 0.19.0 archives and verifies their SHA-512 digests
+before copying UMD assets and
 MIT licenses. The exact URLs and integrity values are in
 `assets/xterm/README.md`. Commit these assets; subsequent builds use local
 files only (Go dependencies must already be cached for fully offline builds).
 
-The terminal has a black background and truecolor support. Its proportional
-monospace font is about 26 CSS px at 1920 wide, with line height 1.2, aiming
-for roughly 120x34 cells at 1080p. Density-scaled viewports use the same
-proportion, with a 12px floor. FitAddon reports the actual cell count on load
-and window resize; the full TUI needs at least 60x16. stdout is batched for
+`android/vendor-font.sh` downloads Kode Mono from a pinned Google Fonts
+commit and verifies its SHA-256 before copying it with the SIL OFL 1.1 license.
+Source and checksum details are in `assets/fonts/README.md`. The build fails
+if the font or license is missing. Run both vendor scripts to refresh assets.
+
+The terminal has a black background and truecolor support. It loads local
+Kode Mono (the desktop's designed font) with `document.fonts.load` before
+measuring or opening xterm. WebGL renders custom block, braille, and box
+glyphs instead of relying on the font, with line height 1 and letter spacing 0.
+If WebGL is unavailable or its context is lost, the addon is disposed and
+xterm falls back to its DOM renderer (which may look different).
+
+`TARGET_COLUMNS = 120` in `assets/terminal.html` is the grid tuning constant;
+`?cols=N` overrides it for positive integer experiments. `terminalFontSize()`
+derives CSS font size as viewport width / (target columns * measured cell
+width per font pixel), with a 12px floor. The cell width is measured from a
+Kode Mono `W` at 100px after font loading. Resizes recompute the font size;
+FitAddon reports the actual cell count, which can vary due to pixel rounding,
+scrollbars, and the minimum font size. The full TUI needs at least 60x16.
+stdout is batched for
 up to 16 ms or 32 KiB, then passed as base64-decoded bytes to xterm. Raw
 Android keys never reach xterm's own input handler. xterm's `onData` still
 forwards terminal query replies to Go through the local-only JS interface.
