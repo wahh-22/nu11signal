@@ -200,14 +200,14 @@ func (r *Runtime) Relay(ctx context.Context, input *os.File, output io.Writer) <
 }
 
 // Player keeps all webplayer optional capabilities while replacing its
-// desktop sign-in instruction. Android v1 has no local-files backend.
+// desktop sign-in instruction.
 type Player struct{ *webplayer.Player }
 
 // AuthorizationHint names the TV app, not a desktop browser command.
 func (p *Player) AuthorizationHint() string { return "relaunch nu11signal on the TV to sign in" }
 
 // NewPlayer waits for MusicKit before returning the reusable web player.
-// Readiness is bounded by webplayer.DefaultLoadTimeout as well as ctx.
+// Readiness is bounded by webplayer.BridgeLoadTimeout as well as ctx.
 func (r *Runtime) NewPlayer(ctx context.Context) (*Player, error) {
 	p := webplayer.New(r.Bridge)
 	if err := webplayer.WaitReady(ctx, p); err != nil {
@@ -220,7 +220,9 @@ func (r *Runtime) NewPlayer(ctx context.Context) (*Player, error) {
 // SignIn shows the music WebView only if authorization is still needed,
 // polls every second, and hides it after authorization. Back in the app
 // ends this attempt without closing the player; later authorization can
-// still be observed by the TUI. ctx also cancels an in-flight poll.
+// still be observed by the TUI. Each poll is bounded: a stalled WebView
+// must not prevent the initial login control or end the sign-in attempt.
+// ctx also cancels an in-flight poll.
 func (r *Runtime) SignIn(ctx context.Context, p *Player) error {
 	return coordinateLogin(ctx, p.Authorize, r.Bridge.Send, r.loginClosed, time.Second)
 }
@@ -246,8 +248,13 @@ func coordinateLogin(ctx context.Context, poll func(context.Context) (playback.A
 		}
 		return err
 	}
-	auth, err := poll(wait)
-	if err != nil {
+	pollBounded := func() (playback.AuthStatus, error) {
+		ctx, cancel := context.WithTimeout(wait, 5*time.Second)
+		defer cancel()
+		return poll(ctx)
+	}
+	auth, err := pollBounded()
+	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return stopped(err)
 	}
 	if auth == playback.AuthAuthorized {
@@ -267,7 +274,10 @@ func coordinateLogin(ctx context.Context, poll func(context.Context) (playback.A
 			return stopped(wait.Err())
 		case <-ticker.C:
 		}
-		auth, err := poll(wait)
+		auth, err := pollBounded()
+		if errors.Is(err, context.DeadlineExceeded) && wait.Err() == nil {
+			continue
+		}
 		if err != nil {
 			return stopped(err)
 		}

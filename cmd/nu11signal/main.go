@@ -445,14 +445,19 @@ func openPlayer(opts options, settings config.Source, d deps) (playback.Player, 
 	}
 	dirs := musicDirs(settings)
 	// Plain Android keeps the previous local-only behavior. The app mode
-	// supplies its bridge-backed opener and never joins local files (v1).
+	// supplies its bridge-backed opener and joins the private local library
+	// so the UI stays usable while Apple Music authorizes late.
 	if d.goos == "android" {
 		if opts.androidTV == "" {
 			return composite.New(nil, d.openLocal(dirs)), nil
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), webplayer.DefaultLoadTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), webplayer.BridgeLoadTimeout)
 		defer cancel()
-		return d.openWebPlayer(ctx)
+		apple, err := d.openWebPlayer(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return composite.New(apple, d.openLocal(dirs)), nil
 	}
 	if opts.local || (d.goos != "darwin" && d.goos != "linux") {
 		return composite.New(nil, d.openLocal(dirs)), nil

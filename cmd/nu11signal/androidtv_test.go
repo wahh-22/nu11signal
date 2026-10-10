@@ -2,11 +2,17 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/wahh-22/nu11signal/internal/androidtv"
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/composite"
+	"github.com/wahh-22/nu11signal/internal/playback/webplayer"
 )
 
 func TestAndroidTVFlag(t *testing.T) {
@@ -55,24 +61,72 @@ func TestAndroidWithoutAppIsLocalOnly(t *testing.T) {
 }
 
 func TestAndroidTVBackendSelection(t *testing.T) {
+	home := tempHome(t)
 	e := newTestEnv(t)
 	e.d.goos = "android"
-	player := newFakePlayer()
+	player := &androidtv.Player{Player: webplayer.New(androidUnauthorizedPage{})}
 	defer player.Close()
 	bounded := false
-	e.d.openWebPlayer = func(ctx context.Context) (playback.Player, error) { _, bounded = ctx.Deadline(); return player, nil }
+	e.d.openWebPlayer = func(ctx context.Context) (playback.Player, error) {
+		deadline, ok := ctx.Deadline()
+		bounded = ok
+		remaining := time.Until(deadline)
+		if remaining < webplayer.BridgeLoadTimeout-time.Second || remaining > webplayer.BridgeLoadTimeout {
+			t.Errorf("app startup bound = %s; want 2m", remaining)
+		}
+		return player, nil
+	}
 	opts, err := parseFlags([]string{"--android-tv", "/private/app.sock"}, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
 	got, err := openPlayer(opts, nil, e.d)
-	if err != nil || got != player {
-		t.Fatalf("player = %T, %v; want app backend", got, err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer got.Close()
+	if _, ok := got.(*composite.Player); !ok {
+		t.Fatalf("player = %T; want composite app backend", got)
+	}
+	if status, err := got.Authorize(context.Background()); err != nil || status != playback.AuthAuthorized {
+		t.Fatalf("authorization = %v, %v", status, err)
+	}
+	select {
+	case notice := <-got.Errors():
+		if !strings.Contains(notice.Error(), "waiting for authorization") || !strings.Contains(notice.Error(), player.AuthorizationHint()) {
+			t.Fatalf("notice = %v", notice)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("missing late authorization notice")
 	}
 	if !bounded {
 		t.Fatal("app startup not bounded")
 	}
-	if e.local != nil {
-		t.Fatal("Android TV opened local playback")
+	if e.local == nil || len(e.localDirs) != 1 || e.localDirs[0] != filepath.Join(home, "Music") {
+		t.Fatalf("local dirs = %v", e.localDirs)
 	}
+}
+
+func TestAndroidTVUIReceivesComposite(t *testing.T) {
+	tempHome(t)
+	e := newTestEnv(t)
+	e.d.goos = "android"
+	e.d.openWebPlayer = func(context.Context) (playback.Player, error) {
+		return &androidtv.Player{Player: webplayer.New(androidUnauthorizedPage{})}, nil
+	}
+	if err := play(options{androidTV: "/private/app.sock"}, false, e.d); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := e.uiPlayer.(*composite.Player); !ok || e.uiRuns != 1 {
+		t.Fatalf("UI player = %T, runs = %d", e.uiPlayer, e.uiRuns)
+	}
+}
+
+type androidUnauthorizedPage struct{}
+
+func (androidUnauthorizedPage) Evaluate(_ context.Context, expr string) (json.RawMessage, error) {
+	if strings.Contains(expr, "status") && !strings.Contains(expr, "installed") {
+		return json.RawMessage(`{"value":{"ready":true,"authorized":false}}`), nil
+	}
+	return json.RawMessage(`{"installed":true}`), nil
 }

@@ -2,6 +2,7 @@ package androidtv
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"os"
@@ -179,6 +180,92 @@ func TestSignIn(t *testing.T) {
 			}
 			if tt.authorizeAt > 0 && calls != tt.authorizeAt {
 				t.Fatalf("polls = %d", calls)
+			}
+		})
+	}
+}
+
+func TestSignInPollTimeoutStillShowsLogin(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	calls := 0
+	var shows []bool
+	poll := func(ctx context.Context) (playback.AuthStatus, error) {
+		if _, bounded := ctx.Deadline(); !bounded {
+			t.Error("authorization poll has no deadline")
+		}
+		calls++
+		if calls <= 2 {
+			return "", context.DeadlineExceeded
+		}
+		return playback.AuthAuthorized, nil
+	}
+	err := coordinateLogin(ctx, poll, func(_ context.Context, m webplayer.BridgeMessage) error {
+		shows = append(shows, m.Show)
+		return nil
+	}, make(chan struct{}), time.Millisecond)
+	if err != nil || len(shows) != 2 || !shows[0] || shows[1] {
+		t.Fatalf("shows = %v, err = %v", shows, err)
+	}
+}
+
+func TestSignInBridgeControls(t *testing.T) {
+	for _, userClosed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "authorized", true: "login closed"}[userClosed], func(t *testing.T) {
+			goConn, app := net.Pipe()
+			defer app.Close()
+			r := &Runtime{loginClosed: make(chan struct{})}
+			r.Bridge = webplayer.NewBridge(goConn, r.onMessage)
+			defer r.Bridge.Close()
+			p := &Player{Player: webplayer.New(r.Bridge)}
+			defer p.Close()
+			controls := make(chan []bool, 1)
+			go func() {
+				decoder := json.NewDecoder(app)
+				encoder := json.NewEncoder(app)
+				var shows []bool
+				polls := 0
+				for {
+					var m webplayer.BridgeMessage
+					if decoder.Decode(&m) != nil {
+						return
+					}
+					if m.Type == "login" {
+						shows = append(shows, m.Show)
+						if userClosed {
+							encoder.Encode(map[string]any{"type": "login", "closed": true})
+							controls <- shows
+						} else if !m.Show {
+							controls <- shows
+						}
+						continue
+					}
+					var value any = map[string]any{"installed": true}
+					if strings.Contains(m.Expr, "status") && !strings.Contains(m.Expr, "installed") {
+						polls++
+						value = map[string]any{"value": map[string]any{"ready": true, "authorized": !userClosed && polls >= 3}}
+					}
+					if encoder.Encode(map[string]any{"type": "result", "id": m.ID, "ok": true, "value": value}) != nil {
+						return
+					}
+				}
+			}()
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := coordinateLogin(ctx, p.Authorize, r.Bridge.Send, r.loginClosed, time.Millisecond); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case shows := <-controls:
+				want := 2
+				if userClosed {
+					want = 1
+				}
+				if len(shows) != want || !shows[0] || (want == 2 && shows[1]) {
+					t.Fatalf("controls = %v", shows)
+				}
+			case <-ctx.Done():
+				t.Fatal("missing bridge controls")
 			}
 		})
 	}

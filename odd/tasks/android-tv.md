@@ -64,9 +64,29 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   `TestAndroidLoginPointsToApp`, compile failures for new APIs). Verifier:
   `go build`, `go vet` ok; `go test -race ./...` 1511 passed in 14 packages;
   NDK builds android/arm and android/arm64 ok. PTY tests skip on macOS.
-- [ ] A2 — App shell: Activity with xterm.js terminal and hidden music
+  Commit `0ddea38`. Review `review-4df5c9c081dee75c` (high, 4 lenses,
+  cumulative base-diff from main) APPROVED, acknowledged. Advisories (not
+  scheduled yet): the stale-socket liveness probe in runtime.go:83-86 dials
+  the socket (consumes a live listener's accept); socket tests on Windows.
+- [x] A2 — App shell: Activity with xterm.js terminal and hidden music
   WebView, process launch with env, bridge client, resize, remote key map;
   build script producing the APK with the Go binaries.
+  Route: delegated writer (android/), then device-driven fixes. Vendored
+  xterm 6.0.0 + addon-fit 0.11.0 (sha512 verified). `DEBUG=1 build.sh` makes
+  a debuggable APK (WebView remote debugging). Device findings fixed:
+  (1) evaluations pending across a music page navigation never settled ->
+  failed on `onPageStarted`; (2) MusicKit ready ~41 s after launch on the
+  Streamer (page JS saturated, answers 1-20 s) -> `BridgeLoadTimeout` 2 min
+  for Android readiness/startup (RED: TestBridgeReadinessBound,
+  TestAndroidTVBackendSelection) + loading line in the terminal; (3) raw
+  Android player showed AUTH // ERROR -> composite-wrapped like Linux with a
+  private empty `$HOME/Music`, sign-in keeps its own player reference and
+  bounds polls to 5 s (RED: TestAndroidTVBackendSelection,
+  TestSignInPollTimeoutStillShowsLogin). Verified on the TV: Go stays up,
+  the TUI draws (read through CDP: header, PLAYLISTS, NOW PLAYING), and when
+  unauthorized the music WebView is VISIBLE+focused with the terminal GONE
+  (`dumpsys activity top`). `go test -race ./...` 1517 passed. Note:
+  `adb screencap` shows this app black; inspect through CDP instead.
 - [ ] A3 — Sign-in mode: D-pad pointer over the music WebView, driven by the
   bridge `login` message.
 - [ ] A4 — Foreground media service + MediaSession (background playback,

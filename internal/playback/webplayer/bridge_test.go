@@ -24,6 +24,18 @@ func bridgePair(t *testing.T, callback func(BridgeMessage)) (*Bridge, net.Conn) 
 	return b, app
 }
 
+func TestBridgeReadinessBound(t *testing.T) {
+	if BridgeLoadTimeout != 2*time.Minute || BridgeLoadTimeout <= DefaultLoadTimeout {
+		t.Fatalf("bridge timeout = %s; want 2m, longer than desktop", BridgeLoadTimeout)
+	}
+	if got := bridgeLauncher().readyTimeout; got != BridgeLoadTimeout {
+		t.Fatalf("bridge readiness bound = %s; want 2m", got)
+	}
+	if got := defaultLauncher().readyTimeout; got != DefaultLoadTimeout {
+		t.Fatalf("desktop readiness bound = %s; want %s", got, DefaultLoadTimeout)
+	}
+}
+
 func TestBridgeValues(t *testing.T) {
 	for _, tt := range []struct{ name, response, want, description string }{
 		{"value", `"ok":true,"value":{"n":42}`, `{"n":42}`, ""},

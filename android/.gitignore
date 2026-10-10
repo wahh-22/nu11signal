@@ -1,0 +1,3 @@
+build/
+# Short temporary root for macOS Unix-socket tests.
+t/

@@ -9,7 +9,12 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 )
+
+// BridgeLoadTimeout bounds MusicKit readiness on slow TV devices: a Google
+// TV Streamer was observed taking about 41 seconds to make MusicKit available.
+const BridgeLoadTimeout = 2 * time.Minute
 
 // BridgeMessage is a control message on the app bridge. Resize reports
 // terminal cells; login reports that the user left sign-in. Show is sent
@@ -265,9 +270,15 @@ func (b *Bridge) dispatch(raw []byte) {
 }
 
 // WaitReady waits for the same MusicKit readiness used by Open, with
-// DefaultLoadTimeout as an upper bound in addition to ctx. The bridge
+// BridgeLoadTimeout as an upper bound in addition to ctx. The bridge
 // keeps the page visible: hiding the WebView is the app's responsibility.
 func WaitReady(ctx context.Context, p *Player) error {
-	_, err := defaultLauncher().waitReady(ctx, p)
+	_, err := bridgeLauncher().waitReady(ctx, p)
 	return err
+}
+
+func bridgeLauncher() launcher {
+	l := defaultLauncher()
+	l.readyTimeout = BridgeLoadTimeout
+	return l
 }

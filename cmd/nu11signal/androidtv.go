@@ -21,7 +21,8 @@ import (
 // pipes. The socket reader also owns resize and sign-in controls; losing
 // that connection cancels startup or the UI. Authorization runs alongside
 // the UI so Back in the sign-in view leaves a usable, unauthorized TUI.
-// Neither a browser subprocess nor a local-files backend is opened here.
+// No browser subprocess is opened; play joins the app player with the
+// private local library, whose audio device stays unopened until playback.
 func playAndroidTV(socket string, calm bool, d deps) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -39,6 +40,7 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 	}()
 	relay := r.Relay(ctx, os.Stdin, d.stdout)
 	defer func() { cancel(); r.Close(); <-relay }()
+	var player *androidtv.Player
 	d.openWebPlayer = func(start context.Context) (playback.Player, error) {
 		// The startup bound from openPlayer must also stop on an app exit or
 		// interrupt. This context does not own the player's later lifetime.
@@ -46,10 +48,14 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 		defer cancelStart()
 		stop := context.AfterFunc(ctx, cancelStart)
 		defer stop()
-		return r.NewPlayer(start)
+		var err error
+		player, err = r.NewPlayer(start)
+		if err != nil {
+			return nil, err
+		}
+		return player, nil
 	}
 	d.runUI = func(p playback.Player, recents history.Recents, settings config.Source, calm bool, updates update.Checker) error {
-		player := p.(*androidtv.Player)
 		loginCtx, stop := context.WithCancel(ctx)
 		signedIn := make(chan error, 1)
 		go func() { signedIn <- r.SignIn(loginCtx, player) }()
