@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
     private long touchDownTime;
     private float touchX, touchY;
     private Runnable touchContinuation;
-    private boolean loginShown, keyboardShown, started, centerLong, backLong;
+    private boolean loginShown, keyboardShown, textInputAvailable, started, centerLong, backLong;
     private volatile boolean destroyed, startupFailed, connected;
     private volatile int cols = 161, rows = 44;
     private volatile Process process;
@@ -572,9 +572,10 @@ public class MainActivity extends Activity {
                 } else if ("keyboard".equals(type)) {
                     boolean show = message.getBoolean("show");
                     runOnUiThread(() -> {
-                        if (!destroyed && (!show || !loginShown && terminal.getVisibility() == View.VISIBLE)) {
-                            setKeyboard(show);
-                        }
+                        if (destroyed) return;
+                        // This is TUI input availability, not an IME-open request.
+                        textInputAvailable = show;
+                        if (!show) setKeyboard(false);
                     });
                 } else if ("evaluate".equals(type)) {
                     long id = message.getLong("id");
@@ -770,9 +771,17 @@ public class MainActivity extends Activity {
                 if (key == KeyEvent.KEYCODE_DPAD_CENTER && !centerLong) {
                     if (held) toggleKeyboard();
                     else if (keyboardShown) return super.dispatchKeyEvent(event);
+                    else if (textInputAvailable) setKeyboard(true);
                     else input("\r");
                 }
             }
+            return true;
+        }
+        if ((key == KeyEvent.KEYCODE_ENTER || key == KeyEvent.KEYCODE_NUMPAD_ENTER)
+                && textInputAvailable && !keyboardShown) {
+            // Activate on release, consuming both halves so opening the IME
+            // cannot also submit the input with the same Enter.
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) setKeyboard(true);
             return true;
         }
         String text = null;

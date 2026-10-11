@@ -822,7 +822,22 @@ func (p *Player) Pause(ctx context.Context) error {
 
 // Resume resumes the page.
 func (p *Player) Resume(ctx context.Context) error {
-	if err := p.run(ctx, "resume", "resume"); err != nil {
+	if err := p.latest(ctx, "resume", nil, func(ctx context.Context) error {
+		raw, err := p.call(ctx, "resume")
+		if err != nil {
+			return err
+		}
+		var result struct {
+			Empty bool `json:"empty"`
+		}
+		if json.Unmarshal(raw, &result) != nil {
+			return errMalformed
+		}
+		if result.Empty {
+			return errors.New("nothing queued")
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
 	p.applied(playback.StatusPlaying, "")

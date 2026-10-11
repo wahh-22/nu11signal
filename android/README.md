@@ -91,7 +91,7 @@ forwards terminal query replies to Go through the local-only JS interface.
 | Key | TUI input |
 | --- | --- |
 | D-pad arrows | ANSI arrow sequences |
-| D-pad center / Enter | Carriage return |
+| D-pad center / Enter | Open keyboard when text input is available and hidden; otherwise carriage return |
 | Long D-pad center | Toggle on-screen keyboard |
 | Short Back | Escape; hides keyboard first if open |
 | Long Back | `q` (TUI quit confirmation); hides keyboard first if open |
@@ -102,12 +102,12 @@ forwards terminal query replies to Go through the local-only JS interface.
 | Delete/backspace | DEL |
 | Hardware letters, digits, printable symbols | Unicode characters as UTF-8 |
 
-The keyboard opens automatically when SEARCH or NEW PLAYLIST takes typed
-text, and hides when the input loses focus or that mode ends (including
-blocking overlays). Long OK remains
-a manual toggle. While open, D-pad navigation belongs to the IME. Back only
+Entering SEARCH or the NEW PLAYLIST name input makes text input available
+without opening the keyboard. Press OK / Enter to open it; that press does
+not submit the input. The keyboard hides when the input loses focus or that
+mode ends (including blocking overlays). Long OK remains a manual toggle. While open, D-pad navigation belongs to the IME. Back only
 hides the keyboard, leaving the TUI in place; a second Back sends Escape.
-Automatic keyboard requests never open it over Apple Music sign-in.
+TUI input availability never opens the keyboard over Apple Music sign-in.
 
 The invisible EditText receives IME commits; each Unicode code point is
 serialized to Go stdin. Keyboard Enter/Send sends carriage return. Volume
@@ -188,7 +188,9 @@ COLORTERM is truecolor. stderr is read separately under logcat tag
 
 The filesystem LocalSocket carries UTF-8 JSON lines, not terminal data:
 
-- Go sends `evaluate {id, expr}` or `login {show}`.
+- Go sends `evaluate {id, expr}`, `login {show}`, or `keyboard {show}`.
+  Keyboard `show:true` marks TUI text input available; `show:false` clears
+  availability and dismisses an open TUI keyboard.
 - The app evaluates expressions verbatim in an async wrapper in the music
   WebView. `NU11.settle(token, id, json)` checks a random per-launch token
   and returns `result {id, ok, value}` or `result {id, ok:false, error}`.
