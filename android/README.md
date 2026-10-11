@@ -103,11 +103,22 @@ Unsupported devices or an effect held by another app fall back to decorative
 rain without stopping playback. Capture is released while paused/stopped,
 when the Activity pauses, and on exit; it resumes only while playing.
 
-Readings arrive about 15 times per second: 24 logarithmic FFT power bands
-from 40 Hz to 16 kHz, mapped from -50 to -10 dB relative to full scale,
-with fast attack and about a one-second fall, plus 64 signed waveform
-points retaining each stretch's largest swing. This is output-mix audio,
-so other sounds playing on the TV can affect the rain too.
+Waveform capture runs at the highest supported rate up to 20 Hz; readings
+are sent at most about 15 times per second. Pure Java DSP converts unsigned
+8-bit PCM to floats, applies a Hann window, and runs a radix-2 FFT. Its
+one-sided power compensates the window's energy gain, then sums bin centres
+into 24 logarithmic bands from 40 Hz to 16 kHz. Bands narrower than a bin
+interpolate the two neighbouring bin powers at the band's geometric centre,
+so low columns are not structurally empty (frequencies beyond Nyquist still
+have no data). Power maps from -50 to -10 dBFS with fast attack and about a
+one-second fall, plus 64 signed waveform points retaining each stretch's
+largest swing.
+
+`SCALING_MODE_NORMALIZED` is intentional: unlike `AS_PLAYED`, levels do not
+follow the TV volume setting. Android's automatic normalization means dBFS
+is relative to the captured PCM, not calibrated pre-volume source amplitude;
+8-bit quantization and device capture limits still differ from macOS. This
+is output-mix audio, so other TV sounds can affect the rain too.
 
 ## Remote and keyboard
 
@@ -121,7 +132,7 @@ so other sounds playing on the TV can affect the rain too.
 | Play/pause, play, pause | Space |
 | Next / fast-forward | `n` |
 | Previous / rewind | `p` |
-| Menu | `/` (search) |
+| Menu | Open keyboard if text input is available; no-op if already open; otherwise `/` (search) |
 | Delete/backspace | DEL |
 | Hardware letters, digits, printable symbols | Unicode characters as UTF-8 |
 
@@ -132,9 +143,12 @@ mode ends (including blocking overlays). Long OK remains a manual toggle. While 
 hides the keyboard, leaving the TUI in place; a second Back sends Escape.
 TUI input availability never opens the keyboard over Apple Music sign-in.
 
-The invisible EditText receives IME commits; each Unicode code point is
-serialized to Go stdin. Keyboard Enter/Send sends carriage return. Volume
-keys retain system behavior.
+The invisible EditText forwards every edit immediately, including IME
+composition, while retaining suggestions. Each edit keeps the common Unicode
+prefix, sends DEL for each removed code point, then sends the new suffix as
+UTF-8. Keyboard Enter/Send sends carriage return and silently clears local
+text; hiding the keyboard or ending typing mode also resets it without DEL.
+Backspace on an empty field still sends DEL. Volume keys retain system behavior.
 
 Each time sign-in starts, a full-screen native guide covers the music page
 with large, high-contrast text explaining why Apple Music sign-in is needed

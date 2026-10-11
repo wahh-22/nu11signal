@@ -17,6 +17,8 @@ import android.os.SystemClock;
 import android.system.Os;
 import android.util.Base64;
 import android.util.Log;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -64,6 +66,8 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private WebView music, terminal, popup;
     private EditText keyboard;
+    private String keyboardTextSent = "";
+    private boolean resettingKeyboard, keyboardWasVisible;
     private View pointer;
     private TextView pointerHint, loginConfirmation;
     private LinearLayout loginGuide;
@@ -149,17 +153,22 @@ public class MainActivity extends Activity {
                 InputConnection base = super.onCreateInputConnection(info);
                 if (base == null) return null;
                 return new InputConnectionWrapper(base, false) {
-                    @Override public boolean commitText(CharSequence text, int position) {
-                        text.toString().codePoints().forEach(cp -> input(new String(Character.toChars(cp))));
-                        getText().clear();
-                        return true;
-                    }
                     @Override public boolean deleteSurroundingText(int before, int after) {
-                        for (int i = 0; i < before; i++) input("\u007f");
-                        return true;
+                        if (getText().length() == 0 && before > 0) {
+                            for (int i = 0; i < before; i++) input("\u007f");
+                            return true;
+                        }
+                        return super.deleteSurroundingText(before, after);
+                    }
+                    @Override public boolean deleteSurroundingTextInCodePoints(int before, int after) {
+                        if (getText().length() == 0 && before > 0) {
+                            for (int i = 0; i < before; i++) input("\u007f");
+                            return true;
+                        }
+                        return super.deleteSurroundingTextInCodePoints(before, after);
                     }
                     @Override public boolean performEditorAction(int action) {
-                        input("\r");
+                        submitKeyboard();
                         return true;
                     }
                     @Override public boolean sendKeyEvent(KeyEvent event) {
@@ -169,7 +178,17 @@ public class MainActivity extends Activity {
             }
         };
         keyboard.setSingleLine(true);
-        keyboard.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        keyboard.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        keyboard.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (resettingKeyboard) return;
+                String next = s.toString();
+                input(KeyboardEdits.diff(keyboardTextSent, next));
+                keyboardTextSent = next;
+            }
+            @Override public void afterTextChanged(Editable text) { }
+        });
         keyboard.setImeOptions(EditorInfo.IME_ACTION_SEND | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         keyboard.setAlpha(0f);
         root.addView(keyboard, new FrameLayout.LayoutParams(1, 1));
@@ -231,6 +250,11 @@ public class MainActivity extends Activity {
             pointer.invalidate();
         });
         setContentView(root);
+        root.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            if (!keyboardShown) { keyboardWasVisible = false; return; }
+            if (loginImeVisible()) keyboardWasVisible = true;
+            else if (keyboardWasVisible) setKeyboard(false);
+        });
         updateMusicLayout();
         music.loadUrl("https://music.apple.com/");
         terminal.loadUrl("file:///android_asset/terminal.html");
@@ -621,6 +645,8 @@ public class MainActivity extends Activity {
             visualizer = new Visualizer(0);
             visualizer.setEnabled(false);
             visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[1]);
+            // NORMALIZED avoids TV-volume-dependent levels; AS_PLAYED follows volume.
+            // Its automatic gain means these are normalized, not absolute source dBFS.
             visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
             java.util.Arrays.fill(smoothBands, 0);
             capturedWave = null;
@@ -638,40 +664,26 @@ public class MainActivity extends Activity {
                         points.put(Math.max(-100, Math.min(100, Math.round(swing * 100f / 128))));
                     }
                     capturedWave = points;
-                }
-                @Override public void onFftDataCapture(Visualizer source, byte[] fft, int rate) {
-                    if (source != visualizer || !levelsWanted || capturePaused) return;
-                    try { sendSpectrum(fft, source.getSamplingRate() / 1000.0); }
+                    try { sendSpectrum(wave, rate / 1000.0); }
                     catch (Exception e) { captureUnavailable(e); }
                 }
-            }, Math.min(15000, Visualizer.getMaxCaptureRate()), true, true);
+                @Override public void onFftDataCapture(Visualizer source, byte[] fft, int rate) { }
+            }, Math.min(20000, Visualizer.getMaxCaptureRate()), true, false);
             if (result != Visualizer.SUCCESS || visualizer.setEnabled(true) != Visualizer.SUCCESS) {
                 throw new IllegalStateException("Cannot enable output-mix capture");
             }
         } catch (RuntimeException e) { captureUnavailable(e); }
     }
 
-    private void sendSpectrum(byte[] fft, double sampleRate) throws org.json.JSONException {
+    private void sendSpectrum(byte[] wave, double sampleRate) throws org.json.JSONException {
         long now = SystemClock.elapsedRealtime();
+        if (now - lastCapture < 67) return; // At most ~15 bridge readings/second.
         double fall = 100.0 * (now - lastCapture) / 1000.0;
         lastCapture = now;
+        double[] levels = Spectrum.levels(wave, sampleRate);
         JSONArray bands = new JSONArray();
-        for (int band = 0; band < 24; band++) {
-            double low = 40 * Math.pow(400, band / 24.0);
-            double high = 40 * Math.pow(400, (band + 1) / 24.0);
-            double power = 0;
-            // Android's packed real FFT: DC at 0, Nyquist at 1, then
-            // signed real/imaginary pairs. Bins above Nyquist stay empty.
-            for (int bin = 1; bin < fft.length / 2; bin++) {
-                double frequency = bin * sampleRate / fft.length;
-                if (frequency >= low && frequency < high) {
-                    double re = fft[2 * bin] / 128.0, im = fft[2 * bin + 1] / 128.0;
-                    power += re * re + im * im;
-                }
-            }
-            double db = 10 * Math.log10(Math.max(1e-12, power));
-            double level = Math.max(0, Math.min(100, (db + 50) * 100 / 40));
-            smoothBands[band] = Math.max(level, smoothBands[band] - fall);
+        for (int band = 0; band < levels.length; band++) {
+            smoothBands[band] = Math.max(levels[band], smoothBands[band] - fall);
             bands.put((int) Math.round(smoothBands[band]));
         }
         send(new JSONObject().put("type", "levels").put("bands", bands)
@@ -817,12 +829,26 @@ public class MainActivity extends Activity {
         writeTerminal(("\r\n" + message.replaceAll("[\\p{Cntrl}]", " ") + "\r\n").getBytes(StandardCharsets.UTF_8));
     }
 
+    private void resetKeyboard() {
+        resettingKeyboard = true;
+        keyboardTextSent = "";
+        keyboard.getText().clear();
+        resettingKeyboard = false;
+    }
+
+    private void submitKeyboard() {
+        input("\r");
+        resetKeyboard();
+    }
+
     private void toggleKeyboard() { setKeyboard(!keyboardShown); }
 
     private void setKeyboard(boolean show) {
+        if (!show) resetKeyboard();
         if (keyboardShown == show) return;
         InputMethodManager ime = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
         keyboardShown = show;
+        keyboardWasVisible = false;
         if (keyboardShown) { keyboard.requestFocus(); ime.showSoftInput(keyboard, InputMethodManager.SHOW_IMPLICIT); }
         else { ime.hideSoftInputFromWindow(keyboard.getWindowToken(), 0); terminal.requestFocus(); }
     }
@@ -871,8 +897,27 @@ public class MainActivity extends Activity {
             }
             return super.dispatchKeyEvent(event);
         }
+        if (key == KeyEvent.KEYCODE_MENU && textInputAvailable) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled() && !keyboardShown) setKeyboard(true);
+            return true;
+        }
+        if (keyboardShown && (key == KeyEvent.KEYCODE_ENTER || key == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) submitKeyboard();
+            return true;
+        }
+        if (keyboardShown && key == KeyEvent.KEYCODE_DEL) {
+            if (keyboard.length() == 0) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) input("\u007f");
+                return true;
+            }
+            return super.dispatchKeyEvent(event);
+        }
         if (keyboardShown && (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN
                 || key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+            return super.dispatchKeyEvent(event);
+        }
+        if (keyboardShown && (event.getUnicodeChar() > 0
+                || event.getAction() == KeyEvent.ACTION_MULTIPLE && event.getCharacters() != null)) {
             return super.dispatchKeyEvent(event);
         }
         if (event.getAction() == KeyEvent.ACTION_MULTIPLE && event.getCharacters() != null) {
@@ -972,5 +1017,107 @@ public class MainActivity extends Activity {
         terminal.destroy();
         music.destroy();
         super.onDestroy();
+    }
+}
+
+// Package-private pure DSP, kept here because the platform build compiles this file only.
+final class Spectrum {
+    private Spectrum() { }
+
+    /* Unsigned PCM -> [-1,1), periodic Hann -> unscaled radix-2 FFT.
+     * One-sided bin power = |X[k]|^2 / (N * sum(window^2)), doubled except
+     * at DC/Nyquist. This compensates Hann's energy gain, so summing bins
+     * measures mean-square full-scale power (a unit sine is -3.01 dBFS).
+     * Empty log bands interpolate power, not dB, at their geometric centre.
+     */
+    static double[] levels(byte[] pcm, double sampleRate) {
+        int n = pcm.length;
+        if (n < 2 || (n & (n - 1)) != 0 || !(sampleRate > 0)) {
+            throw new IllegalArgumentException("Power-of-two PCM and positive sample rate required");
+        }
+        double[] re = new double[n], im = new double[n];
+        double windowEnergy = 0;
+        for (int i = 0; i < n; i++) {
+            double window = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n);
+            re[i] = ((pcm[i] & 255) - 128) / 128.0 * window;
+            windowEnergy += window * window;
+        }
+        fft(re, im);
+        double[] power = new double[n / 2 + 1];
+        for (int k = 0; k < power.length; k++) {
+            double sides = k == 0 || k == n / 2 ? 1 : 2;
+            power[k] = sides * (re[k] * re[k] + im[k] * im[k]) / (n * windowEnergy);
+        }
+        return bandLevels(power, sampleRate / n);
+    }
+
+    static double[] bandLevels(double[] power, double binWidth) {
+        double[] result = new double[24];
+        for (int band = 0; band < result.length; band++) {
+            double low = 40 * Math.pow(400, band / 24.0);
+            double high = 40 * Math.pow(400, (band + 1) / 24.0);
+            double sum = 0;
+            int count = 0;
+            for (int k = 0; k < power.length; k++) {
+                double frequency = k * binWidth;
+                if (frequency >= low && frequency < high) {
+                    sum += power[k];
+                    count++;
+                }
+            }
+            double centre = Math.sqrt(low * high) / binWidth;
+            if (count == 0 && centre <= power.length - 1) {
+                int left = (int) centre;
+                int right = Math.min(left + 1, power.length - 1);
+                sum = power[left] + (power[right] - power[left]) * (centre - left);
+            }
+            // Frequencies beyond Nyquist have no physical data and remain silent.
+            double db = 10 * Math.log10(Math.max(1e-12, sum));
+            result[band] = Math.max(0, Math.min(100, (db + 50) * 100 / 40));
+        }
+        return result;
+    }
+
+    private static void fft(double[] re, double[] im) {
+        int n = re.length;
+        for (int i = 1, j = 0; i < n; i++) {
+            int bit = n >> 1;
+            for (; (j & bit) != 0; bit >>= 1) j ^= bit;
+            j ^= bit;
+            if (i < j) {
+                double value = re[i]; re[i] = re[j]; re[j] = value;
+            }
+        }
+        for (int size = 2; size <= n; size <<= 1) {
+            for (int start = 0; start < n; start += size) {
+                for (int k = 0; k < size / 2; k++) {
+                    double angle = -2 * Math.PI * k / size;
+                    double c = Math.cos(angle), s = Math.sin(angle);
+                    int a = start + k, b = a + size / 2;
+                    double real = c * re[b] - s * im[b];
+                    double imaginary = s * re[b] + c * im[b];
+                    re[b] = re[a] - real; im[b] = im[a] - imaginary;
+                    re[a] += real; im[a] += imaginary;
+                }
+            }
+        }
+    }
+}
+
+final class KeyboardEdits {
+    private KeyboardEdits() { }
+
+    static String diff(String previous, String next) {
+        int prefix = 0;
+        // Compare whole code points so a shared surrogate never splits UTF-8.
+        while (prefix < previous.length() && prefix < next.length()) {
+            int cp = previous.codePointAt(prefix);
+            if (cp != next.codePointAt(prefix)) break;
+            prefix += Character.charCount(cp);
+        }
+        StringBuilder edit = new StringBuilder();
+        int removed = previous.codePointCount(prefix, previous.length());
+        for (int i = 0; i < removed; i++) edit.append('\u007f');
+        return edit.append(next.substring(prefix)).toString();
     }
 }

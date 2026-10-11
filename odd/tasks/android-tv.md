@@ -131,6 +131,16 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   remote, search, play, background, relaunch keeps the session).
 
 ## Progress
+- 2026-10-11: A3d `898bd31` (empty-queue resume no longer reports playing;
+  keyboard on OK; review `review-c7d3185b7664847f` approved; user confirmed).
+  A9 `295a60d` real spectrum from Visualizer(0) (review
+  `review-4f30a361e6c488c5` approved; RECORD_AUDIO granted by the user on the
+  TV; user: reacts to the music but less clear than macOS, some columns
+  empty). Follow-up in progress: own Hann-windowed FFT from the waveform with
+  band interpolation; IME composing text forwarded by diffing; MENU no longer
+  types "/" in SEARCH. Linux: Apple Music rain stays decorative (web player
+  exposes no audio); local files already have real levels. Open: user's
+  "SCAN FAILED" not reproduced (searches return 200 in ~0.5 s).
 - 2026-10-11: A3c auto keyboard `b87d024` (review `review-faf7d69608cc4315`
   approved; verified `mInputShown` on SEARCH). User feedback: open the
   keyboard on OK over the input, not on entering SEARCH (A3d); play with
