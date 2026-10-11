@@ -24,6 +24,60 @@ func bridgePair(t *testing.T, callback func(BridgeMessage)) (*Bridge, net.Conn) 
 	return b, app
 }
 
+func TestBridgeLevelsDecoding(t *testing.T) {
+	var got BridgeMessage
+	b := &Bridge{onMessage: func(m BridgeMessage) { got = m }}
+	bands, wave := make([]int, 70), make([]int, 140)
+	for i := range bands {
+		bands[i] = 150
+	}
+	for i := range wave {
+		wave[i] = -150
+	}
+	raw, _ := json.Marshal(map[string]any{"type": "levels", "bands": bands, "wave": wave})
+	b.dispatch(raw)
+	raw, _ = json.Marshal(got)
+	var decoded struct{ Bands, Wave []int }
+	json.Unmarshal(raw, &decoded)
+	if len(decoded.Bands) != 64 || len(decoded.Wave) != 128 {
+		t.Fatalf("sizes = %d/%d; want 64/128", len(decoded.Bands), len(decoded.Wave))
+	}
+	for _, v := range decoded.Bands {
+		if v != 100 {
+			t.Fatalf("band = %d", v)
+		}
+	}
+	for _, v := range decoded.Wave {
+		if v != -100 {
+			t.Fatalf("wave = %d", v)
+		}
+	}
+	b.dispatch([]byte(`{"type":"levels","bands":[-1,0,50,100],"wave":[-100,0,50,150]}`))
+	if fmt.Sprint(got.Bands) != "[0 0 50 100]" || fmt.Sprint(got.Wave) != "[-100 0 50 100]" {
+		t.Fatalf("alternate clamping = %+v", got)
+	}
+}
+
+func TestBridgeLevelsEncoding(t *testing.T) {
+	for _, on := range []bool{true, false} {
+		b, app := bridgePair(t, nil)
+		var m BridgeMessage
+		json.Unmarshal([]byte(fmt.Sprintf(`{"type":"levels","on":%t}`, on)), &m)
+		done := make(chan error, 1)
+		go func() { done <- b.Send(context.Background(), m) }()
+		raw, err := bufio.NewReader(app).ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := fmt.Sprintf("{\"type\":\"levels\",\"on\":%t}\n", on); raw != want {
+			t.Fatalf("message = %s; want %s", raw, want)
+		}
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestBridgeKeyboardEncoding(t *testing.T) {
 	for _, show := range []bool{true, false} {
 		b, app := bridgePair(t, nil)

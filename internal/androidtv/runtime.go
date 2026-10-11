@@ -38,6 +38,7 @@ type Runtime struct {
 	loginClosed chan struct{}
 	loginOnce   sync.Once
 	closeOnce   sync.Once
+	readings    chan webplayer.BridgeMessage
 	mu          sync.Mutex // serializes resize with master Close
 }
 
@@ -50,7 +51,7 @@ func Open(ctx context.Context, path string) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &Runtime{master: master, Slave: slave, loginClosed: make(chan struct{})}
+	r := &Runtime{master: master, Slave: slave, loginClosed: make(chan struct{}), readings: make(chan webplayer.BridgeMessage, 1)}
 	listener, err := listenSocket(path)
 	if err != nil {
 		r.Close()
@@ -132,6 +133,10 @@ func acceptApp(ctx context.Context, l *net.UnixListener, timeout time.Duration) 
 
 func (r *Runtime) onMessage(m webplayer.BridgeMessage) {
 	switch m.Type {
+	case "levels":
+		if len(m.Bands) != 0 && r.readings != nil {
+			offerLatest(r.readings, m)
+		}
 	case "resize":
 		r.mu.Lock()
 		defer r.mu.Unlock()
@@ -211,6 +216,12 @@ type Player struct {
 	// publish authorization before the account's new document is ready.
 	authMu                         sync.Mutex
 	pending, refreshing, refreshed bool
+	spectrumStates                 chan playback.State
+	levels                         chan playback.Spectrum
+	captureStop                    chan struct{}
+	captureDone                    chan struct{}
+	closeOnce                      sync.Once
+	closeErr                       error
 }
 
 // Authorize refreshes the anonymous storefront once after late sign-in.
@@ -277,7 +288,9 @@ func (r *Runtime) NewPlayer(ctx context.Context) (*Player, error) {
 		p.Close()
 		return nil, err
 	}
-	return &Player{Player: p, page: r.Bridge, hideLogin: r.Bridge.Send}, nil
+	tv := &Player{Player: p, page: r.Bridge, hideLogin: r.Bridge.Send}
+	tv.startSpectrum(p.States(), r.readings, r.Bridge.Send)
+	return tv, nil
 }
 
 // SignIn shows the music WebView only if authorization is still needed,

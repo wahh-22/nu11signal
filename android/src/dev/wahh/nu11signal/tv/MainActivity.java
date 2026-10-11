@@ -1,6 +1,9 @@
 package dev.wahh.nu11signal.tv;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.media.audiofx.Visualizer;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -42,6 +45,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -85,6 +89,12 @@ public class MainActivity extends Activity {
     private final ByteArrayOutputStream pendingTerminalOutput = new ByteArrayOutputStream(32768);
     // Includes a posted flush, so there is never more than one evaluation queued or running.
     private boolean terminalEvaluationPending;
+    private static final int LEVELS_PERMISSION = 11;
+    private Visualizer visualizer;
+    private boolean levelsWanted, capturePaused = true, permissionAsked, captureFailed;
+    private JSONArray capturedWave;
+    private final double[] smoothBands = new double[24];
+    private long lastCapture;
 
     private static String newToken() {
         byte[] bytes = new byte[32];
@@ -569,6 +579,9 @@ public class MainActivity extends Activity {
                         showLogin(show);
                         if (signedIn) confirmLogin();
                     });
+                } else if ("levels".equals(type)) {
+                    boolean on = message.getBoolean("on");
+                    runOnUiThread(() -> { levelsWanted = on; updateCapture(); });
                 } else if ("keyboard".equals(type)) {
                     boolean show = message.getBoolean("show");
                     runOnUiThread(() -> {
@@ -588,6 +601,117 @@ public class MainActivity extends Activity {
                 }
             }
         }
+    }
+
+    // RECORD_AUDIO gates Visualizer's output mix (session 0), not a microphone.
+    // Only a playback-driven levels request can open the permission dialog.
+    private void updateCapture() {
+        if (!levelsWanted || capturePaused || destroyed) { releaseCapture(); return; }
+        if (captureFailed || visualizer != null) return;
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            if (permissionAsked) return;
+            boolean askedBefore = getPreferences(MODE_PRIVATE).getBoolean("levelsPermissionAsked", false);
+            if (askedBefore && !shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) return;
+            permissionAsked = true;
+            getPreferences(MODE_PRIVATE).edit().putBoolean("levelsPermissionAsked", true).apply();
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, LEVELS_PERMISSION);
+            return;
+        }
+        try {
+            visualizer = new Visualizer(0);
+            visualizer.setEnabled(false);
+            visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[1]);
+            visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
+            java.util.Arrays.fill(smoothBands, 0);
+            capturedWave = null;
+            lastCapture = SystemClock.elapsedRealtime();
+            int result = visualizer.setDataCaptureListener(new Visualizer.OnDataCaptureListener() {
+                @Override public void onWaveFormDataCapture(Visualizer source, byte[] wave, int rate) {
+                    if (source != visualizer || !levelsWanted || capturePaused) return;
+                    JSONArray points = new JSONArray();
+                    for (int i = 0; i < 64; i++) {
+                        int swing = 0;
+                        for (int j = i * wave.length / 64; j < (i + 1) * wave.length / 64; j++) {
+                            int value = (wave[j] & 255) - 128;
+                            if (Math.abs(value) > Math.abs(swing)) swing = value;
+                        }
+                        points.put(Math.max(-100, Math.min(100, Math.round(swing * 100f / 128))));
+                    }
+                    capturedWave = points;
+                }
+                @Override public void onFftDataCapture(Visualizer source, byte[] fft, int rate) {
+                    if (source != visualizer || !levelsWanted || capturePaused) return;
+                    try { sendSpectrum(fft, source.getSamplingRate() / 1000.0); }
+                    catch (Exception e) { captureUnavailable(e); }
+                }
+            }, Math.min(15000, Visualizer.getMaxCaptureRate()), true, true);
+            if (result != Visualizer.SUCCESS || visualizer.setEnabled(true) != Visualizer.SUCCESS) {
+                throw new IllegalStateException("Cannot enable output-mix capture");
+            }
+        } catch (RuntimeException e) { captureUnavailable(e); }
+    }
+
+    private void sendSpectrum(byte[] fft, double sampleRate) throws org.json.JSONException {
+        long now = SystemClock.elapsedRealtime();
+        double fall = 100.0 * (now - lastCapture) / 1000.0;
+        lastCapture = now;
+        JSONArray bands = new JSONArray();
+        for (int band = 0; band < 24; band++) {
+            double low = 40 * Math.pow(400, band / 24.0);
+            double high = 40 * Math.pow(400, (band + 1) / 24.0);
+            double power = 0;
+            // Android's packed real FFT: DC at 0, Nyquist at 1, then
+            // signed real/imaginary pairs. Bins above Nyquist stay empty.
+            for (int bin = 1; bin < fft.length / 2; bin++) {
+                double frequency = bin * sampleRate / fft.length;
+                if (frequency >= low && frequency < high) {
+                    double re = fft[2 * bin] / 128.0, im = fft[2 * bin + 1] / 128.0;
+                    power += re * re + im * im;
+                }
+            }
+            double db = 10 * Math.log10(Math.max(1e-12, power));
+            double level = Math.max(0, Math.min(100, (db + 50) * 100 / 40));
+            smoothBands[band] = Math.max(level, smoothBands[band] - fall);
+            bands.put((int) Math.round(smoothBands[band]));
+        }
+        send(new JSONObject().put("type", "levels").put("bands", bands)
+                .put("wave", capturedWave == null ? new JSONArray() : capturedWave));
+    }
+
+    private void captureUnavailable(Exception error) {
+        if (!captureFailed) Log.w(TAG, "Output-mix spectrum unavailable; using decorative rain", error);
+        captureFailed = true;
+        releaseCapture();
+    }
+
+    private void releaseCapture() {
+        Visualizer old = visualizer;
+        visualizer = null;
+        capturedWave = null;
+        if (old != null) {
+            try { old.release(); }
+            catch (RuntimeException e) {
+                if (!captureFailed) Log.w(TAG, "Cannot release output-mix capture", e);
+                captureFailed = true;
+            }
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] grants) {
+        super.onRequestPermissionsResult(request, permissions, grants);
+        if (request == LEVELS_PERMISSION && grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED) updateCapture();
+    }
+
+    @Override protected void onPause() {
+        capturePaused = true;
+        releaseCapture();
+        super.onPause();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        capturePaused = false;
+        updateCapture();
     }
 
     private void sendResize() {
@@ -829,6 +953,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         destroyed = true;
+        releaseCapture();
         synchronized (terminalOutputLock) { terminalOutputLock.notifyAll(); }
         root.removeCallbacks(hideLoginConfirmation);
         cancelPointerTouch();

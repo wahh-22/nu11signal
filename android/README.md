@@ -86,6 +86,29 @@ dropping bytes or queuing more evaluations. Raw
 Android keys never reach xterm's own input handler. xterm's `onData` still
 forwards terminal query replies to Go through the local-only JS interface.
 
+## Real spectrum and audio permission
+
+The rain can follow the TV's actual audio with Android's output-mix
+`Visualizer` (session 0). Android calls the required runtime permission
+`RECORD_AUDIO`: this feature reads the TV's output mix, **not a microphone**.
+`MODIFY_AUDIO_SETTINGS` is also declared for the effect. The permission
+prompt appears only when playback first requests spectrum levels, never
+at launch. Declining leaves playback, sign-in, and the terminal working
+normally, with decorative rain; it will not ask again during that run.
+A permanent denial stays decorative silently.
+
+To revoke access, open **Settings > Apps > nu11signal > Permissions** and
+disable the audio/microphone permission. You can also grant it there later.
+Unsupported devices or an effect held by another app fall back to decorative
+rain without stopping playback. Capture is released while paused/stopped,
+when the Activity pauses, and on exit; it resumes only while playing.
+
+Readings arrive about 15 times per second: 24 logarithmic FFT power bands
+from 40 Hz to 16 kHz, mapped from -50 to -10 dB relative to full scale,
+with fast attack and about a one-second fall, plus 64 signed waveform
+points retaining each stretch's largest swing. This is output-mix audio,
+so other sounds playing on the TV can affect the rain too.
+
 ## Remote and keyboard
 
 | Key | TUI input |
@@ -188,14 +211,18 @@ COLORTERM is truecolor. stderr is read separately under logcat tag
 
 The filesystem LocalSocket carries UTF-8 JSON lines, not terminal data:
 
-- Go sends `evaluate {id, expr}`, `login {show}`, or `keyboard {show}`.
+- Go sends `evaluate {id, expr}`, `login {show}`, `levels {on}`, or `keyboard {show}`.
+  Levels enable output-mix capture only while playing; repeated states do not
+  repeat the control.
   Keyboard `show:true` marks TUI text input available; `show:false` clears
   availability and dismisses an open TUI keyboard.
 - The app evaluates expressions verbatim in an async wrapper in the music
   WebView. `NU11.settle(token, id, json)` checks a random per-launch token
   and returns `result {id, ok, value}` or `result {id, ok:false, error}`.
   Undefined results become JSON null; IDs preserve concurrent correlation.
-- The app sends `resize {cols, rows}` and `login {closed:true}`.
+- The app sends `resize {cols, rows}`, `login {closed:true}`, and
+  `levels {bands, wave}` (integer percentages). Go bounds readings to 64 bands
+  and 128 wave points, clamps their values, and keeps only the latest reading.
 - Socket writes and stdin writes each use their own single-thread executor.
   The initial terminal size is retained until the socket connects.
 

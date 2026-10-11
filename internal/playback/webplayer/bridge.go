@@ -28,6 +28,9 @@ type BridgeMessage struct {
 	Closed bool   `json:"closed,omitempty"`
 	Cols   int    `json:"cols,omitempty"`
 	Rows   int    `json:"rows,omitempty"`
+	On     bool   `json:"on"`
+	Bands  []int  `json:"bands,omitempty"`
+	Wave   []int  `json:"wave,omitempty"`
 }
 
 // Bridge evaluates expressions through an app-owned WebView over a
@@ -120,6 +123,11 @@ func (b *Bridge) Send(ctx context.Context, m BridgeMessage) error {
 			ID   int64  `json:"id"`
 			Expr string `json:"expr"`
 		}{m.Type, m.ID, m.Expr}
+	case "levels":
+		payload = struct {
+			Type string `json:"type"`
+			On   bool   `json:"on"`
+		}{m.Type, m.On}
 	case "login", "keyboard":
 		payload = struct {
 			Type string `json:"type"`
@@ -246,6 +254,10 @@ func (b *Bridge) dispatch(raw []byte) {
 	if json.Unmarshal(raw, &m) != nil {
 		return
 	}
+	if m.Type == "levels" {
+		m.Bands = boundedLevels(m.Bands, 64, 0)
+		m.Wave = boundedLevels(m.Wave, 128, -100)
+	}
 	if m.Type != "result" {
 		if m.Type != "" && b.onMessage != nil {
 			b.onMessage(m.BridgeMessage)
@@ -268,6 +280,21 @@ func (b *Bridge) dispatch(raw []byte) {
 	if ch != nil {
 		ch <- r
 	}
+}
+
+func boundedLevels(values []int, size, low int) []int {
+	if len(values) > size {
+		values = values[:size]
+	}
+	for i, v := range values {
+		if v < low {
+			values[i] = low
+		}
+		if v > 100 {
+			values[i] = 100
+		}
+	}
+	return values
 }
 
 // WaitReady waits for the same MusicKit readiness used by Open, with
