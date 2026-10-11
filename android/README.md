@@ -128,17 +128,21 @@ is output-mix audio, so other TV sounds can affect the rain too.
 | D-pad center / Enter | Open keyboard when text input is available and hidden; otherwise carriage return |
 | Long D-pad center | Toggle on-screen keyboard |
 | Short Back | Escape; hides keyboard first if open |
-| Long Back | `q` (TUI quit confirmation); hides keyboard first if open |
+| Long Back | Escape in SEARCH or NEW PLAYLIST name; quit confirmation elsewhere (non-printable Ctrl+Q); hides keyboard first if open |
 | Play/pause, play, pause | Space |
 | Next / fast-forward | `n` |
 | Previous / rewind | `p` |
-| Menu | Open keyboard if text input is available; no-op if already open; otherwise `/` (search) |
+| Menu | Open/resume SEARCH at its input and open keyboard (non-printable Ctrl+_); no-op if keyboard already open |
 | Delete/backspace | DEL |
 | Hardware letters, digits, printable symbols | Unicode characters as UTF-8 |
 
-Entering SEARCH or the NEW PLAYLIST name input makes text input available
-without opening the keyboard. Press OK / Enter to open it; that press does
-not submit the input. The keyboard hides when the input loses focus or that
+Selecting the SEARCH input row or the NEW PLAYLIST name input makes text input
+available without opening the keyboard. SEARCH result rows retain normal OK
+selection. Menu on those rows focuses the input without inserting `/`, then
+opens the keyboard after Go acknowledges input availability. Menu also returns
+parked detail pages to SEARCH; desktop `/` and Tab keep their resume behavior.
+Desktop `/` on a SEARCH result row also refocuses the input; on the input itself
+it is text. Press OK / Enter to open it; that press does not submit the input. The keyboard hides when the input loses focus or that
 mode ends (including blocking overlays). Long OK remains a manual toggle. While open, D-pad navigation belongs to the IME. Back only
 hides the keyboard, leaving the TUI in place; a second Back sends Escape.
 TUI input availability never opens the keyboard over Apple Music sign-in.
@@ -148,6 +152,8 @@ composition, while retaining suggestions. Each edit keeps the common Unicode
 prefix, sends DEL for each removed code point, then sends the new suffix as
 UTF-8. Keyboard Enter/Send sends carriage return and silently clears local
 text; hiding the keyboard or ending typing mode also resets it without DEL.
+Every keyboard opening clears the local EditText and diff baseline without
+sending DEL; the existing TUI search term is kept for appending.
 Backspace on an empty field still sends DEL. Volume keys retain system behavior.
 
 Each time sign-in starts, a full-screen native guide covers the music page

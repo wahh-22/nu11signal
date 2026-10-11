@@ -67,7 +67,7 @@ public class MainActivity extends Activity {
     private WebView music, terminal, popup;
     private EditText keyboard;
     private String keyboardTextSent = "";
-    private boolean resettingKeyboard, keyboardWasVisible;
+    private boolean resettingKeyboard, keyboardWasVisible, keyboardAfterSearch;
     private View pointer;
     private TextView pointerHint, loginConfirmation;
     private LinearLayout loginGuide;
@@ -613,6 +613,10 @@ public class MainActivity extends Activity {
                         // This is TUI input availability, not an IME-open request.
                         textInputAvailable = show;
                         if (!show) setKeyboard(false);
+                        else if (keyboardAfterSearch) {
+                            keyboardAfterSearch = false;
+                            setKeyboard(true);
+                        }
                     });
                 } else if ("cancel".equals(type)) {
                     // Remove on the socket reader, before queued UI tasks run.
@@ -852,6 +856,8 @@ public class MainActivity extends Activity {
     private void setKeyboard(boolean show) {
         if (!show) resetKeyboard();
         if (keyboardShown == show) return;
+        // Every new IME session starts empty; never diff against an old session.
+        if (show) resetKeyboard();
         InputMethodManager ime = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
         keyboardShown = show;
         keyboardWasVisible = false;
@@ -903,10 +909,21 @@ public class MainActivity extends Activity {
             }
             return super.dispatchKeyEvent(event);
         }
-        if (key == KeyEvent.KEYCODE_MENU && textInputAvailable) {
-            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled() && !keyboardShown) setKeyboard(true);
+        if (key == KeyEvent.KEYCODE_MENU) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                if (textInputAvailable) {
+                    if (!keyboardShown) setKeyboard(true);
+                } else {
+                    // Non-printable MENU signal opens/refocuses SEARCH even
+                    // with a parked page. Wait for Go to confirm input focus.
+                    keyboardAfterSearch = true;
+                    input("\u001f");
+                }
+            }
             return true;
         }
+        // A different remote action cancels an outstanding MENU IME request.
+        keyboardAfterSearch = false;
         if (keyboardShown && (key == KeyEvent.KEYCODE_ENTER || key == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) submitKeyboard();
             return true;
@@ -934,7 +951,7 @@ public class MainActivity extends Activity {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 if (event.getRepeatCount() == 0) { if (key == KeyEvent.KEYCODE_BACK) backLong = false; else centerLong = false; }
                 if (event.isLongPress() || event.getEventTime() - event.getDownTime() >= android.view.ViewConfiguration.getLongPressTimeout()) {
-                    if (key == KeyEvent.KEYCODE_BACK && !backLong) { backLong = true; if (keyboardShown) toggleKeyboard(); else input("q"); }
+                    if (key == KeyEvent.KEYCODE_BACK && !backLong) { backLong = true; if (keyboardShown) toggleKeyboard(); else input("\u0011"); }
                     if (key == KeyEvent.KEYCODE_DPAD_CENTER && !centerLong) { centerLong = true; toggleKeyboard(); }
                 }
                 if (key == KeyEvent.KEYCODE_DPAD_CENTER && keyboardShown && !centerLong) {
@@ -942,7 +959,7 @@ public class MainActivity extends Activity {
                 }
             } else if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
                 boolean held = event.getEventTime() - event.getDownTime() >= android.view.ViewConfiguration.getLongPressTimeout();
-                if (key == KeyEvent.KEYCODE_BACK && !backLong) { if (keyboardShown) toggleKeyboard(); else input(held ? "q" : "\u001b"); }
+                if (key == KeyEvent.KEYCODE_BACK && !backLong) { if (keyboardShown) toggleKeyboard(); else input(held ? "\u0011" : "\u001b"); }
                 if (key == KeyEvent.KEYCODE_DPAD_CENTER && !centerLong) {
                     if (held) toggleKeyboard();
                     else if (keyboardShown) return super.dispatchKeyEvent(event);
@@ -969,7 +986,6 @@ public class MainActivity extends Activity {
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE: case KeyEvent.KEYCODE_MEDIA_PLAY: case KeyEvent.KEYCODE_MEDIA_PAUSE: text = " "; break;
             case KeyEvent.KEYCODE_MEDIA_NEXT: case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD: text = "n"; break;
             case KeyEvent.KEYCODE_MEDIA_PREVIOUS: case KeyEvent.KEYCODE_MEDIA_REWIND: text = "p"; break;
-            case KeyEvent.KEYCODE_MENU: text = "/"; break;
             case KeyEvent.KEYCODE_DEL: text = "\u007f"; break;
             case KeyEvent.KEYCODE_ESCAPE: text = "\u001b"; break;
             default:

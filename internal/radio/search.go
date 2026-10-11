@@ -217,6 +217,13 @@ func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyDown:
 		m.setCursor(min(m.cursor()+1, len(m.searchRows())-1))
 		return m, nil
+	case keySearch:
+		if m.cursor() >= 0 {
+			// Match / on RESULTS: return to editing without changing the term.
+			m.setCursor(-1)
+			m.input.CursorEnd()
+			return m, m.input.Focus()
+		}
 	case keyEnter:
 		return m.searchEnter()
 	case keyRight, keyLeft:
