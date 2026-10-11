@@ -66,6 +66,8 @@ func (m *Meter) WriteMono(samples []float32) {
 
 // Reset discards PCM and resets smoothing on the next complete snapshot.
 func (m *Meter) Reset() {
+	m.measureMu.Lock()
+	defer m.measureMu.Unlock()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ring.reset()
@@ -96,11 +98,15 @@ func (m *Meter) Snapshot() (Snapshot, bool) {
 // Analyze computes and smooths a successful Snapshot from this meter.
 func (m *Meter) Analyze(s Snapshot) playback.Spectrum {
 	m.measureMu.Lock()
+	defer m.measureMu.Unlock()
+	return m.analyzeLocked(s)
+}
+
+func (m *Meter) analyzeLocked(s Snapshot) playback.Spectrum {
 	if s.fresh {
 		m.sm.reset()
 	}
 	bands := m.sm.update(m.an.levels(s.samples))
-	m.measureMu.Unlock()
 	return playback.Spectrum{Bands: quantize(bands), Wave: quantize(decimate(s.samples, WavePoints))}
 }
 
@@ -108,9 +114,11 @@ func (m *Meter) Analyze(s Snapshot) playback.Spectrum {
 // new PCM still advance smoothing, as in the local player. Backends that
 // need playback-lock coordination can use Snapshot and Analyze separately.
 func (m *Meter) Reading() (playback.Spectrum, bool) {
+	m.measureMu.Lock()
+	defer m.measureMu.Unlock()
 	s, ok := m.Snapshot()
 	if !ok {
 		return playback.Spectrum{}, false
 	}
-	return m.Analyze(s), true
+	return m.analyzeLocked(s), true
 }

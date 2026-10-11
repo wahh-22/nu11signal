@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/pulsecapture"
 )
 
 var (
@@ -102,6 +103,12 @@ type Player struct {
 	installed bool
 	// hidden is set by Hide; a new install hides the page again.
 	hidden bool
+
+	capture       func(context.Context, func([]float32, int)) (func(), error)
+	readings      chan playback.Spectrum
+	captureCancel context.CancelFunc // guarded by mu
+	captureGate   sync.Mutex
+	captureWG     sync.WaitGroup
 
 	mu      sync.Mutex
 	closed  bool
@@ -202,6 +209,8 @@ func New(page Evaluator, opts ...Option) *Player {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Player{
 		page:           page,
+		capture:        pulsecapture.Start,
+		readings:       make(chan playback.Spectrum, 1),
 		every:          DefaultPollInterval,
 		now:            time.Now,
 		pause:          sleep,
@@ -482,6 +491,7 @@ func (p *Player) publish(s playback.State, at time.Time) {
 	if p.closed {
 		return
 	}
+	p.updateCaptureLocked(s.Status)
 	p.state, p.stateAt = s, at
 	select {
 	case p.states <- s:
@@ -1168,10 +1178,16 @@ func (p *Player) Close() error {
 		}
 		p.mu.Lock()
 		p.closed = true
+		if p.captureCancel != nil {
+			p.captureCancel()
+			p.captureCancel = nil
+		}
 		close(p.states)
 		close(p.errs)
 		polled := p.polled
 		p.mu.Unlock()
+		p.captureWG.Wait()
+		close(p.readings)
 		if polled != nil {
 			<-polled
 		}
