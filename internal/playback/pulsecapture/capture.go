@@ -30,19 +30,60 @@ func start(ctx context.Context, onSamples func([]float32, int), open func() (cli
 	if err != nil {
 		return nil, err
 	}
-	end, err := c.record(onSamples)
+	var closeOnce sync.Once
+	closeClient := func() { closeOnce.Do(c.close) }
+	var callbackMu sync.Mutex
+	stopped := false
+	disable := func() {
+		callbackMu.Lock()
+		stopped = true
+		callbackMu.Unlock()
+	}
+	// Close the connection even while record is waiting for a server reply.
+	done := make(chan struct{})
+	started := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			select {
+			case <-started:
+				// Once started, stop owns stream-before-connection cleanup.
+			default:
+				disable()
+				closeClient()
+			}
+		case <-done:
+		}
+	}()
+	end, err := c.record(func(samples []float32, rate int) {
+		callbackMu.Lock()
+		defer callbackMu.Unlock()
+		if !stopped && ctx.Err() == nil {
+			onSamples(samples, rate)
+		}
+	})
+	close(started)
 	if err != nil {
-		c.close()
+		disable()
+		closeClient()
+		close(done)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, err
 	}
 	var once sync.Once
-	done := make(chan struct{})
 	stop := func() {
 		once.Do(func() {
+			disable()
 			end()
-			c.close()
+			closeClient()
 			close(done)
 		})
+	}
+	if err := ctx.Err(); err != nil {
+		stop()
+		return nil, err
 	}
 	go func() {
 		select {

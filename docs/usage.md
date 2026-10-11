@@ -243,6 +243,11 @@ says `apple music ready` once it is signed in.
   stops the playback and closes the hidden browser. A browser that exits
   while nu11signal runs is reported on the status line, and its music
   shows as stopped.
+- **Spectrum:** while playing, the rain follows the default output's
+  PulseAudio/PipeWire monitor (the whole system mix). Without a usable
+  monitor it stays decorative; see [Linux spectrum](audio.md#linux) for
+  checks. Developers can run `bash scripts/linux-audio-e2e.sh` with Docker
+  to verify capture, two test tones and silence without Apple Music.
 - **Resources:** the hidden browser is far heavier than the macOS helper:
   on the test machine (ARM64, no GPU) it took roughly 10 % of one core
   and about 750 MB of memory while playing, and less while paused.

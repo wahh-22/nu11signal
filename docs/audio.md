@@ -2,7 +2,7 @@
 
 [← Back to the README](../README.md) · [Documentation index](../README.md#documentation)
 
-How the helper gives nu11signal its own volume through a Core Audio process tap, and how the same tap feeds the rain's real spectrum.
+How the helper gives nu11signal its own volume through a Core Audio process tap, and how audio capture feeds the rain's real spectrum.
 
 ## App volume
 
@@ -72,4 +72,20 @@ attach; a reading from before a pause, or an empty one, never counts. If
 no reading arrives within 1.5 s of playing, or none arrived in the last
 500 ms, the bars turn decorative, easing from their heights; when readings
 come back the bars glide onto them over four frames. When paused the bars
-fall to zero. Nothing is measured in system volume mode.
+fall to zero. Nothing is measured in system volume mode on macOS.
+
+### Linux
+
+While Apple Music plays through the [web player](usage.md#apple-music-on-linux-experimental),
+nu11signal captures the default sink's PulseAudio monitor (also available
+through PipeWire's PulseAudio server). It hears the **whole system mix**, not
+just Apple Music, without a permission prompt. Capture stops while paused
+or stopped. The shared Go DSP (`internal/playback/spectrum`), also used for
+local files, produces the same 24 bands and 64-point wave.
+
+Without a server or a usable monitor, the rain falls back to decorative
+animation; playback continues. Check the available monitors with
+`pactl list sources short`: the default output should have a `.monitor`
+source. Developers can check capture and DSP with
+[`scripts/linux-audio-e2e.sh`](../scripts/linux-audio-e2e.sh) (Docker, no
+Apple Music login needed).

@@ -25,13 +25,17 @@ request 2026-10-11.
   end to end; Apple Music with Widevine needs a real Linux desktop.
 
 ## Tasks
-- [ ] L1 — Share the DSP (`internal/playback/spectrum`), local player unchanged
+- [x] L1 — Share the DSP (`internal/playback/spectrum`), local player unchanged
   in behavior, tests.
-- [ ] L2 — Pulse monitor capture -> web player LevelSource on Linux, started
+- [x] L2 — Pulse monitor capture -> web player LevelSource on Linux, started
   and stopped with playback, graceful fallback, tests.
-- [ ] L3 — Docker end-to-end check (pulse daemon, null sink, tone) + docs
+- [x] L3 — Docker end-to-end check (pulse daemon, null sink, tone) + docs
   (docs/audio.md Spectrum, docs/usage.md Linux).
 - [ ] L4 — Real Linux desktop check with Apple Music (needs a Linux machine).
 
 ## Progress
+- 2026-10-11: L1 `d9e015b` (review `review-f86aac6115daa330` approved), L2
+  `f317663` (review `review-516b623dd4fb655e` approved), L3 Docker e2e passes
+  (1 kHz -> band 12, 100 Hz -> band 3, silence -> 0) + docs. L4 needs a real
+  Linux desktop with Apple Music.
 - Created 2026-10-11 on branch `feat/linux-spectrum` from main 8e99dd3.
