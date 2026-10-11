@@ -102,6 +102,13 @@ forwards terminal query replies to Go through the local-only JS interface.
 | Delete/backspace | DEL |
 | Hardware letters, digits, printable symbols | Unicode characters as UTF-8 |
 
+The keyboard opens automatically when SEARCH or NEW PLAYLIST takes typed
+text, and hides when the input loses focus or that mode ends (including
+blocking overlays). Long OK remains
+a manual toggle. While open, D-pad navigation belongs to the IME. Back only
+hides the keyboard, leaving the TUI in place; a second Back sends Escape.
+Automatic keyboard requests never open it over Apple Music sign-in.
+
 The invisible EditText receives IME commits; each Unicode code point is
 serialized to Go stdin. Keyboard Enter/Send sends carriage return. Volume
 keys retain system behavior.

@@ -126,6 +126,15 @@ public class MainActivity extends Activity {
         });
         root.addView(terminal, fill());
         keyboard = new EditText(this) {
+            @Override public boolean onKeyPreIme(int key, KeyEvent event) {
+                // Consume both halves: the first Back only dismisses the IME,
+                // and clears our state even when Android intercepts Back.
+                if (key == KeyEvent.KEYCODE_BACK && keyboardShown) {
+                    if (event.getAction() == KeyEvent.ACTION_UP) setKeyboard(false);
+                    return true;
+                }
+                return super.onKeyPreIme(key, event);
+            }
             @Override public InputConnection onCreateInputConnection(EditorInfo info) {
                 InputConnection base = super.onCreateInputConnection(info);
                 if (base == null) return null;
@@ -560,6 +569,13 @@ public class MainActivity extends Activity {
                         showLogin(show);
                         if (signedIn) confirmLogin();
                     });
+                } else if ("keyboard".equals(type)) {
+                    boolean show = message.getBoolean("show");
+                    runOnUiThread(() -> {
+                        if (!destroyed && (!show || !loginShown && terminal.getVisibility() == View.VISIBLE)) {
+                            setKeyboard(show);
+                        }
+                    });
                 } else if ("evaluate".equals(type)) {
                     long id = message.getLong("id");
                     String expr = message.getString("expr");
@@ -676,9 +692,12 @@ public class MainActivity extends Activity {
         writeTerminal(("\r\n" + message.replaceAll("[\\p{Cntrl}]", " ") + "\r\n").getBytes(StandardCharsets.UTF_8));
     }
 
-    private void toggleKeyboard() {
+    private void toggleKeyboard() { setKeyboard(!keyboardShown); }
+
+    private void setKeyboard(boolean show) {
+        if (keyboardShown == show) return;
         InputMethodManager ime = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-        keyboardShown = !keyboardShown;
+        keyboardShown = show;
         if (keyboardShown) { keyboard.requestFocus(); ime.showSoftInput(keyboard, InputMethodManager.SHOW_IMPLICIT); }
         else { ime.hideSoftInputFromWindow(keyboard.getWindowToken(), 0); terminal.requestFocus(); }
     }
@@ -727,6 +746,10 @@ public class MainActivity extends Activity {
             }
             return super.dispatchKeyEvent(event);
         }
+        if (keyboardShown && (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN
+                || key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+            return super.dispatchKeyEvent(event);
+        }
         if (event.getAction() == KeyEvent.ACTION_MULTIPLE && event.getCharacters() != null) {
             input(event.getCharacters());
             return true;
@@ -738,10 +761,17 @@ public class MainActivity extends Activity {
                     if (key == KeyEvent.KEYCODE_BACK && !backLong) { backLong = true; if (keyboardShown) toggleKeyboard(); else input("q"); }
                     if (key == KeyEvent.KEYCODE_DPAD_CENTER && !centerLong) { centerLong = true; toggleKeyboard(); }
                 }
+                if (key == KeyEvent.KEYCODE_DPAD_CENTER && keyboardShown && !centerLong) {
+                    return super.dispatchKeyEvent(event);
+                }
             } else if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
                 boolean held = event.getEventTime() - event.getDownTime() >= android.view.ViewConfiguration.getLongPressTimeout();
                 if (key == KeyEvent.KEYCODE_BACK && !backLong) { if (keyboardShown) toggleKeyboard(); else input(held ? "q" : "\u001b"); }
-                if (key == KeyEvent.KEYCODE_DPAD_CENTER && !centerLong) { if (held) toggleKeyboard(); else input("\r"); }
+                if (key == KeyEvent.KEYCODE_DPAD_CENTER && !centerLong) {
+                    if (held) toggleKeyboard();
+                    else if (keyboardShown) return super.dispatchKeyEvent(event);
+                    else input("\r");
+                }
             }
             return true;
         }

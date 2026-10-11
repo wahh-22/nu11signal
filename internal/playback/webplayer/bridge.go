@@ -18,7 +18,7 @@ const BridgeLoadTimeout = 2 * time.Minute
 
 // BridgeMessage is a control message on the app bridge. Resize reports
 // terminal cells; login reports that the user left sign-in. Show is sent
-// explicitly, including false, when Go opens or hides sign-in. Result
+// explicitly, including false, when Go opens or hides sign-in or the keyboard. Result
 // fields are decoded separately so a missing ok cannot complete a call.
 type BridgeMessage struct {
 	Type   string `json:"type"`
@@ -32,7 +32,8 @@ type BridgeMessage struct {
 
 // Bridge evaluates expressions through an app-owned WebView over a
 // JSON-lines io.ReadWriteCloser. Go sends {"type":"evaluate","id":int64,
-// "expr":string} or {"type":"login","show":bool}. The app awaits promises
+// "expr":string}, {"type":"login","show":bool}, or
+// {"type":"keyboard","show":bool}. The app awaits promises
 // and returns values by value: {"type":"result","id":int64,"ok":true,
 // "value":JSON} (null for undefined), or ok:false with an error string.
 // Exceptions become sanitized ScriptErrors, just as with CDP. The app
@@ -110,7 +111,7 @@ func (b *Bridge) Evaluate(ctx context.Context, expr string) (json.RawMessage, er
 // caller retains its slot until completion or Close, so no next message
 // can interleave with it. A write failure closes the whole connection.
 func (b *Bridge) Send(ctx context.Context, m BridgeMessage) error {
-	// Keep evaluate and login envelopes exact, without unrelated fields.
+	// Keep evaluate, login and keyboard envelopes exact, without unrelated fields.
 	var payload any = m
 	switch m.Type {
 	case "evaluate":
@@ -119,7 +120,7 @@ func (b *Bridge) Send(ctx context.Context, m BridgeMessage) error {
 			ID   int64  `json:"id"`
 			Expr string `json:"expr"`
 		}{m.Type, m.ID, m.Expr}
-	case "login":
+	case "login", "keyboard":
 		payload = struct {
 			Type string `json:"type"`
 			Show bool   `json:"show"`

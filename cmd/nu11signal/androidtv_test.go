@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,6 +15,28 @@ import (
 	"github.com/wahh-22/nu11signal/internal/playback/composite"
 	"github.com/wahh-22/nu11signal/internal/playback/webplayer"
 )
+
+func TestAndroidTVTypingSendsKeyboard(t *testing.T) {
+	goSide, app := net.Pipe()
+	bridge := webplayer.NewBridge(goSide, nil)
+	defer bridge.Close()
+	defer app.Close()
+	app.SetDeadline(time.Now().Add(3 * time.Second))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hook := androidTypingHook(ctx, bridge)
+	dec := json.NewDecoder(app)
+	for _, show := range []bool{true, false} {
+		hook(show)
+		var msg webplayer.BridgeMessage
+		if err := dec.Decode(&msg); err != nil {
+			t.Fatal(err)
+		}
+		if msg.Type != "keyboard" || msg.Show != show {
+			t.Fatalf("message = %+v", msg)
+		}
+	}
+}
 
 func TestAndroidTVFlag(t *testing.T) {
 	if _, err := parseFlags([]string{"--android-tv", "/private/app.sock"}, io.Discard); err != nil {

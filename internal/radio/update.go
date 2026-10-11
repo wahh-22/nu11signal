@@ -20,6 +20,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return next, cmd
 	}
+	// Match the key router: blocking overlays temporarily take text keys.
+	typing := nm.typing() && !nm.boot && !nm.shutdown && !nm.quitAsk && !nm.help && !nm.settings && nm.auth != authFailed
+	if typing != nm.typingNotified {
+		nm.typingNotified = typing
+		if nm.onTypingChanged != nil {
+			nm.onTypingChanged(typing)
+		}
+	}
 	// Text msg brought scrambles in (see intro.go), the tick raised for it.
 	nm = nm.withIntro(m, msg)
 	// A flip of the spectrum area between the emblem and the rain swaps

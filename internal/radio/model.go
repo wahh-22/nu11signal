@@ -18,6 +18,10 @@ import (
 
 // Options configures a radio Model. Zero values select sensible defaults.
 type Options struct {
+	// OnTypingChanged optionally reports transitions in text-taking mode from
+	// Update. It must return immediately (for example, enqueue a notification).
+	// Nil leaves desktop behavior unchanged.
+	OnTypingChanged func(bool)
 	// Now is the clock; defaults to time.Now. Tests inject a fixed clock.
 	Now func() time.Time
 	// Seed drives the decorative EQ and glitch animations.
@@ -124,11 +128,13 @@ type frame struct {
 
 // Model is the Bubble Tea model of the radio.
 type Model struct {
-	player       playback.Player
-	now          func() time.Time
-	seed         uint64
-	timeout      time.Duration
-	closeTimeout time.Duration
+	onTypingChanged func(bool)
+	typingNotified  bool
+	player          playback.Player
+	now             func() time.Time
+	seed            uint64
+	timeout         time.Duration
+	closeTimeout    time.Duration
 
 	width, height int
 
@@ -353,22 +359,23 @@ func New(p playback.Player, opts Options) Model {
 		changed = w.LibraryChanged()
 	}
 	m := Model{
-		player:         p,
-		levels:         levels,
-		libraryChanged: changed,
-		now:            opts.Now,
-		seed:           opts.Seed,
-		timeout:        opts.CallTimeout,
-		closeTimeout:   opts.CloseTimeout,
-		stack:          []frame{{kind: viewStations}},
-		volumeBusy:     true, // Init reads the volume
-		fx:             effects{on: opts.Effects},
-		boot:           !opts.SkipBoot,
-		configSource:   opts.Config,
-		updates:        opts.Updates,
-		version:        opts.Version,
-		upgrade:        opts.Upgrade,
-		configSaves:    &configSaves{},
+		player:          p,
+		levels:          levels,
+		libraryChanged:  changed,
+		now:             opts.Now,
+		seed:            opts.Seed,
+		timeout:         opts.CallTimeout,
+		closeTimeout:    opts.CloseTimeout,
+		onTypingChanged: opts.OnTypingChanged,
+		stack:           []frame{{kind: viewStations}},
+		volumeBusy:      true, // Init reads the volume
+		fx:              effects{on: opts.Effects},
+		boot:            !opts.SkipBoot,
+		configSource:    opts.Config,
+		updates:         opts.Updates,
+		version:         opts.Version,
+		upgrade:         opts.Upgrade,
+		configSaves:     &configSaves{},
 
 		input:         in,
 		nameInput:     name,

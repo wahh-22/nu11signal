@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/wahh-22/nu11signal/internal/playback/webplayer"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -16,6 +18,47 @@ import (
 	"github.com/wahh-22/nu11signal/internal/playback"
 	"github.com/wahh-22/nu11signal/internal/update"
 )
+
+// androidTypingHook coalesces queued transitions to the latest state. One
+// worker preserves write order while the UI never waits for the socket.
+func androidTypingHook(ctx context.Context, bridge *webplayer.Bridge) func(bool) {
+	states := make(chan bool, 1)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case show := <-states:
+				sendCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				err := bridge.Send(sendCtx, webplayer.BridgeMessage{Type: "keyboard", Show: show})
+				cancel()
+				if err != nil {
+					bridge.Close()
+					return
+				}
+			}
+		}
+	}()
+	return func(show bool) {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		select {
+		case states <- show:
+		default:
+			select {
+			case <-states:
+			default:
+			}
+			select {
+			case states <- show:
+			default:
+			}
+		}
+	}
+}
 
 // playAndroidTV gives Bubble Tea a real terminal while the app owns only
 // pipes. The socket reader also owns resize and sign-in controls; losing
@@ -59,7 +102,7 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 		loginCtx, stop := context.WithCancel(ctx)
 		signedIn := make(chan error, 1)
 		go func() { signedIn <- r.SignIn(loginCtx, player) }()
-		err := runUIWithOptions(p, recents, settings, calm, updates, tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx))
+		err := runUIWithTyping(p, recents, settings, calm, updates, androidTypingHook(loginCtx, r.Bridge), tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx))
 		stop()
 		if loginErr := <-signedIn; loginErr != nil && !errors.Is(loginErr, context.Canceled) {
 			fmt.Fprintln(d.stderr, "nu11signal: Android sign-in:", loginErr)

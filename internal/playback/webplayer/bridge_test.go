@@ -24,6 +24,26 @@ func bridgePair(t *testing.T, callback func(BridgeMessage)) (*Bridge, net.Conn) 
 	return b, app
 }
 
+func TestBridgeKeyboardEncoding(t *testing.T) {
+	for _, show := range []bool{true, false} {
+		b, app := bridgePair(t, nil)
+		result := make(chan error, 1)
+		go func() {
+			result <- b.Send(context.Background(), BridgeMessage{Type: "keyboard", Show: show, ID: 99, Cols: 80})
+		}()
+		raw, err := bufio.NewReader(app).ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := fmt.Sprintf("{\"type\":\"keyboard\",\"show\":%t}\n", show); raw != want {
+			t.Fatalf("message = %s; want %s", raw, want)
+		}
+		if err := <-result; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestBridgeReadinessBound(t *testing.T) {
 	if BridgeLoadTimeout != 2*time.Minute || BridgeLoadTimeout <= DefaultLoadTimeout {
 		t.Fatalf("bridge timeout = %s; want 2m, longer than desktop", BridgeLoadTimeout)

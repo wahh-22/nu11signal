@@ -293,14 +293,19 @@ func runUI(player playback.Player, recents history.Recents, settings config.Sour
 // runUIWithOptions shares the model with the app mode, whose real terminal
 // is a PTY slave rather than process stdin/stdout.
 func runUIWithOptions(player playback.Player, recents history.Recents, settings config.Source, calm bool, updates update.Checker, options ...tea.ProgramOption) error {
+	return runUIWithTyping(player, recents, settings, calm, updates, nil, options...)
+}
+
+func runUIWithTyping(player playback.Player, recents history.Recents, settings config.Source, calm bool, updates update.Checker, typing func(bool), options ...tea.ProgramOption) error {
 	model := radio.New(player, radio.Options{
-		Seed:    uint64(time.Now().UnixNano()),
-		Recents: recents,
-		Config:  settings,
-		Effects: !calm,
-		Updates: updates,
-		Version: version,
-		Upgrade: upgradeCommand(),
+		OnTypingChanged: typing,
+		Seed:            uint64(time.Now().UnixNano()),
+		Recents:         recents,
+		Config:          settings,
+		Effects:         !calm,
+		Updates:         updates,
+		Version:         version,
+		Upgrade:         upgradeCommand(),
 	})
 	options = append(options, tea.WithFPS(radio.RenderFPS))
 	_, err := tea.NewProgram(model, options...).Run()
