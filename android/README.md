@@ -69,15 +69,20 @@ glyphs instead of relying on the font, with line height 1 and letter spacing 0.
 If WebGL is unavailable or its context is lost, the addon is disposed and
 xterm falls back to its DOM renderer (which may look different).
 
-`TARGET_COLUMNS = 120` in `assets/terminal.html` is the grid tuning constant;
-`?cols=N` overrides it for positive integer experiments. `terminalFontSize()`
-derives CSS font size as viewport width / (target columns * measured cell
-width per font pixel), with a 12px floor. The cell width is measured from a
-Kode Mono `W` at 100px after font loading. Resizes recompute the font size;
-FitAddon reports the actual cell count, which can vary due to pixel rounding,
-scrollbars, and the minimum font size. The full TUI needs at least 60x16.
-stdout is batched for
-up to 16 ms or 32 KiB, then passed as base64-decoded bytes to xterm. Raw
+`TARGET_COLUMNS = 161` and `TARGET_ROWS = 44` in `assets/terminal.html`
+match the desktop grid; `?cols=N&rows=N` independently override them with
+positive integers. After loading Kode Mono, a `W` at 100px measures cell
+width and natural height per font pixel (xterm line height multiplier 1).
+`terminalFontSize()` takes the smaller of viewport width / (columns * cell
+width) and viewport height / (rows * cell height), without a 12px floor.
+Resizes recompute the size; FitAddon reports the actual grid, with a small
+size correction if scrollbar allowance or pixel rounding undershoots the
+target. One dimension may have extra cells. The full TUI needs at least 60x16.
+stdout is collected for up to 16 ms or 32 KiB, then passed as base64-decoded
+bytes to xterm. Only one terminal JavaScript evaluation may be posted or
+in flight; until its ValueCallback completes, further output coalesces in
+a pending buffer capped at 256 KiB. At the cap, producers wait rather than
+dropping bytes or queuing more evaluations. Raw
 Android keys never reach xterm's own input handler. xterm's `onData` still
 forwards terminal query replies to Go through the local-only JS interface.
 
@@ -188,8 +193,13 @@ The filesystem LocalSocket carries UTF-8 JSON lines, not terminal data:
 Terminal navigation and resource requests are restricted to local Android
 assets, with network loads blocked. Music WebViews keep the spike's JS,
 DOM storage, third-party cookie, media autoplay, and real child-window
-settings. Only protected media ID permission is granted. Music continues
-running behind the opaque terminal; no WebView pause is issued.
+settings. Only protected media ID permission is granted. Behind the opaque
+terminal, the music WebView stays attached and VISIBLE but uses a 1x1-pixel
+layout at the top-left to avoid compositing Apple's animated full-screen
+page without marking MusicKit hidden. Login mode, the sign-in guide, or an
+open child window restores its full-screen layout; returning to the TUI
+shrinks it again. Neither WebView pause nor pauseTimers is issued. The
+terminal's layer type is unchanged to preserve its WebGL rendering path.
 
 A normal Go exit finishes the Activity. Nonzero exits remain visible with
 an error. Destruction closes the socket/pipes and terminates Go. Foreground

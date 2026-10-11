@@ -71,7 +71,7 @@ public class MainActivity extends Activity {
     private Runnable touchContinuation;
     private boolean loginShown, keyboardShown, started, centerLong, backLong;
     private volatile boolean destroyed, startupFailed, connected;
-    private volatile int cols = 120, rows = 34;
+    private volatile int cols = 161, rows = 44;
     private volatile Process process;
     private volatile LocalSocket socket;
     private volatile OutputStream bridgeOutput;
@@ -80,6 +80,11 @@ public class MainActivity extends Activity {
     private final ExecutorService bridgeWriter = Executors.newSingleThreadExecutor();
     private final ExecutorService inputWriter = Executors.newSingleThreadExecutor();
     private final String token = newToken();
+    private static final int MAX_PENDING_TERMINAL_BYTES = 256 * 1024;
+    private final Object terminalOutputLock = new Object();
+    private final ByteArrayOutputStream pendingTerminalOutput = new ByteArrayOutputStream(32768);
+    // Includes a posted flush, so there is never more than one evaluation queued or running.
+    private boolean terminalEvaluationPending;
 
     private static String newToken() {
         byte[] bytes = new byte[32];
@@ -207,6 +212,7 @@ public class MainActivity extends Activity {
             pointer.invalidate();
         });
         setContentView(root);
+        updateMusicLayout();
         music.loadUrl("https://music.apple.com/");
         terminal.loadUrl("file:///android_asset/terminal.html");
         terminal.requestFocus();
@@ -288,6 +294,7 @@ public class MainActivity extends Activity {
                 closePopup();
                 popup = newMusicView();
                 root.addView(popup, fill());
+                updateMusicLayout();
                 raisePointer();
                 popup.requestFocus();
                 ((WebView.WebViewTransport) result.obj).setWebView(popup);
@@ -305,6 +312,7 @@ public class MainActivity extends Activity {
         root.removeView(popup);
         popup.destroy();
         popup = null;
+        updateMusicLayout();
         (loginShown ? music : terminal).requestFocus();
     }
 
@@ -329,9 +337,17 @@ public class MainActivity extends Activity {
         pointer.setVisibility(show && !guideVisible() ? View.VISIBLE : View.GONE);
         pointerHint.setVisibility(show && !guideVisible() ? View.VISIBLE : View.GONE);
         raisePointer();
-        // Keep the music WebView running underneath the opaque terminal.
+        updateMusicLayout();
         terminal.setVisibility(show ? View.GONE : View.VISIBLE);
         (guideVisible() ? loginGuide : show ? music : terminal).requestFocus();
+    }
+
+    private void updateMusicLayout() {
+        boolean fullScreen = loginShown || guideVisible() || popup != null;
+        // Stay attached and VISIBLE for MusicKit/audio, but avoid compositing an animated
+        // full-screen Apple page underneath the opaque TUI. Never pause the WebView.
+        music.setLayoutParams(fullScreen ? fill() :
+                new FrameLayout.LayoutParams(1, 1, Gravity.TOP | Gravity.LEFT));
     }
 
     private float dp(float value) { return value * getResources().getDisplayMetrics().density; }
@@ -608,8 +624,50 @@ public class MainActivity extends Activity {
     }
 
     private void writeTerminal(byte[] bytes) {
+        boolean interrupted = false;
+        try {
+            synchronized (terminalOutputLock) {
+                int offset = 0;
+                while (!destroyed && offset < bytes.length) {
+                    // Backpressure the producer at the cap; never discard terminal bytes.
+                    while (!destroyed && pendingTerminalOutput.size() == MAX_PENDING_TERMINAL_BYTES) {
+                        try { terminalOutputLock.wait(); }
+                        catch (InterruptedException e) { interrupted = true; }
+                    }
+                    if (destroyed) return;
+                    int count = Math.min(bytes.length - offset,
+                            MAX_PENDING_TERMINAL_BYTES - pendingTerminalOutput.size());
+                    pendingTerminalOutput.write(bytes, offset, count);
+                    offset += count;
+                    if (!terminalEvaluationPending) {
+                        terminalEvaluationPending = true;
+                        root.post(this::flushTerminalOutput);
+                    }
+                }
+            }
+        } finally {
+            if (interrupted) Thread.currentThread().interrupt();
+        }
+    }
+
+    private void flushTerminalOutput() {
+        byte[] bytes;
+        synchronized (terminalOutputLock) {
+            if (destroyed) return;
+            bytes = pendingTerminalOutput.toByteArray();
+            pendingTerminalOutput.reset();
+            terminalOutputLock.notifyAll();
+        }
         String base64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
-        runOnUiThread(() -> { if (!destroyed) terminal.evaluateJavascript("window.nu11Write('" + base64 + "')", null); });
+        terminal.evaluateJavascript("window.nu11Write('" + base64 + "')", result -> {
+            synchronized (terminalOutputLock) {
+                terminalEvaluationPending = false;
+                if (!destroyed && pendingTerminalOutput.size() > 0) {
+                    terminalEvaluationPending = true;
+                    root.post(this::flushTerminalOutput);
+                }
+            }
+        });
     }
 
     private void error(String message) {
@@ -732,6 +790,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         destroyed = true;
+        synchronized (terminalOutputLock) { terminalOutputLock.notifyAll(); }
         root.removeCallbacks(hideLoginConfirmation);
         cancelPointerTouch();
         LocalSocket connection = socket;
