@@ -103,10 +103,24 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   sized like the user's desktop terminal so NOW PLAYING gets the same share
   (list panel caps at 72 columns, `listPanelWidthFor`; 120 TV columns leave
   the player 47).
-- [ ] A8 — Spike: real spectrum for the rain on Android (desktop has it only
+- [x] A8 — Spike: real spectrum for the rain on Android (desktop has it only
   on macOS through the Core Audio tap; Linux is decorative). Try
   `android.media.audiofx.Visualizer` on the output mix with Widevine audio;
   needs RECORD_AUDIO. Go/no-go before any build-out.
+  Outcome GO (`spike/android-tv-visualizer`, a separate APK reading
+  `Visualizer(0)`, RECORD_AUDIO granted with `pm grant`): control with the
+  unencrypted 30 s preview in an `<audio>` element gave swing 5-21 / FFT
+  peak 7-35; the Widevine track ("Sharks", full track, playing) gave
+  non-zero, varying swing 1-5 / FFT peak 1-11 (quiet outro, AS_PLAYED
+  scaling). Paused: all zeros. Build-out (A9) should use
+  SCALING_MODE_NORMALIZED and needs the user's RECORD_AUDIO consent (it
+  hears the whole TV output mix).
+- [ ] A9 — Real rain spectrum on Android: Visualizer FFT in the app -> bridge
+  `levels` messages -> a Go LevelSource (bands + wave like docs/audio.md) ->
+  composite -> radio.
+- [ ] A3c — Open the TV keyboard automatically when the TUI enters a text
+  input (SEARCH, NEW PLAYLIST name) and hide it when it leaves; today only a
+  long OK opens it (user could not find it).
 - [ ] A4 — Foreground media service + MediaSession (background playback,
   media keys).
 - [ ] A5 — Build and release tooling: `make android`, signing with the
