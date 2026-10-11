@@ -20,8 +20,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return next, cmd
 	}
-	// Match the key router: blocking overlays temporarily take text keys.
-	typing := nm.typing() && !nm.boot && !nm.shutdown && !nm.quitAsk && !nm.help && !nm.settings && nm.auth != authFailed
+	// Report the text row, not the broader desktop text-key routing state.
+	typing := nm.textInputSelected() && !nm.boot && !nm.shutdown && !nm.quitAsk && !nm.help && !nm.settings && nm.auth != authFailed
 	if typing != nm.typingNotified {
 		nm.typingNotified = typing
 		if nm.onTypingChanged != nil {

@@ -44,7 +44,9 @@ type BridgeMessage struct {
 // {"type":"login","closed":true}. These go to onMessage, on the reader
 // goroutine: it must return quickly and must not call Evaluate or Send.
 // Calls may overlap and replies may arrive out of order. Writes are
-// serialized; cancellation forgets a call, not a partially written line.
+// serialized; cancellation forgets a call and sends a best-effort cancel id
+// so the app can skip queued evaluations. It cannot abort already-running JS
+// or a partially written line.
 // Close unblocks writes and fails pending and future calls with
 // ErrBrowserGone. Malformed and oversized inbound lines are discarded.
 type Bridge struct {
@@ -98,7 +100,18 @@ func (b *Bridge) Evaluate(ctx context.Context, expr string) (json.RawMessage, er
 	id := b.nextID
 	b.pending[id] = ch
 	b.mu.Unlock()
-	defer b.forget(id)
+	defer func() {
+		b.forget(id)
+		if ctx.Err() != nil {
+			// Cancellation must not hold up the UI or use the cancelled context.
+			// Send preserves line order even when evaluate's write is still in flight.
+			go func() {
+				cctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				_ = b.Send(cctx, BridgeMessage{Type: "cancel", ID: id})
+			}()
+		}
+	}()
 	if err := b.Send(ctx, BridgeMessage{Type: "evaluate", ID: id, Expr: expr}); err != nil {
 		return nil, err
 	}
@@ -123,6 +136,11 @@ func (b *Bridge) Send(ctx context.Context, m BridgeMessage) error {
 			ID   int64  `json:"id"`
 			Expr string `json:"expr"`
 		}{m.Type, m.ID, m.Expr}
+	case "cancel":
+		payload = struct {
+			Type string `json:"type"`
+			ID   int64  `json:"id"`
+		}{m.Type, m.ID}
 	case "levels":
 		payload = struct {
 			Type string `json:"type"`

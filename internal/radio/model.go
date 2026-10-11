@@ -18,7 +18,7 @@ import (
 
 // Options configures a radio Model. Zero values select sensible defaults.
 type Options struct {
-	// OnTypingChanged optionally reports transitions in text-taking mode from
+	// OnTypingChanged optionally reports whether the cursor is on a text input from
 	// Update. It must return immediately (for example, enqueue a notification).
 	// Nil leaves desktop behavior unchanged.
 	OnTypingChanged func(bool)
@@ -33,8 +33,12 @@ type Options struct {
 	// SkipBoot starts past the boot splash (see boot.go), on the normal UI
 	// from the first frame: tests that are not about the boot use it.
 	SkipBoot bool
-	// CallTimeout bounds every Player call (default 8s).
+	// CallTimeout bounds ordinary Player calls (default 8s).
 	CallTimeout time.Duration
+	// SearchTimeout and SearchDebounce override catalog search timing only.
+	// Zero preserves desktop timing (CallTimeout and 250ms).
+	SearchTimeout  time.Duration
+	SearchDebounce time.Duration
 	// CloseTimeout bounds how long quitting waits for Player.Close before
 	// the UI exits anyway (default 6s: at least the helper client's own
 	// bound, see helper.DefaultCloseTimeout, so the helper's fade out is
@@ -135,6 +139,8 @@ type Model struct {
 	seed            uint64
 	timeout         time.Duration
 	closeTimeout    time.Duration
+	searchTimeout   time.Duration
+	searchDelay     time.Duration
 
 	width, height int
 
@@ -334,6 +340,12 @@ func New(p playback.Player, opts Options) Model {
 	if opts.CallTimeout <= 0 {
 		opts.CallTimeout = defaultCallTimeout
 	}
+	if opts.SearchTimeout <= 0 {
+		opts.SearchTimeout = opts.CallTimeout
+	}
+	if opts.SearchDebounce <= 0 {
+		opts.SearchDebounce = searchDebounce
+	}
 	if opts.CloseTimeout <= 0 {
 		opts.CloseTimeout = defaultCloseTimeout
 	}
@@ -365,6 +377,8 @@ func New(p playback.Player, opts Options) Model {
 		now:             opts.Now,
 		seed:            opts.Seed,
 		timeout:         opts.CallTimeout,
+		searchTimeout:   opts.SearchTimeout,
+		searchDelay:     opts.SearchDebounce,
 		closeTimeout:    opts.CloseTimeout,
 		onTypingChanged: opts.OnTypingChanged,
 		stack:           []frame{{kind: viewStations}},

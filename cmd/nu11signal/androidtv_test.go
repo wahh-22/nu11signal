@@ -16,6 +16,16 @@ import (
 	"github.com/wahh-22/nu11signal/internal/playback/webplayer"
 )
 
+func TestAndroidTVSearchTiming(t *testing.T) {
+	opts := androidRadioOptions(nil, nil, true, nil, nil)
+	if opts.SearchTimeout != 45*time.Second || opts.SearchDebounce != 750*time.Millisecond || opts.CallTimeout != 0 {
+		t.Fatalf("app search timing = %+v", opts)
+	}
+	if androidtv.CatalogTimeout >= opts.SearchTimeout || androidtv.CatalogTimeout <= webplayer.DefaultCatalogTimeout {
+		t.Fatal("catalog must fit inside the longer app search bound")
+	}
+}
+
 func TestAndroidTVTypingSendsKeyboard(t *testing.T) {
 	goSide, app := net.Pipe()
 	bridge := webplayer.NewBridge(goSide, nil)

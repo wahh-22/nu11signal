@@ -16,6 +16,7 @@ import (
 	"github.com/wahh-22/nu11signal/internal/config"
 	"github.com/wahh-22/nu11signal/internal/history"
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/radio"
 	"github.com/wahh-22/nu11signal/internal/update"
 )
 
@@ -57,6 +58,22 @@ func androidTypingHook(ctx context.Context, bridge *webplayer.Bridge) func(bool)
 			default:
 			}
 		}
+	}
+}
+
+// androidRadioOptions keeps slower search timing out of ordinary player calls.
+func androidRadioOptions(recents history.Recents, settings config.Source, calm bool, updates update.Checker, typing func(bool)) radio.Options {
+	return radio.Options{
+		OnTypingChanged: typing,
+		SearchTimeout:   androidtv.SearchTimeout,
+		SearchDebounce:  androidtv.SearchDebounce,
+		Seed:            uint64(time.Now().UnixNano()),
+		Recents:         recents,
+		Config:          settings,
+		Effects:         !calm,
+		Updates:         updates,
+		Version:         version,
+		Upgrade:         upgradeCommand(),
 	}
 }
 
@@ -102,7 +119,8 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 		loginCtx, stop := context.WithCancel(ctx)
 		signedIn := make(chan error, 1)
 		go func() { signedIn <- r.SignIn(loginCtx, player) }()
-		err := runUIWithTyping(p, recents, settings, calm, updates, androidTypingHook(loginCtx, r.Bridge), tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx))
+		model := radio.New(p, androidRadioOptions(recents, settings, calm, updates, androidTypingHook(loginCtx, r.Bridge)))
+		_, err := tea.NewProgram(model, tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx), tea.WithFPS(radio.RenderFPS)).Run()
 		stop()
 		if loginErr := <-signedIn; loginErr != nil && !errors.Is(loginErr, context.Canceled) {
 			fmt.Fprintln(d.stderr, "nu11signal: Android sign-in:", loginErr)

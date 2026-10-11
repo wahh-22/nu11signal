@@ -614,6 +614,10 @@ public class MainActivity extends Activity {
                         textInputAvailable = show;
                         if (!show) setKeyboard(false);
                     });
+                } else if ("cancel".equals(type)) {
+                    // Remove on the socket reader, before queued UI tasks run.
+                    // Running MusicKit promises cannot be aborted; settle drops their replies.
+                    pendingEvaluations.remove(message.getLong("id"));
                 } else if ("evaluate".equals(type)) {
                     long id = message.getLong("id");
                     String expr = message.getString("expr");
@@ -621,7 +625,9 @@ public class MainActivity extends Activity {
                     String script = "(async()=>{try{const v=await (" + expr + ");NU11.settle(" + JSONObject.quote(token) + "," + id
                         + ",JSON.stringify({ok:true,value:v===undefined?null:v}));}catch(e){NU11.settle(" + JSONObject.quote(token) + "," + id
                         + ",JSON.stringify({ok:false,error:String((e&&e.message)||e)}));}})();void 0";
-                    runOnUiThread(() -> { if (!destroyed) music.evaluateJavascript(script, null); });
+                    runOnUiThread(() -> {
+                        if (!destroyed && pendingEvaluations.contains(id)) music.evaluateJavascript(script, null);
+                    });
                 }
             }
         }

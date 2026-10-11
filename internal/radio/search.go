@@ -265,7 +265,7 @@ func (m *Model) inputChanged() tea.Cmd {
 	}
 	m.stopSearch()
 	seq := m.search.seq
-	return tea.Tick(searchDebounce, func(time.Time) tea.Msg { return searchDebounceMsg{seq: seq} })
+	return tea.Tick(m.searchDelay, func(time.Time) tea.Msg { return searchDebounceMsg{seq: seq} })
 }
 
 func (m Model) inputTerm() string { return strings.TrimSpace(m.input.Value()) }
@@ -298,7 +298,7 @@ func (m Model) searchNow() (Model, tea.Cmd) {
 // startSearch stops the pending search and starts one for term.
 func (m *Model) startSearch(term string) tea.Cmd {
 	m.stopSearch()
-	ctx, cancel := m.ctx()
+	ctx, cancel := context.WithTimeout(context.Background(), m.searchTimeout)
 	m.search.cancel = cancel
 	m.search.loading = true
 	seq := m.search.seq

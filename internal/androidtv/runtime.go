@@ -283,7 +283,7 @@ func (p *Player) AuthorizationHint() string { return "relaunch nu11signal on the
 // NewPlayer waits for MusicKit before returning the reusable web player.
 // Readiness is bounded by webplayer.BridgeLoadTimeout as well as ctx.
 func (r *Runtime) NewPlayer(ctx context.Context) (*Player, error) {
-	p := webplayer.New(r.Bridge)
+	p := webplayer.New(r.Bridge, webplayer.WithCatalogTimeout(CatalogTimeout))
 	if err := webplayer.WaitReady(ctx, p); err != nil {
 		p.Close()
 		return nil, err
