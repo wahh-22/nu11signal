@@ -18,6 +18,8 @@ type client interface {
 
 // Start records float32 mono PCM. The callback must not retain the slice.
 // stop is idempotent; cancellation also releases the stream and connection.
+// During a callback, stop disables delivery immediately and cleans up
+// asynchronously, so the recorder can finish that callback first.
 func Start(ctx context.Context, onSamples func([]float32, int)) (func(), error) {
 	return start(ctx, onSamples, connect)
 }
@@ -34,6 +36,7 @@ func start(ctx context.Context, onSamples func([]float32, int), open func() (cli
 	closeClient := func() { closeOnce.Do(c.close) }
 	var callbackMu sync.Mutex
 	stopped := false
+	active := 0
 	disable := func() {
 		callbackMu.Lock()
 		stopped = true
@@ -57,8 +60,18 @@ func start(ctx context.Context, onSamples func([]float32, int), open func() (cli
 	}()
 	end, err := c.record(func(samples []float32, rate int) {
 		callbackMu.Lock()
-		defer callbackMu.Unlock()
-		if !stopped && ctx.Err() == nil {
+		enabled := !stopped && ctx.Err() == nil
+		if enabled {
+			active++
+		}
+		callbackMu.Unlock()
+		// User callbacks may call stop; never invoke them under its lock.
+		if enabled {
+			defer func() {
+				callbackMu.Lock()
+				active--
+				callbackMu.Unlock()
+			}()
 			onSamples(samples, rate)
 		}
 	})
@@ -76,10 +89,19 @@ func start(ctx context.Context, onSamples func([]float32, int), open func() (cli
 	stop := func() {
 		once.Do(func() {
 			disable()
-			end()
-			closeClient()
-			close(done)
+			// Pulse stream shutdown may await the recorder's callback.
+			go func() {
+				end()
+				closeClient()
+				close(done)
+			}()
 		})
+		callbackMu.Lock()
+		inCallback := active > 0
+		callbackMu.Unlock()
+		if !inCallback {
+			<-done
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		stop()

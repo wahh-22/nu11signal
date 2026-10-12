@@ -104,6 +104,7 @@ type Player struct {
 	// hidden is set by Hide; a new install hides the page again.
 	hidden bool
 
+	captureWait   func(context.Context, time.Duration) error
 	capture       func(context.Context, func([]float32, int)) (func(), error)
 	readings      chan playback.Spectrum
 	captureCancel context.CancelFunc // guarded by mu
@@ -210,6 +211,7 @@ func New(page Evaluator, opts ...Option) *Player {
 	p := &Player{
 		page:           page,
 		capture:        pulsecapture.Start,
+		captureWait:    sleep,
 		readings:       make(chan playback.Spectrum, 1),
 		every:          DefaultPollInterval,
 		now:            time.Now,

@@ -50,7 +50,7 @@ func (p *Player) captureLevels(ctx context.Context) {
 	var meter *spectrum.Meter
 	rate := 0
 	fresh := false
-	stop, err := p.capture(ctx, func(samples []float32, r int) {
+	onSamples := func(samples []float32, r int) {
 		if r <= 0 || ctx.Err() != nil {
 			return
 		}
@@ -64,11 +64,24 @@ func (p *Player) captureLevels(ctx context.Context) {
 		if len(samples) > 0 {
 			fresh = true
 		}
-	})
-	// The TUI owns stderr. Capture is optional, so failure stays silent and is
-	// not retried on every poll; the next playing interval can try again.
-	if err != nil {
-		return
+	}
+	// The TUI owns stderr. Optional capture failures stay silent, including
+	// retries while WSLg (or another PulseAudio server) is starting up.
+	backoff := time.Second
+	var stop func()
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		var err error
+		stop, err = p.capture(ctx, onSamples)
+		if err == nil {
+			break
+		}
+		if p.captureWait(ctx, backoff) != nil {
+			return
+		}
+		backoff = min(backoff*2, 10*time.Second)
 	}
 	defer stop()
 	ticker := time.NewTicker(spectrum.ReadingInterval)

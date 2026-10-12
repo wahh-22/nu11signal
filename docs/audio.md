@@ -84,7 +84,10 @@ or stopped. The shared Go DSP (`internal/playback/spectrum`), also used for
 local files, produces the same 24 bands and 64-point wave.
 
 Without a server or a usable monitor, the rain falls back to decorative
-animation; playback continues. Check the available monitors with
+animation; playback continues. While playing, capture retries silently after
+1 second, doubling the delay up to 10 seconds until it succeeds (including
+when WSLg's PulseAudio socket appears late). Pausing, stopping, or quitting
+cancels retries; resuming starts a fresh attempt. Check the available monitors with
 `pactl list sources short`: the default output should have a `.monitor`
 source. Developers can check capture and DSP with
 [`scripts/linux-audio-e2e.sh`](../scripts/linux-audio-e2e.sh) (Docker, no

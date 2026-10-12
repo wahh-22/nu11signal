@@ -102,6 +102,47 @@ func TestCaptureCancellationDuringStartup(t *testing.T) {
 	}
 }
 
+type callbackStoppingClient struct {
+	fakeClient
+	returned chan struct{}
+}
+
+func (f *callbackStoppingClient) record(cb func([]float32, int)) (func(), error) {
+	end, err := f.fakeClient.record(cb)
+	return func() {
+		<-f.returned // Model a recorder whose shutdown awaits its callback.
+		end()
+	}, err
+}
+
+func TestCaptureCallbackCanStop(t *testing.T) {
+	f := &callbackStoppingClient{returned: make(chan struct{})}
+	var stop func()
+	stop, err := start(context.Background(), func([]float32, int) {
+		if stop != nil {
+			stop()
+		}
+	}, func() (client, error) { return f, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		f.cb([]float32{1}, 48000)
+		close(f.returned)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("callback calling stop deadlocked")
+	}
+	stop()
+	if f.closes.Load() != 2 {
+		t.Fatal("cleanup must be exactly once")
+	}
+}
+
 func TestCaptureErrors(t *testing.T) {
 	for _, f := range []*fakeClient{nil, {fail: true}} {
 		_, err := start(context.Background(), func([]float32, int) {}, func() (client, error) {
