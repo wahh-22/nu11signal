@@ -229,7 +229,7 @@ func TestArtistCursorSkipsHeadersAndPlaysTopSongsFromSelection(t *testing.T) {
 func TestArtistAboutMoreTogglesFullNotes(t *testing.T) {
 	f := playbacktest.New()
 	m := openDaftPunk(t, f)
-	m, _ = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 60})
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 161, Height: 60})
 
 	if view := plain(m); strings.Contains(view, "helmets off") || !strings.Contains(view, "▸ MORE") {
 		t.Fatalf("collapsed notes show everything or lack MORE:\n%s", view)

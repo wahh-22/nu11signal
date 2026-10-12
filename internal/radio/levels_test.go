@@ -63,8 +63,8 @@ func TestEQBarCountFollowsThePanel(t *testing.T) {
 		expanded bool
 		want     int
 	}{
-		// NOW PLAYING is 31 cells wide beside the list: 27 inside its margins.
-		{"beside the list", 80, 24, false, 14},
+		// NOW PLAYING is 43 cells wide beside the list: 39 inside its margins.
+		{"beside the list", 80, 24, false, 20},
 		{"wide beside the list", 160, 40, false, 42},
 		{"expanded", 80, 24, true, 38},
 		{"expanded wider than the bands", 200, 40, true, eqBands},
@@ -80,7 +80,7 @@ func TestEQBarCountFollowsThePanel(t *testing.T) {
 	}
 }
 
-// playingWithLevels is a loaded model that plays, at 80x24 (14 bars).
+// playingWithLevels is a loaded model that plays, at 80x24 (20 bars).
 func playingWithLevels(t *testing.T) (Model, *playbacktest.Fake, *clock) {
 	t.Helper()
 	f := playbacktest.New()
@@ -99,11 +99,11 @@ func TestEQDrawsFreshLevels(t *testing.T) {
 	f.PushLevels(playback.Spectrum{Bands: bands})
 	m = tick(t, m)
 
-	want := resampleLevels(bands, 14)
-	if got := m.bars[:14]; !slices.Equal(got, want) {
+	want := resampleLevels(bands, m.eqBarCount())
+	if got := m.bars[:m.eqBarCount()]; !slices.Equal(got, want) {
 		t.Fatalf("bars = %v; want %v", got, want)
 	}
-	if rest := m.bars[14:]; slices.ContainsFunc(rest, func(v float64) bool { return v != 0 }) {
+	if rest := m.bars[m.eqBarCount():]; slices.ContainsFunc(rest, func(v float64) bool { return v != 0 }) {
 		t.Fatalf("hidden bars not cleared: %v", rest)
 	}
 }
@@ -115,7 +115,7 @@ func TestEQKeepsTheLatestLevelsWhileFresh(t *testing.T) {
 	// No new reading for a moment (a reading is late): the bars hold it.
 	c.advance(400 * time.Millisecond)
 	m = tick(t, m)
-	if m.bars[0] != 1 || m.bars[13] != 1 {
+	if m.bars[0] != 1 || m.bars[m.eqBarCount()-1] != 1 {
 		t.Fatalf("bars = %v; want the held reading", m.bars[:14])
 	}
 }
@@ -208,7 +208,7 @@ func TestEQWaitsForLevelsInAppMode(t *testing.T) {
 	c.t = m.playSince.Add(eqWaitLevels - time.Millisecond)
 	f.PushLevels(playback.Spectrum{Bands: allBars(0.6)})
 	m = tick(t, m)
-	if want := (eq{}).follow(allBars(0.6), 14); m.bars != want {
+	if want := (eq{}).follow(allBars(0.6), m.eqBarCount()); m.bars != want {
 		t.Fatalf("bars = %v; want the first reading", m.bars[:14])
 	}
 }
@@ -241,11 +241,11 @@ func TestEQHandsOverSmoothlyFromDecorativeToLevels(t *testing.T) {
 		m = tick(t, m)
 		c.advance(fastTick)
 	}
-	target := (eq{}).follow(allBars(1), 14)
+	target := (eq{}).follow(allBars(1), m.eqBarCount())
 	before := m.bars
 	f.PushLevels(playback.Spectrum{Bands: allBars(1)})
 	m = tick(t, m)
-	for i := range 14 {
+	for i := range m.eqBarCount() {
 		if m.bars[i] <= before[i] || m.bars[i] >= 1 {
 			t.Fatalf("bar %d jumped from %.2f to %.2f, want it between them and the reading 1", i, before[i], m.bars[i])
 		}
@@ -270,7 +270,7 @@ func TestEQHandsOverSmoothlyFromLevelsToDecorative(t *testing.T) {
 	if want := before.step(true, m.seed, m.frame); m.bars != want {
 		t.Fatalf("bars = %v; want the decorative step from the reading", m.bars[:14])
 	}
-	for i := range 14 {
+	for i := range m.eqBarCount() {
 		if m.bars[i] < 0.4 {
 			t.Fatalf("bar %d dropped from 1 to %.2f on the handover", i, m.bars[i])
 		}
@@ -309,7 +309,7 @@ func TestEQIgnoresEmptyLevels(t *testing.T) {
 		m = tick(t, m)
 		f.PushLevels(playback.Spectrum{Bands: []float64{}})
 		m = tick(t, m)
-		if want := (eq{}).follow(allBars(0.8), 14); m.bars != want {
+		if want := (eq{}).follow(allBars(0.8), m.eqBarCount()); m.bars != want {
 			t.Fatalf("bars = %v; want the last reading kept", m.bars[:14])
 		}
 	})

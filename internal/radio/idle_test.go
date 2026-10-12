@@ -68,10 +68,10 @@ func TestIdleEmblemShowsCenteredInTheRainArea(t *testing.T) {
 			}
 			w, h := m.vizSize()
 			art, ok := idleArtFor(w, h)
-			// The 27 x 8 area at 80x24 is narrower than the logo (52
+			// The 39 x 8 area at 80x24 is narrower than the logo (52
 			// cells): its head alone.
-			if w != 27 || h != 8 || !ok || !slices.Equal(art.e.rows, emblemHead.rows) {
-				t.Fatalf("idleArtFor(%d, %d) = %+v, %v; want the head alone in 27 x 8", w, h, art, ok)
+			if w != 39 || h != 8 || !ok || !slices.Equal(art.e.rows, emblemHead.rows) {
+				t.Fatalf("idleArtFor(%d, %d) = %+v, %v; want the head alone in 39 x 8", w, h, art, ok)
 			}
 			if wantX, wantY := (w-emblemHead.width())/2, (h-len(emblemHead.rows))/2; art.x != wantX || art.y != wantY {
 				t.Fatalf("emblem at %d,%d, want centered at %d,%d", art.x, art.y, wantX, wantY)

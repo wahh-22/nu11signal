@@ -392,8 +392,8 @@ playing is in the list nu11signal queued (after the last one, the first
 while the loop repeats), else the volume driven and the effects
 (`APP VOLUME // FX ON`).
 
-The list panel keeps one width in every view (the browse pages' width),
-leaving NOW PLAYING at least 30 columns.
+The list panel keeps one width in every view: 45% of the terminal width,
+clamped to 28–72 columns, leaving NOW PLAYING at least 30 columns.
 
 ## Mouse
 
