@@ -31,9 +31,19 @@ request 2026-10-11.
   and stopped with playback, graceful fallback, tests.
 - [x] L3 — Docker end-to-end check (pulse daemon, null sink, tone) + docs
   (docs/audio.md Spectrum, docs/usage.md Linux).
-- [ ] L4 — Real Linux desktop check with Apple Music (needs a Linux machine).
+- [x] L4 — Real Linux desktop check with Apple Music (needs a Linux machine).
 
 ## Progress
+- 2026-10-12: L4 on the user's Windows PC (WSL2 Ubuntu 24.04, WSLg
+  PulseAudio, Flatpak Google Chrome): pulseprobe 1 kHz -> band 12, 100 Hz ->
+  band 3, silence 0; the user saw the rain follow Apple Music. Follow-ups
+  from that test: `fa1b90b` capture retries while playing (WSLg socket appears
+  late; review `review-635da120d83a69ab` approved); `6cf7b29` list panel at
+  9/20 of the width so NOW PLAYING keeps the 161-column share on narrower
+  terminals (user confirmed on WSL; one-line logic change plus 30 regenerated
+  golden snapshots, too large for the native review budget even alone:
+  `review-83ad973aca116d9d` lens_context_budget_exceeded, covered by the
+  test suite, 1491 passed). Feature complete; push/PR is the user's call.
 - 2026-10-11: L1 `d9e015b` (review `review-f86aac6115daa330` approved), L2
   `f317663` (review `review-516b623dd4fb655e` approved), L3 Docker e2e passes
   (1 kHz -> band 12, 100 Hz -> band 3, silence -> 0) + docs. L4 needs a real
