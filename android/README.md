@@ -253,7 +253,11 @@ creates the run directory with mode 0700. Go creates its socket with mode
 up to 20 seconds. HOME and XDG_CONFIG_HOME use private `home` and `config`
 directories; TMPDIR is the cache directory, TERM is xterm-256color, and
 COLORTERM is truecolor. stderr is read separately under logcat tag
-`nu11signal`. Startup failures are displayed as plain terminal text.
+`nu11signal`. Startup failures are displayed as plain terminal text. While
+Apple Music loads, Go draws the TUI's boot splash (emblem and BOOTING line)
+from the first terminal frame and holds it until the web player is ready,
+then hands the same Bubble Tea program over to the normal UI
+(`radio.Startup`).
 
 The filesystem LocalSocket carries UTF-8 JSON lines, not terminal data:
 
@@ -283,6 +287,13 @@ page without marking MusicKit hidden. Login mode, the sign-in guide, or an
 open child window restores its full-screen layout; returning to the TUI
 shrinks it again. Neither WebView pause nor pauseTimers is issued. The
 terminal's layer type is unchanged to preserve its WebGL rendering path.
+Requests for Apple's animated album art (silent HLS streams on
+`mvod.itunes.apple.com` whose file name contains `_Anull_`, see
+`MotionArtwork.java`) get an empty 403: on a cold start the home page
+otherwise decoded about a dozen of them in the hidden page, keeping a
+hardware decoder and the CPU busy for many seconds. Songs and anything with
+an audio track are unaffected. `scripts/test-android-motion-artwork.sh` runs
+its host-JVM tests.
 
 ## Background playback and system media controls
 
