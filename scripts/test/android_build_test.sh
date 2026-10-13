@@ -24,8 +24,17 @@ exit 1
 EOF
   cat >"$T/sdk/build-tools/35.0.0/d8" <<'EOF'
 #!/usr/bin/env bash
-while (($#)); do if [[ "$1" == --output ]]; then touch "$2/classes.dex"; exit 0; fi; shift; done
-exit 1
+out=""
+classes=0
+while (($#)); do
+  case "$1" in
+    --output) out="$2"; shift 2 ;;
+    *.class) [[ -f "$1" ]] || exit 1; classes=$((classes + 1)); shift ;;
+    *) shift ;;
+  esac
+done
+[[ -n "$out" && "$classes" -gt 0 ]] || exit 1
+touch "$out/classes.dex"
 EOF
   cat >"$T/sdk/build-tools/35.0.0/zipalign" <<'EOF'
 #!/usr/bin/env bash
@@ -53,9 +62,21 @@ EOF
 while (($#)); do if [[ "$1" == -keystore ]]; then touch "$2"; exit 0; fi; shift; done
 exit 1
 EOF
-  ln -s /usr/bin/true "$T/bin/javac"
+  cat >"$T/bin/javac" <<'EOF'
+#!/usr/bin/env bash
+# Model javac's output so d8 receives classes on every supported Bash version.
+while (($#)); do
+  if [[ "$1" == -d ]]; then
+    mkdir -p "$2/dev/wahh/nu11signal/tv"
+    touch "$2/dev/wahh/nu11signal/tv/MainActivity.class"
+    exit 0
+  fi
+  shift
+done
+exit 1
+EOF
   ln -s /usr/bin/true "$T/bin/zip"
-  chmod +x "$T/bin/go" "$T/bin/keytool" "$T/sdk/build-tools/35.0.0/"{aapt2,d8,zipalign,apksigner}
+  chmod +x "$T/bin/go" "$T/bin/keytool" "$T/bin/javac" "$T/sdk/build-tools/35.0.0/"{aapt2,d8,zipalign,apksigner}
 }
 android_build() { run bash "$T/root/android/build.sh"; }
 
