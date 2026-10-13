@@ -107,10 +107,14 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 	// The boot splash shows from the first frame and holds while Apple
 	// Music loads (see radio.Startup); runUI hands the program over to the
 	// UI built on the opened player. Without that handover (the player did
-	// not open) the splash quits before play's error is reported.
+	// not open) the splash quits before play's error is reported. ctx owns
+	// SIGINT and SIGTERM (signal.NotifyContext above): Bubble Tea's own
+	// handler could block sending its quit message once ctx has ended the
+	// event loop, and the program would never return.
 	next := make(chan radio.Model, 1)
 	startup := tea.NewProgram(radio.NewStartup(radio.Options{Seed: uint64(time.Now().UnixNano()), Effects: !calm}, next),
-		tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx), tea.WithFPS(radio.RenderFPS))
+		tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx), tea.WithFPS(radio.RenderFPS),
+		tea.WithoutSignalHandler())
 	ui := make(chan error, 1)
 	go func() {
 		_, err := startup.Run()
