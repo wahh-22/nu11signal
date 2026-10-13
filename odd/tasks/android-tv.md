@@ -121,7 +121,7 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
 - [ ] A3c — Open the TV keyboard automatically when the TUI enters a text
   input (SEARCH, NEW PLAYLIST name) and hide it when it leaves; today only a
   long OK opens it (user could not find it).
-- [ ] A4 — Foreground media service + MediaSession (background playback,
+- [x] A4 — Foreground media service + MediaSession (background playback,
   media keys).
 - [ ] A5 — Build and release tooling: `make android`, signing with the
   user's own key, artifacts.
@@ -131,6 +131,13 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   remote, search, play, background, relaunch keeps the session).
 
 ## Progress
+- 2026-10-13: A4 `cc20bdf` + correction `706c2a0` (review
+  `review-091b50a76cbaba1b`: CRITICAL background FGS-start crash on Android
+  12+ found, corrected by deferring the start until the Activity is in front,
+  validated, approved). Verified on the TV: PlaybackService foreground while
+  playing; after Home playback continues (8 s -> 41 s); remote play/pause and
+  next work from the launcher; MediaSession active. Advisories: nowplaying
+  anchor dedup, failed publication retry, notification position anchor.
 - 2026-10-11: A3d `898bd31` (empty-queue resume no longer reports playing;
   keyboard on OK; review `review-c7d3185b7664847f` approved; user confirmed).
   A9 `295a60d` real spectrum from Visualizer(0) (review
