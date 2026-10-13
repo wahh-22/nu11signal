@@ -123,7 +123,7 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   long OK opens it (user could not find it).
 - [x] A4 — Foreground media service + MediaSession (background playback,
   media keys).
-- [ ] A5 — Build and release tooling: `make android`, signing with the
+- [x] A5 — Build and release tooling: `make android`, signing with the
   user's own key, artifacts.
 - [ ] A6 — User guide `docs/android-tv.md` + README/install links +
   developer build docs.
@@ -131,6 +131,16 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   remote, search, play, background, relaunch keeps the session).
 
 ## Progress
+- 2026-10-13: A5 `f88fd07` + correction `aaffb1a` (review
+  `review-7043c5959ea402fa`: CRITICAL verify-then-copy race on the shared
+  build output, corrected by verifying and publishing the same private
+  snapshot; validated, approved). Release key created outside the repo
+  (`~/Library/Application Support/nu11signal/android/`, password in the macOS
+  keychain, cert SHA-256 4481...4320). Parent found and fixed during real
+  validation: aapt2 kept the manifest's placeholder versionCode/versionName
+  without `--replace-version`; release now refuses a wrong version. Real runs:
+  1.2.3 dry-run (signer ok, not debuggable, versionCode 10203); real 0.0.2
+  publish (apk + sha256 OK, removed afterwards). `make test-scripts` 79 pass.
 - 2026-10-13: A4 `cc20bdf` + correction `706c2a0` (review
   `review-091b50a76cbaba1b`: CRITICAL background FGS-start crash on Android
   12+ found, corrected by deferring the start until the Activity is in front,
