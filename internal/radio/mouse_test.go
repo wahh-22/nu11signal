@@ -247,15 +247,15 @@ func TestTransportButtonsDriveThePlayer(t *testing.T) {
 func TestClickOnTheProgressBarSeeks(t *testing.T) {
 	f := playbacktest.New()
 	m := loaded(t, f, newClock())
-	// At 120 columns the bar is 28 cells, so a 280 s song is 10 s a cell.
+	// At 120 columns the bar is 46 cells, so a 460 s song is 10 s a cell.
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
-	m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 280*time.Second)})
+	m, _ = step(t, m, stateMsg{state: playing(83*time.Second, 460*time.Second)})
 	z := zoneOf(t, m, zoneSeek)
 	if got := textAt(m, z); strings.Trim(got, "▮▯") != "" || got == "" {
 		t.Fatalf("seek zone covers %q; want only the bar", got)
 	}
-	if z.w != 28 {
-		t.Fatalf("bar is %d cells; the expected targets assume 28", z.w)
+	if z.w != 46 {
+		t.Fatalf("bar is %d cells; the expected targets assume 46", z.w)
 	}
 	for _, tt := range []struct {
 		name string
@@ -264,7 +264,7 @@ func TestClickOnTheProgressBarSeeks(t *testing.T) {
 	}{
 		{"first cell is the start", 0, 0},
 		{"a middle cell", 7, 70 * time.Second},
-		{"last cell is its own start, short of the end", 27, 270 * time.Second},
+		{"last cell is its own start, short of the end", 45, 450 * time.Second},
 	} {
 		m2, cmd := step(t, m, tea.MouseClickMsg{X: z.x + tt.cell, Y: z.y, Button: tea.MouseLeft})
 		settle(t, m2, cmd)
@@ -416,7 +416,7 @@ func TestClickOnResultRowsOpensThemAndHeadersAreInert(t *testing.T) {
 func TestClickOnMoreTogglesTheNotes(t *testing.T) {
 	f := playbacktest.New()
 	m := openDaftPunk(t, f)
-	m, _ = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 60})
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 161, Height: 60})
 	items := m.artistItems()
 	more := len(items) - 1
 	if items[more].kind != itemMore {

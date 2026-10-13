@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/spectrum"
 )
 
 // TestSmokeRealDevice plays a generated tone on the real default output
@@ -91,10 +92,10 @@ loop:
 	if readings < 5 {
 		t.Fatalf("%d level readings in ~1.2 s, want at least 5 (15 Hz)", readings)
 	}
-	if len(reading.Bands) != numBands {
-		t.Fatalf("reading has %d bands, want %d", len(reading.Bands), numBands)
+	if len(reading.Bands) != spectrum.BandCount {
+		t.Fatalf("reading has %d bands, want %d", len(reading.Bands), spectrum.BandCount)
 	}
-	band := bandOf(hz, numBands, minHz, maxHz)
+	const band = 12 // 1 kHz falls in band 12 of the documented 24-band scale.
 	for i, b := range reading.Bands {
 		if b > reading.Bands[band] {
 			t.Errorf("band %d (%.2f) is louder than the tone's band %d (%.2f)", i, b, band, reading.Bands[band])

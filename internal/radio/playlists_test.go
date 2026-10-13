@@ -103,6 +103,7 @@ func TestEnterOnAPlaylistOpensItsTracks(t *testing.T) {
 			t.Fatalf("opening the playlist called %s", method)
 		}
 	}
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
 	body := trackRows(m)
 	for _, want := range []string{"▶ PLAY", "1  NIGHTCALL · KAVINSKY", "3  TURBO KILLER", "3 SONGS"} {
 		if !strings.Contains(body, want) {
