@@ -103,7 +103,7 @@ final class TvUpdateUi {
     private void showOffer() {
         if (!available() || visible() || offer == null) return;
         String action = downloaded == null ? "Download and install" : "Install update";
-        dialog = new AlertDialog.Builder(activity).setTitle("nu11signal " + offer.version + " is available")
+        dialog = builder("nu11signal " + offer.version + " is available")
                 .setMessage("Update this TV app. Android will ask you to confirm installation. Your Apple Music session is kept.")
                 .setPositiveButton(action, (d, which) -> { dialog = null; prepare(); })
                 .setNegativeButton("Later", (d, which) -> { dismissed = true; dialog = null; })
@@ -115,7 +115,7 @@ final class TvUpdateUi {
     private void prepare() {
         if (!available() || offer == null) return;
         if (!installer.canInstall()) {
-            dialog = new AlertDialog.Builder(activity).setTitle("Allow nu11signal updates")
+            dialog = builder("Allow nu11signal updates")
                     .setMessage("In Android Settings, allow this app to install unknown apps, then press Back. You will still confirm each update.")
                     .setPositiveButton("Open Settings", (d, which) -> {
                         dialog = null;
@@ -178,7 +178,7 @@ final class TvUpdateUi {
 
     private void progress(String title) {
         closeDialog();
-        dialog = new AlertDialog.Builder(activity).setTitle(title)
+        dialog = builder(title)
                 .setMessage("You can cancel and keep using nu11signal.")
                 .setNegativeButton("Cancel", (d, which) -> cancel())
                 .setOnCancelListener(d -> cancel()).create();
@@ -213,7 +213,7 @@ final class TvUpdateUi {
     private void message(String title, String text) {
         if (!available()) return;
         closeDialog();
-        dialog = new AlertDialog.Builder(activity).setTitle(title).setMessage(text)
+        dialog = builder(title).setMessage(text)
                 .setPositiveButton("OK", (d, which) -> { dialog = null; dismissed = true; })
                 .setOnCancelListener(d -> { dialog = null; dismissed = true; }).create();
         dialog.show();
@@ -221,5 +221,9 @@ final class TvUpdateUi {
 
     private void closeDialog() {
         if (dialog != null) { dialog.dismiss(); dialog = null; }
+    }
+
+    private AlertDialog.Builder builder(String title) {
+        return new AlertDialog.Builder(activity).setIcon(R.drawable.logo_mark).setTitle(title);
     }
 }
