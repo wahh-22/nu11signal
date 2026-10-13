@@ -32,7 +32,9 @@ func spectrumPlayer(t *testing.T) (*Player, chan playback.State, chan webplayer.
 	controls := make(chan bool, 16)
 	p := &Player{Player: webplayer.New(nil)}
 	p.startSpectrum(states, readings, func(_ context.Context, m webplayer.BridgeMessage) error {
-		controls <- m.On
+		if m.Type == "levels" {
+			controls <- m.On
+		}
 		return nil
 	})
 	t.Cleanup(func() { p.Close() })

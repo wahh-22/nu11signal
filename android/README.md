@@ -81,8 +81,9 @@ target. One dimension may have extra cells. The full TUI needs at least 60x16.
 stdout is collected for up to 16 ms or 32 KiB, then passed as base64-decoded
 bytes to xterm. Only one terminal JavaScript evaluation may be posted or
 in flight; until its ValueCallback completes, further output coalesces in
-a pending buffer capped at 256 KiB. At the cap, producers wait rather than
-dropping bytes or queuing more evaluations. Raw
+a pending buffer capped at 256 KiB. While the Activity is started, producers wait at the cap rather than
+dropping bytes or queuing more evaluations. While stopped, output is drained
+and discarded instead (see Background playback below). Raw
 Android keys never reach xterm's own input handler. xterm's `onData` still
 forwards terminal query replies to Go through the local-only JS interface.
 
@@ -231,7 +232,8 @@ COLORTERM is truecolor. stderr is read separately under logcat tag
 
 The filesystem LocalSocket carries UTF-8 JSON lines, not terminal data:
 
-- Go sends `evaluate {id, expr}`, `login {show}`, `levels {on}`, or `keyboard {show}`.
+- Go sends `evaluate {id, expr}`, `login {show}`, `levels {on}`, `keyboard {show}`,
+  or `nowplaying {title, artist, album, playing, position_ms, duration_ms}`.
   Levels enable output-mix capture only while playing; repeated states do not
   repeat the control.
   Keyboard `show:true` marks TUI text input available; `show:false` clears
@@ -257,8 +259,45 @@ open child window restores its full-screen layout; returning to the TUI
 shrinks it again. Neither WebView pause nor pauseTimers is issued. The
 terminal's layer type is unchanged to preserve its WebGL rendering path.
 
-A normal Go exit finishes the Activity. Nonzero exits remain visible with
-an error. Destruction closes the socket/pipes and terminates Go. Foreground
-service and MediaSession lifecycle support are deferred to A4; background
-playback is not guaranteed yet. Device verification and the end-user guide
-are separate tasks, not part of this shell.
+## Background playback and system media controls
+
+The first `nowplaying` message with `playing:true` starts `PlaybackService`,
+a platform foreground mediaPlayback service. Its low-importance `playback`
+channel has a MediaStyle notification with previous, play/pause and next
+controls. A platform MediaSession publishes title, artist, album, duration and
+position to the TV's now-playing surfaces. Media-session notifications are
+exempt from the Android notification permission prompt; POST_NOTIFICATIONS is
+declared but the app does not request it.
+
+Home, another app, and ambient/screensaver mode do not pause MusicKit: the
+music WebView remains attached, VISIBLE and 1x1 behind the terminal, and neither
+WebView receives onPause or pauseTimers. While the Activity is stopped, stdout
+continues to drain but terminal bytes are dropped; no new terminal JavaScript
+work is posted. onStart sends a resize to redraw the TUI. Spectrum capture still
+pauses when the Activity pauses, without affecting audio.
+
+Go sends deduplicated `nowplaying {title, artist, album, playing, position_ms,
+duration_ms}` anchors at most once per second. Ordinary advancing position ticks
+are suppressed; song/status/duration changes and seeks update the anchor.
+Strings are limited to 512 Unicode code points. MusicKit poll jitter up to
+500 ms is ignored when detecting seeks.
+
+The service uses the Activity's existing serialized stdin writer in the same
+process (`space`, `n`, `p`), not another player. Explicit play/pause callbacks
+check the reported playing state before toggling. While the Activity is resumed,
+it consumes physical remote media keys and the session ignores media-button
+events, avoiding double delivery; direct session/notification controls still
+work. Sign-in ignores service input just like foreground remote input.
+
+After five minutes paused the service removes its foreground notification,
+but keeps the session available until exit; playback restores foreground mode.
+The static bridge retains the Activity only for its lifetime and is cleared on
+Activity destruction. The service is not sticky: it cannot recreate Go or the
+WebViews after process death. A foreground service improves background survival,
+but Android/device resource policies can still kill the process.
+
+To stop playback and the service, return to nu11signal and press `q`, or long
+Back outside a text input, then confirm quitting. A normal Go exit finishes the
+Activity. Nonzero exits remain visible with an error. Destruction stops the
+service, releases the MediaSession, closes socket/pipes and terminates Go.
+Device verification and the end-user guide remain separate tasks.

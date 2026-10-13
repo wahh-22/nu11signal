@@ -37,6 +37,26 @@ func (p *Player) startSpectrum(states <-chan playback.State, readings <-chan web
 		defer close(p.spectrumStates)
 		defer close(p.levels)
 		on := false
+		var nowPlaying nowPlayingTracker
+		var lastSent time.Time
+		var lastMessage webplayer.BridgeMessage
+		var dirty bool
+		timer := time.NewTimer(time.Hour)
+		timer.Stop()
+		defer timer.Stop()
+		var due <-chan time.Time
+		publish := func() {
+			dirty = false
+			due = nil
+			if sameNowPlaying(nowPlaying.message, lastMessage) {
+				return
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			_ = send(ctx, nowPlaying.message)
+			lastSent = time.Now()
+			lastMessage = nowPlaying.message
+		}
 		control := func(next bool) {
 			if next == on {
 				return
@@ -57,11 +77,24 @@ func (p *Player) startSpectrum(states <-chan playback.State, readings <-chan web
 			select {
 			case <-p.captureStop:
 				return
+			case <-due:
+				if dirty {
+					publish()
+				}
 			case s, ok := <-states:
 				if !ok {
 					return
 				}
 				control(s.Status == playback.StatusPlaying)
+				if nowPlaying.update(s, time.Now()) {
+					dirty = true
+					if time.Since(lastSent) >= time.Second {
+						publish()
+					} else if due == nil {
+						timer.Reset(time.Second - time.Since(lastSent))
+						due = timer.C
+					}
+				}
 				offerLatest(p.spectrumStates, s)
 			case m := <-readings:
 				if !on || len(m.Bands) == 0 {

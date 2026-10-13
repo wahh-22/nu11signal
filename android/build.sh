@@ -46,7 +46,7 @@ for arch in arm arm64; do
   --min-sdk-version 28 --target-sdk-version 34 --version-name "$VERSION" ${DEBUG_FLAGS[@]+"${DEBUG_FLAGS[@]}"} \
   --java "$WORK/generated" "$WORK/resources.zip"
 javac --release 11 -classpath "$ANDROID_JAR" -d "$WORK/classes" \
-  "$ROOT/src/dev/wahh/nu11signal/tv/MainActivity.java" "$WORK/generated/dev/wahh/nu11signal/tv/R.java"
+  "$ROOT/src/dev/wahh/nu11signal/tv/"*.java "$WORK/generated/dev/wahh/nu11signal/tv/R.java"
 CLASSES=()
 while IFS= read -r file; do CLASSES+=("$file"); done < <(find "$WORK/classes" -name '*.class' -type f)
 "$TOOLS/d8" --lib "$ANDROID_JAR" --min-api 28 --output "$WORK/dex" "${CLASSES[@]}"

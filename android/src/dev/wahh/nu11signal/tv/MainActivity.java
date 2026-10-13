@@ -78,7 +78,7 @@ public class MainActivity extends Activity {
     private float touchX, touchY;
     private Runnable touchContinuation;
     private boolean loginShown, keyboardShown, textInputAvailable, started, centerLong, backLong;
-    private volatile boolean destroyed, startupFailed, connected;
+    private volatile boolean destroyed, startupFailed, connected, terminalVisible;
     private volatile int cols = 161, rows = 44;
     private volatile Process process;
     private volatile LocalSocket socket;
@@ -110,6 +110,7 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        PlaybackService.attach(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         WebView.setWebContentsDebuggingEnabled(
                 (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
@@ -603,6 +604,8 @@ public class MainActivity extends Activity {
                         showLogin(show);
                         if (signedIn) confirmLogin();
                     });
+                } else if ("nowplaying".equals(type)) {
+                    runOnUiThread(() -> { if (!destroyed) PlaybackService.update(message); });
                 } else if ("levels".equals(type)) {
                     boolean on = message.getBoolean("on");
                     runOnUiThread(() -> { levelsWanted = on; updateCapture(); });
@@ -724,7 +727,25 @@ public class MainActivity extends Activity {
         if (request == LEVELS_PERMISSION && grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED) updateCapture();
     }
 
+    @Override protected void onStart() {
+        super.onStart();
+        synchronized (terminalOutputLock) { terminalVisible = true; }
+        // SIGWINCH causes Bubble Tea to redraw after discarded background output.
+        sendResize();
+    }
+
+    @Override protected void onStop() {
+        synchronized (terminalOutputLock) {
+            terminalVisible = false;
+            pendingTerminalOutput.reset();
+            terminalOutputLock.notifyAll();
+        }
+        // Do not pause either WebView or its timers: MusicKit owns audio.
+        super.onStop();
+    }
+
     @Override protected void onPause() {
+        PlaybackService.activityForeground(false);
         capturePaused = true;
         releaseCapture();
         super.onPause();
@@ -732,6 +753,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        PlaybackService.activityForeground(true);
         capturePaused = false;
         updateCapture();
     }
@@ -753,6 +775,11 @@ public class MainActivity extends Activity {
             try { if (!destroyed) { bridgeOutput.write(data); bridgeOutput.flush(); } }
             catch (Exception e) { if (!destroyed) error("Bridge write failed: " + e.getMessage()); }
         });
+    }
+
+    // Called only by the same-process media service on the main thread.
+    void mediaInput(String text) {
+        if (!destroyed && !loginShown && popup == null) input(text);
     }
 
     private void input(String text) {
@@ -793,11 +820,11 @@ public class MainActivity extends Activity {
                 int offset = 0;
                 while (!destroyed && offset < bytes.length) {
                     // Backpressure the producer at the cap; never discard terminal bytes.
-                    while (!destroyed && pendingTerminalOutput.size() == MAX_PENDING_TERMINAL_BYTES) {
+                    while (!destroyed && terminalVisible && pendingTerminalOutput.size() == MAX_PENDING_TERMINAL_BYTES) {
                         try { terminalOutputLock.wait(); }
                         catch (InterruptedException e) { interrupted = true; }
                     }
-                    if (destroyed) return;
+                    if (destroyed || !terminalVisible) return;
                     int count = Math.min(bytes.length - offset,
                             MAX_PENDING_TERMINAL_BYTES - pendingTerminalOutput.size());
                     pendingTerminalOutput.write(bytes, offset, count);
@@ -816,7 +843,12 @@ public class MainActivity extends Activity {
     private void flushTerminalOutput() {
         byte[] bytes;
         synchronized (terminalOutputLock) {
-            if (destroyed) return;
+            if (destroyed || !terminalVisible) {
+                pendingTerminalOutput.reset();
+                terminalEvaluationPending = false;
+                terminalOutputLock.notifyAll();
+                return;
+            }
             bytes = pendingTerminalOutput.toByteArray();
             pendingTerminalOutput.reset();
             terminalOutputLock.notifyAll();
@@ -825,7 +857,7 @@ public class MainActivity extends Activity {
         terminal.evaluateJavascript("window.nu11Write('" + base64 + "')", result -> {
             synchronized (terminalOutputLock) {
                 terminalEvaluationPending = false;
-                if (!destroyed && pendingTerminalOutput.size() > 0) {
+                if (!destroyed && terminalVisible && pendingTerminalOutput.size() > 0) {
                     terminalEvaluationPending = true;
                     root.post(this::flushTerminalOutput);
                 }
@@ -1020,6 +1052,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         destroyed = true;
+        PlaybackService.detach(this);
         releaseCapture();
         synchronized (terminalOutputLock) { terminalOutputLock.notifyAll(); }
         root.removeCallbacks(hideLoginConfirmation);

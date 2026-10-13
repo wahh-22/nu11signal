@@ -24,6 +24,29 @@ func bridgePair(t *testing.T, callback func(BridgeMessage)) (*Bridge, net.Conn) 
 	return b, app
 }
 
+func TestBridgeNowPlayingEncoding(t *testing.T) {
+	for _, playing := range []bool{true, false} {
+		b, app := bridgePair(t, nil)
+		var m BridgeMessage
+		want := fmt.Sprintf(`{"type":"nowplaying","title":"Song","artist":"Artist","album":"Album","playing":%t,"position_ms":0,"duration_ms":60000}`, playing)
+		if err := json.Unmarshal([]byte(want), &m); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() { done <- b.Send(context.Background(), m) }()
+		raw, err := bufio.NewReader(app).ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		if raw != want+"\n" {
+			t.Fatalf("got %s; want %s", raw, want)
+		}
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestBridgeLevelsDecoding(t *testing.T) {
 	var got BridgeMessage
 	b := &Bridge{onMessage: func(m BridgeMessage) { got = m }}

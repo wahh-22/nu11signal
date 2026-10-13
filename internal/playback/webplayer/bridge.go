@@ -21,16 +21,22 @@ const BridgeLoadTimeout = 2 * time.Minute
 // explicitly, including false, when Go opens or hides sign-in or the keyboard. Result
 // fields are decoded separately so a missing ok cannot complete a call.
 type BridgeMessage struct {
-	Type   string `json:"type"`
-	ID     int64  `json:"id,omitempty"`
-	Expr   string `json:"expr,omitempty"`
-	Show   bool   `json:"show"`
-	Closed bool   `json:"closed,omitempty"`
-	Cols   int    `json:"cols,omitempty"`
-	Rows   int    `json:"rows,omitempty"`
-	On     bool   `json:"on"`
-	Bands  []int  `json:"bands,omitempty"`
-	Wave   []int  `json:"wave,omitempty"`
+	Type       string `json:"type"`
+	ID         int64  `json:"id,omitempty"`
+	Expr       string `json:"expr,omitempty"`
+	Show       bool   `json:"show"`
+	Closed     bool   `json:"closed,omitempty"`
+	Cols       int    `json:"cols,omitempty"`
+	Rows       int    `json:"rows,omitempty"`
+	On         bool   `json:"on"`
+	Bands      []int  `json:"bands,omitempty"`
+	Wave       []int  `json:"wave,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Artist     string `json:"artist,omitempty"`
+	Album      string `json:"album,omitempty"`
+	Playing    bool   `json:"playing"`
+	PositionMS int64  `json:"position_ms"`
+	DurationMS int64  `json:"duration_ms"`
 }
 
 // Bridge evaluates expressions through an app-owned WebView over a
@@ -130,6 +136,16 @@ func (b *Bridge) Send(ctx context.Context, m BridgeMessage) error {
 	// Keep evaluate, login and keyboard envelopes exact, without unrelated fields.
 	var payload any = m
 	switch m.Type {
+	case "nowplaying":
+		payload = struct {
+			Type       string `json:"type"`
+			Title      string `json:"title"`
+			Artist     string `json:"artist"`
+			Album      string `json:"album"`
+			Playing    bool   `json:"playing"`
+			PositionMS int64  `json:"position_ms"`
+			DurationMS int64  `json:"duration_ms"`
+		}{m.Type, m.Title, m.Artist, m.Album, m.Playing, m.PositionMS, m.DurationMS}
 	case "evaluate":
 		payload = struct {
 			Type string `json:"type"`
