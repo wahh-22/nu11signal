@@ -33,7 +33,11 @@ public final class PlaybackService extends Service {
     };
 
     static void attach(MainActivity activity) { owner = activity; }
-    static void activityForeground(boolean value) { foregroundActivity = value; }
+    static void activityForeground(boolean value) {
+        foregroundActivity = value;
+        // A start refused in the background is retried once we are in front.
+        if (value && instance == null && latest != null && latest.optBoolean("playing")) requestStart();
+    }
     static void detach(MainActivity activity) {
         if (owner != activity) return;
         owner = null;
@@ -46,9 +50,20 @@ public final class PlaybackService extends Service {
         if (owner == null) return;
         latest = message;
         if (instance != null) instance.apply();
-        else if (message.optBoolean("playing") && !requested) {
-            requested = true;
+        else if (message.optBoolean("playing")) requestStart();
+    }
+    // Android 12+ refuses foreground-service starts from the background
+    // (ForegroundServiceStartNotAllowedException, an IllegalStateException).
+    // Playback itself does not depend on the service, so a refusal only
+    // defers media integration until the Activity is in front again.
+    private static void requestStart() {
+        if (owner == null || requested) return;
+        requested = true;
+        try {
             owner.startForegroundService(new Intent(owner, PlaybackService.class));
+        } catch (IllegalStateException | SecurityException refused) {
+            requested = false;
+            android.util.Log.w("nu11signal", "Media service start deferred: " + refused);
         }
     }
     private void command(String text) {
@@ -132,8 +147,12 @@ public final class PlaybackService extends Service {
                 .setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(0, 1, 2))
                 .build();
         if (playing || !hasStarted) {
-            startForeground(1, notification);
-            foreground = true;
+            try {
+                startForeground(1, notification);
+                foreground = true;
+            } catch (IllegalStateException | SecurityException refused) {
+                android.util.Log.w("nu11signal", "Foreground promotion refused: " + refused);
+            }
             hasStarted = true;
         } else if (foreground) getSystemService(NotificationManager.class).notify(1, notification);
         if (playing) {
