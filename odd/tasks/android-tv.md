@@ -125,7 +125,7 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   media keys).
 - [x] A5 — Build and release tooling: `make android`, signing with the
   user's own key, artifacts.
-- [ ] A6 — User guide `docs/android-tv.md` + README/install links +
+- [x] A6 — User guide `docs/android-tv.md` + README/install links +
   developer build docs.
 - [ ] A7 — End-to-end verification on the TV (install, sign in with the
   remote, search, play, background, relaunch keeps the session).

@@ -4,6 +4,11 @@
 
 Browsing, editing your library, local music files, every key and mouse binding, the settings, and the update check.
 
+This page covers desktop use on macOS and Linux. On Android TV / Google TV,
+see the [Android TV guide](android-tv.md) for installation, Apple Music
+sign-in, remote controls, the TV keyboard and background playback. Local
+files are not supported on the TV in this version.
+
 ## Browsing the catalog
 
 Views stack like Apple Music's: PLAYLISTS → SEARCH → RESULTS → ARTIST → ALBUM,
