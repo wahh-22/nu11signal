@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/pulsecapture"
 	"github.com/wahh-22/nu11signal/internal/playback/spectrum"
 )
 
@@ -71,6 +72,45 @@ func TestCaptureFollowsStateAndDeliversLevels(t *testing.T) {
 	p.Close()
 	wait(stops)
 	for range p.Levels() {
+	}
+}
+
+func TestUnsupportedCaptureDoesNotRetry(t *testing.T) {
+	for _, captureErr := range []error{
+		pulsecapture.ErrUnsupported,
+		errors.Join(errors.New("capture backend"), pulsecapture.ErrUnsupported),
+	} {
+		t.Run(captureErr.Error(), func(t *testing.T) {
+			attempts, waits := 0, 0
+			p := New(nil, func(p *Player) {
+				p.capture = func(context.Context, func([]float32, int)) (func(), error) {
+					attempts++
+					return nil, captureErr
+				}
+				p.captureWait = func(context.Context, time.Duration) error {
+					waits++
+					return context.Canceled
+				}
+			})
+			defer p.Close()
+			p.applied(playback.StatusPlaying, "")
+			done := make(chan struct{})
+			go func() { p.captureWG.Wait(); close(done) }()
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("unsupported capture worker did not exit")
+			}
+			if attempts != 1 || waits != 0 {
+				t.Fatalf("attempts=%d waits=%d; want one attempt and no retry wait", attempts, waits)
+			}
+			select {
+			case <-p.Levels():
+				t.Fatal("unsupported capture emitted spectrum")
+			default:
+			}
+			p.Close()
+		})
 	}
 }
 
