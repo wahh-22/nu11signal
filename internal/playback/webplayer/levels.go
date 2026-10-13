@@ -2,10 +2,12 @@ package webplayer
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/pulsecapture"
 	"github.com/wahh-22/nu11signal/internal/playback/spectrum"
 )
 
@@ -77,6 +79,10 @@ func (p *Player) captureLevels(ctx context.Context) {
 		stop, err = p.capture(ctx, onSamples)
 		if err == nil {
 			break
+		}
+		// Unsupported platforms cannot recover by waiting for a server.
+		if errors.Is(err, pulsecapture.ErrUnsupported) {
+			return
 		}
 		if p.captureWait(ctx, backoff) != nil {
 			return
