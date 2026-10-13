@@ -137,7 +137,8 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   hard-codes time.Local=UTC on Android, so the app passes TZ and Go loads it;
   the desktop release check (APK 0.0.1 vs GitHub v0.8.0, desktop upgrade
   command) is off on TV. 0.0.2 installed over 0.0.1 with `adb install -r`:
-  same signing key, firstInstallTime unchanged (data kept).
+  same signing key, firstInstallTime unchanged (data kept). User confirmed on
+  0.0.2: still signed in, local time shown, no update notice.
 - 2026-10-13: A5 `f88fd07` + correction `aaffb1a` (review
   `review-7043c5959ea402fa`: CRITICAL verify-then-copy race on the shared
   build output, corrected by verifying and publishing the same private
