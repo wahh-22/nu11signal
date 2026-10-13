@@ -84,6 +84,9 @@ func androidRadioOptions(recents history.Recents, settings config.Source, calm b
 // the UI so Back in the sign-in view leaves a usable, unauthorized TUI.
 // No browser subprocess is opened; play joins the app player with the
 // private local library, whose audio device stays unopened until playback.
+// androidSizeWait bounds how long the UI waits for the app's terminal size.
+const androidSizeWait = 5 * time.Second
+
 func playAndroidTV(socket string, calm bool, d deps) error {
 	if loc := androidDeviceZone(os.Getenv("TZ")); loc != nil {
 		time.Local = loc
@@ -110,7 +113,16 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 	// not open) the splash quits before play's error is reported. ctx owns
 	// SIGINT and SIGTERM (signal.NotifyContext above): Bubble Tea's own
 	// handler could block sending its quit message once ctx has ended the
-	// event loop, and the program would never return.
+	// event loop, and the program would never return. It starts once the
+	// app has sent its terminal size (see Runtime.Sized), so it reads the
+	// real size instead of the PTY's initial 80x24; past androidSizeWait it
+	// starts anyway rather than hold the screen black.
+	select {
+	case <-r.Sized():
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(androidSizeWait):
+	}
 	next := make(chan radio.Model, 1)
 	startup := tea.NewProgram(radio.NewStartup(radio.Options{Seed: uint64(time.Now().UnixNano()), Effects: !calm}, next),
 		tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx), tea.WithFPS(radio.RenderFPS),
