@@ -547,7 +547,7 @@ public class MainActivity extends Activity {
             Process child = builder.start();
             process = child;
             if (destroyed) { child.destroy(); return; }
-            writeTerminal(("nu11signal: loading Apple Music, this can take a minute on a TV...\r\n").getBytes(StandardCharsets.UTF_8));
+            // Go draws the boot splash itself while Apple Music loads.
             Thread output = new Thread(() -> readTerminal(child.getInputStream()), "go-output");
             output.start();
             new Thread(() -> {

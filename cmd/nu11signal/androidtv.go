@@ -104,6 +104,25 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 	}()
 	relay := r.Relay(ctx, os.Stdin, d.stdout)
 	defer func() { cancel(); r.Close(); <-relay }()
+	// The boot splash shows from the first frame and holds while Apple
+	// Music loads (see radio.Startup); runUI hands the program over to the
+	// UI built on the opened player. Without that handover (the player did
+	// not open) the splash quits before play's error is reported.
+	next := make(chan radio.Model, 1)
+	startup := tea.NewProgram(radio.NewStartup(radio.Options{Seed: uint64(time.Now().UnixNano()), Effects: !calm}, next),
+		tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx), tea.WithFPS(radio.RenderFPS))
+	ui := make(chan error, 1)
+	go func() {
+		_, err := startup.Run()
+		ui <- err
+	}()
+	handedOver := false
+	defer func() {
+		if !handedOver {
+			close(next)
+			<-ui
+		}
+	}()
 	var player *androidtv.Player
 	d.openWebPlayer = func(start context.Context) (playback.Player, error) {
 		// The startup bound from openPlayer must also stop on an app exit or
@@ -123,8 +142,9 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 		loginCtx, stop := context.WithCancel(ctx)
 		signedIn := make(chan error, 1)
 		go func() { signedIn <- r.SignIn(loginCtx, player) }()
-		model := radio.New(p, androidRadioOptions(recents, settings, calm, androidTypingHook(loginCtx, r.Bridge)))
-		_, err := tea.NewProgram(model, tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx), tea.WithFPS(radio.RenderFPS)).Run()
+		handedOver = true
+		next <- radio.New(p, androidRadioOptions(recents, settings, calm, androidTypingHook(loginCtx, r.Bridge)))
+		err := <-ui
 		stop()
 		if loginErr := <-signedIn; loginErr != nil && !errors.Is(loginErr, context.Canceled) {
 			fmt.Fprintln(d.stderr, "nu11signal: Android sign-in:", loginErr)
