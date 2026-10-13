@@ -17,7 +17,7 @@ import (
 )
 
 func TestAndroidTVSearchTiming(t *testing.T) {
-	opts := androidRadioOptions(nil, nil, true, nil, nil)
+	opts := androidRadioOptions(nil, nil, true, nil)
 	if opts.SearchTimeout != 45*time.Second || opts.SearchDebounce != 750*time.Millisecond || opts.CallTimeout != 0 {
 		t.Fatalf("app search timing = %+v", opts)
 	}

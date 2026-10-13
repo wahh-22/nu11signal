@@ -536,6 +536,8 @@ public class MainActivity extends Activity {
             builder.environment().put("TMPDIR", getCacheDir().getAbsolutePath());
             builder.environment().put("TERM", "xterm-256color");
             builder.environment().put("COLORTERM", "truecolor");
+            // Go keeps UTC on Android; it loads this zone for the clock.
+            builder.environment().put("TZ", java.util.TimeZone.getDefault().getID());
             Process child = builder.start();
             process = child;
             if (destroyed) { child.destroy(); return; }

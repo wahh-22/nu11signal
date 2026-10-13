@@ -62,7 +62,10 @@ func androidTypingHook(ctx context.Context, bridge *webplayer.Bridge) func(bool)
 }
 
 // androidRadioOptions keeps slower search timing out of ordinary player calls.
-func androidRadioOptions(recents history.Recents, settings config.Source, calm bool, updates update.Checker, typing func(bool)) radio.Options {
+// The TV updates by installing a newer APK (docs/android-tv.md), so it gets
+// no update check: the desktop release check would compare the APK with
+// desktop releases and offer a desktop upgrade command.
+func androidRadioOptions(recents history.Recents, settings config.Source, calm bool, typing func(bool)) radio.Options {
 	return radio.Options{
 		OnTypingChanged: typing,
 		SearchTimeout:   androidtv.SearchTimeout,
@@ -71,9 +74,7 @@ func androidRadioOptions(recents history.Recents, settings config.Source, calm b
 		Recents:         recents,
 		Config:          settings,
 		Effects:         !calm,
-		Updates:         updates,
 		Version:         version,
-		Upgrade:         upgradeCommand(),
 	}
 }
 
@@ -84,6 +85,9 @@ func androidRadioOptions(recents history.Recents, settings config.Source, calm b
 // No browser subprocess is opened; play joins the app player with the
 // private local library, whose audio device stays unopened until playback.
 func playAndroidTV(socket string, calm bool, d deps) error {
+	if loc := androidDeviceZone(os.Getenv("TZ")); loc != nil {
+		time.Local = loc
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	r, err := androidtv.Open(ctx, socket)
@@ -119,7 +123,7 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 		loginCtx, stop := context.WithCancel(ctx)
 		signedIn := make(chan error, 1)
 		go func() { signedIn <- r.SignIn(loginCtx, player) }()
-		model := radio.New(p, androidRadioOptions(recents, settings, calm, updates, androidTypingHook(loginCtx, r.Bridge)))
+		model := radio.New(p, androidRadioOptions(recents, settings, calm, androidTypingHook(loginCtx, r.Bridge)))
 		_, err := tea.NewProgram(model, tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx), tea.WithFPS(radio.RenderFPS)).Run()
 		stop()
 		if loginErr := <-signedIn; loginErr != nil && !errors.Is(loginErr, context.Canceled) {
@@ -128,4 +132,19 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 		return err
 	}
 	return play(options{androidTV: socket}, calm, d)
+}
+
+// androidDeviceZone loads the device time zone the app passes in TZ. Go
+// fixes time.Local to UTC on Android and never reads TZ there, so the clock
+// would otherwise show UTC. nil keeps the default: no zone, or one this
+// device's zoneinfo does not know.
+func androidDeviceZone(name string) *time.Location {
+	if name == "" {
+		return nil
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return nil
+	}
+	return loc
 }
