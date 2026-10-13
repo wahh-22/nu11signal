@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="dev.wahh.nu11signal.tv.updatetest" android:versionCode="1" android:versionName="1">
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="34" />
+    <application android:label="nu11signal update test" android:allowBackup="false" android:debuggable="false" />
+    <instrumentation android:name="dev.wahh.nu11signal.tv.updatetest.UpdateE2eInstrumentation"
+        android:targetPackage="dev.wahh.nu11signal.tv" android:functionalTest="true" />
+</manifest>

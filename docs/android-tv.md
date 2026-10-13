@@ -146,7 +146,8 @@ arrows and OK operate the keyboard instead.
 | Long OK | Toggle the TV keyboard manually |
 | Short Back | Hide an open keyboard first. Otherwise go back one view, return from the player to the list, or cancel a NEW PLAYLIST name |
 | Long Back | Hide an open keyboard first. In SEARCH or a NEW PLAYLIST name, act as Back, not quit. Elsewhere, open quit confirmation |
-| Menu | Open/resume SEARCH, focus its input and open the keyboard; from search detail pages, return to SEARCH. No action if the keyboard is already open. **Never types `/`** |
+| Short Menu | Open/resume SEARCH, focus its input and open the keyboard; from search detail pages, return to SEARCH. No action if the keyboard is already open. **Never types `/`** |
+| Long Menu (keyboard hidden, outside sign-in) | Check for Android TV updates or reopen the available update |
 | Play/pause (also play or pause) | Toggle playback outside text entry |
 | Next / fast-forward | Next track outside text entry; not a seek command |
 | Previous / rewind | Previous track outside text entry; not a seek command |
@@ -214,10 +215,42 @@ happens, relaunch the app; the service cannot restart a killed player itself.
 
 ## Update or uninstall
 
-**Update:** download and check the newer release APK, then install it over
-the old one using the same steps as above. Updates signed with the **same
-signing key** keep app data and your Apple Music session. You do not need
-to uninstall first.
+### Update from the TV
+
+1. When a newer TV APK is available, nu11signal offers it while the app is
+   in front. To check manually or reopen a dismissed offer, hide the keyboard
+   and **hold Menu** outside sign-in. Short Menu still opens search.
+2. Choose **Download and install** (or **Later** to keep listening).
+3. If prompted, choose **Open Settings**, allow installations from nu11signal,
+   then press **Back**. Select the update again to continue. This permission
+   does not allow silent installation.
+4. Wait for download and validation. **Cancel** or Back cancels preparation;
+   leaving the app prevents it from opening an installer in the background.
+5. Android opens its own installer. Confirm **Install/Update** there, then
+   reopen nu11signal when it finishes. Installation can interrupt playback.
+
+Only stable releases from the official GitHub repository with a matching
+`nu11signal-tv-<version>.apk` are offered. Desktop-only releases do not trigger
+an update. Discovery checks at most 90 releases; a network error or exhausted
+search limit is not reported as proof that the app is up to date. Automatic
+checks are quiet on error; hold Menu to retry and see the result.
+
+The app checks package identity, version and the official signing certificate
+before handing a private read-only APK snapshot to Android. Android's installer
+performs the final signature/integrity verification and requires your approval.
+Updates keep app data and your Apple Music session; **do not uninstall first**.
+Debug-signed builds cannot use this release-key update path.
+
+If your TV has no compatible installer, does not allow this install source,
+or a network/validation error persists, use the manual method below. After
+several cancelled Android installer handoffs, fully exit and reopen nu11signal
+before retrying; retained snapshots are bounded for safety.
+
+### Manual update or removal
+
+Download and check the newer release APK, then install it over the old one
+using the installation steps above. Updates signed with the **same signing
+key** keep app data and your Apple Music session.
 
 **Uninstall:** open **Settings > Apps > nu11signal > Uninstall** and confirm.
 This removes app data, including the sign-in session; reinstalling requires
