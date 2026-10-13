@@ -64,6 +64,8 @@ import java.util.concurrent.RejectedExecutionException;
 public class MainActivity extends Activity {
     private static final String TAG = "nu11signal";
     private FrameLayout root;
+    private TvUpdateUi updates;
+    private boolean menuLong;
     private WebView music, terminal, popup;
     private EditText keyboard;
     private String keyboardTextSent = "";
@@ -260,6 +262,9 @@ public class MainActivity extends Activity {
         music.loadUrl("https://music.apple.com/");
         terminal.loadUrl("file:///android_asset/terminal.html");
         terminal.requestFocus();
+        updates = new TvUpdateUi(this, () -> started && !destroyed && !loginShown
+                && popup == null && !guideVisible()
+                && TvUpdateState.inputIdle(keyboardShown, keyboardAfterSearch));
     }
 
     private void addGuideText(String text, int size) {
@@ -488,6 +493,7 @@ public class MainActivity extends Activity {
                 if (started || destroyed) return;
                 started = true;
                 new Thread(MainActivity.this::startProcess, "go-start").start();
+                if (updates != null) updates.maybeOffer();
             });
         }
         @JavascriptInterface public void input(String text) { MainActivity.this.input(text); }
@@ -747,6 +753,7 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onPause() {
+        if (updates != null) updates.pause();
         PlaybackService.activityForeground(false);
         capturePaused = true;
         releaseCapture();
@@ -758,6 +765,7 @@ public class MainActivity extends Activity {
         PlaybackService.activityForeground(true);
         capturePaused = false;
         updateCapture();
+        if (updates != null) updates.resume();
     }
 
     private void sendResize() {
@@ -901,6 +909,8 @@ public class MainActivity extends Activity {
 
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         int key = event.getKeyCode();
+        if (updates != null && updates.visible()) return super.dispatchKeyEvent(event);
+        if (updates != null && event.getAction() == KeyEvent.ACTION_UP) root.post(updates::maybeOffer);
         // Route the guide before IME, pointer, media, or terminal handling.
         // Activate on release so the same OK cannot also tap Apple's page.
         if (guideVisible()) {
@@ -944,7 +954,15 @@ public class MainActivity extends Activity {
             return super.dispatchKeyEvent(event);
         }
         if (key == KeyEvent.KEYCODE_MENU) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) menuLong = false;
+            if (event.isLongPress()) menuLong = true;
             if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                boolean held = menuLong || event.getEventTime() - event.getDownTime()
+                        >= android.view.ViewConfiguration.getLongPressTimeout();
+                if (held && !keyboardShown) {
+                    if (updates != null) updates.open();
+                    return true;
+                }
                 if (textInputAvailable) {
                     if (!keyboardShown) setKeyboard(true);
                 } else {
@@ -1054,6 +1072,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         destroyed = true;
+        if (updates != null) updates.destroy();
         PlaybackService.detach(this);
         releaseCapture();
         synchronized (terminalOutputLock) { terminalOutputLock.notifyAll(); }
