@@ -127,10 +127,17 @@ choice 2026-10-10, after the go outcome of `odd/tasks/android-tv-spike.md`).
   user's own key, artifacts.
 - [x] A6 — User guide `docs/android-tv.md` + README/install links +
   developer build docs.
-- [ ] A7 — End-to-end verification on the TV (install, sign in with the
+- [x] A7 — End-to-end verification on the TV (install, sign in with the
   remote, search, play, background, relaunch keeps the session).
 
 ## Progress
+- 2026-10-13: A7 on the TV with release APKs. User: 0.0.1 fresh install,
+  remote-only sign-in, search, play, background and relaunch "esta bien";
+  reported a pending-update notice and a UTC clock. Fixed in `8a95701`: Go
+  hard-codes time.Local=UTC on Android, so the app passes TZ and Go loads it;
+  the desktop release check (APK 0.0.1 vs GitHub v0.8.0, desktop upgrade
+  command) is off on TV. 0.0.2 installed over 0.0.1 with `adb install -r`:
+  same signing key, firstInstallTime unchanged (data kept).
 - 2026-10-13: A5 `f88fd07` + correction `aaffb1a` (review
   `review-7043c5959ea402fa`: CRITICAL verify-then-copy race on the shared
   build output, corrected by verifying and publishing the same private
