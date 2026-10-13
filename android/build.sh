@@ -10,7 +10,21 @@ SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 NDK="${ANDROID_NDK:-$SDK/ndk/28.2.13676358}"
 TOOLS="$SDK/build-tools/${BUILD_TOOLS:-35.0.0}"
 ANDROID_JAR="$SDK/platforms/${ANDROID_PLATFORM:-android-34}/android.jar"
+# Disable shell tracing before any signing variables are expanded.
+set +x
 VERSION="${VERSION:-dev}"
+VERSION_CODE=1
+if [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)([-+].*)?$ ]]; then
+  MAJOR="${BASH_REMATCH[1]}" MINOR="${BASH_REMATCH[2]}" PATCH="${BASH_REMATCH[3]}"
+  # Two decimal digits per minor/patch prevent versionCode collisions.
+  [[ ${#MAJOR} -le 6 && ${#MINOR} -le 2 && ${#PATCH} -le 2 ]] || {
+    echo 'VERSION exceeds Android versionCode component limits' >&2; exit 1;
+  }
+  VERSION_CODE=$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))
+  [[ "$VERSION_CODE" -ge 1 && "$VERSION_CODE" -le 2100000000 ]] || {
+    echo 'Android versionCode must be between 1 and 2100000000' >&2; exit 1;
+  }
+fi
 DEBUG_FLAGS=()
 [[ "${DEBUG:-0}" == 1 ]] && DEBUG_FLAGS=(--debug-mode)
 [[ "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || { echo 'Invalid VERSION' >&2; exit 1; }
@@ -43,7 +57,7 @@ for arch in arm arm64; do
  done
 "$TOOLS/aapt2" compile --dir "$ROOT/res" -o "$WORK/resources.zip"
 "$TOOLS/aapt2" link -o "$WORK/resources.apk" --manifest "$ROOT/AndroidManifest.xml" -I "$ANDROID_JAR" \
-  --min-sdk-version 28 --target-sdk-version 34 --version-name "$VERSION" ${DEBUG_FLAGS[@]+"${DEBUG_FLAGS[@]}"} \
+  --min-sdk-version 28 --target-sdk-version 34 --version-name "$VERSION" --version-code "$VERSION_CODE" --replace-version ${DEBUG_FLAGS[@]+"${DEBUG_FLAGS[@]}"} \
   --java "$WORK/generated" "$WORK/resources.zip"
 javac --release 11 -classpath "$ANDROID_JAR" -d "$WORK/classes" \
   "$ROOT/src/dev/wahh/nu11signal/tv/"*.java "$WORK/generated/dev/wahh/nu11signal/tv/R.java"
@@ -57,6 +71,7 @@ cp "$WORK/resources.apk" "$WORK/unsigned.apk"
 "$TOOLS/zipalign" -f -p 4 "$WORK/unsigned.apk" "$WORK/aligned.apk"
 if [[ -n "${NU11SIGNAL_TV_KEYSTORE:-}${NU11SIGNAL_TV_KEY_ALIAS:-}${NU11SIGNAL_TV_KEYSTORE_PASS:-}${NU11SIGNAL_TV_KEY_PASS:-}" ]]; then
   : "${NU11SIGNAL_TV_KEYSTORE:?Set keystore}" "${NU11SIGNAL_TV_KEY_ALIAS:?Set alias}" "${NU11SIGNAL_TV_KEYSTORE_PASS:?Set password}"
+  export NU11SIGNAL_TV_KEYSTORE_PASS
   export NU11SIGNAL_TV_KEY_PASS="${NU11SIGNAL_TV_KEY_PASS:-$NU11SIGNAL_TV_KEYSTORE_PASS}"
   "$TOOLS/apksigner" sign --ks "$NU11SIGNAL_TV_KEYSTORE" --ks-key-alias "$NU11SIGNAL_TV_KEY_ALIAS" \
     --ks-pass env:NU11SIGNAL_TV_KEYSTORE_PASS --key-pass env:NU11SIGNAL_TV_KEY_PASS --out "$APK" "$WORK/aligned.apk"
@@ -65,8 +80,9 @@ else
     keytool -genkeypair -keystore "$OUT/debug.keystore" -storepass android -keypass android \
       -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US' -noprompt
   fi
+  export NU11SIGNAL_TV_DEBUG_PASS=android
   "$TOOLS/apksigner" sign --ks "$OUT/debug.keystore" --ks-key-alias androiddebugkey \
-    --ks-pass pass:android --key-pass pass:android --out "$APK" "$WORK/aligned.apk"
+    --ks-pass env:NU11SIGNAL_TV_DEBUG_PASS --key-pass env:NU11SIGNAL_TV_DEBUG_PASS --out "$APK" "$WORK/aligned.apk"
 fi
 "$TOOLS/apksigner" verify "$APK"
 if [[ "${1:-}" == install ]]; then "$SDK/platform-tools/adb" -s "$ANDROID_SERIAL" install -r "$APK"; fi

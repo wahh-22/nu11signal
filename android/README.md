@@ -10,8 +10,10 @@ AndroidX, or npm step during APK builds.
 From the repository root:
 
 ```sh
-android/build.sh
-VERSION=0.5.0 android/build.sh
+make android                               # dev version, debug signing key
+DEBUG=1 android/build.sh                   # debuggable, WebView inspection
+make android-release VERSION=0.5.0 DRY_RUN=1 # real release key; verify, no dist
+make android-release VERSION=0.5.0         # verified APK + checksum in dist/v0.5.0
 ```
 
 Requires Go, JDK 11 or newer, Android SDK platform 34, build-tools 35.0.0,
@@ -21,7 +23,8 @@ built with CGO and API 28 clang. Version stamping matches the release scripts:
 
 | Environment | Default / purpose |
 | --- | --- |
-| `VERSION` | `dev`; APK name and binary version |
+| `VERSION` | `dev`; APK name, binary version and Android versionCode |
+| `DEBUG` | `0`; `1` enables debuggable/WebView inspection (never for releases) |
 | `ANDROID_HOME` | `~/Library/Android/sdk` |
 | `ANDROID_NDK` | `$ANDROID_HOME/ndk/28.2.13676358` |
 | `BUILD_TOOLS` | `35.0.0` |
@@ -32,11 +35,23 @@ built with CGO and API 28 clang. Version stamping matches the release scripts:
 | `NU11SIGNAL_TV_KEY_PASS` | Optional key password, defaults to store password |
 | `ANDROID_SERIAL` | Required only for optional install |
 
-Set all three required signing variables together. Otherwise the build
+`make android` always uses version `dev` and clears custom signing variables.
+For direct `android/build.sh` builds, set all three required signing variables together. Otherwise the build
 creates and reuses `android/build/debug.keystore`. Passwords are passed to
 apksigner through environment variables, not command-line values. A debug
 signing key does not make the application debuggable: WebView inspection is
 only enabled when Android's application debuggable flag is present.
+
+Release builds use the persistent keystore/keychain setup documented in
+[Releasing — Android TV APK](../docs/releasing.md#android-tv-apk). They override
+inherited `DEBUG=1`, verify the signer and reject debuggable APKs before staging.
+CI can inject the signing password through its secret environment; do not put
+passwords in command lines, logs, or repository files.
+
+For semver versions, `versionCode = MAJOR*10000 + MINOR*100 + PATCH`;
+minor/patch must be 0–99, and the result must be 1–2100000000. `dev` uses 1.
+Prerelease/build metadata does not change the code: use a higher core version
+for each published update (including prereleases).
 
 Output: `android/build/nu11signal-tv-<version>.apk`. Build outputs, caches,
 verified vendor downloads, and signing material are ignored. Each build

@@ -110,6 +110,75 @@ another version: `0.5.0` matches none of `0.5.01`, `10.5.0`, `0.5.0.1` or
 it (`go0.5.0abc` still matches). `-trimpath` keeps the ldflags out of the
 build info, so the stamped string is the only evidence in the binary.
 
+## Android TV APK
+
+Android releases are separate from the desktop archives. They bundle both
+armeabi-v7a and arm64-v8a, use a persistent release signing key, and are **not
+debuggable** (even if `DEBUG=1` is inherited).
+
+### Signing setup and backup
+
+The default PKCS12 keystore lives outside the repository:
+`$HOME/Library/Application Support/nu11signal/android/nu11signal-tv-release.keystore`.
+Its alias is `nu11signal-tv`. The macOS generic-password keychain item uses
+account `nu11signal-tv` and service `nu11signal-tv-keystore`. Restore/create
+that item through **Keychain Access**; do not paste its password into a shell
+command. The release script captures it directly into an environment variable,
+never prints it, and gives apksigner only the variable name.
+
+**BACKUP WARNING: losing the signing key means existing users must uninstall
+and sign in again.** A new key cannot update APKs signed with the old one.
+Copy the keystore **and its password** into a trusted password manager's secure
+attachment/secret fields, keep a protected independent backup, and verify that
+the backup can be restored. Do not commit signing material or store passwords
+in plaintext files, shell history, or build logs. Back up before releasing.
+
+Overrides: `NU11SIGNAL_TV_KEYSTORE`, `NU11SIGNAL_TV_KEY_ALIAS`,
+`NU11SIGNAL_TV_KEYSTORE_PASS` (already-set CI secret environment skips keychain),
+and optional `NU11SIGNAL_TV_KEY_PASS` (defaults to the store password).
+`NU11SIGNAL_TV_CERT_SHA256` changes the expected public signer fingerprint;
+only change it deliberately when using another release key.
+
+### Build and verify
+
+Requires the SDK/NDK/JDK toolchain listed in [android/README.md](../android/README.md).
+
+```sh
+make android                                  # dev APK, debug signing key
+make android-release VERSION=0.0.1 DRY_RUN=1   # real key + checks; android/build only
+make android-release VERSION=0.0.1             # dist/v0.0.1/ APK + .sha256
+```
+
+The release script requires semver, verifies `apksigner verify --print-certs`
+against this SHA-256 fingerprint (colon-separated or plain hex), and rejects
+`application-debuggable` in `aapt2 dump badging`:
+
+```text
+44:81:48:92:5A:1E:CA:D2:F5:1F:3F:50:07:34:35:35:D2:2D:41:71:6B:4F:0B:9C:4D:88:DA:AE:D0:49:43:20
+```
+
+It prints the verified fingerprint and package badging, including versionCode.
+The code is `MAJOR*10000 + MINOR*100 + PATCH` (minor/patch 0–99; result
+1–2100000000); `dev` uses 1. Prerelease/build metadata shares the core's code,
+so increase the core version for every published update.
+
+Artifacts: `dist/v0.0.1/nu11signal-tv-0.0.1.apk` and
+`nu11signal-tv-0.0.1.apk.sha256`. Existing Android artifacts are refused unless
+`FORCE=1`; desktop files in the version directory are preserved. The pair is
+staged after verification, then moved into place in two renames; interruption
+between them may leave an old checksum next to the new APK, so recheck it before
+uploading. Staging directories are retained (including after failure) for
+inspection; they contain APKs/checksums, not credentials.
+
+```sh
+(cd dist/v0.0.1 && shasum -a 256 -c nu11signal-tv-0.0.1.apk.sha256)
+```
+
+Upload the APK and checksum to the matching GitHub release. Dry runs still
+require the real key and verify the same non-debuggable build, but never touch
+`dist/`. For local WebView inspection only, `DEBUG=1 android/build.sh` remains
+available with debug signing. No build target installs on a device.
+
 ## Publishing and Homebrew
 
 Tag `v0.2.0` and attach all three archives and their checksums to a GitHub
@@ -151,7 +220,10 @@ refused.
 
 ## Script tests
 
-`make test-scripts` (part of `make test`) runs hermetic tests for both scripts
-(`scripts/test/`): stubbed `brew`, `xcrun`, `codesign`, `go` (which writes a
+`make test-scripts` (part of `make test`) runs hermetic tests for the release
+and Homebrew scripts, including Android APK release preflight, signing and
+badging verification, overwrite protection, CI secrets, and dry-run behavior
+(`scripts/test/`): stubbed Android build, keychain, apksigner and aapt2 tools;
+stubbed `brew`, `xcrun`, `codesign`, `go` (which writes a
 fake ELF header per `GOARCH` for Linux builds), and friends, temp directories
 for `dist/` and the tap, and a local bare repository as its origin.
