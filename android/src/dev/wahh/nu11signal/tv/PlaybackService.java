@@ -6,6 +6,8 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
@@ -20,11 +22,13 @@ import org.json.JSONObject;
  * system media integration, not an independent player. All bridge access is
  * on the main thread. detach clears the Activity reference on destruction. */
 public final class PlaybackService extends Service {
+    private static final int LOGO_BLUE = 0xFF347AFF; // Blueshift primary
     private static MainActivity owner;
     private static PlaybackService instance;
     private static JSONObject latest;
     private static boolean foregroundActivity, requested;
     private MediaSession session;
+    private Bitmap logo;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean playing, foreground, pausedDeadline, hasStarted;
     private final Runnable demote = () -> {
@@ -119,6 +123,12 @@ public final class PlaybackService extends Service {
         return PendingIntent.getService(this, code, new Intent(this, PlaybackService.class).setAction(name),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
+    // Album art is not available from the web player; the now-playing card shows the app logo.
+    private Bitmap logo() {
+        if (logo == null) logo = BitmapFactory.decodeResource(getResources(), R.drawable.logo_mark);
+        return logo;
+    }
+
     private void apply() {
         if (latest == null || session == null) return;
         playing = latest.optBoolean("playing");
@@ -128,6 +138,7 @@ public final class PlaybackService extends Service {
                 .putString(MediaMetadata.METADATA_KEY_TITLE, latest.optString("title"))
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, latest.optString("artist"))
                 .putString(MediaMetadata.METADATA_KEY_ALBUM, latest.optString("album"))
+                .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, logo())
                 .putLong(MediaMetadata.METADATA_KEY_DURATION, duration).build());
         session.setPlaybackState(new PlaybackState.Builder()
                 .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE
@@ -137,7 +148,7 @@ public final class PlaybackService extends Service {
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification notification = new Notification.Builder(this, "playback")
-                .setSmallIcon(R.drawable.icon).setContentTitle(latest.optString("title"))
+                .setSmallIcon(R.drawable.notification).setColor(LOGO_BLUE).setContentTitle(latest.optString("title"))
                 .setContentText(latest.optString("artist")).setContentIntent(open)
                 .setCategory(Notification.CATEGORY_TRANSPORT).setOnlyAlertOnce(true).setOngoing(playing)
                 .addAction(android.R.drawable.ic_media_previous, "Previous", action("previous", 1))

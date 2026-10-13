@@ -77,6 +77,16 @@ commit and verifies its SHA-256 before copying it with the SIL OFL 1.1 license.
 Source and checksum details are in `assets/fonts/README.md`. The build fails
 if the font or license is missing. Run both vendor scripts to refresh assets.
 
+`android/brand.sh` renders the app's logo images from the Blueshift vector
+logo (`docs/assets/brand/logo/nu11signal-blueshift.svg`, the default theme)
+with `rsvg-convert`: the adaptive launcher icon foreground (the head, on the
+Blueshift ink background from `res/values/colors.xml`), the 320x180dp home
+screen banner (full logo), the update-dialog mark and the white notification
+icon, at every density. The PNGs are committed, so builds need no SVG tools;
+rerun the script after the logo changes. The playback notification and the
+Google TV now-playing card show the logo because the web player provides no
+album art.
+
 The terminal has a black background and truecolor support. It loads local
 Kode Mono (the desktop's designed font) with `document.fonts.load` before
 measuring or opening xterm. WebGL renders custom block, braille, and box
