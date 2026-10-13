@@ -18,6 +18,10 @@ import (
 
 // Options configures a radio Model. Zero values select sensible defaults.
 type Options struct {
+	// OnTypingChanged optionally reports whether the cursor is on a text input from
+	// Update. It must return immediately (for example, enqueue a notification).
+	// Nil leaves desktop behavior unchanged.
+	OnTypingChanged func(bool)
 	// Now is the clock; defaults to time.Now. Tests inject a fixed clock.
 	Now func() time.Time
 	// Seed drives the decorative EQ and glitch animations.
@@ -29,8 +33,12 @@ type Options struct {
 	// SkipBoot starts past the boot splash (see boot.go), on the normal UI
 	// from the first frame: tests that are not about the boot use it.
 	SkipBoot bool
-	// CallTimeout bounds every Player call (default 8s).
+	// CallTimeout bounds ordinary Player calls (default 8s).
 	CallTimeout time.Duration
+	// SearchTimeout and SearchDebounce override catalog search timing only.
+	// Zero preserves desktop timing (CallTimeout and 250ms).
+	SearchTimeout  time.Duration
+	SearchDebounce time.Duration
 	// CloseTimeout bounds how long quitting waits for Player.Close before
 	// the UI exits anyway (default 6s: at least the helper client's own
 	// bound, see helper.DefaultCloseTimeout, so the helper's fade out is
@@ -124,11 +132,15 @@ type frame struct {
 
 // Model is the Bubble Tea model of the radio.
 type Model struct {
-	player       playback.Player
-	now          func() time.Time
-	seed         uint64
-	timeout      time.Duration
-	closeTimeout time.Duration
+	onTypingChanged func(bool)
+	typingNotified  bool
+	player          playback.Player
+	now             func() time.Time
+	seed            uint64
+	timeout         time.Duration
+	closeTimeout    time.Duration
+	searchTimeout   time.Duration
+	searchDelay     time.Duration
 
 	width, height int
 
@@ -328,6 +340,12 @@ func New(p playback.Player, opts Options) Model {
 	if opts.CallTimeout <= 0 {
 		opts.CallTimeout = defaultCallTimeout
 	}
+	if opts.SearchTimeout <= 0 {
+		opts.SearchTimeout = opts.CallTimeout
+	}
+	if opts.SearchDebounce <= 0 {
+		opts.SearchDebounce = searchDebounce
+	}
 	if opts.CloseTimeout <= 0 {
 		opts.CloseTimeout = defaultCloseTimeout
 	}
@@ -353,22 +371,25 @@ func New(p playback.Player, opts Options) Model {
 		changed = w.LibraryChanged()
 	}
 	m := Model{
-		player:         p,
-		levels:         levels,
-		libraryChanged: changed,
-		now:            opts.Now,
-		seed:           opts.Seed,
-		timeout:        opts.CallTimeout,
-		closeTimeout:   opts.CloseTimeout,
-		stack:          []frame{{kind: viewStations}},
-		volumeBusy:     true, // Init reads the volume
-		fx:             effects{on: opts.Effects},
-		boot:           !opts.SkipBoot,
-		configSource:   opts.Config,
-		updates:        opts.Updates,
-		version:        opts.Version,
-		upgrade:        opts.Upgrade,
-		configSaves:    &configSaves{},
+		player:          p,
+		levels:          levels,
+		libraryChanged:  changed,
+		now:             opts.Now,
+		seed:            opts.Seed,
+		timeout:         opts.CallTimeout,
+		searchTimeout:   opts.SearchTimeout,
+		searchDelay:     opts.SearchDebounce,
+		closeTimeout:    opts.CloseTimeout,
+		onTypingChanged: opts.OnTypingChanged,
+		stack:           []frame{{kind: viewStations}},
+		volumeBusy:      true, // Init reads the volume
+		fx:              effects{on: opts.Effects},
+		boot:            !opts.SkipBoot,
+		configSource:    opts.Config,
+		updates:         opts.Updates,
+		version:         opts.Version,
+		upgrade:         opts.Upgrade,
+		configSaves:     &configSaves{},
 
 		input:         in,
 		nameInput:     name,

@@ -1,0 +1,83 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'">
+<link rel="stylesheet" href="xterm/xterm.css">
+<style>
+@font-face{font-family:'Kode Mono';src:url('fonts/KodeMono.ttf') format('truetype');font-weight:400 700;font-style:normal;font-display:block}
+html,body,#terminal{margin:0;width:100%;height:100%;background:#000;overflow:hidden}.xterm-cursor-layer{visibility:hidden}
+</style>
+</head><body><div id="terminal"></div>
+<script src="xterm/xterm.js"></script><script src="xterm/addon-fit.js"></script>
+<script src="xterm/addon-webgl.js"></script>
+<script>
+// Match the desktop grid; ?cols=N&rows=N overrides it for experiments.
+const TARGET_COLUMNS = 161;
+const TARGET_ROWS = 44;
+const params = new URLSearchParams(location.search);
+const requestedColumns = Number(params.get('cols'));
+const requestedRows = Number(params.get('rows'));
+const targetColumns = Number.isSafeInteger(requestedColumns) && requestedColumns > 0
+  ? requestedColumns : TARGET_COLUMNS;
+const targetRows = Number.isSafeInteger(requestedRows) && requestedRows > 0
+  ? requestedRows : TARGET_ROWS;
+const FONT_FAMILY = "'Kode Mono', monospace";
+let cellWidthPerPixel, cellHeightPerPixel;
+function terminalFontSize() {
+  return Math.min(innerWidth / (targetColumns * cellWidthPerPixel),
+    innerHeight / (targetRows * cellHeightPerPixel));
+}
+const term = new Terminal({fontFamily:FONT_FAMILY, fontSize:12,
+  lineHeight:1, letterSpacing:0, customGlyphs:true,
+  theme:{background:'#000000'}, allowProposedApi:true});
+const fit = new FitAddon.FitAddon();
+term.loadAddon(fit);
+term.onResize(({cols, rows}) => Android.resize(cols, rows));
+// Device keys are consumed in Java; onData also carries terminal query replies.
+term.onData(data => Android.input(data));
+window.nu11Write = base64 => {
+  const bytes = atob(base64);
+  const data = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; ++i) data[i] = bytes.charCodeAt(i);
+  term.write(data);
+};
+function resize() {
+  term.options.fontSize = terminalFontSize();
+  fit.fit();
+  // Leave room for FitAddon's scrollbar allowance and pixel-rounded cell metrics.
+  for (let attempt = 0; attempt < 3 && (term.cols < targetColumns || term.rows < targetRows); ++attempt) {
+    term.options.fontSize *= Math.min(term.cols / targetColumns, term.rows / targetRows) * 0.99;
+    fit.fit();
+  }
+  Android.resize(term.cols, term.rows);
+}
+async function openTerminal() {
+  // Load before measuring or opening xterm, avoiding fallback-font metrics.
+  await document.fonts.load('400 100px "Kode Mono"');
+  const measure = document.createElement('span');
+  measure.textContent = 'W';
+  // Natural font cell height matches xterm's metrics with its lineHeight multiplier of 1.
+  measure.style.cssText = 'position:absolute;display:inline-block;visibility:hidden;white-space:pre;font:400 100px ' + FONT_FAMILY + ';line-height:normal';
+  document.body.appendChild(measure);
+  const cell = measure.getBoundingClientRect();
+  cellWidthPerPixel = cell.width / 100;
+  cellHeightPerPixel = cell.height / 100;
+  measure.remove();
+  term.options.fontSize = terminalFontSize();
+  term.open(document.getElementById('terminal'));
+  let webgl;
+  try {
+    webgl = new WebglAddon.WebglAddon();
+    webgl.onContextLoss(() => webgl.dispose());
+    term.loadAddon(webgl);
+  } catch (error) {
+    // Disposing restores xterm's default DOM renderer, including partial activation.
+    if (webgl) webgl.dispose();
+    console.warn('WebGL unavailable; using DOM renderer', error);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+  Android.ready();
+}
+openTerminal().catch(error => console.error('Terminal initialization failed', error));
+</script></body></html>

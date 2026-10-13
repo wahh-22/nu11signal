@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/spectrum"
 )
 
 // ErrUnsupported is returned by the Player methods local files have no
@@ -35,7 +36,7 @@ const (
 	// stateInterval is how often States reports the position while playing.
 	stateInterval = 500 * time.Millisecond
 	// levelInterval is the levels' reading rate, as the helper's (15 Hz).
-	levelInterval = time.Second / 15
+	levelInterval = spectrum.ReadingInterval
 	// restartAfter is how far into a song Previous restarts it rather
 	// than going back a song.
 	restartAfter = 3 * time.Second
@@ -130,16 +131,11 @@ type Player struct {
 	gain      ramp // the app volume
 	faded     chan struct{}
 	fadedSent bool
-	ring      *ring
-	fresh     bool // playback (re)started: the smoother starts over
+	meter     *spectrum.Meter
 	scratch   []float32
 	pulls     uint64 // render calls, as the device pulls
 	seen      uint64 // pulls at the last state tick
 	still     int    // state ticks in a row, while playing, without a pull
-
-	measureMu sync.Mutex
-	an        *analyzer
-	sm        *smoother
 }
 
 // New makes a Player for the library, playing on the default output
@@ -172,9 +168,7 @@ func newPlayer(lib *Library, opts Options, s sink, clk clock) *Player {
 		fade:    ramp{step: step},
 		gain:    ramp{cur: 1, target: 1, step: step},
 		faded:   make(chan struct{}),
-		ring:    newRing(2 * fftSize),
-		an:      newAnalyzer(rate),
-		sm:      newSmoother(numBands),
+		meter:   spectrum.NewMeter(rate),
 	}
 	if lib == nil {
 		lib = emptyLibrary()
@@ -280,7 +274,7 @@ func (p *Player) render(dst []float32) {
 		p.mixTailLocked(dst)
 	}
 	if p.status == playback.StatusPlaying && !p.closing {
-		p.ring.writeStereo(dst) // before the volume, as the helper measures
+		p.meter.WriteStereo(dst) // before the volume, as the helper measures
 	}
 	for i := 0; i < len(dst); i += 2 {
 		g := p.gain.next()
@@ -457,8 +451,7 @@ func (p *Player) stopLocked() {
 // startedLocked marks playback as (re)started for the levels and the
 // device watch.
 func (p *Player) startedLocked() {
-	p.ring.reset()
-	p.fresh = true
+	p.meter.Reset()
 	p.seen, p.still = p.pulls, 0
 }
 
@@ -848,7 +841,7 @@ func (p *Player) Errors() <-chan error { return p.errs }
 // not move with it. Closed by Close.
 func (p *Player) Levels() <-chan playback.Spectrum { return p.levels }
 
-// measure takes one reading of the newest fftSize samples played, as the
+// measure takes one reading of the newest spectrum.FFTSize samples played, as the
 // helper's LevelMeter: nothing while not playing, or until a full window
 // has played since playback (re)started.
 func (p *Player) measure() {
@@ -857,22 +850,12 @@ func (p *Player) measure() {
 		p.mu.Unlock()
 		return
 	}
-	window, ok := p.ring.latest(fftSize)
-	fresh := ok && p.fresh
-	if ok {
-		p.fresh = false
-	}
+	window, ok := p.meter.Snapshot()
 	p.mu.Unlock()
 	if !ok {
 		return
 	}
-	p.measureMu.Lock()
-	if fresh {
-		p.sm.reset()
-	}
-	bands := p.sm.update(p.an.levels(window))
-	p.measureMu.Unlock()
-	reading := playback.Spectrum{Bands: quantize(bands), Wave: quantize(decimate(window, wavePoints))}
+	reading := p.meter.Analyze(window)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {

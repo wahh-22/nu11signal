@@ -208,6 +208,26 @@ func drainStates(p *Player) []playback.State {
 	}
 }
 
+func TestResumeEmptyQueueDoesNotReportPlaying(t *testing.T) {
+	page := newPage()
+	page.setHandle(func(c call) (any, error) {
+		if c.fn == "resume" {
+			return map[string]any{"empty": true}, nil
+		}
+		return map[string]any{"status": "stopped"}, nil
+	})
+	p := New(page)
+	defer p.Close()
+	if err := p.Resume(context.Background()); err == nil {
+		t.Error("Resume empty queue succeeded; want nothing queued error")
+	}
+	for _, state := range drainStates(p) {
+		if state.Status == playback.StatusPlaying {
+			t.Errorf("empty queue reported playing: %+v", state)
+		}
+	}
+}
+
 func TestPlaySongsPlaysTheQueueAndReportsThePage(t *testing.T) {
 	page, clock, tk := newPage(), newClock(), newTicker()
 	page.setHandle(replying(nowReply("playing")))

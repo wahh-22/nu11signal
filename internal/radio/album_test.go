@@ -379,6 +379,7 @@ func TestSongStaysPlayableWhenItsAlbumFails(t *testing.T) {
 	f := playbacktest.New()
 	f.MethodErr = map[string]error{"SongAlbum": errors.New("no album on file")}
 	m := openSong(t, f, 1)
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
 	view := plain(m)
 	if !strings.Contains(view, "[R] RETRY") || !strings.Contains(view, "NO ALBUM ON FILE") {
 		t.Fatalf("failed song page lacks the retry notice or the reason:\n%s", view)

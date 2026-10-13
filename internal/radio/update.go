@@ -20,6 +20,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return next, cmd
 	}
+	// Report the text row, not the broader desktop text-key routing state.
+	typing := nm.textInputSelected() && !nm.boot && !nm.shutdown && !nm.quitAsk && !nm.help && !nm.settings && nm.auth != authFailed
+	if typing != nm.typingNotified {
+		nm.typingNotified = typing
+		if nm.onTypingChanged != nil {
+			nm.onTypingChanged(typing)
+		}
+	}
 	// Text msg brought scrambles in (see intro.go), the tick raised for it.
 	nm = nm.withIntro(m, msg)
 	// A flip of the spectrum area between the emblem and the rain swaps
@@ -299,6 +307,14 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.boot {
 		return m.bootKey(k)
 	}
+	if k == "ctrl+q" {
+		// Android long-Back transport signal, not a desktop shortcut: the TV
+		// must not send printable q; SEARCH accepts text even on rows.
+		if m.keysTyped() {
+			return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+		}
+		return m.askQuit(), nil
+	}
 	if k == keyCtrlC {
 		return m.askQuit(), nil
 	}
@@ -312,6 +328,14 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// Before any area takes it, so the focus and the view stay put
 		// under the quit modal and come back as they were.
 		return m.askQuit(), nil
+	}
+	if k == "ctrl+_" {
+		// Android MENU must reach the input even when / would restore a
+		// parked detail page. Keep desktop / and tab restoration unchanged.
+		if m.auth == authFailed || m.editor.mode != editClosed {
+			return m, nil
+		}
+		return m.remoteSearchInput()
 	}
 	if m.auth != authFailed {
 		if m.focus == areaTabs {

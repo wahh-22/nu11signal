@@ -13,7 +13,7 @@ const namespace = "window.__nu11signal"
 // scriptVersion tells a namespace this bootstrap installed from an older
 // one (or anything else at that name): a call that finds another version
 // reports the namespace missing, and the player installs it again.
-const scriptVersion = 4
+const scriptVersion = 5
 
 // bootstrap installs the namespace in the page, replacing any earlier
 // one; it is idempotent, and installed again after the page reloads. Its
@@ -36,7 +36,7 @@ const scriptVersion = 4
 // never accept a write's method or path. It never
 // reads tokens, cookies or storage.
 const bootstrap = `(() => {
-const version = 4;
+const version = 5;
 const songPattern = /^\d{1,20}$/;
 const textLimit = 200;
 const statuses = [
@@ -144,7 +144,13 @@ window.__nu11signal = {
     });
   },
   pause() { return run("pause", (mk) => mk.pause()); },
-  resume() { return run("resume", (mk) => mk.play()); },
+  resume() {
+    const mk = need(), items = read(read(mk, "queue"), "items");
+    // MusicKit resolves play() even with nothing to play. Do not claim
+    // a successful resume unless a current item or queued item exists.
+    if (!read(mk, "nowPlayingItem") && (!Array.isArray(items) || items.length === 0)) return {empty: true};
+    return run("resume", (mk) => mk.play());
+  },
   next() { return run("next", (mk) => mk.skipToNextItem()); },
   previous() { return run("previous", (mk) => mk.skipToPreviousItem()); },
   stop() { return run("stop", (mk) => mk.stop()); },

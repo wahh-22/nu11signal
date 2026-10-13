@@ -217,6 +217,13 @@ func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyDown:
 		m.setCursor(min(m.cursor()+1, len(m.searchRows())-1))
 		return m, nil
+	case keySearch:
+		if m.cursor() >= 0 {
+			// Match / on RESULTS: return to editing without changing the term.
+			m.setCursor(-1)
+			m.input.CursorEnd()
+			return m, m.input.Focus()
+		}
 	case keyEnter:
 		return m.searchEnter()
 	case keyRight, keyLeft:
@@ -265,7 +272,7 @@ func (m *Model) inputChanged() tea.Cmd {
 	}
 	m.stopSearch()
 	seq := m.search.seq
-	return tea.Tick(searchDebounce, func(time.Time) tea.Msg { return searchDebounceMsg{seq: seq} })
+	return tea.Tick(m.searchDelay, func(time.Time) tea.Msg { return searchDebounceMsg{seq: seq} })
 }
 
 func (m Model) inputTerm() string { return strings.TrimSpace(m.input.Value()) }
@@ -298,7 +305,7 @@ func (m Model) searchNow() (Model, tea.Cmd) {
 // startSearch stops the pending search and starts one for term.
 func (m *Model) startSearch(term string) tea.Cmd {
 	m.stopSearch()
-	ctx, cancel := m.ctx()
+	ctx, cancel := context.WithTimeout(context.Background(), m.searchTimeout)
 	m.search.cancel = cancel
 	m.search.loading = true
 	seq := m.search.seq

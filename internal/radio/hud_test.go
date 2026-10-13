@@ -232,7 +232,7 @@ func TestArrowsWalkTheHUDRows(t *testing.T) {
 func TestFocusedHUDButtonsAreMarked(t *testing.T) {
 	m := playingModel(t, playbacktest.New())
 	m, _ = press(t, m, "right") // PLAY, filled already: the marker shows it
-	if got := textAt(m, zoneOf(t, m, zonePlay)); !strings.HasPrefix(got, "▸") {
+	if got := textAt(m, zoneOf(t, m, zonePlay)); !strings.Contains(got, "▸") {
 		t.Fatalf("focused PLAY shows %q; want the ▸ marker", got)
 	}
 	m, _ = press(t, m, "right", "right") // LOOP

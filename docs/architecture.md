@@ -21,6 +21,8 @@ How the Go UI, the macOS Swift MusicKit helper and the Linux web player fit toge
 | Helper adapter | `internal/helper` | Starts the macOS helper, correlates requests, streams state |
 | Web player | `internal/playback/webplayer` | Drives Apple's web player in a hidden Chrome or Chromium on Linux |
 | Local player | `internal/playback/local` | Scans, decodes and plays the computer's music files |
+| Shared DSP | `internal/playback/spectrum` | Mono/stereo PCM to 24 spectrum bands and a 64-point wave |
+| Linux capture | `internal/playback/pulsecapture` | Pure-Go PulseAudio default sink monitor capture for the web player |
 | Composite player | `internal/playback/composite` | Joins Apple Music and the local files, routing by id namespace (`local:`) |
 | Demo player | `internal/playback/demo` | In-process simulated player for `--demo` |
 | Helper | `helper/` | SwiftPM package; `build.sh` bundles and signs the `.app` |
@@ -48,6 +50,12 @@ again every few seconds, so Apple Music can join later. If the browser is
 unavailable or cannot start or load the page, playback falls back to local
 files. See [Apple Music on Linux](usage.md#apple-music-on-linux-experimental)
 for setup and limitations.
+
+While playing, the web player feeds the default sink monitor through
+`internal/playback/pulsecapture` into `internal/playback/spectrum`, the same
+DSP used by local files. Capture hears the whole system mix; missing
+PulseAudio/PipeWire or monitor capture leaves the rain decorative. See
+[Linux spectrum](audio.md#linux).
 
 ## Helper lookup
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/spectrum"
 )
 
 const testRate = 8000
@@ -307,16 +308,16 @@ func TestLevelsWhilePlaying(t *testing.T) {
 	default:
 		t.Fatal("no reading after a full window")
 	}
-	if len(r.Bands) != numBands || len(r.Wave) != wavePoints {
+	if len(r.Bands) != spectrum.BandCount || len(r.Wave) != spectrum.WavePoints {
 		t.Fatalf("reading has %d bands, %d wave points", len(r.Bands), len(r.Wave))
 	}
-	band := bandOf(1000, numBands, minHz, maxHz)
+	const band = 12 // 1 kHz falls in band 12 of the documented 24-band scale.
 	for i, b := range r.Bands {
 		if b > r.Bands[band] {
 			t.Errorf("band %d (%v) is louder than the tone's band %d (%v)", i, b, band, r.Bands[band])
 		}
 	}
-	if r.Bands[band] < 0.5 || peak32(r.Wave) < 0.45 {
+	if r.Bands[band] != 0.7 || peak32(r.Wave) < 0.45 {
 		t.Errorf("reading = %+v", r)
 	}
 	_ = p.Pause(ctx)
@@ -326,6 +327,26 @@ func TestLevelsWhilePlaying(t *testing.T) {
 	case r := <-p.Levels():
 		t.Errorf("reading while paused: %+v", r)
 	default:
+	}
+	if err := p.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s.pull(spectrum.FFTSize - 1)
+	p.measure()
+	select {
+	case r := <-p.Levels():
+		t.Fatalf("resume reused pre-pause samples: %+v", r)
+	default:
+	}
+	s.pull(1)
+	p.measure()
+	select {
+	case r := <-p.Levels():
+		if r.Bands[band] != 0.7 {
+			t.Errorf("resume retained smoothing: %+v", r)
+		}
+	default:
+		t.Fatal("no reading after a full resumed window")
 	}
 }
 

@@ -181,9 +181,9 @@ const playerMinWidth = 30
 // listPanelWidthFor is the width of the list panel in the full layout, the
 // same in every view: the browse pages' width, whose rows pair a title
 // with an album, year, curator or duration, so that the panel never
-// resizes when a page opens. NOW PLAYING keeps at least playerMinWidth
-// cells beside it.
-func listPanelWidthFor(w int) int { return max(28, min(w*3/5, 72, w-1-playerMinWidth)) }
+// resizes when a page opens. It takes 45% of the screen, clamped to
+// 28–72 cells; NOW PLAYING keeps at least playerMinWidth cells beside it.
+func listPanelWidthFor(w int) int { return max(28, min(w*9/20, 72, w-1-playerMinWidth)) }
 
 // listBodyWidth is the width listView draws in: the list panel's inside in
 // the full layout, the whole screen in the compact one.

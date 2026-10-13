@@ -19,7 +19,7 @@ import (
 var update = flag.Bool("update", false, "rewrite golden files")
 
 func TestViewFitsEverySize(t *testing.T) {
-	sizes := []struct{ w, h int }{{0, 0}, {1, 1}, {10, 3}, {40, 10}, {59, 15}, {80, 24}, {100, 30}, {160, 50}}
+	sizes := []struct{ w, h int }{{0, 0}, {1, 1}, {10, 3}, {40, 10}, {59, 15}, {59, 16}, {60, 15}, {60, 16}, {80, 24}, {100, 30}, {160, 50}}
 	for _, sz := range sizes {
 		t.Run(fmt.Sprintf("%dx%d", sz.w, sz.h), func(t *testing.T) {
 			f := playbacktest.New()
@@ -227,6 +227,7 @@ func TestNowPlayingHeadIsTheFeedAndTheStatus(t *testing.T) {
 // cut, the status stays whole on the right.
 func TestNarrowNowPlayingCutsTheFeedNotTheStatus(t *testing.T) {
 	m := playingModel(t, playbacktest.New())
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: fullMinWidth, Height: fullMinHeight})
 	iw := m.playerPanelWidth() - 2
 	feed := ansi.StringWidth(m.feedLine())
 	if 1+feed+1+ansi.StringWidth(m.statusTag()) <= iw {

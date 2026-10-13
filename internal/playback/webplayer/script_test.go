@@ -2,6 +2,7 @@ package webplayer
 
 import (
 	"encoding/json"
+	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
@@ -48,6 +49,33 @@ func balanced(src string) (bool, string) {
 		return false, "unclosed " + string(stack)
 	}
 	return true, ""
+}
+
+func TestBootstrapResumeEmptyQueue(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Fatal("node required to exercise MusicKit script")
+	}
+	cmd := exec.Command("node", "-")
+	cmd.Stdin = strings.NewReader(`
+const assert = require("node:assert/strict");
+let plays = 0;
+const mk = {queue: {items: []}, nowPlayingItem: null, play: async () => { plays++; }};
+global.window = {MusicKit: {getInstance: () => mk}};
+` + bootstrap + `;
+(async () => {
+  assert.equal((await window.__nu11signal.resume()).empty, true);
+  assert.equal(plays, 0);
+  mk.queue.items = [{id: "111"}];
+  assert.equal((await window.__nu11signal.resume()).ok, true);
+  assert.equal(plays, 1);
+  mk.queue.items = [];
+  mk.nowPlayingItem = {id: "111"};
+  assert.equal((await window.__nu11signal.resume()).ok, true);
+  assert.equal(plays, 2);
+})().catch(e => { console.error(e); process.exitCode = 1; });`)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("resume script: %v\n%s", err, output)
+	}
 }
 
 func TestBootstrapIsStructurallySound(t *testing.T) {

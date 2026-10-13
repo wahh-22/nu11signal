@@ -65,5 +65,8 @@ func (m Model) onLibraryChanged() (Model, tea.Cmd) {
 	if m.auth != authOK {
 		return m, m.waitLibrary()
 	}
+	// Late authorization also makes previously failed favorite reads
+	// reachable. The next tick retries them, as after the initial auth.
+	m.clearFailedFavorites()
 	return m, tea.Batch(m.waitLibrary(), m.loadPlaylistsCmd())
 }

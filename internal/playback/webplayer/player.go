@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/wahh-22/nu11signal/internal/playback"
+	"github.com/wahh-22/nu11signal/internal/playback/pulsecapture"
 )
 
 var (
@@ -102,6 +103,13 @@ type Player struct {
 	installed bool
 	// hidden is set by Hide; a new install hides the page again.
 	hidden bool
+
+	captureWait   func(context.Context, time.Duration) error
+	capture       func(context.Context, func([]float32, int)) (func(), error)
+	readings      chan playback.Spectrum
+	captureCancel context.CancelFunc // guarded by mu
+	captureGate   sync.Mutex
+	captureWG     sync.WaitGroup
 
 	mu      sync.Mutex
 	closed  bool
@@ -202,6 +210,9 @@ func New(page Evaluator, opts ...Option) *Player {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Player{
 		page:           page,
+		capture:        pulsecapture.Start,
+		captureWait:    sleep,
+		readings:       make(chan playback.Spectrum, 1),
 		every:          DefaultPollInterval,
 		now:            time.Now,
 		pause:          sleep,
@@ -482,6 +493,7 @@ func (p *Player) publish(s playback.State, at time.Time) {
 	if p.closed {
 		return
 	}
+	p.updateCaptureLocked(s.Status)
 	p.state, p.stateAt = s, at
 	select {
 	case p.states <- s:
@@ -822,7 +834,22 @@ func (p *Player) Pause(ctx context.Context) error {
 
 // Resume resumes the page.
 func (p *Player) Resume(ctx context.Context) error {
-	if err := p.run(ctx, "resume", "resume"); err != nil {
+	if err := p.latest(ctx, "resume", nil, func(ctx context.Context) error {
+		raw, err := p.call(ctx, "resume")
+		if err != nil {
+			return err
+		}
+		var result struct {
+			Empty bool `json:"empty"`
+		}
+		if json.Unmarshal(raw, &result) != nil {
+			return errMalformed
+		}
+		if result.Empty {
+			return errors.New("nothing queued")
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
 	p.applied(playback.StatusPlaying, "")
@@ -1168,10 +1195,16 @@ func (p *Player) Close() error {
 		}
 		p.mu.Lock()
 		p.closed = true
+		if p.captureCancel != nil {
+			p.captureCancel()
+			p.captureCancel = nil
+		}
 		close(p.states)
 		close(p.errs)
 		polled := p.polled
 		p.mu.Unlock()
+		p.captureWG.Wait()
+		close(p.readings)
 		if polled != nil {
 			<-polled
 		}

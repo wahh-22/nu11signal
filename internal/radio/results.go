@@ -54,7 +54,7 @@ func (m Model) openResults(term string) (Model, tea.Cmd) {
 func (m *Model) loadResults(term string) tea.Cmd {
 	m.resultsSeq++
 	seq := m.resultsSeq
-	ctx, cancel := m.ctx()
+	ctx, cancel := context.WithTimeout(context.Background(), m.searchTimeout)
 	m.setTop(frame{kind: viewResults, results: resultsPage{term: term, seq: seq, loading: true, cancel: cancel}})
 	player := m.player
 	return func() tea.Msg {

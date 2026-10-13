@@ -36,6 +36,14 @@ func listPanelEdge(t *testing.T, m Model) int {
 	return ansi.StringWidth(top[:i]) + 1
 }
 
+func TestListPanelWidthProportion(t *testing.T) {
+	for _, tt := range []struct{ width, want int }{{80, 36}, {100, 45}, {120, 54}, {161, 72}, {200, 72}} {
+		if got := listPanelWidthFor(tt.width); got != tt.want {
+			t.Errorf("width %d: got %d; want %d", tt.width, got, tt.want)
+		}
+	}
+}
+
 func TestListPanelKeepsItsMaximumWidthInEveryView(t *testing.T) {
 	for _, sz := range []struct{ w, h int }{{60, 16}, {80, 24}, {120, 40}, {200, 50}} {
 		t.Run(fmt.Sprintf("%dx%d", sz.w, sz.h), func(t *testing.T) {

@@ -2,7 +2,7 @@
 
 [← Back to the README](../README.md) · [Documentation index](../README.md#documentation)
 
-Install a signed, notarized macOS build or a Linux build, and set up the font the UI is designed with. To build from source instead, see [Building from source](building.md).
+Install a signed, notarized macOS build, a Linux build, or the Android TV APK. For desktop terminals, set up the font the UI is designed with. To build from source instead, see [Building from source](building.md).
 
 ## Download
 
@@ -142,6 +142,16 @@ failed until nu11signal is restarted.
 CI builds and tests on Linux (Ubuntu) and plays a short tone through the
 real audio path against a PulseAudio null sink
 (`go test -tags audiosmoke -run Smoke ./internal/playback/local/...`).
+
+## Android TV
+
+On Android TV / Google TV (Android 9+), sideload the signed
+`nu11signal-tv-<version>.apk` from a release. The font is bundled; local
+files are not supported in this version.
+
+Follow the [Android TV guide](android-tv.md) for checksum verification,
+remote-only installation and Apple Music sign-in, the TV keyboard,
+background playback, audio permission, updates and uninstalling.
 
 ## Font
 

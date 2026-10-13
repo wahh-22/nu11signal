@@ -8,7 +8,7 @@ GO     ?= go
 BIN    := bin/nu11signal
 PKG    := ./cmd/nu11signal
 
-.PHONY: all build helper go demo test test-scripts vet fmt-check release release-dry-run release-linux cask check-version clean clean-dist
+.PHONY: all build helper go android android-release demo test test-scripts vet fmt-check release release-dry-run release-linux cask check-version clean clean-dist
 
 all: build
 
@@ -23,6 +23,14 @@ helper:
 go:
 	$(GO) build -o $(BIN) $(PKG)
 
+## android: dev APK signed with the debug key (not debuggable unless DEBUG=1)
+android:
+	env -u NU11SIGNAL_TV_KEYSTORE -u NU11SIGNAL_TV_KEY_ALIAS -u NU11SIGNAL_TV_KEYSTORE_PASS -u NU11SIGNAL_TV_KEY_PASS VERSION=dev bash ./android/build.sh
+
+## android-release: release-key APK + checksum in dist/vVERSION (DRY_RUN=1 verifies in android/build only; FORCE=1 replaces Android artifacts)
+android-release: check-version
+	VERSION='$(VERSION)' FORCE='$(FORCE)' DRY_RUN='$(DRY_RUN)' bash ./scripts/android-release.sh
+
 ## demo: build only the Go binary and run it against the simulated player
 demo: go
 	./$(BIN) --demo
@@ -33,7 +41,7 @@ test:
 	cd helper && swift test
 	./scripts/test/run.sh
 
-## test-scripts: hermetic tests for scripts/release.sh and scripts/bump-cask.sh (stubbed tools, temp dirs)
+## test-scripts: hermetic release and Homebrew script tests (stubbed tools, temp dirs)
 test-scripts:
 	./scripts/test/run.sh
 
