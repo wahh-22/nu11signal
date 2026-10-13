@@ -27,6 +27,7 @@ EOF
 #!/usr/bin/env bash
 [[ "$1 $2" == 'verify --print-certs' ]] || exit 1
 [[ "${STUB_VERIFY_FAIL:-0}" != 1 ]] || exit 1
+echo "apksigner-verify $3" >>"$STUB_LOG"
 echo "Signer #1 certificate SHA-256 digest: ${STUB_CERT:-448148925a1ecad2f51f3f5007343535d22d41716b4f0b9c4d88daaed0494320}"
 [[ "${STUB_MULTISIGNER:-0}" != 1 ]] || echo "Signer #2 certificate SHA-256 digest: aaaa"
 EOF
@@ -98,6 +99,16 @@ test_android_release_rejects_debuggable() {
   assert_failed
   assert_output_contains 'APK is debuggable'
   [[ ! -e "$T/root/dist" ]] || fail 'published debuggable APK'
+}
+
+test_android_release_verifies_the_published_copy() {
+  setup_android_release
+  VERSION=0.0.1 android_release
+  assert_status 0
+  # The verified bytes must be a private snapshot, not the shared build output
+  # that a concurrent build could replace before publication.
+  grep -q 'apksigner-verify .*/.staging-android\.' "$STUB_LOG" || fail 'verified a path other than the staged snapshot'
+  ! grep -q 'apksigner-verify .*/android/build/' "$STUB_LOG" || fail 'verified the shared build output'
 }
 
 test_android_release_rejects_stale_manifest_version() {

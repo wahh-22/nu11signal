@@ -50,6 +50,29 @@ EXPECTED="$(normalize "$EXPECTED")"
 [[ "$EXPECTED" =~ ^[0-9a-f]{64}$ ]] || die 'NU11SIGNAL_TV_CERT_SHA256 must be a SHA-256 fingerprint (hex, optionally colon-separated)'
 # Override any inherited DEBUG, even in a dry run: these builds use the release key.
 VERSION="$VERSION" DEBUG=0 bash "$ROOT/android/build.sh"
+# Snapshot the build output into a private directory and verify only the
+# snapshot: a later build of the same VERSION can replace android/build at any
+# time, and what is published must be exactly the bytes that were verified.
+if [[ "${DRY_RUN:-0}" == 1 ]]; then
+  STAGE="$(mktemp -d "${TMPDIR:-/tmp}/nu11signal-android-release.XXXXXXXX")"
+  trap 'rm -rf "$STAGE"' EXIT
+else
+  refuse_overwrite
+  [[ -d "$ROOT/dist" ]] && NEW_DIST=0 || NEW_DIST=1
+  [[ -d "$DEST" ]] && NEW_DEST=0 || NEW_DEST=1
+  mkdir -p "$DEST"
+  # Staged on the destination filesystem so publication is a rename. A
+  # rejected or failed run removes its stage and any directory it created.
+  STAGE="$(mktemp -d "$DEST/.staging-android.XXXXXXXX")"
+  cleanup() {
+    rm -rf "$STAGE"
+    [[ "$NEW_DEST" == 0 ]] || rmdir "$DEST" 2>/dev/null || true
+    [[ "$NEW_DIST" == 0 ]] || rmdir "$ROOT/dist" 2>/dev/null || true
+  }
+  trap cleanup EXIT
+fi
+cp "$APK" "$STAGE/$NAME"
+APK="$STAGE/$NAME"
 CERTS="$("$TOOLS/apksigner" verify --print-certs "$APK")" || die 'APK signature verification failed'
 SIGNERS="$(printf '%s\n' "$CERTS" | awk '/^Signer #[0-9]+ certificate SHA-256 digest:/ {print $NF}')"
 [[ -n "$SIGNERS" && "$SIGNERS" != *$'\n'* && "$(normalize "$SIGNERS")" == "$EXPECTED" ]] ||
@@ -64,15 +87,9 @@ BADGING="$("$TOOLS/aapt2" dump badging "$APK")" || die 'APK badging verification
 echo 'ok: APK is not debuggable'
 printf '%s\n' "$BADGING" | awk '/^package:/ {print}'
 if [[ "${DRY_RUN:-0}" == 1 ]]; then
-  echo "Dry run verified: $APK (dist untouched)"
+  echo "Dry run verified: $NAME (dist untouched)"
   exit 0
 fi
-refuse_overwrite
-mkdir -p "$DEST"
-# Stage the pair on the destination filesystem before replacing either file.
-# Failed/interrupted stages are retained for inspection, never contain secrets.
-STAGE="$(mktemp -d "$DEST/.staging-android.XXXXXXXX")"
-cp "$APK" "$STAGE/$NAME"
 (cd "$STAGE" && shasum -a 256 "$NAME" >"$NAME.sha256" && shasum -a 256 -c "$NAME.sha256")
 mv -f "$STAGE/$NAME" "$DEST/$NAME"
 mv -f "$STAGE/$NAME.sha256" "$DEST/$NAME.sha256"
