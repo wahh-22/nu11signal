@@ -42,3 +42,18 @@ func TestSizedClosesOnTheFirstValidSize(t *testing.T) {
 		t.Fatal("a later size reopened the wait")
 	}
 }
+
+// A Runtime built without the channel (tests, or code that never waits for
+// the size) still handles resizes: the close is skipped, not a panic.
+func TestSizedIsOptional(t *testing.T) {
+	r := &Runtime{}
+	defer func() {
+		if p := recover(); p != nil {
+			t.Fatalf("resize without a sized channel panicked: %v", p)
+		}
+	}()
+	r.onMessage(webplayer.BridgeMessage{Type: "resize", Cols: 161, Rows: 44})
+	if r.Sized() != nil {
+		t.Fatal("Sized invented a channel")
+	}
+}
