@@ -33,14 +33,24 @@ compose() {
   } >"$TMP/$name.svg"
 }
 
-# render NAME BASE_DP: one PNG per density bucket from a BASE_DP-sized design.
+# check PNG WIDTH HEIGHT: fail unless the file is a PNG of exactly that size
+# (read from its IHDR header, so no image tool is needed).
+check() {
+  local png="$1" want="$2x$3" got
+  [[ "$(od -An -tx1 -N8 "$png" | tr -d ' \n')" == 89504e470d0a1a0a ]] || { echo "Not a PNG: $png" >&2; exit 1; }
+  got="$(od -An -tu1 -j16 -N8 "$png" | awk '{ printf "%dx%d", $1*16777216+$2*65536+$3*256+$4, $5*16777216+$6*65536+$7*256+$8 }')"
+  [[ "$got" == "$want" ]] || { echo "Rendered $png at $got; want $want" >&2; exit 1; }
+}
+
+# render NAME BASE_DP: one square PNG per density bucket from a BASE_DP design.
 render() {
-  local name="$1" base="$2" bucket scale
+  local name="$1" base="$2" bucket scale px
   for bucket in mdpi:1 hdpi:1.5 xhdpi:2 xxhdpi:3 xxxhdpi:4; do
     scale="${bucket#*:}"
+    px="$(awk -v b="$base" -v s="$scale" 'BEGIN { printf "%d", b * s }')"
     mkdir -p "$ROOT/res/drawable-${bucket%%:*}"
-    rsvg-convert -w "$(awk -v b="$base" -v s="$scale" 'BEGIN { printf "%d", b * s }')" \
-      "$TMP/$name.svg" -o "$ROOT/res/drawable-${bucket%%:*}/$name.png"
+    rsvg-convert -w "$px" "$TMP/$name.svg" -o "$ROOT/res/drawable-${bucket%%:*}/$name.png"
+    check "$ROOT/res/drawable-${bucket%%:*}/$name.png" "$px" "$px"
   done
 }
 
@@ -57,5 +67,6 @@ render notification 24
 compose banner 640 360 "$INK" 40 92 560 176 '0 0 1650 520'
 mkdir -p "$ROOT/res/drawable-xhdpi"
 rsvg-convert -w 640 -h 360 "$TMP/banner.svg" -o "$ROOT/res/drawable-xhdpi/banner.png"
+check "$ROOT/res/drawable-xhdpi/banner.png" 640 360
 printf 'Rendered Android brand assets from %s\n' "$LOGO"
 # Intermediate SVGs remain under the ignored build directory for inspection.

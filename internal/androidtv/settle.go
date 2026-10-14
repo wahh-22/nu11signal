@@ -3,8 +3,11 @@ package androidtv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/wahh-22/nu11signal/internal/playback/webplayer"
 )
 
 // The music page and the terminal share the app's single WebView renderer
@@ -17,8 +20,9 @@ const (
 	settleWindow  = time.Second
 	settleIdle    = 300 * time.Millisecond // busy time per window that still feels responsive
 	settleStreak  = 2
-	settleLimit   = 20 * time.Second // never hold startup longer than this
-	settleTimeout = 3 * time.Second  // one probe; a page that cannot answer counts as busy
+	settleLimit   = 20 * time.Second       // never hold startup longer than this
+	settleTimeout = 3 * time.Second        // one probe; a page that cannot answer counts as busy
+	settleRetry   = 250 * time.Millisecond // pause after a failed probe
 )
 
 // busyProbe chains zero-delay timers for one window in the music page and
@@ -39,8 +43,8 @@ var busyProbe = fmt.Sprintf(`new Promise(done => {
 // thread, or settleLimit. Only ctx's end is an error: a page that never
 // settles must not keep the UI from starting.
 func (r *Runtime) WaitSettled(ctx context.Context) error {
-	probe := func(ctx context.Context) (time.Duration, error) {
-		ctx, cancel := context.WithTimeout(ctx, settleTimeout)
+	probe := func(ctx context.Context, budget time.Duration) (time.Duration, error) {
+		ctx, cancel := context.WithTimeout(ctx, budget)
 		defer cancel()
 		raw, err := r.Bridge.Evaluate(ctx, busyProbe)
 		if err != nil {
@@ -48,34 +52,62 @@ func (r *Runtime) WaitSettled(ctx context.Context) error {
 		}
 		return parseBusy(raw)
 	}
-	return waitSettled(ctx, probe, time.Now, settleIdle, settleStreak, settleLimit)
+	return waitSettled(ctx, probe, time.Now, sleepCtx, settleIdle, settleStreak, settleLimit)
 }
 
 // waitSettled probes until streak consecutive windows each report at most
-// idle busy time, or limit has passed. A failed probe counts as busy.
-func waitSettled(ctx context.Context, probe func(context.Context) (time.Duration, error),
-	now func() time.Time, idle time.Duration, streak int, limit time.Duration) error {
+// idle busy time, or limit has passed: each probe gets at most the time
+// left (and settleTimeout), so the hold never outlasts limit. A failed probe
+// counts as busy and waits settleRetry before the next, so a page that fails
+// at once (navigating) is not polled in a tight loop. A gone browser ends
+// the hold: it will never answer, and the UI handles the closed bridge.
+func waitSettled(ctx context.Context, probe func(context.Context, time.Duration) (time.Duration, error),
+	now func() time.Time, sleep func(context.Context, time.Duration) error,
+	idle time.Duration, streak int, limit time.Duration) error {
 	deadline := now().Add(limit)
 	run := 0
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		busy, err := probe(ctx)
+		left := deadline.Sub(now())
+		if left <= 0 {
+			return nil
+		}
+		busy, err := probe(ctx, min(left, settleTimeout))
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err == nil && busy <= idle {
+		switch {
+		case errors.Is(err, webplayer.ErrBrowserGone):
+			return nil
+		case err != nil:
+			run = 0
+			if !now().Before(deadline) {
+				return nil
+			}
+			if err := sleep(ctx, min(settleRetry, deadline.Sub(now()))); err != nil {
+				return err
+			}
+		case busy <= idle:
 			run++
 			if run >= streak {
 				return nil
 			}
-		} else {
+		default:
 			run = 0
 		}
-		if !now().Before(deadline) {
-			return nil
-		}
+	}
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
 	}
 }
 
