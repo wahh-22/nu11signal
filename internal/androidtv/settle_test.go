@@ -25,6 +25,8 @@ type settleProbe struct {
 	slow bool
 	// during runs inside each probe, as work in flight would.
 	during func()
+	// pausing runs inside each pause after a failed probe.
+	pausing func()
 }
 
 func (p *settleProbe) now() time.Time { return p.t }
@@ -60,6 +62,9 @@ func (p *settleProbe) probe(ctx context.Context, budget time.Duration) (time.Dur
 
 func (p *settleProbe) sleep(ctx context.Context, d time.Duration) error {
 	p.sleeps++
+	if p.pausing != nil {
+		p.pausing()
+	}
 	p.t = p.t.Add(d)
 	return ctx.Err()
 }
@@ -181,8 +186,8 @@ func TestWaitSettledCutsTheLastProbeToTheTimeLeft(t *testing.T) {
 	}
 }
 
-// Cancellation during a probe or during the pause after a failure ends the
-// hold with the context's error.
+// Cancellation during a probe, or during the pause after a failed one, ends
+// the hold with the context's error and no further probe.
 func TestWaitSettledStopsWhenCancelledInFlight(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &settleProbe{t: time.Unix(0, 0), during: cancel}
@@ -191,9 +196,9 @@ func TestWaitSettledStopsWhenCancelledInFlight(t *testing.T) {
 	}
 
 	ctx, cancel = context.WithCancel(context.Background())
-	p = &settleProbe{t: time.Unix(0, 0), failAt: func(int) error { cancel(); return errors.New("page navigated") }}
-	if err := runSettle(ctx, p); !errors.Is(err, context.Canceled) || p.calls != 1 {
-		t.Fatalf("err %v after %d probes; want context.Canceled after 1", err, p.calls)
+	p = &settleProbe{t: time.Unix(0, 0), failAt: func(int) error { return errors.New("page navigated") }, pausing: cancel}
+	if err := runSettle(ctx, p); !errors.Is(err, context.Canceled) || p.calls != 1 || p.sleeps != 1 {
+		t.Fatalf("err %v after %d probes and %d pauses; want context.Canceled after 1 and 1", err, p.calls, p.sleeps)
 	}
 }
 
