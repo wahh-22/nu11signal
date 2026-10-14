@@ -84,6 +84,9 @@ func androidRadioOptions(recents history.Recents, settings config.Source, calm b
 // the UI so Back in the sign-in view leaves a usable, unauthorized TUI.
 // No browser subprocess is opened; play joins the app player with the
 // private local library, whose audio device stays unopened until playback.
+// androidSizeWait bounds how long the UI waits for the app's terminal size.
+const androidSizeWait = 5 * time.Second
+
 func playAndroidTV(socket string, calm bool, d deps) error {
 	if loc := androidDeviceZone(os.Getenv("TZ")); loc != nil {
 		time.Local = loc
@@ -104,6 +107,38 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 	}()
 	relay := r.Relay(ctx, os.Stdin, d.stdout)
 	defer func() { cancel(); r.Close(); <-relay }()
+	// The boot splash shows from the first frame and holds while Apple
+	// Music loads (see radio.Startup); runUI hands the program over to the
+	// UI built on the opened player. Without that handover (the player did
+	// not open) the splash quits before play's error is reported. ctx owns
+	// SIGINT and SIGTERM (signal.NotifyContext above): Bubble Tea's own
+	// handler could block sending its quit message once ctx has ended the
+	// event loop, and the program would never return. It starts once the
+	// app has sent its terminal size (see Runtime.Sized), so it reads the
+	// real size instead of the PTY's initial 80x24; past androidSizeWait it
+	// starts anyway rather than hold the screen black.
+	select {
+	case <-r.Sized():
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(androidSizeWait):
+	}
+	next := make(chan radio.Model, 1)
+	startup := tea.NewProgram(radio.NewStartup(radio.Options{Seed: uint64(time.Now().UnixNano()), Effects: !calm}, next),
+		tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx), tea.WithFPS(radio.RenderFPS),
+		tea.WithoutSignalHandler())
+	ui := make(chan error, 1)
+	go func() {
+		_, err := startup.Run()
+		ui <- err
+	}()
+	handedOver := false
+	defer func() {
+		if !handedOver {
+			close(next)
+			<-ui
+		}
+	}()
 	var player *androidtv.Player
 	d.openWebPlayer = func(start context.Context) (playback.Player, error) {
 		// The startup bound from openPlayer must also stop on an app exit or
@@ -123,8 +158,17 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 		loginCtx, stop := context.WithCancel(ctx)
 		signedIn := make(chan error, 1)
 		go func() { signedIn <- r.SignIn(loginCtx, player) }()
-		model := radio.New(p, androidRadioOptions(recents, settings, calm, androidTypingHook(loginCtx, r.Bridge)))
-		_, err := tea.NewProgram(model, tea.WithInput(r.Slave), tea.WithOutput(r.Slave), tea.WithContext(ctx), tea.WithFPS(radio.RenderFPS)).Run()
+		// Apple's web app keeps the WebView thread the terminal shares busy
+		// for a while after MusicKit is ready; the splash holds until it is
+		// free (bounded, see Runtime.WaitSettled) so the UI starts responsive.
+		if err := r.WaitSettled(ctx); err != nil {
+			stop()
+			<-signedIn
+			return err
+		}
+		handedOver = true
+		next <- radio.New(p, androidRadioOptions(recents, settings, calm, androidTypingHook(loginCtx, r.Bridge)))
+		err := <-ui
 		stop()
 		if loginErr := <-signedIn; loginErr != nil && !errors.Is(loginErr, context.Canceled) {
 			fmt.Fprintln(d.stderr, "nu11signal: Android sign-in:", loginErr)

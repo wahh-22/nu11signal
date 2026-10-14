@@ -324,6 +324,14 @@ public class MainActivity extends Activity {
             @Override public void onPageStarted(WebView v, String url, android.graphics.Bitmap favicon) {
                 if (v == music) failPendingEvaluations("page navigated");
             }
+            // Apple Music's pages play animated album art: silent HLS video
+            // that nobody sees in this hidden page, and that kept a hardware
+            // decoder and the CPU busy for many seconds after startup.
+            @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest request) {
+                if (!MotionArtwork.matches(request.getUrl().getHost(), request.getUrl().getPath())) return null;
+                return new WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden",
+                        java.util.Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
+            }
         });
         view.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onConsoleMessage(ConsoleMessage message) {
@@ -547,7 +555,7 @@ public class MainActivity extends Activity {
             Process child = builder.start();
             process = child;
             if (destroyed) { child.destroy(); return; }
-            writeTerminal(("nu11signal: loading Apple Music, this can take a minute on a TV...\r\n").getBytes(StandardCharsets.UTF_8));
+            // Go draws the boot splash itself while Apple Music loads.
             Thread output = new Thread(() -> readTerminal(child.getInputStream()), "go-output");
             output.start();
             new Thread(() -> {

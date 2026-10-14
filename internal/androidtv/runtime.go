@@ -40,6 +40,8 @@ type Runtime struct {
 	closeOnce   sync.Once
 	readings    chan webplayer.BridgeMessage
 	mu          sync.Mutex // serializes resize with master Close
+	sized       chan struct{}
+	sizedOnce   sync.Once
 }
 
 // Open accepts exactly one app within 30 seconds (or ctx), after opening
@@ -51,7 +53,7 @@ func Open(ctx context.Context, path string) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &Runtime{master: master, Slave: slave, loginClosed: make(chan struct{}), readings: make(chan webplayer.BridgeMessage, 1)}
+	r := &Runtime{master: master, Slave: slave, loginClosed: make(chan struct{}), readings: make(chan webplayer.BridgeMessage, 1), sized: make(chan struct{})}
 	listener, err := listenSocket(path)
 	if err != nil {
 		r.Close()
@@ -147,6 +149,9 @@ func (r *Runtime) onMessage(m webplayer.BridgeMessage) {
 				// has no foreground process group to notify for us.
 				notifyResize()
 			}
+			if r.sized != nil {
+				r.sizedOnce.Do(func() { close(r.sized) })
+			}
 		}
 	case "login":
 		if m.Closed {
@@ -154,6 +159,12 @@ func (r *Runtime) onMessage(m webplayer.BridgeMessage) {
 		}
 	}
 }
+
+// Sized is closed once the app has sent its terminal size. The PTY opens
+// at 80x24, and a program started before the real size arrives can miss
+// the SIGWINCH that announces it (its listener is not installed yet) and
+// stay at 80x24; one started after reads the real size from the PTY.
+func (r *Runtime) Sized() <-chan struct{} { return r.sized }
 
 // Close is idempotent. It unblocks bridge calls and PTY relays; it does
 // not close process stdin/stdout, which belong to the caller.
