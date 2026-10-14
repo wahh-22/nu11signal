@@ -458,15 +458,9 @@ func (m Model) searchCode() string {
 }
 
 // inputWidth is the width of the search input's text, which sits in the
-// list panel (full layout) or across the screen (compact layout) after a
-// two-cell glyph.
-func (m Model) inputWidth() int {
-	w := m.width
-	if w >= fullMinWidth && m.height >= fullMinHeight {
-		w = listPanelWidthFor(w) - 2
-	}
-	return max(w-3, 1)
-}
+// list panel (full and tall layouts) or across the screen (compact layout)
+// after a two-cell glyph.
+func (m Model) inputWidth() int { return max(m.listBodyWidth()-3, 1) }
 
 // searchBody renders the search view in w x h cells: the input, a rule and
 // the rows, scrolled so the cursor stays on screen. Every line is exactly w
