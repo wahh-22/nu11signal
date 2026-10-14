@@ -20,6 +20,11 @@ type settleProbe struct {
 	calls  int
 	sleeps int
 	budget []time.Duration // the time each probe was allowed
+	// slow makes each probe use its whole budget, as a page that never
+	// answers does; otherwise a probe takes one window at most.
+	slow bool
+	// during runs inside each probe, as work in flight would.
+	during func()
 }
 
 func (p *settleProbe) now() time.Time { return p.t }
@@ -33,7 +38,14 @@ func (p *settleProbe) probe(ctx context.Context, budget time.Duration) (time.Dur
 			return 0, err
 		}
 	}
-	p.t = p.t.Add(min(settleWindow, budget))
+	if p.during != nil {
+		p.during()
+	}
+	if p.slow {
+		p.t = p.t.Add(budget)
+	} else {
+		p.t = p.t.Add(min(settleWindow, budget))
+	}
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -146,6 +158,42 @@ func TestWaitSettledBoundsEachProbeByTheTimeLeft(t *testing.T) {
 	}
 	if waited := p.t.Sub(start); waited > settleLimit {
 		t.Fatalf("held %v; want at most %v", waited, settleLimit)
+	}
+}
+
+// Probes that use their whole budget end exactly at the limit: the last one
+// is cut to the time left, not given a full settleTimeout past it.
+func TestWaitSettledCutsTheLastProbeToTheTimeLeft(t *testing.T) {
+	p := &settleProbe{t: time.Unix(0, 0), slow: true}
+	for range 100 {
+		p.busy = append(p.busy, 950*time.Millisecond)
+	}
+	start := p.t
+	if err := runSettle(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+	if waited := p.t.Sub(start); waited != settleLimit {
+		t.Fatalf("held %v with slow probes; want exactly %v", waited, settleLimit)
+	}
+	want := settleLimit % settleTimeout
+	if last := p.budget[len(p.budget)-1]; want == 0 || last != want {
+		t.Fatalf("last probe allowed %v; want the %v left", last, want)
+	}
+}
+
+// Cancellation during a probe or during the pause after a failure ends the
+// hold with the context's error.
+func TestWaitSettledStopsWhenCancelledInFlight(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &settleProbe{t: time.Unix(0, 0), during: cancel}
+	if err := runSettle(ctx, p); !errors.Is(err, context.Canceled) || p.calls != 1 {
+		t.Fatalf("err %v after %d probes; want context.Canceled after 1", err, p.calls)
+	}
+
+	ctx, cancel = context.WithCancel(context.Background())
+	p = &settleProbe{t: time.Unix(0, 0), failAt: func(int) error { cancel(); return errors.New("page navigated") }}
+	if err := runSettle(ctx, p); !errors.Is(err, context.Canceled) || p.calls != 1 {
+		t.Fatalf("err %v after %d probes; want context.Canceled after 1", err, p.calls)
 	}
 }
 
