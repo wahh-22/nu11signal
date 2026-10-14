@@ -158,6 +158,14 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 		loginCtx, stop := context.WithCancel(ctx)
 		signedIn := make(chan error, 1)
 		go func() { signedIn <- r.SignIn(loginCtx, player) }()
+		// Apple's web app keeps the WebView thread the terminal shares busy
+		// for a while after MusicKit is ready; the splash holds until it is
+		// free (bounded, see Runtime.WaitSettled) so the UI starts responsive.
+		if err := r.WaitSettled(ctx); err != nil {
+			stop()
+			<-signedIn
+			return err
+		}
 		handedOver = true
 		next <- radio.New(p, androidRadioOptions(recents, settings, calm, androidTypingHook(loginCtx, r.Bridge)))
 		err := <-ui
