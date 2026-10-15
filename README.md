@@ -89,6 +89,7 @@ from source are covered in [Install](docs/install.md) and
 | [Install](docs/install.md) | Homebrew (cask and formula), release archives, Linux, the Kode Mono font |
 | [Usage](docs/usage.md) | The catalog, the library, local files, keys, mouse, settings, update check |
 | [Android TV](docs/android-tv.md) | Sideloading, remote sign-in, TV keyboard and controls, audio permission, background playback, updates |
+| [Android phones and tablets](docs/android-phone.md) | Installing the same APK on a phone, touch sign-in, taps and swipes, portrait layout |
 | [Signal effects and rain](docs/effects.md) | Glitches, boot and shutdown splashes, intros, the rain |
 | [App volume and spectrum](docs/audio.md) | The independent `VOL` and the live spectrum |
 | [Architecture](docs/architecture.md) | Go UI, Swift helper, Linux web player, JSON lines protocol |

@@ -21,9 +21,15 @@ const targetColumns = Number.isSafeInteger(requestedColumns) && requestedColumns
   ? requestedColumns : TARGET_COLUMNS;
 const targetRows = Number.isSafeInteger(requestedRows) && requestedRows > 0
   ? requestedRows : TARGET_ROWS;
+// Phones and tablets (?touch=1) keep a readable text size and take the grid
+// that fits, in either orientation; never narrower than TOUCH_MIN_COLUMNS.
+const TOUCH = params.get('touch') === '1';
+const TOUCH_FONT_PX = 11;
+const TOUCH_MIN_COLUMNS = 46;
 const FONT_FAMILY = "'Kode Mono', monospace";
 let cellWidthPerPixel, cellHeightPerPixel;
 function terminalFontSize() {
+  if (TOUCH) return Math.min(TOUCH_FONT_PX, innerWidth / (TOUCH_MIN_COLUMNS * cellWidthPerPixel));
   return Math.min(innerWidth / (targetColumns * cellWidthPerPixel),
     innerHeight / (targetRows * cellHeightPerPixel));
 }
@@ -44,12 +50,60 @@ window.nu11Write = base64 => {
 function resize() {
   term.options.fontSize = terminalFontSize();
   fit.fit();
+  if (TOUCH) {
+    Android.resize(term.cols, term.rows);
+    return;
+  }
   // Leave room for FitAddon's scrollbar allowance and pixel-rounded cell metrics.
   for (let attempt = 0; attempt < 3 && (term.cols < targetColumns || term.rows < targetRows); ++attempt) {
     term.options.fontSize *= Math.min(term.cols / targetColumns, term.rows / targetRows) * 0.99;
     fit.fit();
   }
   Android.resize(term.cols, term.rows);
+}
+// Touch on phones and tablets: a tap is a left click on its cell, a
+// vertical drag turns the wheel one step per row moved, as SGR mouse
+// reports (the TUI turns mouse reporting on). The browser's own handling is
+// suppressed so a tap never focuses xterm's hidden input (no keyboard pops
+// up) and no emulated mouse click follows.
+const TAP_SLOP_PX = 10;
+function installTouch(element) {
+  let start = null, lastRow = 0, moved = false;
+  const cellAt = touch => {
+    const box = element.getBoundingClientRect();
+    const col = Math.floor((touch.clientX - box.left) / (box.width / term.cols)) + 1;
+    const row = Math.floor((touch.clientY - box.top) / (box.height / term.rows)) + 1;
+    return {col: Math.min(Math.max(col, 1), term.cols), row: Math.min(Math.max(row, 1), term.rows)};
+  };
+  const report = (button, cell, final) => Android.input('\x1b[<' + button + ';' + cell.col + ';' + cell.row + final);
+  element.addEventListener('touchstart', event => {
+    event.preventDefault();
+    if (event.touches.length !== 1) { start = null; return; }
+    const t = event.touches[0];
+    start = {x: t.clientX, y: t.clientY, cell: cellAt(t)};
+    lastRow = start.cell.row;
+    moved = false;
+  }, {passive: false});
+  element.addEventListener('touchmove', event => {
+    event.preventDefault();
+    if (!start || event.touches.length !== 1) return;
+    const t = event.touches[0];
+    if (!moved && Math.hypot(t.clientX - start.x, t.clientY - start.y) < TAP_SLOP_PX) return;
+    moved = true;
+    const row = cellAt(t).row;
+    // Content follows the finger: dragging up scrolls down.
+    for (; row < lastRow; lastRow--) report(65, start.cell, 'M');
+    for (; row > lastRow; lastRow++) report(64, start.cell, 'M');
+  }, {passive: false});
+  element.addEventListener('touchend', event => {
+    event.preventDefault();
+    if (start && !moved) {
+      report(0, start.cell, 'M');
+      report(0, start.cell, 'm');
+    }
+    start = null;
+  }, {passive: false});
+  element.addEventListener('touchcancel', () => { start = null; });
 }
 async function openTerminal() {
   // Load before measuring or opening xterm, avoiding fallback-font metrics.
@@ -76,6 +130,7 @@ async function openTerminal() {
     console.warn('WebGL unavailable; using DOM renderer', error);
   }
   window.addEventListener('resize', resize);
+  if (TOUCH) installTouch(document.getElementById('terminal'));
   resize();
   Android.ready();
 }

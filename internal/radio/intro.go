@@ -226,7 +226,7 @@ func (m Model) introRegions(zs zones) [][]rowSpan {
 	if m.quitAsk {
 		return [][]rowSpan{quitModalRows(zs, 1)}
 	}
-	full := m.width >= fullMinWidth && m.height >= fullMinHeight
+	full := m.framed()
 	var list, player, overlay []zone
 	for _, z := range zs {
 		switch z.id {

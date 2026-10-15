@@ -4,6 +4,8 @@
 
 Play Apple Music in nu11signal's terminal-style interface on your TV, using
 only the remote. Install the APK, sign in once, then browse and play.
+The same APK runs on phones and tablets; see
+[Android phones and tablets](android-phone.md).
 
 ## Requirements
 

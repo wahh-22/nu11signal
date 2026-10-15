@@ -20,6 +20,59 @@ const (
 	tinyMinHeight = 5
 )
 
+// layoutKind is the shape the screen is drawn in.
+type layoutKind int
+
+const (
+	// layoutTiny draws only the wordmark.
+	layoutTiny layoutKind = iota
+	// layoutCompact stacks everything in one column, without frames.
+	layoutCompact
+	// layoutFull puts the list panel beside NOW PLAYING.
+	layoutFull
+	// layoutTall stacks NOW PLAYING over the list panel, each as wide as
+	// the screen: a screen that is physically portrait, such as a phone
+	// held upright.
+	layoutTall
+)
+
+// tallMinHeight is the shortest screen the panels stack on: room for
+// NOW PLAYING with its spectrum and a list under it.
+const tallMinHeight = 2 * fullMinHeight
+
+// kind is the layout for the current size. A terminal cell is about twice
+// as tall as it is wide, so a screen with fewer than twice as many columns
+// as rows is physically portrait and gets the stacked layout; desktop
+// terminals and landscape screens keep the side-by-side one.
+func (m Model) kind() layoutKind {
+	w, h := m.width, m.height
+	switch {
+	case w < tinyMinWidth || h < tinyMinHeight:
+		return layoutTiny
+	case h >= tallMinHeight && w >= playerMinWidth && w < 2*h:
+		return layoutTall
+	case w < fullMinWidth || h < fullMinHeight:
+		return layoutCompact
+	}
+	return layoutFull
+}
+
+// framed reports whether the layout draws the list and NOW PLAYING as
+// framed panels (full or tall), rather than the compact single column.
+func (m Model) framed() bool {
+	k := m.kind()
+	return k == layoutFull || k == layoutTall
+}
+
+// tallPlayerHeight is the height of NOW PLAYING, frame included, in the
+// tall layout: a little over half of the body, leaving the list at least
+// tallListMin rows.
+func tallPlayerHeight(bodyH int) int { return min(bodyH*11/20, bodyH-tallListMin) }
+
+// tallListMin is the shortest list panel the tall layout leaves, frame
+// included.
+const tallListMin = 6
+
 // View renders the radio in the alternate screen.
 func (m Model) View() tea.View {
 	v := tea.NewView(m.render())
@@ -64,12 +117,12 @@ func (m Model) baseLayout() ([]string, zones) {
 	}
 	var lines []string
 	var zs zones
-	switch {
-	case w < tinyMinWidth || h < tinyMinHeight:
+	switch k := m.kind(); {
+	case k == layoutTiny:
 		lines = m.renderTiny()
 	case m.auth == authFailed && !m.shutdown:
 		lines = m.renderAuthError()
-	case w < fullMinWidth || h < fullMinHeight:
+	case k == layoutCompact:
 		lines, zs = m.renderCompact()
 	default:
 		lines, zs = m.renderFull()
@@ -131,6 +184,20 @@ func (m Model) renderFull() ([]string, zones) {
 		lines = append(lines, panel("NOW PLAYING", m.spectrumCode(), playing, w, bodyH, true)...)
 		return append(lines, m.statusLine(w), m.hintLine(w)), zs
 	}
+	if m.kind() == layoutTall {
+		// NOW PLAYING over the list, each as wide as the screen.
+		playerH := tallPlayerHeight(bodyH)
+		listH := bodyH - playerH
+		playing, playingZones := m.nowPlaying(w-2, playerH-2)
+		list, listZones := m.listPanel(w, listH)
+		zs.addBox(zonePanelPlayer, 0, top, w, playerH)
+		zs.addBox(zonePanelList, 0, top+playerH, w, listH)
+		zs.addAt(1, top+1, playingZones.clip(w-2, playerH-2))
+		zs.addAt(0, top+playerH, listZones)
+		lines = append(lines, panel("NOW PLAYING", m.spectrumCode(), playing, w, playerH, m.focus == areaPlayer)...)
+		lines = append(lines, list...)
+		return append(lines, m.statusLine(w), m.hintLine(w)), zs
+	}
 	leftW := listPanelWidthFor(w)
 	rightW := m.playerPanelWidth()
 
@@ -150,10 +217,10 @@ func (m Model) renderFull() ([]string, zones) {
 }
 
 // playerPanelWidth is the width of the NOW PLAYING panel, frame included,
-// in the full layout: the whole screen when expanded, else what the list
-// panel leaves.
+// in the full and tall layouts: the whole screen when expanded or tall,
+// else what the list panel leaves.
 func (m Model) playerPanelWidth() int {
-	if m.expanded {
+	if m.expanded || m.kind() == layoutTall {
 		return m.width
 	}
 	return m.width - listPanelWidthFor(m.width) - 1
@@ -186,10 +253,13 @@ const playerMinWidth = 30
 func listPanelWidthFor(w int) int { return max(28, min(w*9/20, 72, w-1-playerMinWidth)) }
 
 // listBodyWidth is the width listView draws in: the list panel's inside in
-// the full layout, the whole screen in the compact one.
+// the full and tall layouts, the whole screen in the compact one.
 func (m Model) listBodyWidth() int {
-	if m.width >= fullMinWidth && m.height >= fullMinHeight {
+	switch m.kind() {
+	case layoutFull:
 		return listPanelWidthFor(m.width) - 2
+	case layoutTall:
+		return m.width - 2
 	}
 	return m.width
 }

@@ -66,13 +66,16 @@ func (m Model) vizInput() vizInput {
 }
 
 // vizSize is the size of the spectrum area: the bottom of NOW PLAYING in
-// the full layout, under its controls (see nowPlaying); 0 x 0 where
-// there is none.
+// the full and tall layouts, under its controls (see nowPlaying); 0 x 0
+// where there is none.
 func (m Model) vizSize() (w, h int) {
-	if m.width < fullMinWidth || m.height < fullMinHeight || m.auth == authFailed {
+	if !m.framed() || m.auth == authFailed {
 		return 0, 0
 	}
 	ih := m.height - 6 // the panel's inside: the body less its frame
+	if m.kind() == layoutTall && !m.expanded {
+		ih = tallPlayerHeight(m.height-4) - 2
+	}
 	return m.playerPanelWidth() - 2 - 2*nowPlayingMargin, vizRows(ih, nowPlayingControlRows(m.playerPanelWidth()-2, ih))
 }
 

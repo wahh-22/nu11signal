@@ -7,7 +7,8 @@ Browsing, editing your library, local music files, every key and mouse binding, 
 This page covers desktop use on macOS and Linux. On Android TV / Google TV,
 see the [Android TV guide](android-tv.md) for installation, Apple Music
 sign-in, remote controls, the TV keyboard and background playback. Local
-files are not supported on the TV in this version.
+files are not supported on the TV in this version. On Android phones and
+tablets, see [Android phones and tablets](android-phone.md).
 
 ## Browsing the catalog
 

@@ -151,7 +151,9 @@ files are not supported in this version.
 
 Follow the [Android TV guide](android-tv.md) for checksum verification,
 remote-only installation and Apple Music sign-in, the TV keyboard,
-background playback, audio permission, updates and uninstalling.
+background playback, audio permission, updates and uninstalling. The same APK
+runs on Android phones and tablets with touch input; see
+[Android phones and tablets](android-phone.md).
 
 ## Font
 
