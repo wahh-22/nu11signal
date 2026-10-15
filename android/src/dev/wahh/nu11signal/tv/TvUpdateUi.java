@@ -81,7 +81,7 @@ final class TvUpdateUi {
         long token = state.begin();
         if (token < 0) return;
         checked = true;
-        if (explicit) progress("Checking for TV updates…");
+        if (explicit) progress("Checking for updates…");
         job = worker.submit(() -> {
             try {
                 long installed = activity.getPackageManager().getPackageInfo(activity.getPackageName(), 0)
@@ -94,7 +94,7 @@ final class TvUpdateUi {
                     offer = result;
                     if (!available()) return;
                     if (offer != null) showOffer();
-                    else if (explicit) message("No newer TV APK found", "Only stable releases containing an Android TV APK are offered.");
+                    else if (explicit) message("No newer version found", "Only stable releases containing an Android APK are offered.");
                 });
             } catch (Exception error) { failed(token, "Could not check for updates", error, explicit); }
         });
@@ -104,7 +104,7 @@ final class TvUpdateUi {
         if (!available() || visible() || offer == null) return;
         String action = downloaded == null ? "Download and install" : "Install update";
         dialog = builder("nu11signal " + offer.version + " is available")
-                .setMessage("Update this TV app. Android will ask you to confirm installation. Your Apple Music session is kept.")
+                .setMessage("Update this app. Android will ask you to confirm installation. Your Apple Music session is kept.")
                 .setPositiveButton(action, (d, which) -> { dialog = null; prepare(); })
                 .setNegativeButton("Later", (d, which) -> { dismissed = true; dialog = null; })
                 .setOnCancelListener(d -> { dismissed = true; dialog = null; }).create();
@@ -122,7 +122,7 @@ final class TvUpdateUi {
                         try { permissionPending = true; installer.openPermissionSettings(); }
                         catch (RuntimeException error) {
                             permissionPending = false;
-                            message("Settings unavailable", "Use your TV's app settings to allow installations from nu11signal, then try again.");
+                            message("Settings unavailable", "Use Android's app settings to allow installations from nu11signal, then try again.");
                         }
                     }).setNegativeButton("Cancel", (d, which) -> { dismissed = true; dialog = null; })
                     .setOnCancelListener(d -> { dismissed = true; dialog = null; }).create();
@@ -133,7 +133,7 @@ final class TvUpdateUi {
         if (token < 0) return;
         TvUpdateRelease selected = offer;
         File existing = downloaded;
-        progress(existing == null ? "Downloading TV update…" : "Verifying TV update…");
+        progress(existing == null ? "Downloading update…" : "Verifying update…");
         job = worker.submit(() -> {
             File apk = existing;
             try {
