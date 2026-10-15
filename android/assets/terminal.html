@@ -21,10 +21,11 @@ const targetColumns = Number.isSafeInteger(requestedColumns) && requestedColumns
   ? requestedColumns : TARGET_COLUMNS;
 const targetRows = Number.isSafeInteger(requestedRows) && requestedRows > 0
   ? requestedRows : TARGET_ROWS;
-// Phones and tablets (?touch=1) keep a readable text size and take the grid
-// that fits, in either orientation; never narrower than TOUCH_MIN_COLUMNS.
+// Phones and tablets (?touch=1) keep a text size large enough to read and to
+// hit with a finger, and take the grid that fits, in either orientation;
+// never narrower than TOUCH_MIN_COLUMNS.
 const TOUCH = params.get('touch') === '1';
-const TOUCH_FONT_PX = 11;
+const TOUCH_FONT_PX = 14;
 const TOUCH_MIN_COLUMNS = 46;
 const FONT_FAMILY = "'Kode Mono', monospace";
 let cellWidthPerPixel, cellHeightPerPixel;
