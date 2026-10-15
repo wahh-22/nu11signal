@@ -44,7 +44,7 @@ keeps the session.
 | Open a playlist, press a button or a tab | Tap it |
 | Scroll a list | Swipe up or down over it |
 | Search | Tap **SEARCH**; the keyboard opens, type, then press the keyboard's send key |
-| Go back | Android's Back gesture or button |
+| Go back | Android's Back gesture or button; on the playlists list, with nothing left to close, Back leaves the app like other apps and the music keeps playing |
 | Turn the screen | The layout follows: side by side in landscape, NOW PLAYING over the list in portrait |
 
 Every on-screen control accepts a tap, so the keyboard shortcuts in the hint

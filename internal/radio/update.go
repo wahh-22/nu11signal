@@ -409,7 +409,13 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.resumeOrOpenSearch()
 	case keyEsc:
 		// Back navigation for views pushed over the stations; on the
-		// stations root there is nothing to pop.
+		// stations root there is nothing to pop, which a phone reports.
+		if len(m.stack) == 1 {
+			if m.onRootBack != nil {
+				m.onRootBack()
+			}
+			return m, nil
+		}
 		m.pop()
 	case keyRetry:
 		if m.stationsFailed {

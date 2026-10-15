@@ -647,6 +647,10 @@ public class MainActivity extends Activity {
                 } else if ("levels".equals(type)) {
                     boolean on = message.getBoolean("on");
                     runOnUiThread(() -> { levelsWanted = on; updateCapture(); });
+                } else if ("background".equals(type)) {
+                    // Back found nothing left to close: a phone leaves the app
+                    // as other apps do; playback continues. A TV stays put.
+                    runOnUiThread(() -> { if (!destroyed && touchDevice) moveTaskToBack(true); });
                 } else if ("keyboard".equals(type)) {
                     boolean show = message.getBoolean("show");
                     runOnUiThread(() -> {

@@ -5,7 +5,7 @@ import "testing"
 // The TV updates by installing a newer APK, never by a desktop upgrade
 // command, so the desktop release check stays off there.
 func TestAndroidTVHasNoDesktopUpdateCheck(t *testing.T) {
-	opts := androidRadioOptions(nil, nil, false, nil)
+	opts := androidRadioOptions(nil, nil, false, nil, nil)
 	if opts.Updates != nil || opts.Upgrade != "" {
 		t.Fatalf("Updates = %v, Upgrade = %q; want no update check", opts.Updates, opts.Upgrade)
 	}

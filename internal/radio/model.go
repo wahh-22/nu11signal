@@ -22,6 +22,11 @@ type Options struct {
 	// Update. It must return immediately (for example, enqueue a notification).
 	// Nil leaves desktop behavior unchanged.
 	OnTypingChanged func(bool)
+	// OnRootBack optionally runs from Update when esc reaches the stations
+	// root with nothing left to go back to. Android phones leave the app
+	// there, as other apps do on Back. It must return immediately. Nil keeps
+	// esc on the root a no-op.
+	OnRootBack func()
 	// Now is the clock; defaults to time.Now. Tests inject a fixed clock.
 	Now func() time.Time
 	// Seed drives the decorative EQ and glitch animations.
@@ -133,6 +138,7 @@ type frame struct {
 // Model is the Bubble Tea model of the radio.
 type Model struct {
 	onTypingChanged func(bool)
+	onRootBack      func()
 	typingNotified  bool
 	player          playback.Player
 	now             func() time.Time
@@ -381,6 +387,7 @@ func New(p playback.Player, opts Options) Model {
 		searchDelay:     opts.SearchDebounce,
 		closeTimeout:    opts.CloseTimeout,
 		onTypingChanged: opts.OnTypingChanged,
+		onRootBack:      opts.OnRootBack,
 		stack:           []frame{{kind: viewStations}},
 		volumeBusy:      true, // Init reads the volume
 		fx:              effects{on: opts.Effects},
