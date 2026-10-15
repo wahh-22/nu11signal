@@ -3,6 +3,7 @@ package dev.wahh.nu11signal.tv;
 import android.app.Activity;
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.media.audiofx.Visualizer;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Canvas;
@@ -80,6 +81,8 @@ public class MainActivity extends Activity {
     private float touchX, touchY;
     private Runnable touchContinuation;
     private boolean loginShown, keyboardShown, textInputAvailable, started, centerLong, backLong;
+    // A phone or tablet (no leanback UI): touch input and an automatic keyboard.
+    private boolean touchDevice;
     private volatile boolean destroyed, startupFailed, connected, terminalVisible;
     private volatile int cols = 161, rows = 44;
     private volatile Process process;
@@ -121,8 +124,12 @@ public class MainActivity extends Activity {
         music = newMusicView();
         music.addJavascriptInterface(new MusicBridge(), "NU11");
         root.addView(music, fill());
+        touchDevice = !isTelevision();
         terminal = new WebView(this);
         terminal.setBackgroundColor(0xff000000);
+        // On a touch device a tap is mouse input to the TUI (terminal.html);
+        // it must not take focus from the keyboard while typing.
+        if (touchDevice) terminal.setFocusableInTouchMode(false);
         terminal.getSettings().setJavaScriptEnabled(true);
         terminal.getSettings().setAllowFileAccess(false);
         terminal.getSettings().setAllowContentAccess(false);
@@ -212,15 +219,20 @@ public class MainActivity extends Activity {
         pointer.setVisibility(View.GONE);
         root.addView(pointer, fill());
         pointerHint = new TextView(this);
-        pointerHint.setText("Arrows move the pointer · OK selects · Back returns to nu11signal");
+        pointerHint.setText(touchDevice
+                ? "Tap Sign In at the top right of the page · Back returns to nu11signal"
+                : "Arrows move the pointer · OK selects · Back returns to nu11signal");
         pointerHint.setTextColor(0xffffffff);
         pointerHint.setTextSize(20);
         pointerHint.setBackgroundColor(0xb3000000);
         pointerHint.setPadding((int) dp(12), (int) dp(6), (int) dp(12), (int) dp(6));
         pointerHint.setFocusable(false);
         pointerHint.setVisibility(View.GONE);
+        // On a touch device the hint sits at the bottom: at the top it covers
+        // Apple's Sign In button, which the user taps directly.
         root.addView(pointerHint, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                (touchDevice ? Gravity.BOTTOM : Gravity.TOP) | Gravity.CENTER_HORIZONTAL));
         loginGuide = new LinearLayout(this);
         loginGuide.setOrientation(LinearLayout.VERTICAL);
         loginGuide.setGravity(Gravity.CENTER_VERTICAL);
@@ -260,11 +272,20 @@ public class MainActivity extends Activity {
         });
         updateMusicLayout();
         music.loadUrl("https://music.apple.com/");
-        terminal.loadUrl("file:///android_asset/terminal.html");
+        // A TV fits the desktop's 161x44 grid to the screen; a phone or
+        // tablet keeps a readable text size and takes the grid that fits.
+        terminal.loadUrl("file:///android_asset/terminal.html" + (touchDevice ? "?touch=1" : ""));
         terminal.requestFocus();
         updates = new TvUpdateUi(this, () -> started && !destroyed && !loginShown
                 && popup == null && !guideVisible()
                 && TvUpdateState.inputIdle(keyboardShown, keyboardAfterSearch));
+    }
+
+    /** True on a TV (leanback UI); phones and tablets are touch devices. */
+    private boolean isTelevision() {
+        android.app.UiModeManager ui = getSystemService(android.app.UiModeManager.class);
+        return (ui != null && ui.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION)
+                || getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK);
     }
 
     private void addGuideText(String text, int size) {
@@ -384,14 +405,15 @@ public class MainActivity extends Activity {
             loginConfirmation.setVisibility(View.GONE);
         }
         if (!show) loginGuide.setVisibility(View.GONE);
-        if (entering) {
+        if (entering && !touchDevice) {
+            // A phone or tablet touches Apple's page directly: no guide, no pointer.
             loginGuide.setVisibility(View.VISIBLE);
             centerLong = false;
             pointerX = root.getWidth() / 2f;
             pointerY = root.getHeight() / 2f;
             pointer.invalidate();
         }
-        pointer.setVisibility(show && !guideVisible() ? View.VISIBLE : View.GONE);
+        pointer.setVisibility(show && !guideVisible() && !touchDevice ? View.VISIBLE : View.GONE);
         pointerHint.setVisibility(show && !guideVisible() ? View.VISIBLE : View.GONE);
         raisePointer();
         updateMusicLayout();
@@ -629,10 +651,11 @@ public class MainActivity extends Activity {
                     boolean show = message.getBoolean("show");
                     runOnUiThread(() -> {
                         if (destroyed) return;
-                        // This is TUI input availability, not an IME-open request.
+                        // This is TUI input availability, not an IME-open request,
+                        // except on a touch device, which has no OK key to ask.
                         textInputAvailable = show;
                         if (!show) setKeyboard(false);
-                        else if (keyboardAfterSearch) {
+                        else if (touchDevice || keyboardAfterSearch) {
                             keyboardAfterSearch = false;
                             setKeyboard(true);
                         }
