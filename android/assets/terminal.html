@@ -70,7 +70,9 @@ const TAP_SLOP_PX = 10;
 function installTouch(element) {
   let start = null, lastRow = 0, moved = false;
   const cellAt = touch => {
-    const box = element.getBoundingClientRect();
+    // Measure xterm's cell grid, not the container: fitting leaves a
+    // fraction of a cell of slack that would shift taps near the far edges.
+    const box = (element.querySelector('.xterm-screen') || element).getBoundingClientRect();
     const col = Math.floor((touch.clientX - box.left) / (box.width / term.cols)) + 1;
     const row = Math.floor((touch.clientY - box.top) / (box.height / term.rows)) + 1;
     return {col: Math.min(Math.max(col, 1), term.cols), row: Math.min(Math.max(row, 1), term.rows)};
