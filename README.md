@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/wahh-22/nu11signal/releases/latest"><img src="https://img.shields.io/github/v/release/wahh-22/nu11signal?style=for-the-badge&labelColor=0A0A0A&color=FF5F57" alt="Latest release"></a>
-  <a href="docs/install.md"><img src="https://img.shields.io/badge/macOS%2014%2B%20%C2%B7%20Linux-5EF6FF?style=for-the-badge&labelColor=0A0A0A" alt="macOS 14 or later, and Linux"></a>
+  <a href="docs/install.md"><img src="https://img.shields.io/badge/macOS%2014%2B%20%C2%B7%20Linux%20%C2%B7%20Android-5EF6FF?style=for-the-badge&labelColor=0A0A0A" alt="macOS 14 or later, Linux, and Android"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/brew-wahh--22%2Ftap-FCEE0A?style=for-the-badge&labelColor=0A0A0A&logo=homebrew&logoColor=FCEE0A" alt="Homebrew cask wahh-22/tap/nu11signal"></a>
   <a href="https://github.com/wahh-22/nu11signal/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/wahh-22/nu11signal/ci.yml?branch=main&style=for-the-badge&labelColor=0A0A0A&label=CI" alt="CI status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/wahh-22/nu11signal?style=for-the-badge&labelColor=0A0A0A&color=FF5F57" alt="MIT license"></a>
@@ -45,13 +45,19 @@
   <img src="docs/assets/demo/overview.gif" width="900" alt="nu11signal in action: launching from the shell, the boot splash, opening a playlist, playing a song, and the data rain reacting to the music">
 </p>
 
-> macOS and Linux. Apple Music needs a subscription; Linux support is experimental and uses Apple's web player in a hidden Chrome or Chromium with Widevine. Local files work on both. Not affiliated with Apple.
+> macOS, Linux and Android (TV, phones and tablets). Apple Music needs a subscription; Linux support is experimental and uses Apple's web player in a hidden Chrome or Chromium with Widevine. Local files work on macOS and Linux. Not affiliated with Apple.
 
 ## What it does
 
 - **Apple Music in the terminal.** On macOS it plays through a tiny windowless MusicKit helper (near 0% CPU), not a browser or the Music app. On Linux (experimental), it uses Apple's web player in a hidden Chrome or Chromium with Widevine, a heavier backend. [Architecture →](docs/architecture.md) · [Linux setup →](docs/usage.md#apple-music-on-linux-experimental)
 - **Your own music files.** mp3, flac, ogg and wav from `~/Music` play beside Apple Music on macOS and Linux, or on their own without a browser. [Local files →](docs/usage.md#local-files)
+- **On your TV, phone or tablet.** One Android APK: the remote on Android TV and Google TV; taps, swipes and a portrait layout on phones and tablets; playback continues in the background. [Android TV →](docs/android-tv.md) · [Phones and tablets →](docs/android-phone.md)
 - **Search and browse the catalog.** Live suggestions, artists, albums and playlists; love songs and edit playlists on the way. [Browsing →](docs/usage.md#browsing-the-catalog)
+
+<p align="center">
+  <img width="74%" src="docs/assets/demo/android-tv.gif" alt="nu11signal on Android TV: the playlists, opening COLDPLAY with the remote, a song playing and the data rain reacting to it">
+  <img width="24%" src="docs/assets/demo/android-phone.gif" alt="nu11signal on a phone held upright: NOW PLAYING over the list, opening a playlist, a song playing and the data rain">
+</p>
 
 <img width="100%" src="docs/assets/demo/search.gif" alt="SEARCH in action: recent searches, live suggestions while typing, then an artist page with its top songs, albums and playlists, and a song playing">
 
@@ -78,6 +84,11 @@ Linux (x86_64 or ARM64, Apple Music experimental and local files), with [Homebre
 brew install wahh-22/tap/nu11signal
 ```
 
+Android 9+ (TV, phones and tablets): download `nu11signal-tv-<version>.apk` from
+[Releases](https://github.com/wahh-22/nu11signal/releases) and install it; later
+versions are offered inside the app. See [Android TV](docs/android-tv.md) and
+[Android phones and tablets](docs/android-phone.md).
+
 Release archives, the Kode Mono font the UI is designed with, and building
 from source are covered in [Install](docs/install.md) and
 [Building from source](docs/building.md).
@@ -89,7 +100,7 @@ from source are covered in [Install](docs/install.md) and
 | [Install](docs/install.md) | Homebrew (cask and formula), release archives, Linux, the Kode Mono font |
 | [Usage](docs/usage.md) | The catalog, the library, local files, keys, mouse, settings, update check |
 | [Android TV](docs/android-tv.md) | Sideloading, remote sign-in, TV keyboard and controls, audio permission, background playback, updates |
-| [Android phones and tablets](docs/android-phone.md) | Installing the same APK on a phone, touch sign-in, taps and swipes, portrait layout |
+| [Android phones and tablets](docs/android-phone.md) | Installing the same APK on a phone, touch sign-in, taps and swipes, portrait layout, Back |
 | [Signal effects and rain](docs/effects.md) | Glitches, boot and shutdown splashes, intros, the rain |
 | [App volume and spectrum](docs/audio.md) | The independent `VOL` and the live spectrum |
 | [Architecture](docs/architecture.md) | Go UI, Swift helper, Linux web player, JSON lines protocol |
