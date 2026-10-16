@@ -7,6 +7,8 @@ only the remote. Install the APK, sign in once, then browse and play.
 The same APK runs on phones and tablets; see
 [Android phones and tablets](android-phone.md).
 
+<img width="100%" src="assets/demo/android-tv.gif" alt="nu11signal on Android TV: the playlists, opening COLDPLAY with the remote, a song playing and the data rain reacting to it">
+
 ## Requirements
 
 - An Android TV or Google TV device running **Android 9 or later** (API 28+).

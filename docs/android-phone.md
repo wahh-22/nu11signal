@@ -8,6 +8,8 @@ taps and swipes replace the remote, and the phone keyboard opens for search.
 This page covers what differs from the [Android TV guide](android-tv.md);
 everything else there applies as written.
 
+<p align="center"><img width="320" src="assets/demo/android-phone.gif" alt="nu11signal on a phone held upright: NOW PLAYING over the list, opening a playlist, a song playing and the data rain"></p>
+
 ## Requirements
 
 - An Android phone or tablet running **Android 9 or later** (API 28+).

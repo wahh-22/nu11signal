@@ -54,6 +54,11 @@
 - **On your TV, phone or tablet.** One Android APK: the remote on Android TV and Google TV; taps, swipes and a portrait layout on phones and tablets; playback continues in the background. [Android TV →](docs/android-tv.md) · [Phones and tablets →](docs/android-phone.md)
 - **Search and browse the catalog.** Live suggestions, artists, albums and playlists; love songs and edit playlists on the way. [Browsing →](docs/usage.md#browsing-the-catalog)
 
+<p align="center">
+  <img width="74%" src="docs/assets/demo/android-tv.gif" alt="nu11signal on Android TV: the playlists, opening COLDPLAY with the remote, a song playing and the data rain reacting to it">
+  <img width="24%" src="docs/assets/demo/android-phone.gif" alt="nu11signal on a phone held upright: NOW PLAYING over the list, opening a playlist, a song playing and the data rain">
+</p>
+
 <img width="100%" src="docs/assets/demo/search.gif" alt="SEARCH in action: recent searches, live suggestions while typing, then an artist page with its top songs, albums and playlists, and a song playing">
 
 ## Themes and keys
