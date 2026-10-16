@@ -61,13 +61,42 @@ func androidTypingHook(ctx context.Context, bridge *webplayer.Bridge) func(bool)
 	}
 }
 
+// androidRootBackHook asks the app to leave when Back finds nothing left to
+// close; MainActivity moves a phone's task to the background and ignores it
+// on a TV. Requests coalesce, so the UI never waits for the socket.
+func androidRootBackHook(ctx context.Context, bridge *webplayer.Bridge) func() {
+	requests := make(chan struct{}, 1)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-requests:
+				sendCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				err := bridge.Send(sendCtx, webplayer.BridgeMessage{Type: "background"})
+				cancel()
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+	return func() {
+		select {
+		case requests <- struct{}{}:
+		default:
+		}
+	}
+}
+
 // androidRadioOptions keeps slower search timing out of ordinary player calls.
 // The TV updates by installing a newer APK (docs/android-tv.md), so it gets
 // no update check: the desktop release check would compare the APK with
 // desktop releases and offer a desktop upgrade command.
-func androidRadioOptions(recents history.Recents, settings config.Source, calm bool, typing func(bool)) radio.Options {
+func androidRadioOptions(recents history.Recents, settings config.Source, calm bool, typing func(bool), rootBack func()) radio.Options {
 	return radio.Options{
 		OnTypingChanged: typing,
+		OnRootBack:      rootBack,
 		SearchTimeout:   androidtv.SearchTimeout,
 		SearchDebounce:  androidtv.SearchDebounce,
 		Seed:            uint64(time.Now().UnixNano()),
@@ -167,7 +196,7 @@ func playAndroidTV(socket string, calm bool, d deps) error {
 			return err
 		}
 		handedOver = true
-		next <- radio.New(p, androidRadioOptions(recents, settings, calm, androidTypingHook(loginCtx, r.Bridge)))
+		next <- radio.New(p, androidRadioOptions(recents, settings, calm, androidTypingHook(loginCtx, r.Bridge), androidRootBackHook(loginCtx, r.Bridge)))
 		err := <-ui
 		stop()
 		if loginErr := <-signedIn; loginErr != nil && !errors.Is(loginErr, context.Canceled) {

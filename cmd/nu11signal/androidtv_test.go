@@ -17,7 +17,7 @@ import (
 )
 
 func TestAndroidTVSearchTiming(t *testing.T) {
-	opts := androidRadioOptions(nil, nil, true, nil)
+	opts := androidRadioOptions(nil, nil, true, nil, nil)
 	if opts.SearchTimeout != 45*time.Second || opts.SearchDebounce != 750*time.Millisecond || opts.CallTimeout != 0 {
 		t.Fatalf("app search timing = %+v", opts)
 	}
@@ -43,6 +43,33 @@ func TestAndroidTVTypingSendsKeyboard(t *testing.T) {
 			t.Fatal(err)
 		}
 		if msg.Type != "keyboard" || msg.Show != show {
+			t.Fatalf("message = %+v", msg)
+		}
+	}
+}
+
+// A Back with nothing left to close asks the app to leave, as other phone
+// apps do; MainActivity ignores it on a TV.
+func TestAndroidRootBackSendsBackground(t *testing.T) {
+	goSide, app := net.Pipe()
+	bridge := webplayer.NewBridge(goSide, nil)
+	defer bridge.Close()
+	defer app.Close()
+	app.SetDeadline(time.Now().Add(3 * time.Second))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	opts := androidRadioOptions(nil, nil, true, nil, androidRootBackHook(ctx, bridge))
+	if opts.OnRootBack == nil {
+		t.Fatal("Android options leave OnRootBack unset")
+	}
+	dec := json.NewDecoder(app)
+	for range 2 {
+		opts.OnRootBack()
+		var msg webplayer.BridgeMessage
+		if err := dec.Decode(&msg); err != nil {
+			t.Fatal(err)
+		}
+		if msg.Type != "background" {
 			t.Fatalf("message = %+v", msg)
 		}
 	}
