@@ -2,7 +2,7 @@
 
 [← Back to the README](../README.md) · [Documentation index](../README.md#documentation)
 
-Install a signed, notarized macOS build, a Linux build, or the Android TV APK. For desktop terminals, set up the font the UI is designed with. To build from source instead, see [Building from source](building.md).
+Install a signed, notarized macOS build, a Linux build, or the Android APK for TV, phones and tablets. For desktop terminals, set up the font the UI is designed with. To build from source instead, see [Building from source](building.md).
 
 ## Download
 
