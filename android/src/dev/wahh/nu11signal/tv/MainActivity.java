@@ -650,7 +650,7 @@ public class MainActivity extends Activity {
                 } else if ("background".equals(type)) {
                     // Back found nothing left to close: a phone leaves the app
                     // as other apps do; playback continues. A TV stays put.
-                    runOnUiThread(() -> { if (!destroyed && touchDevice) moveTaskToBack(true); });
+                    runOnUiThread(() -> { if (mayLeaveOnBack()) moveTaskToBack(true); });
                 } else if ("keyboard".equals(type)) {
                     boolean show = message.getBoolean("show");
                     runOnUiThread(() -> {
@@ -1083,6 +1083,13 @@ public class MainActivity extends Activity {
         // Let system volume/power keys through, but never deliver raw keys to xterm.
         return key == KeyEvent.KEYCODE_VOLUME_UP || key == KeyEvent.KEYCODE_VOLUME_DOWN || key == KeyEvent.KEYCODE_VOLUME_MUTE
                 ? super.dispatchKeyEvent(event) : true;
+    }
+
+    /** The request arrives a moment after Back, from the TUI: by then a sign-in
+     * page, popup or dialog (such as an update offer) may have opened, or the
+     * app may have left the front. Leave only from the plain terminal. */
+    private boolean mayLeaveOnBack() {
+        return touchDevice && !destroyed && hasWindowFocus() && !loginShown && popup == null;
     }
 
     @Override public void onBackPressed() {
